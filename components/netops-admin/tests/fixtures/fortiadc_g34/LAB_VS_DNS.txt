@@ -1,0 +1,25 @@
+FortiADC-KVM #
+FortiADC-KVM # vdom name is root
+	virtual-server: LAB_VS_DNS, availability:HEALTHY
+		APP Response: 0
+		Client RTT: 0
+		Concurrent Connections: 0
+		Inbound Throughput: 0
+		Outbound Throughput: 0
+		Requests: 0
+		Server RTT: 0
+		real-server-pool: LAB_POOL_DNS
+		id:1, hc_state: UP, last-state-change-time: 2026-11-18 01:24:13
+			APP Response: 0
+			Concurrent Connections: 0
+			Inbound Throughput: 0
+			Outbound Throughput: 0
+			Requests: 0
+			Server RTT: 0
+		id:2, hc_state: UP, last-state-change-time: 2026-11-18 01:24:13
+			APP Response: 0
+			Concurrent Connections: 0
+			Inbound Throughput: 0
+			Outbound Throughput: 0
+			Requests: 0
+			Server RTT: 0

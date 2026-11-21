@@ -29,7 +29,7 @@ from netops_helper.read_policy import READ_QUERIES
 
 
 TEST_ADDRESS = str(ipaddress.IPv4Address((192 << 24) | (2 << 8) | 20))
-HOST_KEY_BLOB = b64encode(b"offered-host-key-material").decode("ascii")
+HOST_KEY_BLOB = b64encode(b"\0\0\0\x0bssh-ed25519\0\0\0\x20" + bytes(range(32))).decode("ascii")
 HOST_KEY_PIN = fingerprint_of(HOST_KEY_BLOB)
 PRIVATE_KEY = "-----BEGIN OPENSSH PRIVATE KEY-----\n" + "replace-me\n" * 4 + "-----END OPENSSH PRIVATE KEY-----\n"
 
@@ -67,6 +67,7 @@ class FakeSshResult:
     def __init__(self, rc: int = 0, stdout: bytes = b"") -> None:
         self.rc = rc
         self.stdout = stdout
+        self.stderr = b""
         self.said = ""
         self.started_at = "2026-09-17T08:00:00Z"
         self.finished_at = "2026-09-17T08:00:01Z"
@@ -100,6 +101,7 @@ def auth(
         login="reader",
         secret=secret,
         host_key_fingerprint=HOST_KEY_PIN,
+        host_key="ssh-ed25519 " + HOST_KEY_BLOB,
         credential_kind=credential_kind,
         sftp_roots=("/safe",),
         read_inventory={"interfaces": ("port3",)},
@@ -165,7 +167,7 @@ def test_exec_read_scans_and_connects_to_the_resolved_address(monkeypatch) -> No
             AssertionError("the exec transport opens no socket of its own")
         ),
     )
-    assert engine.read_from_device(named, "fortinet", "get system status") == (0, "answer")
+    assert engine.read_from_device(named, "linux", "hostname") == (0, "answer")
     assert scanned == [(TEST_ADDRESS, 22, HOST_KEY_PIN, engine._HOST_KEY_SCAN_TIMEOUT_SECONDS)]
     assert [call["host"] for call in captured] == [TEST_ADDRESS]
     assert captured[0]["host_key_line"] == HOST_KEY_LINE
@@ -249,10 +251,10 @@ def test_a_populated_platform_preamble_is_still_sent_before_the_query(monkeypatc
     monkeypatch.setattr(
         engine.core_ssh, "run_command", recording_run_command(captured),
     )
-    monkeypatch.setattr(engine, "_PLATFORM_PREAMBLE", {"fortinet": ("terminal length 0",)})
-    engine.read_from_device(auth(), "fortinet", "get system status")
+    monkeypatch.setattr(engine, "_PLATFORM_PREAMBLE", {"extreme_exos": ("terminal length 0",)})
+    engine.read_from_device(auth(), "extreme_exos", "show version")
     assert [call["command"] for call in captured] == [
-        "terminal length 0", "get system status",
+        "terminal length 0", "show version",
     ]
     assert {call["host_key_line"] for call in captured} == {HOST_KEY_LINE}
 
@@ -271,9 +273,8 @@ def test_transport_table_matches_the_canonical_authority() -> None:
 @pytest.mark.parametrize(
     "platform",
     (
-        "linux", "fortinet", "extreme_exos", "cisco_ios", "cisco_xe", "cisco_nxos",
+        "linux", "extreme_exos", "cisco_ios", "cisco_xe", "cisco_nxos",
         "arista_eos", "juniper_junos", "juniper_junos_els",
-        "fortiadc",
     ),
 )
 def test_every_exec_platform_sends_only_its_preamble_and_the_query(
@@ -718,7 +719,7 @@ def test_the_host_key_scan_gets_the_profile_of_the_target(monkeypatch) -> None:
     engine._HOST_KEY_LINE_CACHE.clear()
     for profile in (None, "rsa-sha1", "rsa-sha1-dh14"):
         with pytest.raises(AuthenticationContextError):
-            engine.host_key_line(auth(legacy_ssh=profile))
+            engine.host_key_line(auth(legacy_ssh=profile), platform="linux")
     assert seen == [None, "rsa-sha1", "rsa-sha1-dh14"]
 
 
@@ -871,6 +872,7 @@ def test_sftp_stat_runs_the_hardened_client_with_a_root_resolving_batch(
     import hashlib
 
     calls = _fake_sftp(tmp_path, monkeypatch)
+    monkeypatch.setattr(engine.core_hostkey, "scan", lambda *a, **k: pytest.fail("Fortinet SFTP scanned its pin"))
     result = asyncio.run(engine.sftp_stat(auth(), "/safe/log"))
     assert result == {
         "ok": True,
@@ -882,7 +884,7 @@ def test_sftp_stat_runs_the_hardened_client_with_a_root_resolving_batch(
         "modified_ls": "Sep 10 02:26",
     }
 
-    call = calls()[-1]
+    call, = calls()
     assert call["argv"][:2] == ["-F", "/dev/null"]
     assert "-b" not in call["argv"]
     assert call["batch"] == (
@@ -1081,7 +1083,7 @@ def test_the_matching_pin_becomes_the_known_hosts_line_of_that_call(monkeypatch)
 def test_the_pin_is_read_with_one_keyscan_of_the_enrolled_address(monkeypatch) -> None:
     scanned: list = []
     monkeypatch.setattr(engine.core_hostkey, "scan", offered_scan(scanned))
-    engine.host_key_line(auth())
+    engine.host_key_line(auth(), platform="linux")
     assert scanned == [(TEST_ADDRESS, 22, HOST_KEY_PIN, engine._HOST_KEY_SCAN_TIMEOUT_SECONDS)]
 
     outside = replace(
@@ -1093,7 +1095,7 @@ def test_the_pin_is_read_with_one_keyscan_of_the_enrolled_address(monkeypatch) -
     )
     scanned.clear()
     with pytest.raises(EgressScopeError):
-        engine.host_key_line(outside)
+        engine.host_key_line(outside, platform="linux")
     assert scanned == []
 
 
@@ -1121,7 +1123,7 @@ def test_unreachable_host_key_probe_names_the_target_without_the_key(monkeypatch
         engine.core_hostkey, "scan", refusing_scan("cannot read the host key (OSError)"),
     )
     with pytest.raises(AuthenticationContextError) as failure:
-        engine.host_key_line(auth())
+        engine.host_key_line(auth(), platform="linux")
     assert '"device-a"' in str(failure.value)
     assert "did not offer the pinned SSH host key" in str(failure.value)
 

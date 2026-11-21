@@ -8,6 +8,9 @@ import threading
 from .read_policy import _canonical_fortios_interface
 
 RECIPES = frozenset({"ping", "traceroute", "sniffer", "sessions", "flow", "logs"})
+# Tested identities (G00, decision of 2026-11-17): these lists name the (model, version, build) each part of the
+# recipes was tested on. They are not gates: on another identity the recipe runs and firmware_support() reports it
+# as untested with a warning. Only the range syntax of a filter differs by version (T3, filter_range_repeats).
 IDENTITIES = frozenset({
     ("FortiGate-VM64", "8.0.2", "0251"),
     ("FortiGate-VM64-KVM", "7.6.7", "3704"),
@@ -19,14 +22,46 @@ TUPLE_IDENTITIES = frozenset({
     ("FortiGate-60F", "7.6.8", "3744"),
     ("FortiGate-80F", "8.0.2", "0251"),
 })
+# The 60F 7.6.8 needs a single filter value as a range `value value`; the 80F 8.0.2 does not (probe 2026-11-09).
 RANGE_TUPLE_IDENTITIES = frozenset({("FortiGate-60F", "7.6.8", "3744")})
-# IP prefix operands: existing 60F range grammar and the 80F probe of 2026-11-09.
+# IP prefix operands: tested with the 60F range grammar and the 80F probe of 2026-11-09.
 PREFIX_RANGE_IDENTITIES = RANGE_TUPLE_IDENTITIES | frozenset({("FortiGate-80F", "8.0.2", "0251")})
 TIMESTAMP_IDENTITIES = frozenset({
     ("FortiGate-VM64", "8.0.2", "0251"),
     ("FortiGate-60F", "7.6.8", "3744"),
     ("FortiGate-80F", "8.0.2", "0251"),
 })
+# G09 (FP-03, FP-04, FOS-P05): measured on the lab FortiGate-60F 7.6.8 b3744 on 2026-11-17 (task 449) with a
+# read-only account. Tested parts like the lists above, not gates: elsewhere they run with an untested warning.
+G09_IDENTITIES = frozenset({("FortiGate-60F", "7.6.8", "3744")})
+# Recipes measured without a tuple on identities outside IDENTITIES (FP-03). On the 60F 7.6.8 `execute log display`
+# advances the session's log filter (start-line, an empty Filter line); a new session shows the filter as before,
+# so the logs recipe verifies it through its reconnect, as built.
+RECIPE_IDENTITIES = {"ping": G09_IDENTITIES, "traceroute": G09_IDENTITIES, "logs": G09_IDENTITIES,
+                     "sessions": G09_IDENTITIES}
+# ping and traceroute: an IPv6 target (ping6 / tracert6), a DNS name target and an explicit IPv4 source address.
+PROBE_RECIPES = frozenset({"ping", "traceroute"})
+IPV6_TARGET_IDENTITIES = G09_IDENTITIES
+NAME_TARGET_IDENTITIES = G09_IDENTITIES
+SOURCE_IDENTITIES = G09_IDENTITIES
+# G10 (FP-01, FP-05, FP-06): measured on the lab FortiGate-60F 7.6.8 b3744 on 2026-11-17 (task 471) with a read-only
+# account: a log category with subtype/srcip/action fields, a session filter by source, destination port or policy,
+# and sniffer filters by host, port and ARP, also on the interface any. Tested parts, not gates, as above.
+G10_IDENTITIES = frozenset({("FortiGate-60F", "7.6.8", "3744")})
+# FP-01: `execute log filter category <name>` and `execute log filter field <name> <value>`. Measured on the 60F: the
+# filter lives in the SSH session only (a parallel and a later session read the filter as before), a new category
+# drops the fields set before it, and view-lines takes 5-1000. Task 471-r3: `field subtype sdwan` and `field policyid
+# <n>` (traffic) shown as `( subtype "sdwan" )` and `( policyid "5" )`, measured on the same 60F.
+LOG_CATEGORIES = ("traffic", "event", "utm-virus", "utm-webfilter", "utm-ips")
+LOG_SUBTYPES = {"event": ("system", "vpn", "ha", "router", "user", "sdwan")}
+LOG_ACTIONS = {"traffic": ("deny",)}
+LOG_POLICY_CATEGORIES = ("traffic",)
+LOG_TERM = re.compile(r'\( ([a-z]+) "([^"\\]*)" \)')
+LOG_SEARCHED = re.compile(r"(?m)^(\d{1,3}(?:\.\d)?)% of logs has been searched\.[ \t\r]*$")
+# FP-06: sniffer filters besides `host <address> and icmp` and the TCP/UDP tuple; printed with verbosity 4 (the
+# interface name in every line, needed on the interface any).
+SNIFFER_FILTERS = ("icmp", "host", "port", "arp")
+SNIFFER_ANY = "any"
 REFUSAL = re.compile(r"(?mi)^(?:Command fail\.|command parse error|Unknown action|Permission denied)")
 SESSION_FIELDS = frozenset({
     "vd", "sintf", "dintf", "proto", "proto-state", "source ip", "NAT'd source ip",
@@ -51,11 +86,15 @@ LOG_FILTER_FIELDS = frozenset({
 
 
 class UnsupportedPlatform(ValueError):
-    pass
+    """A real scope limit (VDOM, product kind); never a version or build (G00 H19)."""
 
 
 class ScopeRefused(ValueError):
     pass
+
+
+class SourceNotLocal(ValueError):
+    """An enrolled probe source is absent from the FortiGate's local addresses."""
 
 
 class OptionRefused(ValueError):
@@ -66,6 +105,7 @@ REFUSABLE_OPTIONS = {
     "interface": "be bound to the enrolled interface",
     "device": "be bound to the enrolled interface",
     "source": "use the automatic source address",
+    "source6": "use the automatic source address",
 }
 
 
@@ -119,6 +159,99 @@ class StepRefused(ValueError):
         self.output = output
 
 
+# A version record that is safe to compare and to show (ASCII digits, bounded): every model and build may run
+# since G00, so a malformed or oversized record is refused as an unreadable identity instead.
+_WELL_FORMED = (re.compile(r"[A-Za-z0-9_.+-]{1,64}"), re.compile(r"[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,4}"),
+                re.compile(r"[0-9]{4,6}"))
+
+
+def well_formed(identity):
+    return (isinstance(identity, tuple) and len(identity) == 3 and all(isinstance(part, str) for part in identity)
+            and all(pattern.fullmatch(part) for pattern, part in zip(_WELL_FORMED, identity)))
+
+
+def firmware_support(identity, recipe, *, tuple_given=False, prefix_given=False, timestamped=False, address=None,
+                     source_given=False, filter_part=None):
+    """firmware_support (netops_core.tested) of one recipe run: tested only when every part it uses was tested on
+    this identity (the tuple, a prefix operand, timestamped flow trace lines, an IPv6 or DNS name target, an explicit
+    source address, a G10 filter named by filter_part); never a refusal."""
+    if filter_part is not None:
+        tested = G10_IDENTITIES
+    else:
+        tested = TUPLE_IDENTITIES if tuple_given else IDENTITIES | RECIPE_IDENTITIES.get(recipe, frozenset())
+    target = probe_target(address) if recipe in PROBE_RECIPES and address is not None else 4
+    if prefix_given:
+        tested = tested & PREFIX_RANGE_IDENTITIES
+    if timestamped:
+        tested = tested & TIMESTAMP_IDENTITIES
+    if target == 6:
+        tested = tested & IPV6_TARGET_IDENTITIES
+    if target == "name":
+        tested = tested & NAME_TARGET_IDENTITIES
+    if source_given:
+        tested = tested & SOURCE_IDENTITIES
+    parts = [part for part, used in (("a TCP or UDP tuple", tuple_given), ("a prefix filter", prefix_given),
+                                    ("console timestamps", timestamped), ("an IPv6 target", target == 6),
+                                    ("a DNS name target", target == "name"),
+                                    ("an explicit source address", source_given),
+                                    (filter_part, filter_part is not None)) if used]
+    function = "fortios_diagnostics " + recipe + (" with " + " and ".join(parts) if parts else "")
+    return fortios_support(identity, tested, function)
+
+
+def fortios_support(identity, tested, function):
+    """firmware_support of a FortiOS (model, version, build) against tested identities of the same shape."""
+    from netops_core import tested as tested_versions
+
+    def shown(item):
+        return item[1] + " build" + item[2]
+
+    return tested_versions.support("FortiOS", shown(identity), sorted((item[0], shown(item)) for item in tested),
+                                   model=identity[0], function=function)
+
+
+def session_partial(recipe, source_address=None, source_port=None, destination_port=None, protocol=None,
+                    policy_id=None, any_source_port=False):
+    """FP-05: a sessions filter without the whole tuple: source address, destination port and/or policy, no protocol
+    or source port (`diagnose sys session filter src|dport|policy`)."""
+    return (recipe == "sessions" and source_port is None and protocol is None and not any_source_port
+            and any(value is not None for value in (source_address, destination_port, policy_id)))
+
+
+def filter_part(recipe, interface, *, log_category=None, partial=False, sniffer_filter=None, policy_id=None):
+    """The G10 part a run uses, as firmware_support names it, or None."""
+    if recipe == "logs" and log_category is not None:
+        return "a log category filter"
+    if partial or (recipe == "sessions" and policy_id is not None):
+        return "a session filter by source, destination port or policy"
+    if recipe == "sniffer" and (sniffer_filter not in (None, "icmp") or interface == SNIFFER_ANY):
+        return "a host, port or ARP sniffer filter or the interface any"
+    return None
+
+
+def sniffer_selector(address, sniffer_filter, destination_port=None, protocol=None):
+    """FP-06: the sniffer expression of a host, port or ARP filter (measured on the 60F 7.6.8)."""
+    parts = ["arp"] if sniffer_filter == "arp" else []
+    if address:
+        parts.append("host " + address)
+    if sniffer_filter == "port":
+        parts.append({6: "tcp ", 17: "udp "}.get(protocol, "") + "port " + str(destination_port))
+    return " and ".join(parts)
+
+
+def filter_range_repeats(identity):
+    """T3: the syntax variant of a single value in a session or flow filter tuple, chosen by the major version.
+
+    Measured: the 60F 7.6.8 b3744 takes a single address or port as the range `value value`, the 80F 8.0.2 b0251
+    takes `value`. FortiOS 7.x and older use the 7.6.8 form, 8.x and newer the 8.0.2 form; a refused form is still
+    caught as a device refusal (REFUSAL) and the filter is cleared as before.
+    """
+    if identity in RANGE_TUPLE_IDENTITIES:
+        return True
+    major = identity[1].split(".", 1)[0]
+    return major.isdigit() and int(major) < 8
+
+
 def status_identity(text):
     from .schema_read import CURRENT_VDOM
     from netops_core import platforms
@@ -129,6 +262,10 @@ def status_identity(text):
         identity = platforms.version_record(text)
     except platforms.VersionRecordError:
         raise ValueError("one exact diagnostic identity is required") from None
+    if not well_formed(identity):
+        raise ValueError("one exact diagnostic identity is required")
+    if not identity[0].startswith(platforms.PRODUCT_HARDWARE["fortios"]):
+        raise UnsupportedPlatform("config_platform_not_supported: the target is not a FortiOS product")
     versions = [line for line in text.splitlines()
                 if line.lstrip().casefold().startswith("version:")]
     domains = [value.strip() for value in CURRENT_VDOM.findall(text)]
@@ -146,15 +283,45 @@ def status_identity(text):
     return identity, domains[0], mode
 
 
-def _unicast_ipv4(address):
+def _unicast_ipv4(address, message="a canonical unicast IPv4 address is required"):
     if not isinstance(address, str):
-        raise ValueError("a canonical unicast IPv4 address is required")
+        raise ValueError(message)
     try:
         ip = ipaddress.IPv4Address(address)
     except ValueError:
-        raise ValueError("a canonical unicast IPv4 address is required") from None
+        raise ValueError(message) from None
     if str(ip) != address or ip.is_multicast or ip.is_unspecified or int(ip) == 4294967295:
-        raise ValueError("a canonical unicast IPv4 address is required")
+        raise ValueError(message)
+
+
+def probe_target(address):
+    """The kind of a ping or traceroute target (G09 FP-04): 4 for a canonical unicast IPv4 address, 6 for a
+    canonical unicast IPv6 address (execute ping6 / tracert6), "name" for a lower-case DNS name that FortiOS resolves
+    itself (execute ping / traceroute <name>, IPv4)."""
+    from .read_policy import validate_inventory_item
+    if isinstance(address, str) and ":" in address:
+        try:
+            ip = ipaddress.IPv6Address(address)
+        except ValueError:
+            raise ValueError("a canonical unicast IPv6 address is required") from None
+        if str(ip) != address or ip.is_multicast or ip.is_unspecified:
+            raise ValueError("a canonical unicast IPv6 address is required")
+        return 6
+    try:
+        if isinstance(address, str) and validate_inventory_item("diagnostic_names", address) == address:
+            return "name"
+    except ValueError:
+        pass
+    _unicast_ipv4(address, "a canonical unicast IPv4 or IPv6 address or a DNS name is required")
+    return 4
+
+
+def probe_source(shell, source_address):
+    """An explicit source of ping or traceroute must be an address of this FortiGate (FOS-P05): measured on the 60F
+    7.6.8, a foreign IPv4 source is accepted by ping-options and the ping then only reports 100% packet loss."""
+    listing = shell.command("diagnose ip address list")
+    if not re.search(r"(?m)^IP=" + re.escape(source_address) + r"->", listing):
+        raise SourceNotLocal("the source address is not an address of this FortiGate (diagnose ip address list)")
 
 
 def _filter_network(value, recipe):
@@ -180,16 +347,59 @@ def filter_operand(value):
     return str(network.network_address) + " " + str(network.broadcast_address)
 
 
+def validate_filters(recipe, *, log_category=None, log_subtype=None, log_action=None, policy_id=None,
+                     sniffer_filter=None):
+    """The G10 filter arguments: each applies to one recipe and takes only the measured values."""
+    if recipe != "logs" and any(value is not None for value in (log_category, log_subtype, log_action)):
+        raise ValueError("log_category, log_subtype and log_action apply to the logs recipe only")
+    if log_category is not None and log_category not in LOG_CATEGORIES:
+        raise ValueError("log_category is one of " + ", ".join(LOG_CATEGORIES))
+    if log_subtype is not None and log_subtype not in LOG_SUBTYPES.get(log_category, ()):
+        raise ValueError("log_subtype is system, vpn, ha, router, user or sdwan and needs log_category event")
+    if log_action is not None and log_action not in LOG_ACTIONS.get(log_category, ()):
+        raise ValueError("log_action is deny and needs log_category traffic")
+    if policy_id is not None and ((recipe != "sessions" and (recipe != "logs"
+                                                              or log_category not in LOG_POLICY_CATEGORIES))
+                                  or type(policy_id) is not int or not 1 <= policy_id <= 4294967294):
+        raise ValueError("policy_id is a firewall policy number 1-4294967294 and applies to the sessions recipe and to "
+                         "the logs recipe with log_category traffic only")
+    if sniffer_filter is not None and (recipe != "sniffer" or sniffer_filter not in SNIFFER_FILTERS):
+        raise ValueError("sniffer_filter is icmp, host, port or arp and applies to the sniffer recipe only")
+
+
+def _port(value):
+    if type(value) is not int or not 1 <= value <= 65535:
+        raise ValueError("destination_port is a whole number 1-65535")
+
+
 def validate(recipe, address, interface, count, timeout, max_bytes, vdom=None, *,
              source_address=None, source_port=None, destination_port=None, protocol=None,
-             any_source_port=False):
+             any_source_port=False, log_category=None, log_subtype=None, log_action=None, policy_id=None,
+             sniffer_filter=None):
     if not isinstance(recipe, str) or recipe not in RECIPES:
         raise ValueError("unknown diagnostic recipe")
-    if isinstance(address, str) and "/" in address:
+    validate_filters(recipe, log_category=log_category, log_subtype=log_subtype, log_action=log_action,
+                     policy_id=policy_id, sniffer_filter=sniffer_filter)
+    partial = session_partial(recipe, source_address, source_port, destination_port, protocol, policy_id,
+                              any_source_port)
+    # G10: an empty address means no address filter: logs of a category, sessions of a source, a sniffer port or ARP.
+    open_address = address == "" and ((recipe == "logs" and log_category is not None)
+                                      or (partial and source_address is not None)
+                                      or (recipe == "sniffer" and sniffer_filter in ("port", "arp")))
+    if open_address:
+        pass
+    elif recipe in PROBE_RECIPES:
+        target = probe_target(address)
+    elif isinstance(address, str) and "/" in address:
         _filter_network(address, recipe)
     else:
         _unicast_ipv4(address)
-    if not isinstance(interface, str) or _canonical_fortios_interface(interface) is None:
+    if interface == SNIFFER_ANY and recipe == "sniffer":
+        # FP-06: the interface any must be enrolled like an interface (authorize) and is scoped by an enrolled host
+        # too; only ARP (no IP payload, the measured `any "arp"`) may run there without a host.
+        if open_address and sniffer_filter != "arp":
+            raise ValueError("the sniffer on the interface any needs an enrolled host address, except for arp")
+    elif not isinstance(interface, str) or _canonical_fortios_interface(interface) is None:
         raise ValueError("a concrete FortiOS interface is required")
     if vdom is not None and (not isinstance(vdom, str) or not VDOM_NAME.fullmatch(vdom)):
         raise ValueError("a valid VDOM name is required")
@@ -197,7 +407,36 @@ def validate(recipe, address, interface, count, timeout, max_bytes, vdom=None, *
     if any_source_port and (recipe != "sessions" or source_port is not None or any(
             value is None for value in (source_address, destination_port, protocol))):
         raise ValueError("only the sessions recipe can leave the source port open, with the rest of the tuple")
-    if any(value is not None for value in tuple_values):
+    if recipe in PROBE_RECIPES and source_address is not None and all(
+            value is None for value in tuple_values[1:]) and not any_source_port:
+        # FOS-P05: ping and traceroute from an explicit IPv4 source address of this FortiGate (wan-watch).
+        if target == 6:
+            raise ValueError("an explicit source address applies to an IPv4 or DNS name target only")
+        _unicast_ipv4(source_address, "a canonical unicast IPv4 source address is required")
+    elif partial:
+        # FP-05: sessions of a source address (client), a destination port and/or a policy, any protocol.
+        if source_address is not None:
+            if "/" in source_address:
+                _filter_network(source_address, recipe)
+            else:
+                _unicast_ipv4(source_address, "a canonical unicast IPv4 source address is required")
+        if destination_port is not None:
+            _port(destination_port)
+        if address == "" and source_address is None:
+            raise ValueError("a sessions filter needs an address or a source_address")
+    elif recipe == "sniffer" and sniffer_filter not in (None, "icmp"):
+        # FP-06: host, port (optionally TCP or UDP) or ARP; no source address or source port.
+        if source_address is not None or source_port is not None or any_source_port:
+            raise ValueError("a host, port or ARP sniffer filter takes no source address or source port")
+        if sniffer_filter == "port":
+            _port(destination_port)
+            if protocol is not None and protocol not in (6, 17):
+                raise ValueError("protocol of a sniffer port filter is 6 (TCP) or 17 (UDP)")
+        elif destination_port is not None or protocol is not None:
+            raise ValueError("destination_port and protocol apply to the sniffer port filter only")
+    elif any(value is not None for value in tuple_values):
+        if sniffer_filter is not None:
+            raise ValueError("sniffer_filter icmp takes no TCP or UDP tuple")
         if recipe not in ("sessions", "sniffer", "flow") or any(
                 value is None for value in (source_address, destination_port, protocol)) or (
                 source_port is None and not any_source_port):
@@ -229,14 +468,24 @@ def authorize(auth, recipe, address, interface, vdom=None, *, source_address=Non
     if vdom is not None and vdom not in auth.read_inventory.get("diagnostic_vdoms",()):
         raise ValueError("diagnostic VDOM is not enrolled for this target")
     from .read_policy import enrolled_lookup
-    for category, value in (("diagnostic_recipes", recipe), ("interfaces", interface)):
+    # The sniffer on the interface any (FP-06) spans every interface: like a named interface it runs only when the
+    # target enrolls it (`any` in interfaces), also for ARP without an address (review 471-r2-rv finding 1).
+    grants = [("diagnostic_recipes", recipe), ("interfaces", interface)]
+    for category, value in grants:
         if value not in auth.read_inventory.get(category, ()):
             raise ValueError("diagnostic scope is not enrolled for this target")
+    if interface == SNIFFER_ANY and recipe != "sniffer":
+        raise ValueError("diagnostic scope is not enrolled for this target")
     for value in (address, source_address):
-        if value is None:
+        if value is None or value == "":  # "" = no address filter (G10, validate)
+            continue
+        if recipe in PROBE_RECIPES and probe_target(value) == "name":
+            # A DNS name target (FP-04) is enrolled like a FortiADC nslookup name.
+            if value not in auth.read_inventory.get("diagnostic_names", ()):
+                raise ValueError("diagnostic scope is not enrolled for this target")
             continue
         try:
-            enrolled_lookup(value, 4, auth.read_inventory)
+            enrolled_lookup(value, 6 if ":" in value else 4, auth.read_inventory)
         except ValueError:
             raise ValueError("diagnostic scope is not enrolled for this target") from None
 
@@ -276,7 +525,9 @@ SESSION_PATTERNS = (
     ("dev", r"(?m)^orgin->sink: [^\n]* dev=(\d+->\d+/\d+->\d+) "),
     ("statistic", r"(?m)^statistic\(bytes/packets/allow_err\): (org=\d+/\d+/\d+ reply=\d+/\d+/\d+) "),
 )
-SESSION_HOOK = re.compile(r"(?m)^(hook=(?:pre|post) dir=(org|reply) act=(?:noop|snat|dnat) "
+# hook=pre|post: a forwarded session; hook=out|in: a local session of the FortiGate itself, e.g. its own ping
+# (measured on the 60F 7.6.8: "hook=out dir=org", "hook=in dir=reply"). Any other shape stays incomplete.
+SESSION_HOOK = re.compile(r"(?m)^(hook=(?:pre|post|out|in) dir=(org|reply) act=(?:noop|snat|dnat) "
                           r"\d{1,3}(?:\.\d{1,3}){3}:\d+->\d{1,3}(?:\.\d{1,3}){3}:\d+"
                           r"\(\d{1,3}(?:\.\d{1,3}){3}:\d+\))[ \t]*$")
 SESSION_TOTAL = re.compile(r"(?m)^total session:? (\d+)[ \t]*$")
@@ -354,7 +605,7 @@ def log_window(recipe, since, until):
 def log_read(output, baseline, address, count, window=None, timed_out=False):
     state = fields(baseline)
     result = {"state": "ok", "filter": state, "found": None, "returned": None, "loaded": None,
-              "matched": None, "truncated": False, "time_range": None, "output": ""}
+              "matched": None, "truncated": False, "time_range": None, "searched_percent": None, "output": ""}
     if REFUSAL.search(output):
         result["state"] = "device_refused"
         return result
@@ -366,12 +617,19 @@ def log_read(output, baseline, address, count, window=None, timed_out=False):
         result["state"] = "unsupported"
         return result
     result["found"], result["loaded"] = int(found.group(1)), int(returned.group(1))
+    searched = LOG_SEARCHED.search(output)
+    if searched:
+        # Measured on the 60F 7.6.8 (on-demand search): the device reports how much of the log it has searched so
+        # far; "found" counts only that part, and no line means the whole log was searched.
+        result["searched_percent"] = float(searched.group(1))
     records = re.split(r"(?m)^(?=\d+: )", output)[1:]
     if result["loaded"] > result["found"]:
         result["state"] = "incomplete"
         return result
     if result["found"] == 0 and result["loaded"] == 0 and not records:
-        result.update(state="empty", returned=0, matched=0)
+        # An empty answer of a partial search is not an empty log (measured: 0 found at 30-65 % searched).
+        partial = result["searched_percent"] is not None
+        result.update(state="incomplete" if partial else "empty", truncated=partial, returned=0, matched=0)
         return result
     record_stamps = [LOG_TIME.search(record) for record in records]
     stamps = [" ".join(match.groups()) for match in record_stamps if match]
@@ -383,7 +641,7 @@ def log_read(output, baseline, address, count, window=None, timed_out=False):
     stamps.sort()
     if stamps:
         result["time_range"] = [stamps[0], stamps[-1]]
-    mark = re.compile(r"(?:^|\s)(?:srcip|dstip)=" + re.escape(address) + r"(?=\s|$)")
+    mark = re.compile(r"(?:^|\s)(?:srcip|dstip)=" + re.escape(address) + r"(?=\s|$)" if address else r"")
     since, until = window or (None, None)
 
     def inside(record):
@@ -395,6 +653,11 @@ def log_read(output, baseline, address, count, window=None, timed_out=False):
     kept = matched[:min(count, int(state["view-lines"]))]
     result.update(matched=len(matched), returned=len(kept), truncated=len(kept) < len(matched),
                   output="".join(kept))
+    if not matched and result["searched_percent"] is not None:
+        # Review 471-r2-rv finding 3: the loaded records of a partial search all fell outside the time window or the
+        # address; the part of the log the device has not searched may hold matching records, so this is no empty
+        # answer.
+        result.update(state="incomplete", truncated=True)
     return result
 
 
@@ -456,66 +719,123 @@ def _restore(shell, cleanup, display, baseline, recipe):
     return not errors
 
 
+def _log_filter_steps(address, count, log_category, log_subtype, log_action, policy_id=None):
+    """FP-01: the session-scoped log filter steps and the field terms the device must then show in `Filter:`."""
+    terms = [(name, value) for name, value in (("subtype", log_subtype), ("srcip", address or None),
+                                                ("action", log_action),
+                                                ("policyid", None if policy_id is None else str(policy_id)))
+             if value is not None]
+    steps = (["execute log filter category " + log_category]
+             + ["execute log filter field " + name + " " + value for name, value in terms]
+             + ["execute log filter view-lines " + str(max(5, count))])
+    return steps, terms
+
+
+def applied_log_filter(text, log_category, terms, view_lines):
+    """The dump after the filter steps must show exactly the requested category, view-lines and field terms."""
+    state = fields(text)
+    shown = state.pop("Filter", "")
+    if (set(state) != LOG_FILTER_FIELDS or state["category"] != log_category
+            or state["view-lines"] != str(view_lines) or state["start-line"] != "1"
+            or sorted(LOG_TERM.findall(shown)) != sorted(terms)
+            or LOG_TERM.sub("", shown).replace("AND", "").strip()):
+        raise ValueError("the device did not show the requested log filter")
+
+
+def applied_session_filter(text, expected):
+    """FP-05: the session filter after the steps shows each requested value (`a-a` or `a`, a prefix `first-last`)
+    and nothing else."""
+    state = fields(text)
+    state.pop("session filter", None)
+    state.pop("ngfw id", None)
+    for label, value in expected.items():
+        if state.pop(label, None) not in (value, value.replace(" ", "-"), value + "-" + value):
+            raise ValueError("the device did not show the requested session filter")
+    if any(value != "any" for value in state.values()):
+        raise ValueError("the device did not show the requested session filter")
+
+
 def run(shell, recipe, address, interface, count, timeout, vdom=None, *, reconnect=None,
         source_address=None, source_port=None, destination_port=None, protocol=None, window=None,
-        any_source_port=False):
+        any_source_port=False, support=None, log_category=None, log_subtype=None, log_action=None,
+        close_with_operation=False,
+        policy_id=None, sniffer_filter=None):
+    """Run one bounded recipe. `support`, when a list, receives the firmware_support of the run (G00)."""
     from netops_core import fortios
+    partial = session_partial(recipe, source_address, source_port, destination_port, protocol, policy_id,
+                              any_source_port)
+    part = filter_part(recipe, interface, log_category=log_category, partial=partial, sniffer_filter=sniffer_filter,
+                       policy_id=policy_id)
     identity, domain, mode = status_identity(shell.command("get system status"))
-    if (recipe in ("sessions", "flow")
-            and any(isinstance(value, str) and "/" in value for value in (address, source_address))
-            and identity not in PREFIX_RANGE_IDENTITIES):
-        raise OptionRefused("prefix_not_supported_on_identity: filter ranges are not measured for this hardware and build")
-    if source_address is None:
-        if identity not in IDENTITIES:
-            raise ValueError("diagnostic recipes are not measured for this hardware and build")
-    elif identity not in TUPLE_IDENTITIES:
-        raise ValueError("TCP or UDP diagnostic tuples are not qualified for this hardware and build")
+    # G00: an identity outside the tested lists is not refused; firmware_support() reports it (support[0]).
+    prefix_given = (recipe in ("sessions", "flow")
+                    and any(isinstance(value, str) and "/" in value for value in (address, source_address)))
+    probe = recipe in PROBE_RECIPES
+    if support is not None:
+        support[:] = [firmware_support(identity, recipe,
+                                       tuple_given=source_address is not None and not probe and not partial,
+                                       prefix_given=prefix_given, address=address,
+                                       source_given=probe and source_address is not None, filter_part=part)]
     if vdom is None and mode != "disable":
         raise UnsupportedPlatform("config_platform_not_supported: multi-VDOM diagnostics require an enrolled VDOM")
     if vdom is not None and vdom != domain:
         raise UnsupportedPlatform("config_platform_not_supported: the session is not scoped to the requested VDOM")
     # Multi-VDOM sessions: read inside the verified VDOM context and filter by its index (measured, task 172).
     context = enter_vdom(shell, domain) if mode == "multiple" and recipe == "sessions" else None
-    try:
-        interfaces=fortios.parse(shell.command('show full-configuration system interface "'+interface+'"')).section("system interface")
-    except Exception:
-        raise ValueError("the interface owner cannot be verified") from None
-    owner = None
-    if interfaces is not None and set(interfaces.entries)=={interface}:
-        owner = interfaces.entries[interface].value("vdom")
-    if owner is None:
-        raise ValueError("the interface owner cannot be verified")
-    if owner!=domain:
-        raise ScopeRefused("the enrolled interface belongs to another VDOM")
-    info = _diagnose(shell, "diagnose netlink interface list " + interface, context)
-    if not re.search(r"(?m)^if=" + re.escape(interface) + r"(?:\s|$)", info):
-        raise ValueError("the enrolled interface is not visible in this session")
+    if recipe == "sniffer" and interface == SNIFFER_ANY:
+        # FP-06: the interface any has no owner to verify; it spans every interface, so only without VDOMs.
+        if mode != "disable":
+            raise ScopeRefused("the sniffer on the interface any is available only without VDOMs")
+    else:
+        try:
+            interfaces=fortios.parse(shell.command('show full-configuration system interface "'+interface+'"')).section("system interface")
+        except Exception:
+            raise ValueError("the interface owner cannot be verified") from None
+        owner = None
+        if interfaces is not None and set(interfaces.entries)=={interface}:
+            owner = interfaces.entries[interface].value("vdom")
+        if owner is None:
+            raise ValueError("the interface owner cannot be verified")
+        if owner!=domain:
+            raise ScopeRefused("the enrolled interface belongs to another VDOM")
+        info = _diagnose(shell, "diagnose netlink interface list " + interface, context)
+        if not re.search(r"(?m)^if=" + re.escape(interface) + r"(?:\s|$)", info):
+            raise ValueError("the enrolled interface is not visible in this session")
+    if probe and source_address is not None:
+        probe_source(shell, source_address)
     cleanup = []
     baseline = None
     display = None
     try:
-        if recipe in ("ping", "traceroute"):
-            prefix = "execute " + recipe + "-options "
+        if recipe == "traceroute" and ":" in address:
+            # FP-04: IPv6 traceroute is `execute tracert6` (FortiOS 7.6.8 has no traceroute6); it takes its
+            # probes and interface as arguments and leaves no option state behind (measured 2026-11-17).
+            command = "execute tracert6 -q " + str(count) + " -i " + interface + " " + address
+        elif recipe in ("ping", "traceroute"):
+            six = "6" if ":" in address else ""
+            prefix = "execute " + recipe + six + "-options "
             display = prefix + "view-settings"
             baseline = shell.command(display)
             current = fields(baseline.split("Default Ping Options:", 1)[0])
+            source = source_address or "auto"
             if recipe == "ping":
                 settings = (("repeat-count", "Repeat Count", str(count)),
                             ("timeout", "Timeout", "1"), ("interval", "Interval", "1"),
                             ("data-size", "Data Size", "56"), ("adaptive-ping", "Adaptive Ping", "disable"),
-                            ("interface", "Interface", interface), ("source", "Source Address", "auto"),
+                            ("interface", "Interface", interface), ("source" + six, "Source Address", source),
                             ("use-sdwan", "Use SD-WAN", "no"))
             else:
                 settings = (("queries", "Number of probes per hop", str(count)),
-                            ("device", "Device", interface), ("source", "Source Address", "auto"),
+                            ("device", "Device", interface), ("source", "Source Address", source),
                             ("use-sdwan", "Use SD-WAN", "no"))
             for option, label, value in settings:
                 previous = current.get(label)
-                if previous is None or not re.fullmatch(r"[A-Za-z0-9_.-]{1,15}", previous):
+                shape = r"auto|[0-9A-Fa-f:.]{2,45}" if option == "source6" else r"[A-Za-z0-9_.-]{1,15}"
+                if previous is None or not re.fullmatch(shape, previous):
                     raise ValueError("diagnostic option state cannot be restored safely")
-                if option == "source" and previous != "auto":
+                if option in ("source", "source6") and previous != "auto":
                     try:
-                        ipaddress.IPv4Address(previous)
+                        (ipaddress.IPv6Address if six else ipaddress.IPv4Address)(previous)
                     except ValueError:
                         raise ValueError("diagnostic source state is invalid") from None
                 if option == "use-sdwan":
@@ -533,15 +853,23 @@ def run(shell, recipe, address, interface, count, timeout, vdom=None, *, reconne
                     prompt = getattr(shell, "prompt", b"")
                     secondary = isinstance(prompt, bytes) and re.search(rb"\(Secondary\) [#$] $", prompt)
                     where = "this HA secondary member" if secondary else "this session"
+                    reason = REFUSABLE_OPTIONS[option]
+                    if option == "source" and source_address is not None:
+                        reason = "use the requested source address"
                     raise OptionRefused(
                         "FortiOS refused '" + prefix + option + "' on " + where + ", so " + recipe +
-                        " could not " + REFUSABLE_OPTIONS[option] + " and was not run; the options it had set "
+                        " could not " + reason + " and was not run; the options it had set "
                         "were restored and verified." +
                         (" Run " + recipe + " on the HA primary." if where != "this session" else "")
                     ) from None
-            command = "execute " + recipe + " " + address
+            # FP-04: ping6 also takes the interface as -I: measured on the 60F 7.6.8, a link-local target answers
+            # only then ("connect: Invalid argument" with the interface option alone).
+            command = ("execute ping6 -I " + interface + " " if six else "execute " + recipe + " ") + address
         elif recipe == "sniffer":
-            if source_address is None:
+            verbosity = " 1 "
+            if sniffer_filter not in (None, "icmp"):
+                selector, verbosity = sniffer_selector(address, sniffer_filter, destination_port, protocol), " 4 "
+            elif source_address is None:
                 selector = "host " + address + " and icmp"
             else:
                 transport = "tcp" if protocol == 6 else "udp"
@@ -550,42 +878,72 @@ def run(shell, recipe, address, interface, count, timeout, vdom=None, *, reconne
                             " and dst port " + str(destination_port) + ") or (src host " + address +
                             " and src port " + str(destination_port) + " and dst host " +
                             source_address + " and dst port " + str(source_port) + "))")
-            command = 'diagnose sniffer packet ' + interface + ' "' + selector + '" 1 ' + str(count) + ' l'
+            command = 'diagnose sniffer packet ' + interface + ' "' + selector + '"' + verbosity + str(count) + ' l'
         elif recipe == "logs":
             display = "execute log filter dump"
             baseline = shell.command(display)
             log_filter(baseline)
+            applied = baseline
+            if log_category is not None:
+                # FP-01: the filter is session-scoped (measured); the reconnect below verifies it in a new session.
+                steps, terms = _log_filter_steps(address, count, log_category, log_subtype, log_action, policy_id)
+                for step in steps:
+                    if shell.command(step).strip():
+                        raise ValueError("the device refused a log filter step")
+                applied = shell.command(display)
+                applied_log_filter(applied, log_category, terms, max(5, count))
             command = "execute log display"
         else:
             if recipe == "flow":
                 debug = shell.command("diagnose debug info")
                 if not re.search(r"(?mi)^debug output:[ \t]*disable[ \t]*$", debug):
                     raise ValueError("active debugging cannot be replaced")
-                if (identity not in TIMESTAMP_IDENTITIES
+                if (support is not None
                         and re.search(r"(?mi)^console timestamp:[ \t]*enable[ \t]*$", debug)):
-                    raise OptionRefused(
-                        "FortiOS reports 'console timestamp: enable' in 'diagnose debug info', and the shape of "
-                        "timestamped flow trace lines is not measured for this hardware and build; flow was not "
-                        "run and nothing was changed. Run 'diagnose debug console timestamp disable' if that "
-                        "console setting is not needed, or run the trace on the device.")
+                    # Timestamped trace lines were tested on TIMESTAMP_IDENTITIES only; elsewhere a line of an
+                    # unknown shape is not counted as a traced packet (flow_trace), and the warning says so.
+                    support[:] = [firmware_support(identity, recipe, tuple_given=source_address is not None,
+                                                   prefix_given=prefix_given, timestamped=True)]
             display = "diagnose sys session filter" if recipe == "sessions" else "diagnose debug flow filter"
             baseline = _diagnose(shell, display, context)
             empty_filter(baseline, recipe)
             cleanup.append(display + " clear")
-            if source_address is not None:
-                for selector, value in (
-                    ("src" if recipe == "sessions" else "saddr", source_address),
-                    ("dst" if recipe == "sessions" else "daddr", address), ("sport", str(source_port)),
-                    ("dport", str(destination_port)), ("proto", str(protocol)),
+            if partial:
+                # FP-05: the client (src), the destination (dst), the destination port and the policy; any protocol.
+                expected = {}
+                for selector, label, value in (("src", "source ip", source_address), ("dst", "dest ip", address or None),
+                                               ("dport", "dest port", destination_port),
+                                               ("policy", "policy id", policy_id)):
+                    if value is None:
+                        continue
+                    value = str(value)
+                    operand = filter_operand(value)
+                    shell.command(display + " " + selector + " " + operand +
+                                  (" " + value if filter_range_repeats(identity) and operand == value else ""))
+                    expected[label] = operand
+                applied_session_filter(_diagnose(shell, display, context), expected)
+            elif source_address is not None:
+                expected = {}
+                for selector, label, value in (
+                    ("src" if recipe == "sessions" else "saddr", "source ip", source_address),
+                    ("dst" if recipe == "sessions" else "daddr", "dest ip", address),
+                    ("sport", "source port", str(source_port)), ("dport", "dest port", str(destination_port)),
+                    ("proto", "proto", str(protocol)),
+                    ("policy", "policy id", None if policy_id is None else str(policy_id)),
                 ):
-                    if any_source_port and selector == "sport":
+                    if (any_source_port and selector == "sport") or value is None:
                         continue
                     operand = filter_operand(value)
                     command_text = display + " " + selector + " " + operand
-                    if (identity in RANGE_TUPLE_IDENTITIES and (recipe == "sessions" or selector != "proto")
+                    if (filter_range_repeats(identity) and (recipe == "sessions" or selector != "proto")
                             and operand == value):
                         command_text += " " + value
                     shell.command(command_text)
+                    expected[label] = operand
+                if policy_id is not None:
+                    # Review 471-r2-rv finding 2: a policy with the whole tuple is a device filter too; the shown
+                    # filter must hold every value (measured on the 60F: `policy id: 5-5` beside the tuple), as FP-05.
+                    applied_session_filter(_diagnose(shell, display, context), expected)
             else:
                 shell.command(display + (" dst " if recipe == "sessions" else " addr ") + filter_operand(address))
                 shell.command(display + " proto 1")
@@ -600,14 +958,19 @@ def run(shell, recipe, address, interface, count, timeout, vdom=None, *, reconne
                 command = None
         output, timed_out = _bounded(shell, command, timeout)
         if recipe == "logs":
-            output = log_read(output, baseline, address, count, window, timed_out)
+            output = log_read(output, applied, address, count, window, timed_out)
         if context is not None:
             from .fortios_vdom import sessions_in_vdom
             if not sessions_in_vdom(output, context):
                 raise ScopeRefused("a listed session does not belong to the requested VDOM")
         return output, timed_out, identity, domain
     finally:
-        restored = _restore(shell, cleanup, display, baseline, recipe)
+        if recipe == "logs" and log_category is not None and close_with_operation:
+            # The filter is session-local. The caller closes this SSH session
+            # under the diagnostic lock, so a fresh session is unnecessary.
+            restored = True
+        else:
+            restored = _restore(shell, cleanup, display, baseline, recipe)
         if context is not None and restored:
             leave_vdom(shell)
         if not restored:

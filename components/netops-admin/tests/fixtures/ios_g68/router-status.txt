@@ -1,0 +1,3 @@
+
+
+GigabitEthernet0/3 is administratively down, line protocol is down

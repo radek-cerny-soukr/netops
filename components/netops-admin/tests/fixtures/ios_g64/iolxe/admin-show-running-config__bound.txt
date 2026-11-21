@@ -1,0 +1,333 @@
+
+
+
+Building configuration...
+
+Current configuration : 7433 bytes
+!
+! Last configuration change at 14:08:36 CET Thu Nov 19 2026 by user01
+!
+version 17.18
+service timestamps debug datetime msec
+service timestamps log datetime msec
+!
+hostname host02
+!
+boot-start-marker
+boot-end-marker
+!
+!
+vrf definition blue
+ rd 65007:69
+ !
+ address-family ipv4
+ exit-address-family
+ !
+ address-family ipv6
+ exit-address-family
+!
+no logging console
+no aaa new-model
+!
+!
+!
+clock timezone CET 1 0
+no ip icmp rate-limit unreachable
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+no ip domain lookup
+ip domain name d-lab.invalid
+ip cef
+login on-success log
+ipv6 unicast-routing
+ipv6 cef
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+crypto pki trustpoint TP-self-signed-2048001
+ enrollment selfsigned
+ subject-name cn=IOS-Self-Signed-Certificate-2048001
+ revocation-check none
+ rsakeypair TP-self-signed-2048001
+ hash sha512
+!
+!
+crypto pki certificate chain TP-self-signed-2048001
+ certificate self-signed 01
+  3082032A 30820212 A0030201 02020101 300D0609 2A864886 F70D0101 0D050030 
+  2E312C30 2A060355 04030C23 494F532D 53656C66 2D536967 6E65642D 43657274 
+  69666963 6174652D 32303438 30303130 1E170D32 36313130 39313533 3830395A 
+  170D3336 31313038 31353338 30395A30 2E312C30 2A060355 04030C23 494F532D 
+  53656C66 2D536967 6E65642D 43657274 69666963 6174652D 32303438 30303130 
+  82012230 0D06092A 864886F7 0D010101 05000382 010F0030 82010A02 82010100 
+  C25A7FAE DA8ADDDC 95EFCCFE E23E7C7D 78924593 DE414E25 633650E1 C75603F1 
+  F2CCCBF8 30E623CC C5626F9D 26B9CCEA B56D3741 8F2DF617 DAE727C2 1B522405 
+  670457EF E0F44A53 8BCBA7F6 65337FE0 C9D8D9FB 3BFDB882 B02AC7A7 9BAB09D6 
+  16EBF251 8607E080 6A1AC164 F8036552 5C6161E4 439B10B8 DE4FEF2F D6ABACCE 
+  17E199C4 6A659769 F92CB3CF CE3BF907 C3700B5A 002B3A20 3928B72D 756000AA 
+  D61354F2 71CED8B7 9A84B343 B477341C 3FB5D002 FCA3DB5D 778879FD D53310FA 
+  75287CFC 667877CA DF90742D 64E4B821 012283DF D6D14567 B67E8D9F 07DF947E 
+  AE2A55F8 3B9595A7 AB48B1A1 55C3A721 4A9C7CBE 05EDD88C 2D11F425 385413A1 
+  02030100 01A35330 51301D06 03551D0E 04160414 764D816F CFF5DA25 47C3B091 
+  B94475C2 ACBF6117 301F0603 551D2304 18301680 14764D81 6FCFF5DA 2547C3B0 
+  91B94475 C2ACBF61 17300F06 03551D13 0101FF04 05300301 01FF300D 06092A86 
+  4886F70D 01010D05 00038201 01009375 3F7A855A E2164C41 0E7ADB9F C063CF9E 
+  3569D90E 3D137BAC 2A80F1BE 53C8F6FA 705BAA4F 96B3ED11 EF568D36 944E48E9 
+  4723C590 D3FEDF46 F73FD9B7 3CAD8530 44D94192 2178A034 2DD25998 3893AE80 
+  725BAB60 86C73084 ECA37977 3754B004 F42A7DEC 47F7CA19 C53E4DC6 78C297AB 
+  29ACE004 B02A0C9A ED615349 99DA5A84 93011138 6C5A946E EBE3D555 7714C6D3 
+  83F93203 2A3F9AE2 2CAEA3B3 3BF50508 F1D92822 6B237711 E0BE9CC6 914DDD05 
+  BF60255D 4870A059 6B302D5D 3F9000A1 8BBFD019 B6F8ED9A 845BE061 6935D103 
+  763A11CF E77FD56B 3E77B048 8938C638 BBE0856A 23FACCCF 158255C8 DE118D38 
+  312F6F76 3AA1B23B 38C4365D 066D
+  	quit
+!
+!
+archive
+ path unix:netops-archive
+ maximum 14
+memory free low-watermark processor 53651
+!
+!
+spanning-tree mode rapid-pvst
+!
+enable secret 9 <REDIGOVANO>
+!
+username user02    secret 9 <REDIGOVANO>
+username user01       privilege 15 secret 9 <REDIGOVANO>
+!
+!
+!
+!
+!
+lldp run
+! 
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+interface Loopback0
+ ip address 203.0.113.252 255.255.255.255
+ ip ospf 29 area 0
+ ipv6 address 2001:db8:2::7/128
+ ipv6 ospf 69 area 0
+!
+interface Ethernet0/0
+ ip address 203.0.113.57   255.255.255.0
+!
+interface Ethernet0/1
+ no ip address
+!
+interface Ethernet0/1.10
+ encapsulation dot1Q 10
+ ip address 203.0.113.251 255.255.255.0 secondary
+ ip address 203.0.113.254 255.255.255.0
+ ip policy route-map G69-PBR
+ ip ospf 29 area 0
+ ipv6 address fe80::10 link-local
+ ipv6 address 2001:db8:3::7/64
+ ipv6 nd ra suppress all
+ ipv6 ospf 69 area 0
+ bfd interval 999 min_rx 999 multiplier 10
+!
+interface Ethernet0/1.20
+ encapsulation dot1Q 20
+ ip address 203.0.113.253 255.255.255.0
+!
+interface Ethernet0/2
+ description G69 VRF blue link to host01 Gi0/2
+ vrf forwarding blue
+ ip address 198.51.100.7 255.255.255.0
+ ip access-group NETOPS-G64-V4 in
+ ip access-group NETOPS-G64-V4 out
+ ipv6 address 2001:db8:1::7/64
+ ipv6 nd ra suppress all
+ ipv6 traffic-filter NETOPS-G64-V6 in
+!
+interface Ethernet0/3
+ no ip address
+ shutdown
+!
+interface Ethernet1/0
+ no ip address
+ shutdown
+!
+interface Ethernet1/1
+ no ip address
+ shutdown
+!
+interface Ethernet1/2
+ no ip address
+ shutdown
+!
+interface Ethernet1/3
+ no ip address
+ shutdown
+!
+interface Serial2/0
+ no ip address
+ shutdown
+ serial restart-delay 0
+!
+interface Serial2/1
+ no ip address
+ shutdown
+ serial restart-delay 0
+!
+interface Serial2/2
+ no ip address
+ shutdown
+ serial restart-delay 0
+!
+interface Serial2/3
+ no ip address
+ shutdown
+ serial restart-delay 0
+!
+interface Serial3/0
+ no ip address
+ shutdown
+ serial restart-delay 0
+!
+interface Serial3/1
+ no ip address
+ shutdown
+ serial restart-delay 0
+!
+interface Serial3/2
+ no ip address
+ shutdown
+ serial restart-delay 0
+!
+interface Serial3/3
+ no ip address
+ shutdown
+ serial restart-delay 0
+!
+router ospf 29
+ router-id 203.0.113.252
+ passive-interface Loopback0
+!
+router bgp 65007
+ bgp router-id 203.0.113.252
+ bgp log-neighbor-changes
+ no bgp default ipv4-unicast
+ neighbor 203.0.113.250 remote-as 65001
+ neighbor 203.0.113.250 description host01 G69
+ neighbor 203.0.113.250 fall-over bfd
+ neighbor 2001:db8:3::1     remote-as 65001
+ neighbor 2001:db8:3::1     description host01 G69 IPv6
+ !
+ address-family ipv4
+  network 203.0.113.249 mask 255.255.255.0
+  network 192.0.2.0 mask 255.255.255.0
+  neighbor 203.0.113.250 activate
+ exit-address-family
+ !
+ address-family ipv6
+  network 2001:db8:4::0/64
+  neighbor 2001:db8:3::1     activate
+ exit-address-family
+!
+ip forward-protocol nd
+!
+ip tcp synwait-time 5
+!
+ip http server
+ip http secure-server
+ip route 0.0.0.0 0.0.0.0 203.0.113.1
+ip route 203.0.113.249 255.255.255.0 Null0
+ip route 192.0.2.0 255.255.255.0 Null0
+ip route vrf blue 203.0.113.248 255.255.255.0 198.51.100.1
+ip ssh bulk-mode 131072
+!
+ip access-list extended G69-PBR-ACL
+ 10 permit ip any 192.0.2.0 0.0.0.255
+ip access-list extended NETOPS-G64-EMPTY4
+ip access-list extended NETOPS-G64-OPTS
+ 10 permit tcp any any range www 90
+ 20 permit ip any any log
+ip access-list extended NETOPS-G64-REMARK
+ 10 remark g64 remark test
+ 10 permit ip any any
+ip access-list extended NETOPS-G64-V4
+ 10 permit icmp any any
+ 20 deny ip host 198.51.100.9 any
+ 30 permit tcp 198.51.100.0 0.0.0.255 any eq 22
+ 40 permit tcp any any eq www
+ 50 permit udp any host 198.51.100.1 eq snmp
+ 100 permit ip any any
+ip sla 69
+ icmp-echo 198.51.100.1 source-interface Ethernet0/2
+  vrf blue
+ip sla schedule 69 life forever start-time now
+no logging btrace
+ipv6 route vrf blue 2001:db8:3::0/64 2001:db8:1::1
+ipv6 route 2001:db8:4::0/64 Null0
+ipv6 router ospf 69
+ router-id 203.0.113.252
+!
+route-map G69-PBR permit 10 
+ match ip address G69-PBR-ACL
+ set interface Null0
+!
+!
+!
+!
+ipv6 access-list NETOPS-G64-V6
+ sequence 10 permit icmp any any
+ sequence 20 deny ipv6 host 2001:db8:1::9  any
+ sequence 25 deny tcp any any eq telnet
+ sequence 30 permit tcp 2001:db8:1::0/64 any eq 22
+ sequence 40 permit tcp any any eq www
+ sequence 100 permit ipv6 any any
+!
+control-plane
+!
+!
+!
+line con 0
+ exec-timeout 0 0
+ privilege level 15
+ activation-character 13
+ logging synchronous
+line aux 0
+ exec-timeout 0 0
+ privilege level 15
+ activation-character 13
+ logging synchronous
+line vty 0 4
+ activation-character 13
+ login local
+ transport input ssh
+!
+!
+!
+!
+end

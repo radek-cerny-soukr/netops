@@ -1,0 +1,4 @@
+channel-group 42 mode active
+Command Rejected : Et0/1 is already part of channel-group 41, unbundle before adding to channel-group 42
+
+host11(config-if)#

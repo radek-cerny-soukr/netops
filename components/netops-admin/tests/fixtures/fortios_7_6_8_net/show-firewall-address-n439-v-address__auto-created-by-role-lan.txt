@@ -1,0 +1,8 @@
+config firewall address
+    edit "n439-v address"
+        set uuid 150556a2-e271-51f1-112c-a491b78a73ad
+        set type interface-subnet
+        set subnet 198.51.100.0 255.255.255.248
+        set interface "n439-v"
+    next
+end

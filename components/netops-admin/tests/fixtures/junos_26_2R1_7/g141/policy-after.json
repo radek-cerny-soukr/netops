@@ -1,0 +1,98 @@
+{
+    "policy-information" : [
+    {
+        "attributes" : {"junos:style" : "verbose"},
+        "policy" : [
+        {
+            "policy-name" : [
+            {
+                "data" : "NETOPS-G141-POLICY"
+            }
+            ],
+            "policy-flags" : [
+            {
+                "data" : "CHANGED/RESOLVED"
+            }
+            ],
+            "term" : [
+            {
+                "name" : [
+                {
+                    "data" : "match"
+                }
+                ],
+                "from" : [
+                {
+                    "attributes" : {"heading" : "from"},
+                    "prefix-list" : [
+                    {
+                        "data" : "NETOPS-G141-PREFIXES"
+                    }
+                    ],
+                    "route-filter-information" : [
+                    {
+                        "attributes" : {"heading" : "route filter:"},
+                        "route-filter" : [
+                        {
+                            "address" : [
+                            {
+                                "data" : "203.0.113.1/32"
+                            }
+                            ],
+                            "flags" : [
+                            {
+                                "data" : "exact"
+                            }
+                            ]
+                        },
+                        {
+                            "address" : [
+                            {
+                                "data" : "203.0.113.2/32"
+                            }
+                            ],
+                            "flags" : [
+                            {
+                                "data" : "exact"
+                            }
+                            ]
+                        }
+                        ]
+                    }
+                    ]
+                }
+                ],
+                "then" : [
+                {
+                    "attributes" : {"heading" : "then"},
+                    "accept" : [
+                    {
+                        "data" : [null]
+                    }
+                    ]
+                }
+                ]
+            },
+            {
+                "name" : [
+                {
+                    "data" : "default"
+                }
+                ],
+                "then" : [
+                {
+                    "attributes" : {"heading" : "then"},
+                    "reject" : [
+                    {
+                        "data" : [null]
+                    }
+                    ]
+                }
+                ]
+            }
+            ]
+        }
+        ]
+    }
+    ]
+}

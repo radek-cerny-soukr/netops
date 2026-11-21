@@ -13,6 +13,38 @@ from netops_helper.query_catalog.model import Query
 # forwarding, and VLAN tables, scoped ARP and FDB tables, and global LAG, LACP,
 # and STP instance lists can need continuation. Single-port details stay False.
 EXPECTED = {
+    'access_lists': ('show access-list', (), True),
+    'policies': ('show policy detail', (), True),
+    'policy_details': ('show policy {policy}', (('policy', None, 'acl_policy'),), True),
+    'dhcp_server': ('show dhcp-server vlan {vlan}', (('vlan', 'vlans', 'vlan_name'),), True),
+    'bootprelay': ('show bootprelay', (), False),
+    'bootprelay_configuration': ('show bootprelay configuration', (), True),
+    'radius': ('show radius', (), True),
+    'tacacs': ('show tacacs', (), True),
+    'accounts': ('show accounts', (), True),
+    'netlogin': ('show netlogin', (), True),
+    'netlogin_port': ('show netlogin port {interface}', (('interface', 'interfaces', 'extreme_physical_port'),), True),
+    'dns_client': ('show dns-client', (), False),
+    'dns_lookup': ('nslookup {name}', (('name', None, 'diagnostic_dns_name'),), False),
+    'management': ('show management', (), True),
+    'snmp_engine': ('show snmpv3 engine-info', (), False),
+    'snmp_targets': ('show snmpv3 target-addr', (), True),
+    'dhcp_snooping': ('show ip-security dhcp-snooping {vlan}', (('vlan', 'vlans', 'vlan_name'),), True),
+    'dhcp_snooping_violations': ('show ip-security dhcp-snooping violations vlan {vlan}', (('vlan', 'vlans', 'vlan_name'),), True),
+    'mac_address': ('show fdb {mac}', (('mac', None, 'mac_literal'),), True),
+    'mac_vlan': ('show fdb vlan {vlan_id}', (('vlan_id', None, 'vlan_id'),), True),
+    'arp_vlan': ('show iparp vlan {vlan_id}', (('vlan_id', None, 'vlan_id'),), True),
+    "port_utilization": ("show ports {interface} utilization bandwidth", (("interface", "interfaces", "extreme_physical_port"),), False),
+    "port_packets": ("show ports {interface} utilization packets", (("interface", "interfaces", "extreme_physical_port"),), False),
+    "lacp_member": ("show lacp member-port {interface} detail", (("interface", "interfaces", "extreme_physical_port"),), False),
+    "stp_domain_ports": ("show stpd {domain} ports", (("domain", "services", "service"),), True),
+    "stp_port_detail": ("show stpd {domain} ports {interface} detail", (("domain", "services", "service"), ("interface", "interfaces", "extreme_physical_port")), False),
+    "port_qos": ("show ports {interface} qosmonitor no-refresh", (("interface", "interfaces", "extreme_physical_port"),), False),
+    "port_qos_drops": ("show ports {interface} qosmonitor congestion no-refresh", (("interface", "interfaces", "extreme_physical_port"),), False),
+    "igmp_snooping": ("show igmp snooping", (), True),
+    "igmp_groups": ("show igmp group", (), True),
+    "ipconfig_ipv6": ("show ipconfig ipv6", (), True),
+
     "lag_summary": ("show sharing", (), True),
     'vlan_detail': ('show vlan detail', (), True),
     'vlan_details': ('show vlan {vlan}', (('vlan', 'vlans', 'vlan_name'),), True),
@@ -133,7 +165,46 @@ EXPECTED = {
     "log_configuration": ("show log configuration", (), True),
 }
 
+VR = (("vr", "virtual_routers", "vr"),)
+PROBE = (("address", "addresses", "ipv4_address"),) + VR
+SOURCE_PROBE = (("address", "addresses", "ipv4_address"), ("source", "addresses", "ipv4_address")) + VR
+PROBES = {
+    "ping": ("ping count 5 vr {vr} {address}", PROBE, False),
+    "ping_source": ("ping count 5 vr {vr} {address} from {source}", SOURCE_PROBE, False),
+    "traceroute": ("traceroute vr {vr} {address}", PROBE, False),
+    "traceroute_source": ("traceroute vr {vr} {address} from {source}", SOURCE_PROBE, False),
+}
+EXPECTED.update(PROBES)
+EXPECTED.update({
+    "ospf_neighbors": ("show ospf neighbor", (), True),
+    "ospf_interfaces": ("show ospf interfaces", (), True),
+    "ospf_lsdb": ("show ospf lsdb", (), True),
+    "ospfv3_neighbors": ("show ospfv3 neighbor", (), True),
+    "ospfv3_interfaces": ("show ospfv3 interfaces", (), True),
+    "bgp_summary": ("show bgp neighbor", (), True),
+    "bgp_neighbor": ("show bgp neighbor {address}", (("address", "addresses", "ipv4_address"),), True),
+    "bgp_routes": ("show bgp routes all", (), True),
+    "vrrp": ("show vrrp", (), True),
+    "bfd_sessions": ("show bfd session vr all", (), True),
+    "route_table_vr": ("show iproute vr {vr}", VR, True),
+    "ipv6_route_table_vr": ("show iproute ipv6 vr {vr}", VR, True),
+    "arp_table_vr": ("show iparp vr {vr}", VR, True),
+    "ipv6_neighbors_vr": ("show neighbor-discovery cache ipv6 vr {vr}", VR, True),
+})
+
+LOG_HISTORY_COMMAND = (
+    "show log messages {source} severity {severity} starting date {begin_date} time {begin_time} "
+    "ending date {end_date} time {end_time}"
+)
+EXPECTED["log_history"] = (LOG_HISTORY_COMMAND, (
+    ("begin_date", None, "log_date"), ("begin_time", None, "log_time"),
+    ("end_date", None, "log_date"), ("end_time", None, "log_time"),
+    ("interface", "interfaces", "extreme_physical_port"),
+    ("severity", None, "exos_log_severity"), ("source", None, "exos_log_source"),
+), True)
+
 LOG_TEMPLATES = (
+    LOG_HISTORY_COMMAND,
     "show log messages memory-buffer",
     "show log messages memory-buffer severity warning",
     "show log configuration",
@@ -171,7 +242,7 @@ def test_exact_catalogue_contract() -> None:
 def test_commands_are_narrow_read_only_cli() -> None:
     for query in QUERIES.values():
         command = query.command
-        assert command.startswith("show ")
+        assert command.startswith("show ") or command == "nslookup {name}" or command in {value[0] for value in PROBES.values()}
         assert CONTROL_OR_SHELL.search(command) is None
         assert "\\" not in command
         lowered = command.lower()

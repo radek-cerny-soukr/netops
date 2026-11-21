@@ -1,0 +1,23 @@
+SNTP client is enabled
+SNTP time is valid
+Primary server:host02                   VR-Default
+Secondary server:
+Broadcasts: VR-Mgmt
+Query interval:64
+Last valid SNTP update: From server:host02, on Thu Nov 19 14:57:28 2026
+
+SNTPC Statistics:
+ Packets transmitted:
+  to primary server:            53692
+  to secondary server:          0
+ Packets received with valid time:
+  from Primary server:          37962
+  from Secondary server:        0
+  from Broadcast server:        0
+ Packets received without valid time:
+  from Primary server:          10
+  from Secondary server:        0
+  from Broadcast server:        0
+ Replies not received to requests:
+  from Primary server:          15739
+  from Secondary server:        0

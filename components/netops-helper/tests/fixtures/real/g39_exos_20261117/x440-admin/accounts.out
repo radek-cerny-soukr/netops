@@ -1,0 +1,6 @@
+                       User Name  Access LoginOK  Failed  Consec. Fail  State
+--------------------------------  ------ -------  ------  ------------  --------
+                           user02    R/W       0       0             0   Enabled
+                            user01   RO        1       0             0   Enabled
+                        user03       R/W       0       1             1   Enabled
+                       user04        RO     1183      38             0   Enabled

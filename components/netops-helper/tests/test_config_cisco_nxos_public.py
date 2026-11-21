@@ -1,6 +1,6 @@
-"""Task 153: the public config_read path for the single admitted Cisco NX-OS profile.
+"""Task 153: the public config_read path for the Cisco NX-OS profile (G00: other identities read with a warning).
 
-Only ``cisco_nxos`` / ``cisco Nexus9000 C9300v Chassis`` with ``NXOS: version 9.3(12)`` is admitted
+``cisco_nxos`` / ``cisco Nexus9000 C9300v Chassis`` with ``NXOS: version 9.3(12)`` is the tested identity
 (``config_cisco_nxos_adapter``), the same pattern as the cisco_xe path (task 140), the arista_eos path
 (tasks 143/153) and the accepted ``cisco_ios`` path (task 128).  The capture goes through the
 indentation-based ``config_indented.NxosStreamRedactor`` (task 147).
@@ -404,6 +404,8 @@ def test_fresh_public_read_pages_and_continues_without_more_ssh(env):
     assert first['include_defaults'] is False
     assert first['redaction_profile'] == adapter.PROFILE
     assert first['firmware'] == {'model': 'Nexus9000 C9300v', 'version': '9.3(12)'}
+    # The tested identity (G00): the reply is as before, without firmware_support or warnings.
+    assert 'firmware_support' not in first and 'warnings' not in first
     assert first['capture_complete'] is True and first['configuration_complete'] is False
     assert first['identity_scope_verified'] is False and first['config_scope'] == 'device-account-visible'
     assert first['visibility_limitations'] == ['account-rights-not-verified', 'formats-not-verified',
@@ -597,12 +599,32 @@ def test_engine_refuses_options_access_and_platform_before_ssh(env):
 
 # ------------------------------------------------------------ identity gates the configuration command
 
-UNSUPPORTED = 'firmware-not-supported for cisco_nxos; supported Nexus9000 C9300v 9.3\\(12\\);'
+@pytest.mark.parametrize('version, firmware', [
+    (VERSION.replace(CHASSIS, '  cisco Nexus9000 C9500v Chassis'), {'model': 'Nexus9000 C9500v', 'version': '9.3(12)'}),
+    (VERSION.replace(RELEASE, ' NXOS: version 10.3(4a)'), {'model': 'Nexus9000 C9300v', 'version': '10.3(4a)'}),
+], ids=['derived-other-model', 'derived-other-release'])
+def test_untested_identity_is_read_with_a_warning_through_the_public_chain(env, version, firmware):
+    """G00: an untested identity is read through worker, proxy and engine; same redaction, plus a warning."""
+    wire = _rewire(env, Wire(version=version))
+    first = _page(_call(env, 'config_read', _b(limit=200)))
+    assert wire.commands() == ['show version', 'show running-config']
+    assert first['firmware'] == firmware
+    message = ('Cisco NX-OS %s on %s is not among the versions config_read was tested on (Nexus9000 C9300v 9.3(12)). '
+               'It may or may not work as designed and tested; check the result.' % (firmware['version'],
+                                                                                      firmware['model']))
+    assert first['firmware_support'] == {
+        'status': 'untested', 'platform': 'Cisco NX-OS', 'device_version': firmware['version'],
+        'model': firmware['model'], 'tested_versions': ['Nexus9000 C9300v 9.3(12)'], 'message': message}
+    assert first['warnings'] == [{'code': 'firmware_untested', 'message': message}]
+    assert first['redaction_profile'] == adapter.PROFILE
+    pages, text = _pages(env, first, _b(), 200)
+    assert text == expected(B_SECRET) and len(wire.calls) == 2
+    for page in pages:
+        assert page['firmware_support'] == first['firmware_support'] and page['warnings'] == first['warnings']
+        _assert_clean(page)
 
 
 @pytest.mark.parametrize('version, message', [
-    (VERSION.replace(CHASSIS, '  cisco Nexus9000 C9500v Chassis'), UNSUPPORTED),
-    (VERSION.replace(RELEASE, ' NXOS: version 10.3(4a)'), UNSUPPORTED),
     (VERSION_XE, 'identity-unverifiable'),
     (VERSION_EOS, 'identity-unverifiable'),
     (VERSION + ' NXOS: version 9.3(11)\n', 'identity-unverifiable'),
@@ -611,9 +633,9 @@ UNSUPPORTED = 'firmware-not-supported for cisco_nxos; supported Nexus9000 C9300v
     (VERSION.replace(HEADER + '\n', ''), 'identity-unverifiable'),
     (VERSION.replace(RELEASE, ' NXOS: version 9.3'), 'identity-unverifiable'),
     ('', 'identity-unverifiable'),
-], ids=['derived-other-model', 'derived-other-release', 'real-cisco-xe', 'real-arista-eos', 'two-different-releases',
+], ids=['real-cisco-xe', 'real-arista-eos', 'two-different-releases',
         'repeated-identity', 'no-hardware-line', 'no-header', 'malformed-release-line', 'empty'])
-def test_unsupported_or_unverifiable_identity_never_runs_the_config_command(env, version, message):
+def test_unverifiable_identity_never_runs_the_config_command(env, version, message):
     auth = _engine_auth(env)
     wire = _rewire(env, Wire(version=version))
     with pytest.raises(ValueError, match=message) as raised:
@@ -693,9 +715,13 @@ def test_cached_snapshot_keeps_profile_and_platform_binding(env):
         configuration._SNAPSHOTS[identity] = replace(stored, profile=profile)
         with pytest.raises(ValueError, match='invalid configuration profile|capture options mismatch'):
             _read(auth, snapshot_id=identity)
-    for firmware in (('Nexus9000 C9300v', '9.3(11)'), ('Nexus9000 C9500v', '9.3(12)'),
-                     ('Nexus9000 C9300v', '9.3(12)', 'x'), config_arista_eos_adapter.SUPPORTED,
-                     config_cisco_xe_adapter.SUPPORTED, config_cisco_ios_adapter.SUPPORTED):
+    # G00: a stored untested record pages with its warning; a record of another shape is refused.
+    for firmware in (('Nexus9000 C9300v', '9.3(11)'), ('Nexus9000 C9500v', '9.3(12)')):
+        configuration._SNAPSHOTS[identity] = replace(stored, firmware=firmware)
+        page = _read(auth, snapshot_id=identity)
+        assert page['firmware_support']['status'] == 'untested' and page['warnings'][0]['code'] == 'firmware_untested'
+    for firmware in (('Nexus9000 C9300v', '9.3(12)', 'x'), ['Nexus9000 C9300v', '9.3(12)'], ('Nexus9000 C9300v', '9.3'),
+                     config_arista_eos_adapter.TESTED, config_cisco_xe_adapter.TESTED, config_cisco_ios_adapter.TESTED):
         configuration._SNAPSHOTS[identity] = replace(stored, firmware=firmware)
         with pytest.raises(ValueError, match='policy mismatch'):
             _read(auth, snapshot_id=identity)
@@ -703,7 +729,7 @@ def test_cached_snapshot_keeps_profile_and_platform_binding(env):
     for platform, other in (('cisco_xe', config_cisco_xe_adapter), ('cisco_ios', config_cisco_ios_adapter),
                             ('arista_eos', config_arista_eos_adapter)):
         configuration._SNAPSHOTS[identity] = replace(stored, scope=(stored.scope[0], platform, *stored.scope[2:]),
-                                                     profile=other.PROFILE, firmware=other.SUPPORTED)
+                                                     profile=other.PROFILE, firmware=other.TESTED)
         with pytest.raises(ValueError, match='scope mismatch'):
             _read(auth, snapshot_id=identity)
     configuration._SNAPSHOTS[identity] = stored
@@ -728,3 +754,23 @@ def test_cached_snapshot_keeps_profile_and_platform_binding(env):
                               (adapter.PROFILE.upper(), 'cisco_nxos'), (None, 'cisco_nxos')):
         with pytest.raises(ValueError, match='invalid configuration profile'):
             configuration._snapshot_profile(profile, platform)
+
+
+def test_live_startup_count_failure_does_not_capture_or_keep_config(env, monkeypatch):
+    wire = env["wire"]
+    attempted = []
+
+    def read(*args, **kwargs):
+        command = args[5]
+        attempted.append(command)
+        if command == "show startup-config | count":
+            raise ValueError("fixture invalid transport count reply")
+        return wire(*args, **kwargs)
+
+    monkeypatch.setattr(engine.core_ssh, "run_command", read)
+    auth = replace(_engine_auth(env), read_inventory={"config_access": ("read", "compare")})
+    answer = engine.config_diff(auth, "cisco_nxos", "startup", "running")
+    assert not answer["ok"] and answer["error_code"] == "stream-incomplete"
+    assert "untrusted_device_output" not in answer and not configuration._SNAPSHOTS
+    assert "fixture invalid transport count reply" not in str(answer)
+    assert attempted == ["show version", "show startup-config | count"]

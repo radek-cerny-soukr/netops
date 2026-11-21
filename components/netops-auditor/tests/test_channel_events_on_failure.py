@@ -1,6 +1,8 @@
 import json
 import os
 import sqlite3
+from contextlib import nullcontext
+from types import SimpleNamespace
 
 import pytest
 
@@ -25,13 +27,6 @@ PREFLIGHT = "%s@%s %s" % (LOGIN, HOST, SSH_STEPS["fortios"][0].command)
 SHOW = "%s@%s %s" % (LOGIN, HOST, SSH_STEPS["fortios"][1].command)
 
 
-class Result:
-    def __init__(self, returncode, stdout, stderr=b""):
-        self.returncode = returncode
-        self.stdout = stdout
-        self.stderr = stderr
-
-
 class Credential:
     kind = "ssh-key"
     login = LOGIN
@@ -41,22 +36,21 @@ class Credential:
 
 
 class Device:
-    def __init__(self, show=DUMP, show_code=0):
+    def __init__(self, show=DUMP, show_code=0, console=CONSOLE):
         self.show = show.encode("utf-8")
         self.show_code = show_code
+        self.console = console
         self.sent = []
 
-    def __call__(self, argv, **options):
-        if argv[0] == "ssh-keyscan":
-            return Result(0, ("%s ssh-ed25519 %s\n" % (HOST, KEY_BLOB)).encode("utf-8"))
-        self.sent.append(argv[-1])
-        if argv[-1] == SSH_STEPS["fortios"][0].command:
-            return Result(0, CONSOLE)
-        return Result(self.show_code, self.show)
+    def run(self, command, **options):
+        self.sent.append(command)
+        if command == SSH_STEPS["fortios"][0].command:
+            return SimpleNamespace(rc=0, stdout=self.console)
+        return SimpleNamespace(rc=self.show_code, stdout=self.show)
 
 
 def gather(device):
-    return collect_ssh(DEVICE, "fortios", HOST, 22, Credential(), KEY_PIN, run=device, keyscan=device)
+    return collect_ssh(DEVICE, "fortios", HOST, 22, Credential(), KEY_PIN, session=device)
 
 
 def trail(events):
@@ -75,15 +69,9 @@ def test_every_sent_command_stays_an_event_when_the_second_step_fails():
 
 
 def test_a_refused_first_step_carries_only_its_own_event():
-    device = Device()
-    device_console = b"output              : more\n"
-
-    def paged(argv, **options):
-        answer = device(argv, **options)
-        return Result(0, device_console) if argv[-1] == "get system console" else answer
-
+    device = Device(console=b"output              : more\n")
     with pytest.raises(CollectError) as caught:
-        gather(paged)
+        gather(device)
     assert device.sent == ["get system console"]
     assert trail(caught.value.events) == [(PREFLIGHT, "failed")]
 
@@ -109,12 +97,7 @@ def write_vault(directory):
 
 
 def collect_cli(capsys, monkeypatch, tmp_path, device, database):
-    real = collect.collect_ssh
-
-    def wired(*arguments, **named):
-        return real(*arguments, run=device, keyscan=device, **named)
-
-    monkeypatch.setattr(cli.collect, "collect_ssh", wired)
+    monkeypatch.setattr(collect, "fortinet_session", lambda *args, **kwargs: nullcontext(device))
     code = cli.main([
         "collect", "--inventory", str(write_inventory(tmp_path)), "--vault", str(write_vault(tmp_path)),
         "--device", DEVICE, "--tenant", TENANT, "--store", str(database), "--json",

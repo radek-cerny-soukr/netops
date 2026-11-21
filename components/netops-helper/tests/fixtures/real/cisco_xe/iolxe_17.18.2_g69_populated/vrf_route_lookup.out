@@ -1,0 +1,10 @@
+
+
+
+
+Routing Table: blue
+Routing entry for 192.0.2.0/24
+  Known via "static", distance 1, metric 0
+  Routing Descriptor Blocks:
+  * 203.0.113.250
+      Route metric is 0, traffic share count is 1

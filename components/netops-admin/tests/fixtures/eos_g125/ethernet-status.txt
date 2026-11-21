@@ -1,0 +1,2 @@
+Port       Name   Status       Vlan     Duplex Speed  Type            Flags Encapsulation
+Et12              connected    1        full   1G     EbraTestPhyPort

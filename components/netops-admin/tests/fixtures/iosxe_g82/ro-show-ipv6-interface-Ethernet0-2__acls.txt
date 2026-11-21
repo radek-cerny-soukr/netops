@@ -1,0 +1,23 @@
+
+
+
+Ethernet0/2 is up, line protocol is up
+  IPv6 is enabled, link-local address is fe80::11                 
+  No Virtual link-local address(es):
+  Description: port-desc-01
+  Global unicast address(es):
+    2001:db8:3::7, subnet is 2001:db8:3::0/64 
+  Joined group address(es):
+    FF02::1
+    FF02::2
+    FF02::1:FF00:7
+    FF02::1:FF00:11
+  MTU is 1500 bytes
+  VPN Routing/Forwarding "blue"
+  ICMP error messages limited to one every 100 milliseconds
+  ICMP redirects are enabled
+  ICMP unreachables are sent
+  ND DAD is enabled, number of DAD attempts: 1
+  ND reachable time is 30000 milliseconds (using 30000)
+  ND RAs are suppressed (all)
+  Hosts use stateless autoconfig for addresses.

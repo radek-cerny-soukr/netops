@@ -1,0 +1,28 @@
+{
+    "tablesLastChangeTime": 1795158734.589431,
+    "tablesInserts": 3,
+    "tablesDeletes": 0,
+    "tablesDrops": 0,
+    "tablesAgeOuts": 0,
+    "lldpNeighbors": [
+        {
+            "port": "Ethernet1",
+            "neighborDevice": "host01",
+            "neighborPort": "Ethernet1",
+            "ttl": 120
+        },
+        {
+            "port": "Ethernet2",
+            "neighborDevice": "host01",
+            "neighborPort": "Ethernet2",
+            "ttl": 120
+        },
+        {
+            "port": "Management0",
+            "neighborDevice": "host01",
+            "neighborPort": "Management0",
+            "ttl": 120
+        }
+    ],
+    "lldpSwagNeighbors": []
+}

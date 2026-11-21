@@ -1,0 +1,3 @@
+set interfaces ge-0/0/2 description "Kancelář 2.patro – učebna Žďár nad Sázavou, zásuvka 12/3 (VoIP + PC); správce: Ředitelství & IT; pozn.: přepojeno 2026-11-18, kabel č. 47, patch A-12 → sw ge-0/0/2; kontakt: helpdesk / tel. 1234; ověřeno G137 Ťuk ďábel ÚŮ"
+set interfaces ge-0/0/2 unit 0 family ethernet-switching interface-mode access
+set interfaces ge-0/0/2 unit 0 family ethernet-switching vlan members g137-data

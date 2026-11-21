@@ -1,0 +1,7 @@
+{
+  "lease_list_all": "_default\n  IP\t\tMAC-Address\t\tHostname            VCI                 SSID                AP                  SERVER-ID           Expiry\n  192.0.2.2\t00:00:5e:00:53:01\thost01                                                                          6                   Wed Nov 25 21:07:19 2026\nfortilink\n  IP\t\tMAC-Address\t\tHostname            VCI                 SSID                AP                  SERVER-ID           Expiry\n  198.51.100.3\t00:00:5e:00:53:02\thost02              FortiSwitch-108E                                            2                   Wed Nov 25 22:03:32 2026\n",
+  "lease_list_bad_interface": "Interface name \"nonexistent9\" does not exist.\n",
+  "lease_list_fortilink": "fortilink\n  IP\t\tMAC-Address\t\tHostname            VCI                 SSID                AP                  SERVER-ID           Expiry\n  198.51.100.3\t00:00:5e:00:53:02\thost02              FortiSwitch-108E                                            2                   Wed Nov 25 22:03:32 2026\n",
+  "lease_list_internal_empty": "",
+  "lease_list_refused_cli_exec": "Unknown action 0\n"
+}

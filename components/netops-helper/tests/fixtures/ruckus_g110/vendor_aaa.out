@@ -1,0 +1,37 @@
+show aaa all
+AAA:
+  ID:
+    1:
+      Name= Local Database
+      Type= Local
+    2:
+      Name= Guest Accounts
+      Type= Guest
+    3:
+      Name= radius-accounting
+      Type= RADIUS Accounting server
+      Primary RADIUS Accounting:
+        IP Address= 192.0.2.7
+        Port= 1813
+        Secret= FAKE-SECRET-31
+      Secondary RADIUS Accounting:
+        Status= Disabled
+    4:
+      Name= radius-auth
+      Type= RADIUS server
+      Auth Method=
+      Primary RADIUS:
+        IP Address= 192.0.2.99
+        Port= 1812
+        Shared Secret= FAKE-SECRET-32
+      Secondary RADIUS:
+        Status= Disabled
+    5:
+      Name= directory
+      Type= Active Directory
+      IP Address= 192.0.2.17
+      Port= 389
+      Windows Domain Name= example.net
+      Global Catalog= Disabled
+      Admin DN= example
+      Admin Password= FAKE-SECRET-33

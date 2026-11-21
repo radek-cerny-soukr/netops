@@ -1,0 +1,12 @@
+host01         # config load-balance profile
+  edit "LB_PROF_TCP"
+    set type tcp
+    set client-ip-tcp-option disable
+    set timeout_tcp_session 100
+    set timeout_send_rst disable
+    set ip-reputation disable
+    unset geoip-list
+    unset allowlist
+  next
+end
+host01         #

@@ -1,0 +1,16 @@
+host01         # config system interface
+  edit "port1"
+    set type physical
+    set mode static
+    set vdom root
+    set ip 192.0.2.40/24
+    set ip6 ::/0
+    set allowaccess https ping ssh snmp
+    set mtu 1500
+    set speed auto
+    set status up
+    config  ha-node-ip-list
+    end
+  next
+end
+host01         #

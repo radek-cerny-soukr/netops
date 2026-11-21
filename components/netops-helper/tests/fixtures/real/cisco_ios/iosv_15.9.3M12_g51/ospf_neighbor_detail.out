@@ -1,0 +1,51 @@
+
+
+
+ Neighbor 198.51.100.3, interface address 192.0.2.3
+    In the area 0 via interface GigabitEthernet0/1.10
+    Neighbor priority is 1, State is FULL, 6 state changes
+    DR is 192.0.2.7  BDR is 192.0.2.3
+    Options is 0x2 in Hello (E-bit)
+    Options is 0x42 in DBD (E-bit, O-bit)
+    Dead timer due in 00:00:39
+    Neighbor is up for 1d12h   
+    Index 2/2/2, retransmission queue length 0, number of retransmission 15
+    First 0x0(0)/0x0(0)/0x0(0) Next 0x0(0)/0x0(0)/0x0(0)
+    Last retransmission scan length is 2, maximum is 2
+    Last retransmission scan time is 1 msec, maximum is 2 msec
+ Neighbor 198.51.100.5, interface address 192.0.2.5
+    In the area 0 via interface GigabitEthernet0/1.10
+    Neighbor priority is 1, State is 2WAY, 2 state changes
+    DR is 192.0.2.7  BDR is 192.0.2.3
+    Options is 0x2 in Hello (E-bit)
+    Dead timer due in 00:00:37
+    Neighbor is up for 1d12h   
+    Index 0/0/0, retransmission queue length 0, number of retransmission 0
+    First 0x0(0)/0x0(0)/0x0(0) Next 0x0(0)/0x0(0)/0x0(0)
+    Last retransmission scan length is 0, maximum is 0
+    Last retransmission scan time is 0 msec, maximum is 0 msec
+ Neighbor 198.51.100.6, interface address 192.0.2.6
+    In the area 0 via interface GigabitEthernet0/1.10
+    Neighbor priority is 128, State is 2WAY, 4 state changes
+    DR is 192.0.2.7  BDR is 192.0.2.3
+    Options is 0x12 in Hello (E-bit, L-bit)
+    LLS Options is 0x1 (LR)
+    Dead timer due in 00:00:31
+    Neighbor is up for 1d12h   
+    Index 0/0/0, retransmission queue length 0, number of retransmission 0
+    First 0x0(0)/0x0(0)/0x0(0) Next 0x0(0)/0x0(0)/0x0(0)
+    Last retransmission scan length is 0, maximum is 0
+    Last retransmission scan time is 0 msec, maximum is 0 msec
+ Neighbor 198.51.100.7, interface address 192.0.2.7
+    In the area 0 via interface GigabitEthernet0/1.10
+    Neighbor priority is 1, State is FULL, 6 state changes
+    DR is 192.0.2.7  BDR is 192.0.2.3
+    Options is 0x12 in Hello (E-bit, L-bit)
+    Options is 0x52 in DBD (E-bit, L-bit, O-bit)
+    LLS Options is 0x1 (LR)
+    Dead timer due in 00:00:34
+    Neighbor is up for 1d12h   
+    Index 1/1/1, retransmission queue length 0, number of retransmission 0
+    First 0x0(0)/0x0(0)/0x0(0) Next 0x0(0)/0x0(0)/0x0(0)
+    Last retransmission scan length is 0, maximum is 0
+    Last retransmission scan time is 0 msec, maximum is 0 msec

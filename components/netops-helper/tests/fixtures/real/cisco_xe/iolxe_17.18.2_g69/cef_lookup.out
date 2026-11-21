@@ -1,0 +1,7 @@
+
+
+
+192.0.2.1/32, epoch 0, flags [attached]
+  Adj source: IP adj out of Ethernet0/1.10, addr 192.0.2.1  00005E005301
+    Dependent covered prefix type adjfib, cover 192.0.2.0/24
+  attached to Ethernet0/1.10

@@ -1,0 +1,41 @@
+configure terminal
+
+Enter configuration commands, one per line. End with CNTL/Z.
+
+host01(config)# vlan 3900
+
+
+host01(config-vlan)# exit
+
+
+host01(config)# interface vlan 3900
+
+
+host01(config-if)# ip address 192.0.2.1/28
+
+
+host01(config-if)# ipv6 address 2001:db8:3900::1/64
+
+
+host01(config-if)# no shutdown
+
+
+host01(config-if)# exit
+
+
+host01(config)# interface loopback 900
+
+
+host01(config-if)# ip address 192.0.2.222/32
+
+
+host01(config-if)# ipv6 address 2001:db8:900::1/128
+
+
+host01(config-if)# exit
+
+
+host01(config)# end
+
+
+host01#

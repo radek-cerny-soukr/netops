@@ -1,0 +1,25 @@
+{
+  "platform": "nxos",
+  "table": "ip-access-list",
+  "versions": ["9.3(12)"],
+  "exact_versions": true,
+  "ops": ["create", "update", "delete"],
+  "table_scoped_key": true,
+  "key_pattern": "^(?:ipv4|ipv6):[A-Za-z][A-Za-z0-9_.-]{0,63}$",
+  "protected_keys": [],
+  "attributes": {
+    "rules": {
+      "type": "text",
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "required_on_create": false,
+      "max_length": 8192
+    }
+  },
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "G103 NX-M020. Key ipv4:<name> or ipv6:<name>. Comma-separated, explicitly sequenced permit/deny rules with the family IP protocol, TCP, UDP or ICMP, any/host/CIDR addresses and optional source and destination TCP/UDP port comparisons. Uses the NX-OS timed safeguard and named rule/summary checks."
+}

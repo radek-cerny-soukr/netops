@@ -86,26 +86,40 @@ def _limits(auths, budget):
 def _coverage(auths, missing, extra_unfinished=()):
     unfinished = [a.alias for a in auths if a.alias in extra_unfinished or any(
         m.get('vantage') == a.alias or (m.get('vantage') or '').startswith(a.alias + '/') for m in missing)]
-    return {'complete': not missing, 'requested_targets': [a.alias for a in auths],
+    return {'complete': not missing and not unfinished, 'requested_targets': [a.alias for a in auths],
             'completed_targets': [a.alias for a in auths if a.alias not in unfinished],
             'unfinished_targets': unfinished}
 
 
-def run(auths, endpoint, budget, wired, stations, progress=lambda result: None):
+def run(auths, endpoint, budget, wired, stations, progress=lambda result: None, ruckus=None,
+        c9800=None, c9800_port=None, *, expected_ip=None):
     """`stations(auth, mac, ip)` returns the joined station records of one controller;
-    `wired(endpoint, progress)` is one run of the existing wired correlation."""
+    `wired(endpoint, progress)` is one run of the existing wired correlation;
+    `ruckus(auth, mac, ip)` (G108) returns the client/AP join of one Ruckus Unleashed controller."""
     kind, value = tables.literal(endpoint)
     if not 1 <= len(auths) <= locate.MAX_TARGETS or len({a.alias for a in auths}) != len(auths):
         raise ValueError(f'locate_endpoint requires 1 to {locate.MAX_TARGETS} distinct enrolled targets')
-    sources = controllers(auths)
-    if not sources or not (kind == 'mac' or kind == 'ip' and ':' not in value):
-        return wired(endpoint, progress)          # unchanged wired flow
-    # The cap locate.run applies; REST reads are charged to it from the first GET.
+    ruckus_sources = [a for a in auths if ruckus is not None and locate.ruckus_reader(a)]
+    c9800_sources = [a for a in auths if c9800 is not None and locate.c9800_reader(a)]
+    fortios_sources = controllers(auths)
+    if not (fortios_sources or ruckus_sources or c9800_sources):
+        return wired(endpoint, progress)
+    if kind == 'ip' and ':' in value:
+        if not (ruckus_sources or c9800_sources):
+            return wired(endpoint, progress)
+        gaps = [{'vantage': a.alias, 'table': 'wifi_client', 'reason': 'address_family_not_supported'}
+                for a in ruckus_sources + c9800_sources]
+        def report(result):
+            progress(_with_wireless_coverage(auths, result, gaps, ()))
+        return _with_wireless_coverage(auths, wired(endpoint, report), gaps, ())
+    # Wireless and wired reads share the same cap.
     budget.max_reads = locate.MAX_READS if len(auths) <= 8 else 8 * len(auths)
 
-    missing, vantage, rest_sources, candidates = [], [], [], []
+    missing, vantage, evidence, candidates = [], [], [], []
     checked, failed = [], []
     stations_seen, ap_ambiguous = [], False
+    sources = fortios_sources + ruckus_sources + c9800_sources
+    unfinished = {a.alias for a in sources}
 
     def miss(target, table, reason, **extra):
         item = {'vantage': target, 'table': table, 'reason': reason, **extra}
@@ -116,8 +130,8 @@ def run(auths, endpoint, budget, wired, stations, progress=lambda result: None):
         result = {'ok': True, 'endpoint': {kind: value}, 'verdict': verdict,
                   'findings': [], 'own_interfaces': [], 'neighbors_l3': [],
                   'missing': list(missing), 'vantage': list(vantage), 'reads': budget.reads,
-                  'coverage': _coverage(auths, missing,
-                                        ap_location['coverage']['unfinished_targets'] if ap_location else ()),
+                  'coverage': _coverage(auths, missing, unfinished.union(
+                      ap_location['coverage']['unfinished_targets'] if ap_location else ())),
                   'limits': _limits(auths, budget),
                   'elapsed_seconds': round(budget.now() - budget.started, 3)}
         if wireless is not None:
@@ -125,28 +139,45 @@ def run(auths, endpoint, budget, wired, stations, progress=lambda result: None):
         return result
 
     budget.on_read = lambda reads: progress(checkpoint())
+    mac, ip = (value, None) if kind == 'mac' else (None, value)
     for auth in sources:
+        is_ruckus = locate.ruckus_reader(auth)
+        is_c9800 = locate.c9800_reader(auth)
+        cli_controller = is_ruckus or is_c9800
+        table = 'wifi_client' if cli_controller else 'wifi_station'
         try:
-            answer = stations(auth, value if kind == 'mac' else None, value if kind == 'ip' else None)
+            answer = (c9800 if is_c9800 else ruckus if is_ruckus else stations)(auth, mac, ip)
         except locate.LimitReached as exc:
             miss(auth.alias, 'budget', str(exc))
             failed.append(auth.alias)
             continue
-        rest_sources.extend({'target': auth.alias, **s} for s in answer.get('sources', ()))
-        status = 'ok' if answer.get('ok') else answer.get('error_code') or 'rest_unavailable'
+        unfinished.discard(auth.alias)
+        reads = answer.get('sources') or ()
+        evidence.extend({'target': auth.alias, **item} for item in reads)
+        fallback = 'device_cli_error' if cli_controller else 'rest_unavailable'
+        status = 'ok' if answer.get('ok') else answer.get('error_code') or fallback
         vantage.append({'target': auth.alias, 'profile': auth.ssh_platform, 'device_types': list(auth.device_types),
-                        'table': 'wifi_station', 'status': status,
-                        'captured_at': (answer.get('sources') or [{}])[0].get('captured_at'),
-                        'sources': [s.get('endpoint') for s in answer.get('sources', ())],
+                        'table': table, 'status': status,
+                        'captured_at': reads[0].get('captured_at') if reads else None,
+                        'sources': [item.get('query' if cli_controller else 'endpoint') for item in reads],
                         'coverage': {}, 'warnings': []})
         if not answer.get('ok'):
-            extra = {'error_code': status}
-            if answer.get('failed_step'):
-                extra['failed_step'] = answer['failed_step']
-            miss(auth.alias, 'wifi_station', 'rest_unavailable', **extra)
+            step = answer.get('failed_step')
+            if cli_controller:
+                miss(auth.alias, step or table, status)
+            else:
+                miss(auth.alias, table, 'rest_unavailable', error_code=status, **({'failed_step': step} if step else {}))
             failed.append(auth.alias)
             continue
         checked.append(auth.alias)
+        if cli_controller:
+            for gap in answer.get('missing', ()):
+                miss(auth.alias, gap['step'], gap['reason'])
+            for row in answer.get('records', ()):
+                item = _ruckus_candidate(auth.alias, row)
+                if item not in candidates:
+                    candidates.append(item)
+            continue
         identity = answer.get('identity_missing')
         if isinstance(identity, dict):
             # The planned device/query read failed: station/AP facts stay, the gap is admitted.
@@ -171,31 +202,26 @@ def run(auths, endpoint, budget, wired, stations, progress=lambda result: None):
                 if item not in candidates:
                     candidates.append(item)
 
-    summary = {'controllers_checked': checked, 'controllers_failed': failed, 'sources': rest_sources,
+    summary = {'controllers_checked': checked, 'controllers_failed': failed, 'sources': evidence,
                'device_output_trust': 'untrusted'}
-
+    station_table = 'wifi_station' if fortios_sources else 'wifi_client'
     if not candidates:
-        # Not an associated station (or REST unreadable): the original wired flow decides,
-        # and a REST gap can never turn into a claim of absence.
-        result = wired(endpoint, progress)
-        result['vantage'] = vantage + result.get('vantage', [])
-        for item in missing:
-            if item not in result['missing']:
-                result['missing'].append(item)
-        if missing and result['verdict'] == 'not_found_in_checked_data':
-            result['verdict'] = 'incomplete'
-        result['coverage'] = _coverage(auths, result['missing'])
-        result['reads'] = budget.reads
         # A failed supplementary identity read does not make the full station read unverified.
-        station_gaps = [m for m in missing if m['table'] != 'wifi_device_identity']
-        result['wireless'] = {'status': 'not_in_station_table' if not failed and not station_gaps else 'not_verified',
-                              **summary}
-        return result
+        station_gaps = any(m['table'] != 'wifi_device_identity' for m in missing)
+        wireless = {'status': 'not_in_station_table' if not failed and not station_gaps else 'not_verified', **summary}
+        def report(result):
+            progress(_with_wireless_coverage(auths, result, missing, vantage))
+        result = _with_wireless_coverage(auths, wired(endpoint, report), missing, vantage)
+        return {**result, 'wireless': wireless}
+
+    if expected_ip and any(item['client']['ip'] not in (None, expected_ip) for item in candidates):
+        miss(None, station_table, 'lease_station_address_mismatch')
+        return checkpoint('ambiguous', {'status': 'ambiguous', **summary, 'candidates': candidates,
+                                        'ap_location': None, 'ap_port': None})
 
     if len(candidates) > 1:
-        # Distinct station/AP bindings: never first- or last-wins.
-        if len(stations_seen) > 1:
-            miss(None, 'wifi_station', 'multiple_station_candidates')
+        if len(stations_seen) > 1 or any('channel' in item for item in candidates):
+            miss(None, station_table, 'multiple_station_candidates')
         if ap_ambiguous:
             miss(None, 'wifi_ap', 'multiple_ap_matches')
         wireless = {'status': 'ambiguous', **summary, 'candidates': candidates, 'ap_location': None, 'ap_port': None}
@@ -203,6 +229,12 @@ def run(auths, endpoint, budget, wired, stations, progress=lambda result: None):
 
     found = candidates[0]
     controller = found['controller']
+    if failed:
+        miss(None, station_table, 'other_controller_unverified')
+    if any(a.alias == controller for a in c9800_sources + ruckus_sources):
+        return _locate_cli_ap(found, summary, wired, checkpoint, progress, miss, missing,
+                              locally_switched=(found.get('locally_switched') or any(a.alias == controller for a in ruckus_sources)),
+                              port_health=c9800_port if any(a.alias == controller for a in c9800_sources) else None)
     if not found['joined']:
         miss(controller, 'wifi_ap', 'ap_not_joined')
     if found['radio'] is None:
@@ -213,8 +245,6 @@ def run(auths, endpoint, budget, wired, stations, progress=lambda result: None):
     wireless = {'status': 'associated', **summary, 'controller': controller,
                 'client': found['client'], 'ap': found['ap'], 'radio': found['radio'], 'band': found['band'],
                 'ap_location': None, 'ap_port': None}
-    if failed:
-        miss(None, 'wifi_station', 'other_controller_unverified')
     if ap_ip is None:
         miss(None, 'wifi_ap_backhaul', 'ap_management_ip_unavailable')
         return checkpoint('incomplete', wireless)
@@ -223,7 +253,7 @@ def run(auths, endpoint, budget, wired, stations, progress=lambda result: None):
     # with the same targets, callbacks and Budget. It never re-enters this Wi-Fi phase.
     def nested(ap_result):
         progress(checkpoint('incomplete', {**wireless, 'ap_location': ap_result}, ap_result))
-    location = wired(ap_ip, nested)
+    location = wired(ap_ip, nested, ap_backhaul=True, client_mac=found['client']['mac'])
     wireless['ap_location'] = location
     edges = [f for f in location.get('findings', ()) if f.get('edge')]
     if location['verdict'] == 'ambiguous':
@@ -236,4 +266,89 @@ def run(auths, endpoint, budget, wired, stations, progress=lambda result: None):
     wireless['ap_port'] = ({'vantage': edges[0]['vantage'], 'port': edges[0]['port'],
                             'vlan_id': edges[0].get('vlan_id'), 'role': edges[0].get('role')}
                            if location['verdict'] == 'located' and len(edges) == 1 else None)
+    return checkpoint('incomplete' if missing else 'located', wireless, location)
+
+
+def _ruckus_candidate(alias, row):
+    ap = row.get('ap') or {}
+    return {'controller': alias,
+            'client': {key: row.get(key) for key in ('mac', 'ip', 'wlan', 'vlan_id')},
+            'ap': {'mac': ap.get('mac'), 'name': _text(ap.get('name')),
+                   'management_ip': _management_ip(ap.get('ip')), 'role': _text(ap.get('role')),
+                   'uplink_ports': list(ap.get('uplink_ports') or ())},
+            'channel': row.get('channel'), 'radio': row.get('radio'), 'joined': bool(ap.get('mac')),
+            **({'locally_switched': row['locally_switched']} if 'locally_switched' in row else {})}
+
+
+def _with_wireless_coverage(auths, result, missing, vantage):
+    gaps = [*result['missing'], *(item for item in missing if item not in result['missing'])]
+    verdict = result['verdict']
+    if missing and verdict == 'not_found_in_checked_data':
+        verdict = 'incomplete'
+    return {**result, 'vantage': [*vantage, *result['vantage']], 'missing': gaps, 'verdict': verdict,
+            'coverage': _coverage(auths, gaps, result['coverage']['unfinished_targets'])}
+
+
+def _locate_cli_ap(found, summary, wired, checkpoint, progress, miss, missing, *, locally_switched, port_health):
+    # The AP's Ethernet MAC is the endpoint of the wired lookup. The client's VLAN
+    # is checked at that port only when the controller establishes local switching.
+    client_vlan_id = found['client']['vlan_id']
+    known_vlan = locally_switched and type(client_vlan_id) is int
+    wireless = {'status': 'associated', **summary, 'controller': found['controller'], 'client': found['client'],
+                'ap': found['ap'], 'radio': found['radio'], 'channel': found['channel'],
+                'ap_location': None, 'ap_port': None,
+                'ssid_binding': {'wlan': found['client']['wlan'], 'client_vlan_id': client_vlan_id,
+                                 'ap_uplink_ports': found['ap']['uplink_ports']}}
+    if locally_switched and not known_vlan:
+        # The client record was read completely, it just prints no VLAN: the AP port check stays, the client VLAN
+        # membership of that port cannot be judged and says why.
+        miss(None, 'ssid_binding', 'client_vlan_not_reported', controller=found['controller'],
+             detail='the controller printed no VLAN for this client; the AP switch port membership in the client '
+                    'VLAN was not checked')
+    if not found['joined']:
+        miss(found['controller'], 'wifi_ap', 'ap_not_joined')
+        return checkpoint('incomplete', wireless)
+
+    def nested(ap_result):
+        progress(checkpoint('incomplete', {**wireless, 'ap_location': ap_result}, ap_result))
+    location = wired(found['ap']['mac'], nested, port_vlan_id=client_vlan_id if known_vlan else None,
+                     ap_backhaul=True, client_mac=found['client']['mac'])
+    wireless['ap_location'] = location
+    edges = [f for f in location.get('findings', ()) if f.get('edge')]
+    if location['verdict'] == 'ambiguous':
+        miss(None, 'wifi_ap_backhaul', 'ap_location_ambiguous')
+        return checkpoint('ambiguous', wireless, location)
+
+    edge = edges[0] if len(edges) == 1 else None
+    # VLAN membership is read separately from the FDB and LLDP evidence for this port.
+    vlan_gaps = [gap for gap in location['missing'] if edge is not None
+                 and gap['table'] == 'port_vlan' and gap['vantage'] == edge['vantage']
+                 and gap.get('port', edge['port']) == edge['port']]
+    only_vlan_missing = (known_vlan and location['verdict'] == 'incomplete'
+                         and bool(vlan_gaps) and len(vlan_gaps) == len(location['missing']))
+    if edge is None or (location['verdict'] != 'located' and not only_vlan_missing):
+        miss(None, 'wifi_ap_backhaul', 'ap_location_' + location['verdict'])
+        return checkpoint('incomplete', wireless, location)
+
+    wireless['ap_port'] = {'vantage': edge['vantage'], 'port': edge['port'], 'vlan_id': edge.get('vlan_id'),
+                           'role': edge.get('role'),
+                           'lldp_neighbor': next((n.get('neighbor') for n in edge.get('lldp_neighbors') or ()), None)}
+    membership = edge.get('requested_vlan_membership') if known_vlan else None
+    wireless['ssid_binding']['switch_port_vlan_membership'] = membership
+    if known_vlan and (membership is None or membership.get('tagging') == 'missing'):
+        read_gap = next((gap for gap in vlan_gaps if 'port' not in gap), {})
+        diagnostics = {key: read_gap[key] for key in ('error_code', 'error') if key in read_gap}
+        if read_gap:
+            diagnostics['read_status'] = read_gap['reason']
+        miss(edge['vantage'], 'port_vlan', 'client_vlan_membership_missing', port=edge['port'],
+             vlan_id=client_vlan_id,
+             detail='the VLAN membership of the AP switch port was not read completely; whether it carries '
+                    'the client VLAN is unknown',
+             **diagnostics)
+    if port_health is not None:
+        health = port_health(edge)
+        wireless['ap_port']['diagnostics'] = health
+        for table, observation in health.items():
+            if not observation['complete']:
+                miss(edge['vantage'], table, observation['status'], port=edge['port'])
     return checkpoint('incomplete' if missing else 'located', wireless, location)

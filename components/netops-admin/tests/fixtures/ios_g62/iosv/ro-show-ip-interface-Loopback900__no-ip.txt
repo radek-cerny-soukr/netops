@@ -1,0 +1,5 @@
+
+
+
+Loopback900 is administratively down, line protocol is down
+  Internet protocol processing disabled

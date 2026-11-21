@@ -1,0 +1,6 @@
+
+
+
+192.0.2.0/24, epoch 0, flags [rib only nolabel, rib defined all labels]
+  recursive via 198.51.100.7
+    attached to GigabitEthernet0/1.10

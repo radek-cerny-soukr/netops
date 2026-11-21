@@ -1,0 +1,3 @@
+
+> show interfaces Vlan3984 | json
+% Interface does not exist at line 1

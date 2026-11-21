@@ -1,0 +1,49 @@
+{
+  "platform": "junos",
+  "table": "rstp",
+  "versions": [
+    "26.2R1.7"
+  ],
+  "exact_versions": true,
+  "ops": [
+    "update"
+  ],
+  "implicit_keys": true,
+  "key_pattern": "^rstp$",
+  "protected_keys": [],
+  "table_scoped_key": true,
+  "attributes": {
+    "bridge-priority": {
+      "type": "integer",
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "required_on_create": false,
+      "minimum": 0,
+      "maximum": 61440
+    },
+    "bpdu-block-on-edge": {
+      "type": "text",
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "required_on_create": false,
+      "max_length": 7,
+      "pattern": "^enabled$"
+    },
+    "empty-stanza": {
+      "type": "text",
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "required_on_create": false,
+      "max_length": 7,
+      "pattern": "^enabled$"
+    }
+  },
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "Junos commit confirmed and operational spanning-tree bridge readback. The committed snapshot verifies the BPDU edge guard setting, which is not printed in the operational bridge output."
+}

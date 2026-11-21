@@ -17,9 +17,16 @@ HEADER = ('Cisco IOS Software, IOSv Software (VIOS-ADVENTERPRISEK9-M), Version 1
 HW = 'Cisco IOSv (revision 1.0) with  with 460021K/62464K bytes of memory.'
 
 
-def test_real_iosv_admitted():
+TESTED_RECORD = ('IOSv', '15.9(3)M12', 'fc1', 'VIOS-ADVENTERPRISEK9-M')
+
+
+def test_real_iosv_tested():
     firmware, meta = ad.verify_identity(IOSV)
-    assert firmware == ('IOSv', '15.9(3)M12', 'fc1') == ad.SUPPORTED
+    assert firmware == TESTED_RECORD and firmware[:3] == ad.TESTED
+    assert ad.firmware_record(firmware)
+    assert ad.firmware_support(firmware) == {
+        'status': 'tested', 'platform': 'Cisco IOS', 'device_version': '15.9(3)M12 fc1 (VIOS-ADVENTERPRISEK9-M)',
+        'model': 'IOSv', 'tested_versions': ['IOSv 15.9(3)M12 fc1 (VIOS-ADVENTERPRISEK9-M)'], 'message': None}
     assert meta['config_scope'] == 'device-account-visible'
     assert meta['configuration_complete'] is False and meta['identity_scope_verified'] is False
     assert 'account-rights-not-verified' in meta['visibility_limitations']
@@ -27,22 +34,60 @@ def test_real_iosv_admitted():
     assert ad.version_identity(IOSV) == ('IOSv', '15.9(3)M12', 'fc1', ad.IMAGE_FAMILY)
 
 
-def test_real_iosvl2_refused():
-    with pytest.raises(ad.UnsupportedIosFirmware, match='configuration firmware-not-supported'):
-        ad.verify_identity(IOSVL2)
+def test_real_iosvl2_is_read_as_untested():
+    """G00: the real IOSvL2 capture (another software, image family and release) is no refusal."""
+    firmware, meta = ad.verify_identity(IOSVL2)
+    assert firmware == ('IOSv', '15.2(20200924:215240)', None, 'vios_l2-ADVENTERPRISEK9-M')
+    assert meta == ad.metadata() and ad.firmware_record(firmware)
+    support = ad.firmware_support(firmware)
+    assert support['status'] == 'untested' and support['model'] == 'IOSv'
+    assert support['device_version'] == '15.2(20200924:215240) (vios_l2-ADVENTERPRISEK9-M)'
+    assert support['message'] == (
+        'Cisco IOS 15.2(20200924:215240) (vios_l2-ADVENTERPRISEK9-M) on IOSv is not among the versions '
+        'config_read was tested on (IOSv 15.9(3)M12 fc1 (VIOS-ADVENTERPRISEK9-M)). It may or may not work as '
+        'designed and tested; check the result.')
+
+
+def test_catalyst_header_and_hardware_are_read_as_untested():
+    """A classic Catalyst show version (derived header and hardware line, no other lines changed)."""
+    text = IOSV.replace(HEADER, 'Cisco IOS Software, C2960 Software (C2960-LANBASEK9-M), Version 15.0(2)SE11, '
+                                'RELEASE SOFTWARE (fc3)').replace(
+        HW, 'cisco WS-C2960-24TT-L (PowerPC405) processor (revision B0) with 65536K bytes of memory.')
+    firmware = ad.verify_identity(text)[0]
+    assert firmware == ('WS-C2960-24TT-L', '15.0(2)SE11', 'fc3', 'C2960-LANBASEK9-M')
+    assert ad.firmware_support(firmware)['status'] == 'untested'
+    # No recognized hardware line: the model is unknown, the identity is still read and untested.
+    firmware = ad.verify_identity(text.replace('cisco WS-C2960-24TT-L (PowerPC405) processor', 'unknown board'))[0]
+    assert firmware == (None, '15.0(2)SE11', 'fc3', 'C2960-LANBASEK9-M')
+    support = ad.firmware_support(firmware)
+    assert support['status'] == 'untested' and support['model'] is None
+    assert support['message'].startswith('Cisco IOS 15.0(2)SE11 fc3 (C2960-LANBASEK9-M) is not among')
 
 
 def test_crlf_and_prompt_lines():
-    assert ad.verify_identity(IOSV.replace('\n', '\r\n'))[0] == ad.SUPPORTED
-    assert ad.verify_identity('host#show version\r\n' + IOSV + '\r\nhost#')[0] == ad.SUPPORTED
+    assert ad.verify_identity(IOSV.replace('\n', '\r\n'))[0] == TESTED_RECORD
+    assert ad.verify_identity('host#show version\r\n' + IOSV + '\r\nhost#')[0] == TESTED_RECORD
 
 
-@pytest.mark.parametrize('old,new', [
-    ('15.9(3)M12', '15.9(3)M11'), ('(fc1)', '(fc2)'), ('VIOS-ADVENTERPRISEK9-M', 'VIOS-OTHER-M'),
-    ('15.9(3)M12', '15.9(3)T1')])
-def test_derived_foreign_wellformed_refused(old, new):
-    with pytest.raises(ad.UnsupportedIosFirmware):
-        ad.verify_identity(IOSV.replace(old, new))
+@pytest.mark.parametrize('old,new,record', [
+    ('15.9(3)M12', '15.9(3)M11', ('IOSv', '15.9(3)M11', 'fc1', 'VIOS-ADVENTERPRISEK9-M')),
+    ('(fc1)', '(fc2)', ('IOSv', '15.9(3)M12', 'fc2', 'VIOS-ADVENTERPRISEK9-M')),
+    ('VIOS-ADVENTERPRISEK9-M', 'VIOS-OTHER-M', ('IOSv', '15.9(3)M12', 'fc1', 'VIOS-OTHER-M')),
+    ('15.9(3)M12', '15.9(3)T1', ('IOSv', '15.9(3)T1', 'fc1', 'VIOS-ADVENTERPRISEK9-M'))])
+def test_derived_foreign_wellformed_is_untested(old, new, record):
+    firmware = ad.verify_identity(IOSV.replace(old, new))[0]
+    assert firmware == record
+    support = ad.firmware_support(firmware)
+    assert support['status'] == 'untested' and support['tested_versions'] == [
+        'IOSv 15.9(3)M12 fc1 (VIOS-ADVENTERPRISEK9-M)']
+
+
+@pytest.mark.parametrize('record', [
+    ('IOSv', '15.9(3)M12', 'fc1'), ['IOSv', '15.9(3)M12', 'fc1', 'VIOS-ADVENTERPRISEK9-M'],
+    ('IOSv', None, 'fc1', 'VIOS-ADVENTERPRISEK9-M'), ('IOSv', '15.9(3)M12', 'fc1', None),
+    ('IOSv', '', 'fc1', 'VIOS-ADVENTERPRISEK9-M'), ('IOSv', '15.9(3)M12', 1, 'VIOS-ADVENTERPRISEK9-M'), None])
+def test_firmware_record_shape(record):
+    assert not ad.firmware_record(record)
 
 
 @pytest.mark.parametrize('make', [
@@ -64,7 +109,7 @@ def test_derived_foreign_wellformed_refused(old, new):
 def test_unverifiable_identity(make):
     with pytest.raises(ValueError, match=BAD) as info:
         ad.verify_identity(make(IOSV))
-    assert not isinstance(info.value, ad.UnsupportedIosFirmware)
+    assert type(info.value) is ValueError
 
 
 def test_read_command():

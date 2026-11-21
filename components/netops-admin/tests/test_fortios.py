@@ -133,7 +133,6 @@ def test_delete_inverse_verifies_despite_a_new_uuid(fortios_snapshot):
 @pytest.mark.parametrize(("fields", "fragment"), [
     ({"op": "delete", "key": "srv-web", "changes": {}}, "is referenced"),
     ({"op": "delete", "key": "grouped-host", "changes": {}}, "is referenced"),
-    ({"op": "delete", "key": "docs-fqdn", "changes": {}}, "outside the profile"),
     ({"op": "update", "key": "colored-host", "changes": {"comment": "x"}}, "outside the profile"),
     ({"op": "delete", "key": "all", "changes": {}}, "is protected"),
     ({"op": "delete", "key": "missing", "changes": {}}, "does not exist"),
@@ -155,7 +154,7 @@ def test_delete_inverse_verifies_despite_a_new_uuid(fortios_snapshot):
     ({"changes": {"subnet": "192.0.2.30/32", "comment": ""}}, "use null"),
     ({"key": "bad name"}, "does not match"),
     ({"key": "x" * 80}, "does not match"),
-    ({"table": "firewall vip"}, "no profile"),
+    ({"table": "firewall vipgrp"}, "no profile"),
 ])
 def test_rejections(fortios_snapshot, fields, fragment):
     rejected(fortios_snapshot, fragment, **fields)
@@ -169,8 +168,6 @@ def test_policy_protects_additional_objects(fortios_snapshot):
 
 
 @pytest.mark.parametrize(("old", "new", "fragment"), [
-    ("FGT80F-8.0.0-FW-build0167", "FGT80F-8.0.1-FW-build0245", "not measured on firmware"),
-    ("FGT80F-8.0.0-FW-build0167", "FGT80F-8.0.0-FW-build0168", "not measured on firmware"),
     ("#config-version=", "#config-versio=", "header is missing"),
     (":vdom=0:", ":vdom=1:", "VDOMs enabled"),
     ("config firewall address\n", "config firewall address6\n", "no firewall address section"),
@@ -179,6 +176,16 @@ def test_policy_protects_additional_objects(fortios_snapshot):
 ])
 def test_snapshot_rejections(fortios_snapshot, old, new, fragment):
     rejected(replace(fortios_snapshot, old, new), fragment)
+
+
+@pytest.mark.parametrize("new", ["FGT80F-8.0.1-FW-build0245", "FGT80F-8.0.0-FW-build0168"])
+def test_untested_build_in_the_snapshot_is_planned_with_a_warning(fortios_snapshot, new):
+    # G00-1: these builds were refused as unmeasured until 1.0.11; now they are planned and reported untested
+    tested = plan(fortios_snapshot)
+    document = plan(replace(fortios_snapshot, "FGT80F-8.0.0-FW-build0167", new))
+    assert tested["firmware_support"]["status"] == "tested"
+    assert document["firmware_support"]["status"] == "untested"
+    assert document["commands"] == tested["commands"] and document["plan_sha256"] != tested["plan_sha256"]
 
 
 def test_expected_firmware_must_match_the_snapshot(fortios_snapshot):

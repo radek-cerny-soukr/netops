@@ -47,10 +47,13 @@ def outputs(**changes):
 def run(values, tunnel="T1", refused=()):
     calls = []
 
-    def read(query):
+    def read(query, parameters=None):
         calls.append(query)
         if query in refused:
             return {"ok": False, "reason": refused[query] if isinstance(refused, dict) else "device_cli_error"}
+        if query not in values:
+            # G14: the optional detail queries are not enrolled in these cases.
+            return {"ok": False, "reason": "not_enrolled"}
         text = values[query]
         return {"ok": True, "text": text, "content_sha256": hashlib.sha256(text.encode()).hexdigest()}
 
@@ -64,7 +67,12 @@ def ids(result):
 
 def test_docs_sample_parses_into_the_contract_fields():
     result, calls = run(outputs())
-    assert calls == ["system_status", "ipsec_summary", "routing_table", "ike_errors"]
+    assert calls == ["system_status", "ipsec_summary", "routing_table", "ike_errors", "ike_gateway_detail",
+                     "ipsec_tunnel_detail"]
+    assert result["chain"]["detail"] == {
+        "status": "not_enrolled", "phase1": None, "phase2": None,
+        "last_error": {"status": "unavailable", "reason": "detail_not_enrolled"},
+    }
     assert result["chain"]["tunnel"] == {"name": "T1", "instances": [
         {"name": "T1", "peer": "203.0.113.2:0", "selectors_total": 1, "selectors_up": 1,
          "rx_packets": 1200, "rx_errors": 0, "tx_packets": 1180, "tx_errors": 0}]}
@@ -206,7 +214,8 @@ def test_a_refused_step_is_incomplete_never_clean(step):
     result, calls = run(outputs(), refused=(step,))
     assert result["verdict"] == "incomplete"
     assert {"step": step, "reason": "device_cli_error"} in result["missing"]
-    assert step not in result["checked"] and len(calls) == 4
+    # G14: without the summary the tunnel is unknown, so its detail is not read
+    assert step not in result["checked"] and len(calls) == (4 if step == "ipsec_summary" else 6)
 
 
 def test_findings_survive_a_missing_step_and_route_rule_needs_routes():
@@ -241,12 +250,27 @@ def test_empty_routing_or_ike_output_is_empty_not_clean():
     "Version: FortiGate-80F v8.0.1,build0251,260928 (GA.F)\n",
     "Version: FortiGate-VM64 v7.6.8,build3744,260115 (GA.M)\n",
 ])
-def test_unqualified_identity_stops_before_any_other_read(status):
+def test_untested_identity_runs_every_read_with_a_warning(status):
+    result, calls = run(outputs(system_status=status))
+    # Without a verified VDOM scope the summary is no evidence, so the tunnel detail (G14) is not read either.
+    assert calls == ["system_status", "ipsec_summary", "routing_table", "ike_errors"]
+    assert result["ok"] is True
+    assert result["firmware_support"]["status"] == "untested"
+    assert result["warnings"] == [{"code": "firmware_untested", "message": result["firmware_support"]["message"]}]
+    assert "triage_vpn was tested on" in result["firmware_support"]["message"]
+
+
+def test_tested_identity_has_no_warning():
+    result, _ = run(outputs())
+    assert result["firmware_support"]["status"] == "tested" and "warnings" not in result
+
+
+def test_unreadable_identity_stops_before_any_other_read():
     calls = []
 
     def read(query):
         calls.append(query)
-        return {"ok": True, "text": status, "content_sha256": "0" * 64}
+        return {"ok": True, "text": "no identity\n", "content_sha256": "0" * 64}
 
     with pytest.raises(t.UnsupportedPlatform, match="config_platform_not_supported"):
         t.run(read, lambda: NOW, "T1")
@@ -299,9 +323,11 @@ def test_engine_reads_each_query_once_never_with_the_tunnel_name_and_audits(audi
     assert result["verdict"] == "no_fault_in_checked_data"
     assert sent == list(COMMANDS)
     records = [json.loads(line) for line in audit_log.read_text().splitlines()]
-    assert [r["event"] for r in records].count("triage_vpn_read") == 8
+    # G14: the two detail queries are not enrolled here; their refused reads are audited too (2 x 2 events)
+    assert [r["event"] for r in records].count("triage_vpn_read") == 12
     assert records[0]["event"] == "triage_vpn" and records[-1]["event"] == "triage_vpn"
-    assert {r.get("query") for r in records if r["event"] == "triage_vpn_read"} == set(COMMANDS.values())
+    assert {r.get("query") for r in records if r["event"] == "triage_vpn_read"} == {
+        *COMMANDS.values(), "ike_gateway_detail", "ipsec_tunnel_detail"}
 
 
 def test_engine_maps_policy_and_device_refusal_to_missing(audit_log, monkeypatch):
@@ -365,10 +391,11 @@ def test_proxy_accepts_target_and_tunnel_only_and_charges_the_whole_plan(monkeyp
     proxy = Proxy()
     monkeypatch.setattr(proxy_module.time, "monotonic", lambda: 100.0)
     limit = {"requests": 30, "window_seconds": 60}
-    proxy.rate_history["fg"] = deque([90.0] * 27)
+    proxy.rate_history["fg"] = deque([90.0] * 25)
     with pytest.raises(proxy_module.RateLimitError):
         proxy._consume_rate_limit("fg", limit, proxy_module.TRIAGE_VPN_READS)
-    proxy.rate_history["fg"] = deque([90.0] * 26)
+    proxy.rate_history["fg"] = deque([90.0] * 24)
     proxy._consume_rate_limit("fg", limit, proxy_module.TRIAGE_VPN_READS)
     assert len(proxy.rate_history["fg"]) == 30
-    assert proxy_module.TRIAGE_VPN_READS == t.PLANNED_READS == 4
+    # G14: four summary reads plus the two optional detail reads of the named tunnel
+    assert proxy_module.TRIAGE_VPN_READS == t.PLANNED_READS == 6

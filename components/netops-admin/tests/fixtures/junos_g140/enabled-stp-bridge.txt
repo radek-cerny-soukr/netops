@@ -1,0 +1,17 @@
+STP bridge parameters
+Routing instance name               : GLOBAL
+Context ID                          : 0
+Enabled protocol                    : RSTP
+  Root ID                           : 4096.00:00:5e:00:53:01
+  Hello time                        : 2 seconds
+  Maximum age                       : 20 seconds
+  Forward delay                     : 15 seconds
+  Message age                       : 0
+  Number of topology changes        : 0
+  Local parameters
+    Bridge ID                       : 4096.00:00:5e:00:53:01
+    Extended system ID              : 0
+    Hello time                      : 2 seconds
+    Maximum age                     : 20 seconds
+    Forward delay                   : 15 seconds
+    Path cost method                : 32 bit

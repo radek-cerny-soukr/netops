@@ -1,0 +1,3 @@
+[edit system]
+-  host-name host01;
++  host-name host02;

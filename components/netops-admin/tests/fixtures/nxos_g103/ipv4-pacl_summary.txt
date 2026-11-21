@@ -1,0 +1,7 @@
+
+IPV4 ACL NETOPS-G103-V4
+	Total ACEs Configured: 2
+	Configured on interfaces:
+		Ethernet1/64 - ingress (Port ACL)
+	Active on interfaces:
+		Ethernet1/64 - ingress (Port ACL)

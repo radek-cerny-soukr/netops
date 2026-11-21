@@ -1,0 +1,42 @@
+{
+  "platform": "fortios",
+  "table": "port-bounce",
+  "versions": [
+    "7.6.8 build3744"
+  ],
+  "exact_versions": true,
+  "ops": [
+    "update"
+  ],
+  "table_scoped_key": true,
+  "key_pattern": "^S[A-Z0-9]{11,15}:port[1-9][0-9]{0,2}$",
+  "protected_keys": [],
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "attributes": {
+    "description": {
+      "type": "text",
+      "max_length": 63,
+      "default": "",
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "required_on_create": false
+    },
+    "status": {
+      "type": "text",
+      "max_length": 4,
+      "pattern": "^(up|down)$",
+      "default": "up",
+      "update": true,
+      "unset": false,
+      "referenced_update": true,
+      "required_on_create": false,
+      "undo_to_default": true
+    }
+  },
+  "rollback_evidence": "FortiLink-managed physical port. Admin proves software administrative down then up through the independent check identity, and compares the restored configuration before disarming the timed return.",
+  "action": "port-bounce"
+}

@@ -1,0 +1,9 @@
+PoE interface status:
+PoE interface                :  ge-0/0/3
+Administrative status        : Enabled
+Operational status           :  ON
+Power limit on the interface : 7.0W
+Priority                     : Low
+Power consumed               : 5.3W
+Class of power device        :   2
+PoE Mode                     : 802.3af

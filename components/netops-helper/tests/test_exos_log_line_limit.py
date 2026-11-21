@@ -4,7 +4,7 @@ import pytest
 import netops_helper.engine as engine
 from conftest import _target
 
-STAMP = "11/08/2026 22:{minute:02d}:{second:02d}.00 <Info:Test.Msg> message {number}"
+STAMP = "11/08/2026 22:{minute:02d}:{second:02d}.00 <Info:vlan.msgs.portLinkStateDown> Port {number} link down"
 
 
 def _log(count, extra=0):
@@ -27,7 +27,8 @@ def test_log_over_the_limit_is_cut_and_says_so(monkeypatch, query):
     assert answer["line_limit"] == {"max_lines": engine._LOG_MAX_LINES, "total_lines": engine._LOG_MAX_LINES + 50,
                                     "returned_lines": engine._LOG_MAX_LINES, "truncated": True}
     text = answer["untrusted_device_output"]
-    assert f"message {engine._LOG_MAX_LINES - 1}" in text and f"message {engine._LOG_MAX_LINES}" not in text
+    assert f"Port {engine._LOG_MAX_LINES - 1} link down" in text
+    assert f"Port {engine._LOG_MAX_LINES} link down" not in text
     assert "limited to the first" in text
     assert "log_line_limit" in answer["normalized"]["warnings"]
 
@@ -46,7 +47,8 @@ def test_multi_line_message_is_not_split_by_the_limit(monkeypatch):
     answer = _read(monkeypatch, "log_messages", body, max_bytes=48_000)
     text = answer["untrusted_device_output"]
     assert answer["line_limit"]["returned_lines"] == 198 and answer["line_limit"]["truncated"]
-    assert "message 65" in text and "continuation 65.1" in text and "message 66" not in text and "continuation 66" not in text
+    assert "Port 65 link down\n    <REDACTED>\n    <REDACTED>\n" in text
+    assert "Port 66 link down" not in text
 
 
 @pytest.mark.parametrize("count", [engine._LOG_MAX_LINES, engine._LOG_MAX_LINES * 3])
@@ -63,7 +65,7 @@ def test_the_limit_applies_to_redacted_output_before_paging(monkeypatch, count):
         assert answer["line_limit"] == first["line_limit"]
         assert ("log_line_limit" in answer["normalized"]["warnings"]) == (count > engine._LOG_MAX_LINES)
         pages.append(answer["untrusted_device_output"])
-    assert "".join(pages).count("<Info:Test.Msg>") == engine._LOG_MAX_LINES
+    assert "".join(pages).count("<Info:vlan.msgs.portLinkStateDown>") == engine._LOG_MAX_LINES
 
 
 def test_other_queries_and_profiles_are_not_limited(monkeypatch):
@@ -75,7 +77,8 @@ def test_other_queries_and_profiles_are_not_limited(monkeypatch):
 @pytest.mark.parametrize("profile", ["cisco_ios", "cisco_xe", "cisco_nxos", "arista_eos", "juniper_junos", "juniper_junos_els"])
 def test_oldest_first_logs_keep_the_newest_lines(monkeypatch, profile):
     monkeypatch.setattr(engine, "record", lambda *a, **kw: None)
-    body = "".join(f"Nov  8 22:00:00 host %SYS-6-TEST: message {number}\n" for number in range(engine._LOG_MAX_LINES + 50))
+    stamp = "2026 Nov  8 22:00:00" if profile == "cisco_nxos" else "Nov  8 22:00:00"
+    body = "".join(f"{stamp} host %SYS-6-TEST: message {number}\n" for number in range(engine._LOG_MAX_LINES + 50))
     monkeypatch.setattr(engine, "_verified_read", lambda *a, **kw: (0, body))
     auth = _target(profile, "log_messages")
     answer = first = engine.ssh_read(auth, profile, "log_messages", {}, 0, 2000, None)

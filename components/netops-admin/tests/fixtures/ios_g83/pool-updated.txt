@@ -1,0 +1,4 @@
+ip dhcp pool NETOPS-G83-POOL
+ network 192.0.2.0    255.255.255.128
+ default-router 192.0.2.2
+end

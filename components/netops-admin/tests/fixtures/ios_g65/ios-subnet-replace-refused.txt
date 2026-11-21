@@ -1,0 +1,1 @@
+% Subnet overlaps with an existing subnet [192.0.2.0, 255.255.255.0] in this pool.

@@ -5,18 +5,20 @@ import re
 from dataclasses import dataclass
 from importlib import resources
 
+from netops_admin import ios
 from netops_admin.errors import Rejected
+from netops_core import tested
 
-PLATFORMS = ("fortios", "exos", "eos", "ios", "iosxe", "fortiadc", "nxos", "junos")
-OPS = ("create", "update", "delete")
+PLATFORMS = ("fortios", "exos", "eos", "ios", "iosxe", "fortiadc", "nxos", "junos", "ruckus")
+OPS = ("create", "update", "delete", "move")
+# A4: why FortiOS 8.0.x builds use another safeguard; shown with the untested-version warning (no refusal)
 FORTIOS_80_AUTO_SCRIPT = (
-    "; FortiOS 8.0 changed auto-script, which the cli-script safeguard runs: a Fortinet Technical Tip states that"
-    " from 8.0.1 build0185 it allows only information-gathering commands (get, diagnose), and on 8.0.2 build0251"
-    " it refused configuration commands with 'Unknown action or command is unavailable in auto-script'. From 8.0.1"
-    " Admin therefore uses the webhook safeguard (an automation stitch that calls the REST API of the device),"
-    " on 8.0.0 the cli-script safeguard; a build is listed only after that safeguard has been measured on it"
-    " (docs/verified-support.md)")
-ATTRIBUTE_TYPES = ("ipv4-network", "ipv4-address", "mac-address", "name-list", "text", "integer")
+    " FortiOS 8.0 changed auto-script, which the cli-script safeguard runs: from 8.0.1 build0185 it allows only"
+    " information-gathering commands, so from 8.0.1 Admin uses the webhook safeguard (an automation stitch that"
+    " calls the REST API of the device), on 8.0.0 the cli-script safeguard.")
+# ipv4-interface (1.0.12 G19): an interface address with its mask, host bits set (FortiOS system interface ip)
+LIST_TYPES = ("name-list", "mac-address-list")
+ATTRIBUTE_TYPES = ("ipv4-network", "ipv4-address", "ipv4-interface", "mac-address", *LIST_TYPES, "text", "integer")
 PROFILE_FIELDS = frozenset((
     "platform", "table", "versions", "ops", "key_pattern", "protected_keys", "attributes",
     "fixed", "volatile", "reserved_values", "inverse_identity_changes", "rollback_evidence",
@@ -30,7 +32,8 @@ OPTIONAL_PROFILE_FIELDS = frozenset((
     "isolated_update", "provisional", "value_requires", "measured", "action",
 ))
 # a table changed only by its own operation (never by admin_apply or admin_preview)
-ACTIONS = {"poe-cycle": "exos"}
+# 1.0.12 G123: EOS has the PoE cycle (E07) and the port bounce (E08)
+ACTIONS = {"poe-cycle": ("exos", "eos", "fortios", "junos", "ios", "iosxe"), "port-bounce": ("exos", "eos", "fortios", "junos", "nxos", "ios", "iosxe")}
 
 
 class ProfileError(Exception):
@@ -152,9 +155,13 @@ def parse_profile(data) -> Profile:
     _require(data["platform"] in PLATFORMS, "unknown platform")
     _require(isinstance(data["table"], str) and data["table"], "table must be a non-empty string")
     versions = _strings(data["versions"], "versions")
-    _require(versions, "a profile needs at least one measured version")
+    _require(versions, "a profile needs at least one tested version")
     ops = _strings(data["ops"], "ops")
-    _require(set(ops) <= set(OPS) and ops, "ops must be a subset of %s" % (OPS,))
+    save_profile = data["platform"] in ("eos", "nxos", "ios", "iosxe") and data["table"] == "startup-config"
+    if save_profile:
+        _require(ops == ("save",), "startup-config has only the save operation")
+    else:
+        _require(set(ops) <= set(OPS) and ops, "ops must be a subset of %s" % (OPS,))
     _require(isinstance(data["key_pattern"], str), "key_pattern must be a string")
     try:
         key_pattern = re.compile(data["key_pattern"])
@@ -163,7 +170,13 @@ def parse_profile(data) -> Profile:
     _require(key_pattern.pattern.startswith("^") and key_pattern.pattern.endswith("$"),
              "key_pattern must be anchored")
     attributes_data = data["attributes"]
-    _require(isinstance(attributes_data, dict) and attributes_data, "attributes must be a non-empty object")
+    attribute_free = (save_profile or (data["platform"], data["table"]) == ("eos", "syslog-host")
+                      or (data["platform"] in ("ios", "iosxe") and data["table"] in ("ntp-server", "syslog-host")))
+    key_only = data["platform"] == "exos" and data["table"] in ("ntp-server", "dns-server", "dns-suffix")
+    key_only |= data["platform"] in ("ios", "iosxe") and data["table"] in ("dhcp-exclusion", "dhcp-relay")
+    _require(isinstance(attributes_data, dict) and (not attributes_data if attribute_free else attributes_data or key_only),
+             "attribute-free operations need empty attributes" if attribute_free else
+             "attributes must be a non-empty object")
     attributes = {name: _attribute(name, value) for name, value in attributes_data.items()}
     fixed = data["fixed"]
     _require(isinstance(fixed, dict) and all(isinstance(v, str) for v in fixed.values()),
@@ -194,7 +207,7 @@ def parse_profile(data) -> Profile:
     _require(isinstance(measured, bool), "measured must be true or false")
     _require(measured or (provisional and exact), "a profile not measured on a device must be provisional with exact_versions")
     action = data.get("action")
-    _require(action is None or (action in ACTIONS and ACTIONS[action] == data["platform"]),
+    _require(action is None or (action in ACTIONS and data["platform"] in ACTIONS[action]),
              "action must name an operation of the platform: %s" % sorted(ACTIONS))
     create_values = data.get("create_values")
     if create_values is not None:
@@ -253,17 +266,33 @@ def load_profiles() -> dict:
 
 
 def find_profile(platform: str, table: str, firmware: str) -> Profile:
+    """The profile of a table. The firmware is not a gate (G00): profile.versions lists the tested versions and
+    firmware_support() reports a version outside them as untested; there is one profile per platform and table, so
+    it is also the nearest profile of the OS family for any version."""
     profile = load_profiles().get((platform, table))
     if profile is None:
         raise Rejected(["no profile for %s table %r" % (platform, table)])
-    family_supported = not profile.exact_versions and (
-        (platform == "fortios" and any(v.startswith("7.6.") for v in profile.versions)
-         and re.fullmatch(r"7\.6\.[0-9]+ build[0-9]+", firmware) is not None)
-        or (platform == "exos" and re.fullmatch(r"33\.7\.[0-9]+\.[0-9]+", firmware) is not None))
-    if firmware not in profile.versions and not family_supported:
-        reason = ("profile %s %r is not measured on firmware %r (measured: %s)"
-                  % (platform, table, firmware, ", ".join(profile.versions)))
-        if platform == "fortios" and re.fullmatch(r"8\.0\.[0-9]+ build[0-9]+", firmware):
-            reason += FORTIOS_80_AUTO_SCRIPT
-        raise Rejected([reason])
     return profile
+
+
+PLATFORM_NAMES = {"fortios": "FortiOS", "exos": "ExtremeXOS", "eos": "Arista EOS", "ios": "Cisco IOS",
+                  "iosxe": "Cisco IOS XE", "fortiadc": "FortiADC", "nxos": "Cisco NX-OS", "junos": "Junos",
+                  "ruckus": "Ruckus Unleashed"}
+
+
+def firmware_support(profile: Profile, firmware, *, unmeasured_operation=False) -> dict:
+    """tested/untested/unknown of the firmware against the tested versions of the profile (netops_core.tested)."""
+    unmeasured_poe_cycle = profile.platform == "fortios" and profile.table == "poe-cycle"
+    if (unmeasured_operation or unmeasured_poe_cycle
+            or (profile.platform == "junos" and profile.table in ("poe", "inline-power"))
+            or (profile.platform in ios.PLATFORMS and profile.table in ios.POE_TABLES)):
+        status = tested.UNTESTED if firmware else tested.UNKNOWN
+        return {"status": status, "platform": PLATFORM_NAMES[profile.platform], "device_version": firmware,
+                "model": None, "tested_versions": [],
+                "message": "No firmware version has been tested live for this operation."}
+    result = tested.support(PLATFORM_NAMES[profile.platform], firmware, profile.versions,
+                            function="the Admin profile %s %r" % (profile.platform, profile.table))
+    if (result["status"] == tested.UNTESTED and profile.platform == "fortios"
+            and re.fullmatch(r"8\.[0-9]+\.[0-9]+ build[0-9]+", firmware)):
+        result["message"] += FORTIOS_80_AUTO_SCRIPT
+    return result

@@ -1,0 +1,11 @@
+
+
+
+IPv6 Static routes Table - blue
+Codes: * - installed in RIB, u/m - Unicast/Multicast only
+       U - Per-user Static route
+       N - ND Static route
+       M - MIP Static route
+       P - DHCP-PD Static route
+       R - RHI Static route
+*   2001:db8:b::0/64 via 2001:db8:8::7, distance 9

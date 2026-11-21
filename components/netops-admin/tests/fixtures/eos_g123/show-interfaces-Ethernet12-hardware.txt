@@ -1,0 +1,6 @@
+Ethernet12
+  Model: cEOSLab
+  Type: EbraTestPhyPort
+  Speed/duplex: 10M/half,10M/full,100M/half,100M/full,1G/half,1G/full(default),2.5G/full,5G/full,10G/full,25G/full,40G/full,50G/full,100G/full,200G/full,400G/full,800G/full,1.6T/full
+  Flowcontrol: rx-(unknown),tx-(unknown)
+  Error correction: unsupported

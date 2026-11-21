@@ -1,0 +1,16 @@
+Interface: nve1, State: Up, encapsulation: VXLAN
+ VPC Capability: VPC-VIP-Only [notified]
+ Local Router MAC: 0000.5e00.5303
+ Host Learning Mode: Control-Plane
+ Source-Interface: loopback1 (primary: 2001:db8:3:1::2)
+ Anycast-Interface: loopback2 (secondary: 2001:db8:303:304::1)
+ Source Interface State: Up
+ Anycast Interface State: Up
+ Virtual RMAC Advertisement: Yes
+ NVE Flags: 
+ Interface Handle: 0x49000001
+ Source Interface hold-down-time: 745
+ Source Interface hold-up-time: 30
+ Remaining hold-down time: 0 seconds
+ Virtual Router MAC: 0000.5e00.5307
+ Interface state: nve-intf-add-complete

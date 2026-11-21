@@ -1,15 +1,16 @@
 """Cisco NX-OS identity/profile adapter for the public ``config_read`` (task 153).
 
-Same shape as the Cisco IOS XE and Arista EOS adapters.  Only one evidenced combination is admitted:
-Nexus 9000v ``cisco Nexus9000 C9300v Chassis`` with ``NXOS: version 9.3(12)``
-(``tests/fixtures/real/cisco_nxos/nexus9300v_9.3.12/version.txt``).  The identity is read only from
+Same shape as the Cisco IOS XE and Arista EOS adapters.  The tested combination is Nexus 9000v
+``cisco Nexus9000 C9300v Chassis`` with ``NXOS: version 9.3(12)``
+(``tests/fixtures/real/cisco_nxos/nexus9300v_9.3.12/version.txt``).  Another model or release is read too
+and reported as ``firmware_support`` ``untested`` with a warning (G00, decision of 2026-11-17).  The identity is read only from
 three lines of ``show version``, each of which must occur exactly once: the software header ``Cisco
-Nexus Operating System (NX-OS) Software``, the release line ``NXOS: version <release>`` and the
-hardware line ``cisco <model> Chassis``; never from the image file name, serial numbers, package names
+Nexus Operating System (NX-OS) Software``, the release line (``NXOS: version`` or legacy ``system: version``)
+and the hardware line ``cisco <model> Chassis``; never from the image file name, serial numbers, package names
 or host names.  The running configuration goes through the indentation-based
 ``config_indented.NxosStreamRedactor`` (task 147: two-space indentation allowlist, every other line one
 ``NXOS_MARKER``, the ``!Command: show running-config`` frame required).  NX-OS prints no ``end``, so
-completeness is never claimed.  Supported identity does not verify account rights, the full-config
+completeness is never claimed.  A tested identity does not verify account rights, the full-config
 format or complete redaction.
 """
 
@@ -17,32 +18,118 @@ import hashlib
 import json
 import re
 
-from .config_indented import NXOS_MARKER
+from netops_core import tested
+from netops_core.nxos_config import IDENTITY_MAX_BYTES, firmware_record, line_count, version_identity
+
+from .config_indented import NXOS_MARKER, NxosStreamRedactor
+from .configuration import ConfigurationRefusedError
 
 PLATFORM = 'cisco_nxos'
 COMMAND = 'show running-config'
+STARTUP_COMMAND = 'show startup-config'
+DIFF_COMMAND = 'show running-config diff'
+LIVE_DIFF = ('startup', 'running')
 IDENTITY_COMMANDS = ('show version',)
-SUPPORTED = ('Nexus9000 C9300v', '9.3(12)')
-IDENTITY_MAX_BYTES = 65536
+# The identity config_read was tested on (G00: a list of tested identities, not a gate).
+TESTED = ('Nexus9000 C9300v', '9.3(12)')
+TESTED_NAME = 'Cisco NX-OS'
 
 POLICY_DESCRIPTOR = (PLATFORM, 'config_indented.NxosStreamRedactor', 'nxos-indent-allowlist-1', NXOS_MARKER,
-                     COMMAND, IDENTITY_COMMANDS, SUPPORTED)
+                     COMMAND, IDENTITY_COMMANDS, TESTED)
 PROFILE = PLATFORM + '-full-1:' + hashlib.sha256(
     json.dumps(POLICY_DESCRIPTOR, separators=(',', ':')).encode('ascii')).hexdigest()
 
 VISIBILITY = ('account-rights-not-verified', 'formats-not-verified')
 
-_CONTROL = re.compile('[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f  �]')
-_HEADER_TEXT = 'Cisco Nexus Operating System (NX-OS) Software'
-_HEADER = re.compile(re.escape(_HEADER_TEXT))
-# Release such as 9.3(12), 10.3(4a) or 7.0(3)I7(9); bounded character classes only.
-_RELEASE = re.compile(r'NXOS: version ([0-9]{1,2}\.[0-9]{1,2}\([0-9]{1,3}[a-z]?\)'
-                      r'(?:[A-Z][0-9]{1,2}\([0-9]{1,3}[a-z]?\))?)')
-_HARDWARE = re.compile(r'cisco (Nexus ?[0-9]{1,5} [A-Za-z0-9-]{1,32}) [Cc]hassis(?: \([^()]{1,64}\))?')
+_CONTROL = re.compile('[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f\u2028\u2029\ufffd]')
+_TIMESTAMPS = ('!Running configuration last done at:', '!Startup config saved at:', '!Time:')
+_DIFF_OLD_RANGE = re.compile(r'\*\*\* ([0-9]{1,8})(?:,([0-9]{1,8}))? \*\*\*\*')
+_DIFF_NEW_RANGE = re.compile(r'--- ([0-9]{1,8})(?:,([0-9]{1,8}))? ----')
+_PAGER = re.compile(r'--\s*More\s*--', re.I)
 
 
-class UnsupportedNxosFirmware(ValueError):
-    """The live identity is consistent but is not the single admitted model and release."""
+class ComparisonRedactor(NxosStreamRedactor):
+    """Require a matching source frame and line count, then compare the redacted body."""
+
+    def __init__(self, forbidden, section, *, limits, command, expected_lines):
+        super().__init__(forbidden, section, limits=limits)
+        self._header = '!Command: ' + command
+        self._expected_lines = expected_lines
+        self._comparison_frame = 'header'
+
+    def _logical(self, line, end):
+        if self._comparison_frame == 'body':
+            super()._logical(line, '\n')
+            return
+        if not line.strip(' '):
+            return
+        if line.startswith('%') or line == 'Cmd exec error.':
+            raise ConfigurationRefusedError()
+        if self._comparison_frame == 'header':
+            if line.rstrip(' ') != self._header:
+                raise self._failure('stream-incomplete')
+            self._comparison_frame = 'metadata'
+            return
+        if line.startswith(_TIMESTAMPS):
+            return
+        self._comparison_frame = self._phase = 'body'
+        super()._logical(line, '\n')
+
+    def _complete(self):
+        return self._comparison_frame == 'body' and self._line_number == self._expected_lines
+
+
+def _diff_range(pattern, line):
+    match = pattern.fullmatch(line)
+    if not match:
+        return None
+    first, last = match.groups()
+    start = int(first)
+    if last is None:
+        return int(start != 0)
+    return int(last) - start + 1 if start and int(last) >= start else None
+
+
+def native_diff_status(output):
+    """Read the status of a measured NX-OS context diff without retaining its text."""
+    if not output.strip(' \t\r\n'):
+        return False
+    if not output.endswith('\n') or _CONTROL.search(output) or _PAGER.search(output):
+        return None
+    lines = output.replace('\r\n', '\n').split('\n')[:-1]
+    if lines[:2] != ['*** Startup-config', '--- Running-config']:
+        return None
+    index = 2
+    while index < len(lines):
+        if lines[index] != '***************' or index + 2 >= len(lines):
+            return None
+        before = _diff_range(_DIFF_OLD_RANGE, lines[index + 1])
+        if before is None:
+            return None
+        index += 2
+        removed = 0
+        # The context format omits one side's rows for a pure addition or deletion.
+        if not _DIFF_NEW_RANGE.fullmatch(lines[index]):
+            for _ in range(before):
+                if index >= len(lines) or lines[index][:2] not in ('  ', '- ', '! '):
+                    return None
+                removed += lines[index][:2] != '  '
+                index += 1
+        if index >= len(lines) or (after := _diff_range(_DIFF_NEW_RANGE, lines[index])) is None:
+            return None
+        index += 1
+        added = 0
+        if index < len(lines) and lines[index] != '***************':
+            for _ in range(after):
+                if index >= len(lines) or lines[index][:2] not in ('  ', '+ ', '! '):
+                    return None
+                added += lines[index][:2] != '  '
+                index += 1
+        elif after != before - removed:
+            return None
+        if not (removed or added) or after - before != added - removed:
+            return None
+    return True if len(lines) > 2 else None
 
 
 def read_command(section, include_all, include_defaults, redaction='full', view='running'):
@@ -54,50 +141,19 @@ def read_command(section, include_all, include_defaults, redaction='full', view=
     return COMMAND
 
 
-def _utf8_size(text):
-    try:
-        return len(text.encode('utf-8'))
-    except UnicodeEncodeError:
-        return None
-
-
-def _lines(text):
-    size = _utf8_size(text) if type(text) is str else None
-    if (size is None or size > IDENTITY_MAX_BYTES or not text.strip() or
-            _CONTROL.search(text.replace('\n', '').replace('\r', '').replace('\t', ''))):
-        raise ValueError('configuration identity could not be verified')
-    return text.replace('\r\n', '\n').replace('\r', '\n').split('\n')
-
-
-def _one(lines, selector, pattern):
-    """The single line selected by ``selector``; it must match ``pattern`` completely."""
-    found = [line.strip(' \t') for line in lines if selector(line.strip(' \t'))]
-    if len(found) != 1:
-        raise ValueError('configuration identity could not be verified')
-    match = pattern.fullmatch(found[0])
-    if match is None:
-        raise ValueError('configuration identity could not be verified')
-    return match
-
-
-def version_identity(version):
-    """(model, release) from ``show version``; ValueError when not conclusive."""
-    lines = _lines(version)
-    _one(lines, lambda line: line.startswith('Cisco Nexus Operating System'), _HEADER)
-    release = _one(lines, lambda line: line.startswith('NXOS: version'), _RELEASE).group(1)
-    model = _one(lines, lambda line: line.startswith('cisco ') and 'hassis' in line, _HARDWARE).group(1)
-    return model, release
-
-
 def verify_identity(version):
     """Firmware record (model, release) and honest visibility metadata.
 
-    ValueError: inconclusive or contradictory identity; UnsupportedNxosFirmware: a consistent identity
-    outside the single admitted model and release.
+    ValueError: inconclusive or contradictory identity.  A consistent identity of another model or release
+    is returned as well; firmware_support() tells whether it is the tested one.
     """
-    if version_identity(version) != SUPPORTED:
-        raise UnsupportedNxosFirmware('configuration firmware-not-supported')
-    return SUPPORTED, metadata()
+    return version_identity(version), metadata()
+
+
+def firmware_support(firmware):
+    """The firmware_support structure (netops_core.tested) of a firmware record against the tested identity."""
+    model, release = firmware
+    return tested.support(TESTED_NAME, release, [TESTED], model=model, function='config_read')
 
 
 def metadata():

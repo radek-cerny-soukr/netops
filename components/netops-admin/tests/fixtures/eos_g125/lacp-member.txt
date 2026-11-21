@@ -1,0 +1,3 @@
+interface Ethernet14
+   description port-desc-01
+   channel-group 104 mode active

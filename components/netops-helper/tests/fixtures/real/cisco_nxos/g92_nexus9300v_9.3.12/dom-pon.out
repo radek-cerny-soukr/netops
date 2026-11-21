@@ -1,0 +1,15 @@
+Ethernet1/33
+transceiver is present
+
+SFP Detail Diagnostics Information (internal calibration)
+----------------------------------------------------------------------------
+Current              Alarms                  Warnings
+Measurement     High        Low         High          Low
+----------------------------------------------------------------------------
+Temperature   38.00 C        80.00 C    -25.00 C     75.00 C      -20.00 C
+Voltage           N/A         3.63 V      2.96 V      3.46 V        3.13 V
+Current            N/A       120.00 mA    45.00 mA   115.00 mA      50.00 mA
+Tx Power          N/A         7.99 dBm    2.99 dBm    6.99 dBm      3.99 dBm
+Rx Power          N/A        -6.00 dBm  -29.20 dBm   -7.00 dBm    -28.23 dBm
+Transmit Fault Count = 0
+----------------------------------------------------------------------------

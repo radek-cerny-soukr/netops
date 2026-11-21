@@ -1,0 +1,6 @@
+show static-route all
+Static Route:
+ID= 1
+Name= route-1
+IP subnet= 192.0.2.1/24
+IP gateway= 198.51.100.1

@@ -1,0 +1,245 @@
+{
+  "vm": {
+    "arp": {
+      "rc": 0
+    },
+    "bfd": {
+      "rc": 250
+    },
+    "bfd_sessions": {
+      "rc": 250
+    },
+    "bfd_summary": {
+      "rc": 0
+    },
+    "bgp": {
+      "rc": 0
+    },
+    "bgp_detail": {
+      "rc": 254
+    },
+    "bgp_route": {
+      "rc": 0
+    },
+    "bgp_routes": {
+      "rc": 0
+    },
+    "ipconfig": {
+      "rc": 0
+    },
+    "nd": {
+      "rc": 0
+    },
+    "ospf": {
+      "rc": 250
+    },
+    "ospf_database": {
+      "rc": 254
+    },
+    "ospf_interfaces": {
+      "rc": 0
+    },
+    "ospf_lsdb": {
+      "rc": 250
+    },
+    "ospf_neighbors": {
+      "rc": 254
+    },
+    "ospfv3": {
+      "rc": 0
+    },
+    "ospfv3_interfaces": {
+      "rc": 0
+    },
+    "ping": {
+      "rc": 0
+    },
+    "ping_help": {
+      "rc": 250
+    },
+    "routes": {
+      "rc": 0
+    },
+    "routes6": {
+      "rc": 0
+    },
+    "routes6_mgmt": {
+      "rc": 0
+    },
+    "trace": {
+      "rc": 0
+    },
+    "trace_help": {
+      "rc": 250
+    },
+    "trace_source": {
+      "rc": 0
+    },
+    "version": {
+      "rc": 0
+    },
+    "vr": {
+      "rc": 250
+    },
+    "vrrp": {
+      "rc": 0
+    }
+  },
+  "x435": {
+    "arp": {
+      "rc": 0
+    },
+    "bfd": {
+      "rc": 254
+    },
+    "bfd_sessions": {
+      "rc": 254
+    },
+    "bgp": {
+      "rc": 254
+    },
+    "bgp_detail": {
+      "rc": 254
+    },
+    "bgp_routes": {
+      "rc": 254
+    },
+    "ipconfig": {
+      "rc": 0
+    },
+    "nd": {
+      "rc": 0
+    },
+    "ospf": {
+      "rc": 254
+    },
+    "ospf_interfaces": {
+      "rc": 254
+    },
+    "ospf_lsdb": {
+      "rc": 254
+    },
+    "ospfv3": {
+      "rc": 254
+    },
+    "ospfv3_interfaces": {
+      "rc": 254
+    },
+    "ping": {
+      "rc": 0
+    },
+    "ping_help": {
+      "rc": 250
+    },
+    "routes": {
+      "rc": 0
+    },
+    "routes6": {
+      "rc": 0
+    },
+    "trace": {
+      "rc": 0
+    },
+    "trace_help": {
+      "rc": 250
+    },
+    "trace_source": {
+      "rc": 0
+    },
+    "version": {
+      "rc": 0
+    },
+    "vr": {
+      "rc": 250
+    },
+    "vrrp": {
+      "rc": 254
+    }
+  },
+  "x440": {
+    "arp": {
+      "rc": 0
+    },
+    "bfd": {
+      "rc": 250
+    },
+    "bfd_detail": {
+      "rc": 250
+    },
+    "bfd_sessions": {
+      "rc": 250
+    },
+    "bfd_summary": {
+      "rc": 0
+    },
+    "bgp": {
+      "rc": 0
+    },
+    "bgp_detail": {
+      "rc": 254
+    },
+    "bgp_routes": {
+      "rc": 0
+    },
+    "ipconfig": {
+      "rc": 0
+    },
+    "nd": {
+      "rc": 0
+    },
+    "nd_mgmt": {
+      "rc": 0
+    },
+    "ospf": {
+      "rc": 250
+    },
+    "ospf_interfaces": {
+      "rc": 0
+    },
+    "ospf_lsdb": {
+      "rc": 250
+    },
+    "ospfv3": {
+      "rc": 0
+    },
+    "ospfv3_interfaces": {
+      "rc": 0
+    },
+    "ping": {
+      "rc": 0
+    },
+    "ping_help": {
+      "rc": 250
+    },
+    "routes": {
+      "rc": 0
+    },
+    "routes6": {
+      "rc": 0
+    },
+    "routes6_mgmt": {
+      "rc": 0
+    },
+    "routes_mgmt": {
+      "rc": 0
+    },
+    "trace": {
+      "rc": 0
+    },
+    "trace_help": {
+      "rc": 250
+    },
+    "trace_source": {
+      "rc": 0
+    },
+    "version": {
+      "rc": 0
+    },
+    "vr": {
+      "rc": 250
+    },
+    "vrrp": {
+      "rc": 0
+    }
+  }
+}

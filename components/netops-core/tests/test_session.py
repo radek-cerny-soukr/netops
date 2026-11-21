@@ -1,4 +1,8 @@
+import errno
 import os
+from pathlib import Path
+import select
+import signal
 from unittest.mock import Mock
 import pty
 import sys
@@ -348,6 +352,81 @@ def test_a_spawn_that_fails_leaves_no_workspace(monkeypatch):
         session(boom)
     assert "cannot open the session to %s" % HOST in str(caught.value)
     assert created and not os.path.exists(created[0])
+
+
+def test_interrupted_spawn_releases_the_private_workspace():
+    interrupt = KeyboardInterrupt()
+    workspaces = []
+
+    def interrupted(call, env):
+        workspace = Path(env["HOME"])
+        assert (workspace / "identity").is_file()
+        workspaces.append(workspace)
+        raise interrupt
+
+    with pytest.raises(KeyboardInterrupt) as caught:
+        session(interrupted)
+
+    assert caught.value is interrupt
+    assert len(workspaces) == 1
+    assert not workspaces[0].exists()
+
+
+def test_expect_retries_a_failed_terminal_poll(monkeypatch):
+    poll = select.select
+    polled = []
+    with session(PtySpawn()) as handle:
+        def interrupted(readers, writers, exceptional, timeout):
+            if readers == [handle._fd] and not polled:
+                polled.extend(readers)
+                raise OSError(errno.EIO, NOISE)
+            return poll(readers, writers, exceptional, timeout)
+
+        with monkeypatch.context() as fault:
+            fault.setattr(select, "select", interrupted)
+            assert handle.expect("Please login: ", 5) == (0, b"Please login: ")
+        assert polled == [handle._fd]
+
+    assert not Path(handle.workspace()).exists()
+
+
+def test_close_reaps_the_client_when_the_terminal_is_already_closed():
+    spawn = PtySpawn()
+    with session(spawn) as handle:
+        handle.expect("Please login: ", 5)
+        os.close(handle._fd)
+        handle.close()
+        with pytest.raises(SessionError, match="already closed"):
+            handle.send("show")
+
+    with pytest.raises(ChildProcessError):
+        os.waitpid(spawn.pid, os.WNOHANG)
+    assert not Path(handle.workspace()).exists()
+
+
+def test_close_reaps_the_client_when_direct_signal_fails(tmp_path, monkeypatch):
+    marker = tmp_path / "leader-pid"
+    spawn = PtySpawn(_deaf_child(marker))
+    monkeypatch.setattr(session_module, "KILL_AFTER_SECONDS", 0.05)
+    with session(spawn) as handle:
+        assert _pid_of(marker) == spawn.pid
+        kill = os.kill
+        failed = []
+
+        def disappeared(pid, number):
+            if pid == spawn.pid:
+                failed.append(number)
+                raise ProcessLookupError(errno.ESRCH, NOISE)
+            return kill(pid, number)
+
+        with monkeypatch.context() as fault:
+            fault.setattr(os, "kill", disappeared)
+            handle.close()
+
+    assert failed == [signal.SIGTERM]
+    with pytest.raises(ChildProcessError):
+        os.waitpid(spawn.pid, os.WNOHANG)
+    assert not Path(handle.workspace()).exists()
 
 
 @pytest.mark.parametrize("kind", ("api-token", "snmp-community", None))

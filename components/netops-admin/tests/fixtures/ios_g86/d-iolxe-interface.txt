@@ -1,0 +1,8 @@
+Building configuration...
+
+Current configuration : 54 bytes
+!
+interface Ethernet1/2
+ no ip address
+ shutdown
+end

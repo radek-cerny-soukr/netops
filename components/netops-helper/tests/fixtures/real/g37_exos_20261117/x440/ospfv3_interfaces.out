@@ -1,0 +1,8 @@
+
+Interface  IPV6 Address                  AREA ID         Flags Cost    State    Nbrs
+
+Flags : (a) Authentication configured, (b) BFD protection configured,
+        (f) Interface Forwarding Enabled,(i) Interface OSPFv3 Enabled,
+        (p) Passive Interface, (r) Router OSPFv3 Enable.
+Cost  : (A) Automatic cost, (C) Configured cost.
+

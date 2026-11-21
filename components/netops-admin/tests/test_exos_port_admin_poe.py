@@ -324,14 +324,39 @@ def test_enabling_an_enabled_port_changes_nothing():
     assert caught.value.reasons == ["update changes nothing"]
 
 
-def test_admin_state_is_refused_on_firmware_without_measurement():
+def test_admin_state_on_untested_firmware_is_planned_with_a_warning():
+    # G00-1 (A5): other firmware is not refused, the plan warns
     text = FakeExos().snapshot().encode()
-    with pytest.raises(Rejected) as caught:
-        engine.build_plan("exos", text, port_request(), firmware="33.6.1.14")
-    assert caught.value.reason_codes == ["port_action_not_measured"]
+    plan = engine.build_plan("exos", text, port_request(), firmware="33.7.2")
+    assert plan["commands"] == ["disable ports 10"] and plan["inverse"] == ["enable ports 10"]
+    support = plan["firmware_support"]
+    assert support["status"] == "untested" and support["device_version"] == "33.7.2"
+    assert support["tested_versions"] == ["33.7.1.6", "33.6.1.14"] and "port admin state" in support["message"]
+    assert plan["prechecks"][0].startswith("firmware 33.7.2 is not among the tested versions")
+    tested_plan = engine.build_plan("exos", text, port_request(), firmware=FIRMWARE)
+    assert tested_plan["firmware_support"]["status"] == "tested"
+    assert tested_plan["prechecks"][0] == "firmware 33.7.1.6 is measured for this profile"
+    # the display string keeps the tested scope of the ports profile, 33.6.1.14 included
     display = engine.build_plan("exos", text, parse_request(request_bytes(
         table="ports", op="update", key="10", changes={"display-string": "Cam-01"})), firmware="33.6.1.14")
     assert display["commands"] == ["configure ports 10 display-string Cam-01"]
+    assert display["firmware_support"]["status"] == "tested"
+
+
+def test_admin_state_on_untested_firmware_is_confirmed_with_the_warning(tmp_path):
+    device = FakeExos()
+    device.firmware = "33.7.2"
+    runtime = make_runtime(tmp_path, device, firmware=device.firmware)
+    preview = execute.preview(runtime, "sw", port_request())
+    assert preview["result"] == "ready", preview
+    assert preview["firmware_support"]["status"] == "untested"
+    record = execute.apply(runtime, "sw", port_request(), expected_plan_sha256=preview["plan_sha256"])
+    assert record["result"] == "confirmed", record
+    assert record["plan"]["firmware_support"] == preview["firmware_support"]
+    assert device.ports_disabled == {"10"} and clean(device)
+    back = execute.undo(runtime, record["change_id"], "port is needed again")
+    assert back["result"] == "confirmed", back
+    assert not device.ports_disabled and back["plan"]["firmware_support"]["status"] == "untested"
 
 
 @pytest.mark.parametrize(("line", "code"), [
@@ -659,7 +684,7 @@ def test_port_without_poe_gives_its_code_with_the_measured_exit_status(tmp_path)
     assert "exit status 250" in str(caught.value)
     plan = {"key": "13", "prechecks": []}
     with pytest.raises(exos.NotInlinePower) as refused:
-        exec_exos._poe_prechecks(device, None, plan)
+        exec_exos._poe_prechecks(device, None, plan, "")
     assert refused.value.reason_codes == ["poe_not_capable"]
 
 
@@ -709,18 +734,6 @@ def test_poe_cycle_has_no_undo(tmp_path):
             call(runtime, record["change_id"], "investigated")
         assert caught.value.reason_codes == ["undo_not_applicable"]
     assert len(plain_blocks(device)) == 3
-
-
-def test_inline_power_table_is_not_open_to_apply(tmp_path):
-    device = FakeExos()
-    runtime = poe_runtime(tmp_path, device)
-    body = parse_request(request_bytes(table="inline-power", op="update", key="10",
-                                       changes={"admin-state": "disabled"}))
-    for call in (execute.apply, execute.preview):
-        with pytest.raises(Rejected) as caught:
-            call(runtime, "sw", body)
-        assert caught.value.reason_codes == ["action_only_table"]
-    assert device.applied_blocks == []
 
 
 def test_poe_cycle_counts_against_the_change_budget(tmp_path):
@@ -963,25 +976,28 @@ def test_recover_of_a_cycle_whose_safeguard_is_absent_is_unchanged(tmp_path):
 # ---- profile and doctor -------------------------------------------------------------------------------
 
 
-def test_inline_power_profile_is_an_action_only_table():
+def test_inline_power_profile_updates_admin_state():
     loaded = profiles.load_profiles()[("exos", "inline-power")]
-    assert loaded.action == "poe-cycle" and loaded.exact_versions and loaded.versions == ("33.7.1.6",)
+    assert loaded.action is None and loaded.exact_versions and loaded.versions == ("33.7.1.6",)
     assert loaded.measured and not loaded.provisional
     assert "delivering" in loaded.rollback_evidence and "reset inline-power" in loaded.rollback_evidence
-    # This is an unsupported firmware version, assembled to avoid an IPv4-shaped literal.
-    with pytest.raises(Rejected):
-        profiles.find_profile("exos", "inline-power", "33.7." + "1.7")
+    # An untested firmware version (assembled to avoid an IPv4-shaped literal) finds the profile and is reported
+    untested = "33.7." + "1.7"
+    assert profiles.find_profile("exos", "inline-power", untested).versions == loaded.versions
+    assert profiles.firmware_support(loaded, untested)["status"] == "untested"
     data = json.loads((Path(profiles.__file__).parent / "profiles" / "exos-inline-power.json").read_text())
     with pytest.raises(profiles.ProfileError):
-        profiles.parse_profile(dict(data, platform="fortios"))
+        profiles.parse_profile(dict(data, platform="nxos", action="poe-cycle"))
     with pytest.raises(profiles.ProfileError):
         profiles.parse_profile(dict(data, action="reboot"))
 
 
 def test_doctor_lists_the_cycle_as_its_own_operation():
     operations = readiness._operations("exos", FIRMWARE)
-    assert operations["inline-power"] == "poe-cycle" and operations["ports"] == "update"
-    assert readiness._operations("exos", "33.6.1.14")["inline-power"] == "not measured on this firmware"
+    assert operations["poe-cycle"] == "poe-cycle" and operations["inline-power"] == operations["ports"] == "update"
+    assert readiness._operations("exos", "33.6.1.14")["poe-cycle"] == "poe-cycle (untested on 33.6.1.14)"
+    assert readiness._operations("exos", "33.6.1.14")["ports"] == "update"
+    assert readiness._firmware_support("exos", "33.6.1.14")["inline-power"]["status"] == "untested"
 
 
 def test_cli_poe_cycle_preview_and_apply(monkeypatch, tmp_path, capsys):

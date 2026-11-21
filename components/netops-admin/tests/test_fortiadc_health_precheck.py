@@ -10,7 +10,6 @@ from types import SimpleNamespace
 
 from netops_admin import access, cli, fortiadc
 from netops_admin.errors import Rejected
-from netops_core import ssh
 
 REFUSED = CHECK_ACCOUNT_REFUSAL
 MEASURED_VS_STAT = (Path(__file__).with_name("fortiadc_vs_stat_767_0676.txt")).read_text()
@@ -216,59 +215,50 @@ def test_cli_reports_the_refusal_with_a_reason_and_writes_nothing(monkeypatch, c
     assert device.applied_blocks == []
 
 
-MEASURED_EXEC_STDOUT = b"FortiADC-KVM # \nFortiADC-KVM # "
+def pty_access(monkeypatch, body=MEASURED_VS_STAT.encode() + b"\n", rc=0, error=None):
+    from contextlib import nullcontext
 
-
-def exec_access(monkeypatch, stdout=MEASURED_EXEC_STDOUT, stderr=MEASURED_VS_STAT.encode() + b"\n", rc=0):
     calls = []
 
-    def run_command(address, port, login, credential, host_key_line, command, **options):
-        calls.append((credential.login, command))
-        return ssh.Result(rc=rc, stdout=stdout, said="", started_at="a", finished_at="b", stderr=stderr)
+    def run(command, **_options):
+        calls.append(command)
+        if error:
+            raise access.session.SessionError("fixture transport ended without a prompt", code=error)
+        return SimpleNamespace(rc=rc, stdout=body, continuation=False, context=None)
 
-    monkeypatch.setattr(access.ssh, "run_command", run_command)
+    monkeypatch.setattr(access.session, "fortinet_session",
+                        lambda *_args, **_options: nullcontext(SimpleNamespace(run=run, context=None)))
     handle = access.DeviceAccess.__new__(access.DeviceAccess)
-    handle.device = SimpleNamespace(address="192.0.2.1", check_address=None, port=22,
-                                    host_key_fingerprint="SHA256:x", legacy_ssh=None, platform="fortiadc")
+    handle.device = SimpleNamespace(address="192.0.2.1", check_address=None, port=22, platform="fortiadc")
     handle.credential = SimpleNamespace(login="admin")
     handle.check_credential = SimpleNamespace(login="netops-read")
-    handle._host_key_lines = {"192.0.2.1": "192.0.2.1 ssh-ed25519 AAAA"}
     return handle, calls
 
 
-def test_measured_exec_of_767_0676_answers_vs_stat_on_stderr_and_the_precheck_reads_it(monkeypatch):
-    handle, calls = exec_access(monkeypatch)
-    assert handle.query(fortiadc.vs_stat_command("VS_APP_HTTP")).strip() == ""
+def test_measured_vs_stat_body_from_the_pty_is_used_in_precheck(monkeypatch):
+    handle, calls = pty_access(monkeypatch)
     assert fortiadc.read_health(handle, "VS_APP_HTTP") == {1: True, 2: True}
-    assert calls[-1] == ("admin", "diagnose server-load-balance vs_stat vdom root vs VS_APP_HTTP")
+    assert calls == ["diagnose server-load-balance vs_stat vdom root vs VS_APP_HTTP"]
 
 
-def test_vs_stat_split_between_stdout_and_stderr_is_read_whole(monkeypatch):
-    head, tail = MEASURED_VS_STAT.split("\treal-server-pool", 1)
-    handle, _ = exec_access(monkeypatch, stdout=b"FortiADC-KVM # \n" + head.encode(),
-                            stderr=b"\treal-server-pool" + tail.encode())
-    assert fortiadc.read_health(handle, "VS_APP_HTTP") == {1: True, 2: True}
-
-
-@pytest.mark.parametrize("stderr", [b"", REFUSED.encode(), b"garbage line\n",
-                                    MEASURED_VS_STAT.encode() + REFUSED.encode()])
-def test_vs_stat_on_stderr_that_is_empty_refused_or_unrecognised_refuses_the_health_read(monkeypatch, stderr):
-    handle, _ = exec_access(monkeypatch, stderr=stderr)
+@pytest.mark.parametrize("body", [b"", REFUSED.encode(), b"garbage line\n",
+                                  MEASURED_VS_STAT.encode() + REFUSED.encode()],
+                         ids=["empty", "refused", "unknown", "partial-then-refused"])
+def test_empty_refused_or_unrecognised_pty_body_refuses_the_health_read(monkeypatch, body):
+    handle, _ = pty_access(monkeypatch, body=body)
     with pytest.raises(Rejected) as caught:
         fortiadc.read_health(handle, "VS_APP_HTTP")
     assert "health of the pool members cannot be read" in caught.value.reasons[0]
 
 
-def test_vs_stat_on_stderr_cut_at_the_capture_limit_refuses_the_health_read(monkeypatch):
-    padded = (MEASURED_VS_STAT.encode() + b"\n" + b"\t\t\tRequests: 0\n" * ssh.STDERR_MAX_BYTES)[:ssh.STDERR_MAX_BYTES]
-    assert len(padded) == ssh.STDERR_MAX_BYTES
-    assert fortiadc.parse_vs_stat(padded.decode()) == {1: "UP", 2: "UP"}
-    handle, _ = exec_access(monkeypatch, stderr=padded)
+@pytest.mark.parametrize("error", ["output_limit", "disconnected", "idle_timeout"])
+def test_vs_stat_without_a_complete_pty_frame_refuses_the_health_read(monkeypatch, error):
+    handle, _ = pty_access(monkeypatch, error=error)
     with pytest.raises(Rejected):
         fortiadc.read_health(handle, "VS_APP_HTTP")
 
 
-def test_vs_stat_with_a_failing_exit_status_refuses_the_health_read(monkeypatch):
-    handle, _ = exec_access(monkeypatch, rc=1)
+def test_vs_stat_with_a_rejected_pty_result_refuses_the_health_read(monkeypatch):
+    handle, _ = pty_access(monkeypatch, rc=1)
     with pytest.raises(Rejected):
         fortiadc.read_health(handle, "VS_APP_HTTP")

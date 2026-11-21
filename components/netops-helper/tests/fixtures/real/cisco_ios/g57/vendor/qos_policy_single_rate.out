@@ -1,0 +1,15 @@
+GigabitEthernet1/0/0
+
+  Service-policy input: hardware-example
+
+    Class-map: class-default (match-any)
+      337 packets, 167152 bytes
+      5 minute offered rate 2000 bps, drop rate 0000 bps
+      Match: any
+      police:
+          cir 1000000 bps, bc 3000 bytes
+        conformed 337 packets, 167152 bytes; actions:
+          transmit
+        exceeded 0 packets, 0 bytes; actions:
+          drop
+        conformed 2000 bps, exceeded 0000 bps

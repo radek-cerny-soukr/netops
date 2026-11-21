@@ -1,0 +1,3 @@
+
+> show ip bgp neighbors 198.51.100.1 routes vrf default
+% BGP inactive at line 1

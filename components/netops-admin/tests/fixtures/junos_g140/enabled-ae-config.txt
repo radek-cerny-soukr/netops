@@ -1,0 +1,2 @@
+set interfaces ae40 aggregated-ether-options lacp active
+set interfaces ae40 unit 0 family ethernet-switching

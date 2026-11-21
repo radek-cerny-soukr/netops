@@ -1,0 +1,7 @@
+IPv6 Configured Static Routes for VRF "default"(1)
+
+2001:db8::/32 -> 2001:db8:ffff::fe/128, preference: 21
+  nh_vrf(default) reslv_tid 80000001
+  real-next-hop: 0::, interface: none
+    rnh(installed in u6rib)
+    bfd_enabled no

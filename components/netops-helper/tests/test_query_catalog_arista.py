@@ -64,6 +64,92 @@ EXPECTED = {
     "cpu": ("show processes top once", {}, True),
     "reload_cause": ("show reload cause", {}, False),
     "log_messages": ("show logging 200", {}, True),
+    'vrfs': ('show vrf', {}, True),
+    'ipv6_route_table': ('show ipv6 route', {}, True),
+    'route_table_vrf': ('show ip route vrf {vrf}', {'vrf': ('vrfs', 'vrf')}, True),
+    'ipv6_route_table_vrf': ('show ipv6 route vrf {vrf}', {'vrf': ('vrfs', 'vrf')}, True),
+    'route_lookup_vrf': ('show ip route vrf {vrf} {address}', {'vrf': ('vrfs', 'vrf'), 'address': ('addresses', 'ipv4_address')}, True),
+    'ipv6_route_lookup_vrf': ('show ipv6 route vrf {vrf} {address}', {'vrf': ('vrfs', 'vrf'), 'address': ('addresses', 'ipv6_address')}, True),
+    'arp_table_vrf': ('show ip arp vrf {vrf}', {'vrf': ('vrfs', 'vrf')}, True),
+    'ipv6_neighbors_vrf': ('show ipv6 neighbors vrf {vrf}', {'vrf': ('vrfs', 'vrf')}, True),
+    'bgp_peer': ('show ip bgp neighbors {address}', {'address': ('addresses', 'ipv4_address')}, True),
+    'bgp_peer_vrf': ('show ip bgp neighbors {address} vrf {vrf}', {'address': ('addresses', 'ipv4_address'), 'vrf': ('vrfs', 'vrf')}, True),
+    'bgp_peer_routes': ('show ip bgp neighbors {address} routes', {'address': ('addresses', 'ipv4_address')}, True),
+    'bgp_peer_routes_vrf': ('show ip bgp neighbors {address} routes vrf {vrf}', {'address': ('addresses', 'ipv4_address'), 'vrf': ('vrfs', 'vrf')}, True),
+    'bgp_peer_advertised_routes': ('show ip bgp neighbors {address} advertised-routes', {'address': ('addresses', 'ipv4_address')}, True),
+    'bgp_peer_advertised_routes_vrf': ('show ip bgp neighbors {address} advertised-routes vrf {vrf}', {'address': ('addresses', 'ipv4_address'), 'vrf': ('vrfs', 'vrf')}, True),
+    'ospf_neighbors_detail': ('show ip ospf neighbor detail', {}, True),
+    'ospf_neighbors_detail_vrf': ('show ip ospf neighbor detail vrf {vrf}', {'vrf': ('vrfs', 'vrf')}, True),
+    'ospf_interface_detail': ('show ip ospf interface {interface}', {'interface': ('interfaces', 'eos_ospf_interface')}, True),
+    'ospf_interface_detail_vrf': ('show ip ospf interface {interface} vrf {vrf}', {'interface': ('interfaces', 'eos_ospf_interface'), 'vrf': ('vrfs', 'vrf')}, True),
+    'ospf_database': ('show ip ospf database', {}, True),
+    'ospf_database_vrf': ('show ip ospf database vrf {vrf}', {'vrf': ('vrfs', 'vrf')}, True),
+    'ospfv3_interface_detail': ('show ipv6 ospf interface {interface}', {'interface': ('interfaces', 'eos_ospf_interface')}, True),
+    'ospfv3_interface_detail_vrf': ('show ipv6 ospf interface {interface} vrf {vrf}', {'interface': ('interfaces', 'eos_ospf_interface'), 'vrf': ('vrfs', 'vrf')}, True),
+    'ospfv3_database': ('show ipv6 ospf database', {}, True),
+    'ospfv3_database_vrf': ('show ipv6 ospf database vrf {vrf}', {'vrf': ('vrfs', 'vrf')}, True),
+    'vrrp': ('show vrrp', {}, True),
+    'varp': ('show ip virtual-router', {}, True),
+    'bfd_peers': ('show bfd peers', {}, True),
+    'ospfv3_neighbors_vrf': ('show ipv6 ospf neighbor vrf {vrf}', {'vrf': ('vrfs', 'vrf')}, True),
+    'bgp_summary_vrf': ('show ip bgp summary vrf {vrf}', {'vrf': ('vrfs', 'vrf')}, True),
+    'ipv6_bgp_summary_vrf': ('show ipv6 bgp summary vrf {vrf}', {'vrf': ('vrfs', 'vrf')}, True),
+    'ping': ('ping vrf {vrf} {address} source {source} repeat 5', {'vrf': ('vrfs', 'vrf'), 'address': ('addresses', 'ipv4_address'), 'source': ('addresses', 'ipv4_address')}, False),
+    'traceroute': ('traceroute vrf {vrf} {address}', {'vrf': ('vrfs', 'vrf'), 'address': ('addresses', 'ipv4_address')}, False),
+    'traceroute_source': ('traceroute vrf {vrf} {address} source {source}', {'vrf': ('vrfs', 'vrf'), 'address': ('addresses', 'ipv4_address'), 'source': ('addresses', 'ipv4_address')}, False),
+    'vrrp_vrf': ('show vrrp vrf {vrf}', {'vrf': ('vrfs', 'vrf')}, True),
+    'varp_vrf': ('show ip virtual-router vrf {vrf}', {'vrf': ('vrfs', 'vrf')}, True),
+    'bfd_peers_vrf': ('show bfd peers vrf {vrf}', {'vrf': ('vrfs', 'vrf')}, True),
+    'ipv6_rib': ('show rib route ipv6', {}, True),
+    'ipv6_rib_vrf': ('show rib route ipv6 vrf {vrf}', {'vrf': ('vrfs', 'vrf')}, True),
+    'interfaces_counters_rates': ('show interfaces counters rates', {}, True),
+    'interface_counters_rates': ('show interfaces {interface} counters rates', {'interface': ('interfaces', 'eos_interface')}, False),
+    'mac_table_interface': ('show mac address-table interface {interface}', {'interface': ('interfaces', 'eos_switchport_interface')}, True),
+    'mac_table_vlan': ('show mac address-table vlan {vlan_id}', {'vlan_id': (None, 'vlan_id')}, True),
+    'mac_table_address': ('show mac address-table address {mac}', {'mac': (None, 'mac_literal')}, False),
+    'poe': ('show poe', {}, True),
+    'stp_detail': ('show spanning-tree detail', {}, True),
+    'stp_interface_detail': ('show spanning-tree interface {interface} detail', {'interface': ('interfaces', 'eos_stp_interface')}, False),
+    'stp_counters': ('show spanning-tree counters', {}, True),
+    'interface_qos': ('show qos interfaces {interface}', {'interface': ('interfaces', 'eos_switchport_interface')}, False),
+    'interface_queue_counters': ('show interfaces {interface} counters queue', {'interface': ('interfaces', 'eos_switchport_interface')}, False),
+    'igmp_snooping': ('show ip igmp snooping', {}, True),
+    'igmp_snooping_groups': ('show ip igmp snooping groups', {}, True),
+    'igmp_snooping_mrouter': ('show ip igmp snooping mrouter', {}, False),
+    'igmp_snooping_counters': ('show ip igmp snooping counters', {}, True),
+
+    'ipv4_access_lists_summary': ('show ip access-lists summary', {}, True),
+    'ipv6_access_lists_summary': ('show ipv6 access-lists summary', {}, True),
+    'ipv4_access_lists_interface': ('show ip access-lists interface {interface}', {'interface': ('interfaces', 'eos_interface')}, True),
+    'ipv6_access_lists_interface': ('show ipv6 access-lists interface {interface}', {'interface': ('interfaces', 'eos_interface')}, True),
+    'ipv4_access_lists': ('show ip access-lists {name}', {'name': (None, 'acl_policy')}, True),
+    'ipv6_access_lists': ('show ipv6 access-lists {name}', {'name': (None, 'acl_policy')}, True),
+    'dhcp_relay': ('show ip dhcp relay', {}, True),
+    'dhcp_relay_counters': ('show ip dhcp relay counters', {}, True),
+    'dhcp_snooping': ('show ip dhcp snooping', {}, True),
+    'users': ('show users', {}, True),
+    'aaa_sessions': ('show users detail', {}, True),
+    'radius': ('show radius', {}, True),
+    "radius_status": ("show monitor server radius", {}, True),
+    'tacacs': ('show tacacs', {}, True),
+    'dns_hosts': ('show hosts', {}, True),
+    'dns_name_servers': ('show ip name-server', {}, True),
+    'dns_lookup': ('ping {name} repeat 1', {'name': ('diagnostic_names', 'eos_dns_name')}, False),
+    'snmp_status': ('show snmp', {}, False),
+    'snmp_targets': ('show snmp notification host', {}, True),
+    'logging_status': ('show logging | include ^(Syslog|Buffer|Console|Monitor|Persistent|Trap|Logging to)', {}, False),
+    'dot1x': ('show dot1x all', {}, True),
+    'dot1x_interface': ('show dot1x interface {interface}', {'interface': ('interfaces', 'eos_physical_interface')}, False),
+    'dot1x_clients': ('show dot1x hosts interface {interface} detail', {'interface': ('interfaces', 'eos_physical_interface')}, True),
+    'dhcp_server': ('show dhcp server', {}, True),
+    'dhcp_server_leases': ('show dhcp server leases', {}, True),
+    'log_messages_last': ('show logging last {minutes} minutes threshold {severity}',
+                          {'minutes': (None, 'eos_log_minutes'), 'severity': (None, 'log_severity'),
+                           'interface': ('interfaces', 'eos_interface')}, True),
+    'log_messages_range': ('show logging time-range {begin_date} {begin_time} {end_date} {end_time} threshold {severity}',
+                           {'begin_date': (None, 'log_date'), 'begin_time': (None, 'log_time'),
+                            'end_date': (None, 'log_date'), 'end_time': (None, 'log_time'),
+                            'severity': (None, 'log_severity'), 'interface': ('interfaces', 'eos_interface')}, True),
 }
 
 METACHARS = set(";&|`$><\\\"'*?[]()!#~")
@@ -118,9 +204,16 @@ def test_commands_are_show_only_and_shell_safe() -> None:
         if name == "log_messages":  # the one fixed, slotless buffer template; read_policy allows exactly this form
             assert command == "show logging 200" and not query.slots
             continue
-        assert _is_safe_arista_command(command), (name, command)
+        if name in {"ping", "traceroute", "traceroute_source", "dns_lookup",
+                    "logging_status", "snmp_status", "snmp_targets",
+                    "log_messages_last", "log_messages_range"}:  # G120: typed window slots only
+            assert command == EXPECTED[name][0]
+        else:
+            assert _is_safe_arista_command(command), (name, command)
         fields = {field for _, field, _, _ in Formatter().parse(command) if field}
-        assert fields == set(query.slots), (name, command)
+        helper_filter = {"interface"} if name in {"log_messages_last", "log_messages_range"} else set()
+        assert query.filter_slots == helper_filter and helper_filter <= query.optional_slots, name
+        assert fields == set(query.slots) - helper_filter, (name, command)
 
 
 def test_safety_helper_rejects_abbreviations_secrets_and_shell_forms() -> None:
@@ -132,7 +225,9 @@ def test_unproven_commands_stay_absent() -> None:
     # Measured on cEOS 4.36.1F (2026-11): the summary LLDP query stays, the detail form is a separate template.
     assert QUERIES["lldp_neighbors"].command == "show lldp neighbors"
     assert QUERIES["lldp_neighbors_detail"].command == "show lldp neighbors detail"
-    assert not any(query.command.startswith(("show logging ", "show running", "show startup")) for name, query in QUERIES.items() if name != "log_messages")
+    # Only the bounded log queries and the fixed status projection use the logging command.
+    assert not any(query.command.startswith(("show logging ", "show running", "show startup")) for name, query in QUERIES.items()
+                   if name not in {"logging_status", "log_messages", "log_messages_last", "log_messages_range"})
     assert QUERIES["log_messages"].command == "show logging 200" and not QUERIES["log_messages"].slots
 
 

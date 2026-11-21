@@ -1,0 +1,22 @@
+IPv6 Routing Table - 9 entries
+Codes: C - Connected, L - Local, S - Static, R - RIP, B - BGP
+       I1 - ISIS L1, I2 - ISIS L2, IA - IIS interarea
+B   2001:db8:3::2/48 [20/0]
+     via fe80::11, Serial6/0
+L   2001:db8:3::3/48 [0/0]
+     via ::, Ethernet1/0
+C   2001:db8:3::4/48 [0/0]
+     via ::, Ethernet1/0
+LC  2001:db8:3::5/48 [0/0]
+     via ::, Loopback0
+L   2001:db8:3::6/48 [0/0]
+     via ::, Serial6/0
+C   2001:db8:3::7/48 [0/0]
+     via ::, Serial6/0
+S   2001:db8:3::8/48 [1/0]
+     via 2001:db8:4::1, Null
+L   fe80::12/10 [0/0]
+     via ::, Null0
+L   FF00::/8 [0/0]
+     via ::, Null0
+

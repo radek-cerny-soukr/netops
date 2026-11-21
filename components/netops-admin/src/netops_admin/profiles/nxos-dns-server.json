@@ -1,0 +1,33 @@
+{
+  "platform": "nxos",
+  "table": "dns-server",
+  "versions": [
+    "9.3(12)"
+  ],
+  "exact_versions": true,
+  "table_scoped_key": true,
+  "ops": [
+    "create",
+    "update",
+    "delete"
+  ],
+  "key_pattern": "^(?:[A-Za-z][A-Za-z0-9_-]{0,31}/)?[0-9a-f:.]{2,39}$",
+  "protected_keys": [],
+  "attributes": {
+    "vrf": {
+      "type": "text",
+      "update": true,
+      "unset": true,
+      "referenced_update": false,
+      "required_on_create": false,
+      "default": "default",
+      "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,31}$",
+      "max_length": 32
+    }
+  },
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "NX-OS scheduler, configure replace and scoped inverse; G104 Nexus 9300v 9.3(12)."
+}

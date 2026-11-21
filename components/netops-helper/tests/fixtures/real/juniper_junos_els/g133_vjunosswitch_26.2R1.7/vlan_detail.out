@@ -1,0 +1,14 @@
+
+Routing instance: default-switch
+VLAN Name: default                        State: Active
+Tag: 1
+Internal index: 2, Generation Index: 1, Origin: Static
+Mac aging: Enabled
+MAC aging time: 300 seconds
+Mac-IP-Snooping Enabled : No
+Activate-On-Local-Ports Enabled : No
+VXLAN Enabled : No
+Interfaces:
+    ge-0/0/2.0,untagged,access
+Number of interfaces: Tagged 0    , Untagged 1
+Total MAC count: 0

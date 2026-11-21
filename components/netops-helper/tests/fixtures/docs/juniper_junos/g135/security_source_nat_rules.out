@@ -1,0 +1,23 @@
+Logical system: root
+Total rules: 1
+Total referenced IPv4/IPv6 ip-prefixes: 3/0
+
+source NAT rule: r2                   Rule-set: rs2
+  Rule-Id                    : 2
+  Rule position              : 1
+  From zone                  : trust
+  To zone                    : untrust
+  Match
+    Source addresses         : 198.51.100.0 - 198.51.100.255
+    Destination addresses    : 203.0.113.251 - 203.0.113.250
+                               203.0.113.0  - 203.0.113.255
+    Application              : configured
+  Action                        : off
+    Persistent NAT type         : N/A
+    Persistent NAT mapping type : address-port-mapping
+    Inactivity timeout          : 0
+    Max session number          : 0
+  Translation hits           : 0
+    Successful sessions      : 0
+    Failed sessions          : 0
+  Number of sessions         : 0

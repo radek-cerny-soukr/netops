@@ -1,0 +1,150 @@
+`show hardware capacity module `
+
+Supervisor Redundancy HW State(Dual-SUPs):   Disabled
+Redundancy state: Active with no standby
+
+Switching Resources:
+-------------------
+Module  Model Number      Part Number       Serial Number
+---------------------------------------------------------
+ 1      N9K-X9364v       73-99064-01       00SS01SSSSS      
+ 27     N9K-vSUP         73-15279-01       0SSSSS0002S      
+
+
+Flash/NVRAM Resources:
+------------------------------------------------------------
+ Usage: Module  Device        Total(KB)    Free(KB)    %Used 
+------------------------------------------------------------
+          27      bootflash     4154120     2209568     46
+          27      logflash      2948488     1534748     47
+
+`show hardware capacity interface`
+Interface Resources
+
+  Interface drops:
+    Module  Total drops               Highest drop ports
+         1  Tx: 0                     -
+         1  Rx: 0                     -
+
+`show hardware capacity power`
+No power info, as no System Controller Module(29,30) is online.
+
+`show hardware capacity eobc`
+This cmd is not supported on TORs
+`show system resources module all `
+CPU Resources:
+-----------------------------------------------------------
+  CPU utilization:  Module  5 seconds  1 minute  5 minutes
+-----------------------------------------------------------
+                       1        39        21         20
+                      27        41        21         20
+
+-----------------------------------------------------------
+  Processor memory:   Module   Total(KB)   Free(KB)   Used)
+-----------------------------------------------------------
+                           1      8158300    4211856      48
+                          27      8158300    4211856      48
+`show vdc resource`
+
+  vlan                22 used     0 unused   4072 free   4072 avail   4094 total
+
+  vrf                  2 used     0 unused   4094 free   4094 avail   4096 total
+
+  port-channel         0 used     0 unused    511 free    511 avail    511 total
+
+  u4route-mem          1 used   247 unused   1535 free   1288 avail   1536 total
+
+  u6route-mem          1 used    95 unused    639 free    544 avail    640 total
+
+  m4route-mem          1 used    57 unused    399 free    342 avail    400 total
+
+  m6route-mem          1 used     7 unused     79 free     72 avail     80 total
+
+`show hardware internal forwarding l2 table utilization sup instance all module 1`
+
+slot  1
+=======
+
+L2 table utilization on Module = 1
+
+Asic  Max Count  Used Count
+-----+---------+---------
+0     98304     8         
+`show system internal access-list resource utilization module 1`
+
+
+INSTANCE 0x0
+-------------
+
+
+	 ACL Hardware Resource Utilization (Mod 1)
+	 ----------------------------------------------------------
+                                        Used    Free    Percent 
+                                                        Utilization
+------------------------------------------------------------------- 
+
+LOU                                     0       24      0.00   
+Both LOU Operands                       0       
+Single LOU Operands                     0       
+LOU L4 src port:                        0
+LOU L4 dst port:                        0
+LOU L3 packet len:                      0
+LOU IP tos:                             0
+LOU IP dscp:                            0
+LOU ip precedence:                      0
+LOU ip TTL:                             0
+TCP Flags                               0       16      0.00   
+
+Protocol CAM                            0       246     0.00   
+Mac Etype/Proto CAM                     0       14      0.00   
+
+L4 op labels, Tcam 0                    0       1023    0.00   
+L4 op labels, Tcam 2                    0       63      0.00   
+L4 op labels, Tcam 6                    0       2047    0.00   
+
+Ingress Dest info table                 0       512     0.00   
+Egress Dest info table                  0       512     0.00   
+`show hardware internal forwarding table utilization module 1`
+
+IPv4/IPv6 hosts & routes summary on module 1
+---------------------------------------------
+
+Configured system routing mode: Default
+
+Failed to get IPv4 hosts max count
+Failed to get total IPv6 hosts max count
+Failed to get toal IPv6 hosts used count
+Failed to get IPv4 routes max count
+Failed to get IPv4 routes used count
+Failed to get IPv6 routes max count
+Failed to get IPv6 routes used count
+
+Table utilization by IPv4 and IPv6 records
+------------------------------------------
+
+Percentage utilization of IPv4 host routes: n/a
+Percentage utilization of IPv6 host routes: n/a
+
+IPv4/Ipv6 Mcast host entry summary 
+----------------------------------
+
+Max Mcast Limit Entries = 32768 
+Used Mcast Entries = 0 
+Max IPv6 Mcast Limit Entries = 2048 
+Used IPv6 Mcast Entries = 0 
+
+ECMP entries summary
+--------------------
+
+Failed to get ECMP entries max count
+`show system internal qos resource utilization module 1`
+
+QoS Resource Utilization 
+------------------------ 
+
+Resource                      Module    Total        Used         Free        
+--------                      ------    -----        ----         ----        
+Aggregate policers:               1     4096         25           4071        
+Distributed policers:             1     1024         0            1024        
+Policer Profiles:                 1     4096         25           4071        
+

@@ -1,0 +1,126 @@
+
+Logging console:		enabled (Severity: critical)
+Logging monitor:		enabled (Severity: notifications)
+Logging linecard:		enabled (Severity: notifications)
+Logging timestamp:		Seconds
+Logging source-interface :	disabled
+Logging server:			disabled
+Logging origin_id :		disabled
+Logging logflash:		enabled (Severity: notifications)(threshold percentage: 0)
+Logging logfile:		enabled
+	Name - messages: Severity - notifications Size - 4194304
+
+Facility	Default Severity	Current Session Severity
+--------	----------------	------------------------
+aaa                 	3			3
+acllog              	2			2
+aclmgr              	3			3
+aclqos              	5			5
+adbm                	2			2
+arp                 	3			3
+auth                	0			0
+authpriv            	3			3
+bootvar             	5			5
+callhome            	2			2
+capability          	2			2
+cdp                 	2			2
+cert_enroll         	2			2
+cfs                 	3			3
+clis                	3			3
+clk_mgr             	2			2
+confcheck           	2			2
+copp                	2			2
+core-dmon           	3			3
+cron                	3			3
+daemon              	3			3
+device_test         	3			3
+dhclient            	2			2
+dhcp_snoop          	2			2
+diag_port_lb        	2			2
+diagclient          	2			2
+diagmgr             	2			2
+ecp                 	5			5
+eltm                	2			2
+eth_port_channel    	5			5
+ethpm               	5			5
+evmc                	5			5
+evms                	2			2
+feature-mgr         	2			2
+fs-daemon           	2			2
+ftp                 	3			3
+icam                	5			5
+ifmgr               	5			5
+igmp_1              	5			5
+interface-vlan      	2			2
+ip                  	3			3
+ipfib               	2			2
+ipqosmgr            	4			4
+ipv6                	3			3
+kern                	3			3
+l2fm                	2			2
+l2pt                	3			3
+l3vm                	5			5
+lacp                	2			2
+licmgr              	6			6
+lldp                	2			2
+local0              	3			3
+local1              	3			3
+local2              	3			3
+local3              	3			3
+local4              	3			3
+local5              	3			3
+local6              	3			3
+local7              	3			3
+lpr                 	3			3
+m2rib               	2			2
+m6rib               	5			5
+mail                	3			3
+mcm                 	2			2
+mfdm                	2			2
+mmode               	2			2
+module              	5			5
+monitor             	3			3
+mrib                	5			5
+mvsh                	2			2
+news                	3			3
+ntp                 	2			2
+ospf_1              	5			5
+otm                 	3			3
+pfstat              	2			2
+pixm_gl             	4			4
+pixm_vl             	4			4
+platform            	5			5
+plcmgr              	2			2
+plugin              	2			2
+port-profile        	2			2
+radius              	3			3
+res_mgr             	5			5
+rpm                 	5			5
+sal                 	2			2
+scheduler           	5			5
+securityd           	3			3
+sksd                	3			3
+smm                 	4			4
+snmpd               	2			2
+span                	3			3
+spm                 	2			2
+stp                 	3			3
+syslog              	3			3
+sysmgr              	3			3
+tamnw               	2			2
+template_manager    	2			2
+u6rib               	5			5
+ufdm                	3			3
+urib                	5			5
+user                	3			3
+uucp                	3			3
+vdc_mgr             	6			6
+virtual-service     	5			5
+vlan_mgr            	2			2
+vshd                	5			5
+xbar                	5			5
+xmlma               	3			3
+
+0(emergencies)		1(alerts)	2(critical)
+3(errors)		4(warnings)	5(notifications)
+6(information)		7(debugging)

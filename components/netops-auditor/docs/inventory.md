@@ -29,6 +29,7 @@ index in `devices`, the `auditor` section by its `name`.
       "port": 22,
       "role": "perimeter",
       "credential": "fw-a-audit-ro",
+      "host_key": "<OpenSSH public host key matching host_key_fingerprint>",
       "host_key_fingerprint": "SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
       "legacy_ssh": null,
       "auditor": {
@@ -77,6 +78,8 @@ index in `devices`, the `auditor` section by its `name`.
 }
 ```
 
+FortiOS SSH collection checks the enrolled OpenSSH public host key against its SHA-256 fingerprint before connecting. Replace both example values with those of the enrolled device. ExtremeXOS SSH collection uses the fingerprint to verify the key obtained by the SSH probe.
+
 Inventory examples describe the accepted input structure; validate each source against the documented schema before use. See [compatibility boundaries](../../../docs/compatibility-boundaries.md#catalogue-and-parser-coverage).
 
 `version` is `2`. A legacy version `1` document is refused, naming
@@ -112,6 +115,7 @@ loaded, and the refusal names the device and the field:
 | `credential` | `null` | required | required |
 | `address` / `port` | may be `null` | may be `null` | **required** |
 | `host_key_fingerprint` | - | `null` | **required** |
+| `host_key` | - | omitted | **required for FortiOS SSH** |
 | `tls_fingerprint` of the section | `null` | **required** | `null` |
 | `legacy_ssh` | `null` (it needs a host key pin) | `null` (it needs a host key pin) | `null` or a profile |
 

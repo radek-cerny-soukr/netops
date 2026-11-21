@@ -1,0 +1,88 @@
+{
+  "platform": "fortios",
+  "table": "switch-controller managed-switch/ports",
+  "versions": [
+    "7.6.8 build3744"
+  ],
+  "exact_versions": true,
+  "ops": [
+    "update"
+  ],
+  "table_scoped_key": true,
+  "key_pattern": "^S[A-Z0-9]{11,15}:port[1-9][0-9]{0,2}$",
+  "protected_keys": [],
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "attributes": {
+    "description": {
+      "type": "text",
+      "max_length": 63,
+      "default": "",
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "required_on_create": false
+    },
+    "status": {
+      "type": "text",
+      "max_length": 4,
+      "pattern": "^(up|down)$",
+      "default": "up",
+      "update": true,
+      "unset": false,
+      "referenced_update": true,
+      "required_on_create": false,
+      "undo_to_default": true
+    },
+    "vlan": {
+      "type": "text",
+      "max_length": 15,
+      "pattern": "^[A-Za-z0-9_.-](?:[A-Za-z0-9_. -]{0,13}[A-Za-z0-9_.-])?$",
+      "unset": false,
+      "update": true,
+      "referenced_update": true,
+      "required_on_create": false
+    },
+    "allowed-vlans": {
+      "type": "name-list",
+      "default": "",
+      "unset": true,
+      "update": true,
+      "referenced_update": true,
+      "required_on_create": false
+    },
+    "untagged-vlans": {
+      "type": "name-list",
+      "default": "",
+      "unset": true,
+      "update": true,
+      "referenced_update": true,
+      "required_on_create": false
+    },
+    "allowed-vlans-all": {
+      "type": "text",
+      "max_length": 7,
+      "pattern": "^(enable|disable)$",
+      "default": "disable",
+      "unset": false,
+      "undo_to_default": true,
+      "update": true,
+      "referenced_update": true,
+      "required_on_create": false
+    },
+    "poe-status": {
+      "type": "text",
+      "max_length": 7,
+      "pattern": "^(enable|disable)$",
+      "default": "enable",
+      "unset": false,
+      "undo_to_default": true,
+      "update": true,
+      "referenced_update": true,
+      "required_on_create": false
+    }
+  },
+  "rollback_evidence": "FortiLink managed port update. Admin applies only changed port fields with a timed safeguard, and reads back VLAN membership and PoE configuration through a separate check identity."
+}

@@ -1,0 +1,3 @@
+Vlan Name    Port   Policy Name          Dir      Rules  Dyn Rules
+===================================================================
+netops-g47   *      netops-g47-capture   ingress  1      0

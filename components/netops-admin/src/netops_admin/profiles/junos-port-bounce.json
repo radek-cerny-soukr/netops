@@ -1,0 +1,34 @@
+{
+  "platform": "junos",
+  "table": "port-bounce",
+  "action": "port-bounce",
+  "versions": [
+    "26.2R1.7"
+  ],
+  "exact_versions": true,
+  "ops": [
+    "update"
+  ],
+  "implicit_keys": true,
+  "table_scoped_key": true,
+  "key_pattern": "^[a-z]{2,8}(?:-[0-9]{1,2}/[0-9]{1,2}/[0-9]{1,3}|[0-9]{1,3})$",
+  "protected_keys": [],
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "attributes": {
+    "admin-state": {
+      "type": "text",
+      "max_length": 8,
+      "pattern": "^(enabled|disabled)$",
+      "default": "enabled",
+      "update": true,
+      "unset": false,
+      "referenced_update": true,
+      "required_on_create": false,
+      "undo_to_default": true
+    }
+  },
+  "rollback_evidence": "1.0.12 G138 J11 (port-bounce): 'set interfaces <if> disable' commit confirmed, a pause, then the inverse 'delete interfaces <if> disable' committed with a plain commit that ends the own timer (the immediate return of exec_junos.py), all behind the commit confirmed safeguard of the Junos adapter (expiry before the plain commit returns the port to the state before). Measured on vJunos-switch 26.2R1.7 (task-evidence/g138/live): the check account reads 'show interfaces <if> terse' (Admin up/down, Link) right after both commits. Used only by the port-bounce operation (junos_cycle.py)."
+}

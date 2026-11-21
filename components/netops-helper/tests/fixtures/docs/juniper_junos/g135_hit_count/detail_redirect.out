@@ -1,0 +1,4 @@
+Logical system: root-logical-system
+Index  From zone        To zone          Name                  Policy count  Action  Redirect
+1      junos-global    junos-global       policy1                5202        Permit    0
+2      junos-global    junos-global       policy2                5202        Reject    3

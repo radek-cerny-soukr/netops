@@ -1,0 +1,33 @@
+{
+  "platform": "eos",
+  "table": "port-bounce",
+  "action": "port-bounce",
+  "versions": [
+    "4.36.1F"
+  ],
+  "exact_versions": true,
+  "ops": [
+    "update"
+  ],
+  "table_scoped_key": true,
+  "key_pattern": "^[A-Z][A-Za-z-]{1,15}[0-9]{1,3}(?:/[0-9]{1,3}){0,2}$",
+  "protected_keys": [],
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "attributes": {
+    "admin-state": {
+      "type": "text",
+      "max_length": 8,
+      "pattern": "^(enabled|disabled)$",
+      "default": "enabled",
+      "update": true,
+      "unset": false,
+      "referenced_update": true,
+      "required_on_create": false,
+      "undo_to_default": true
+    }
+  },
+  "rollback_evidence": "Used only by the port-bounce operation (1.0.12 G123 E08): 'shutdown', a pause, then 'no shutdown' on one Ethernet port behind the timed safeguard session of EOS (configure session with commit timer; an expired timer returns the whole running configuration, the port comes up again). Measured on cEOSLab 4.36.1F (task-evidence/g123/raw/probe2): show running-config shows 'shutdown' only while the port is disabled; the check account reads the Status column of show interfaces N status: disabled right after shutdown, connected again right after no shutdown (the link of the lab peer); the log shows LINEPROTO-5-UPDOWN down and up. The time until a physical link is up again is not measured; the operation waits for it with at most 30 s of pauses between reads of the check account and reports the observed state."
+}

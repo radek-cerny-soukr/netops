@@ -1,0 +1,19 @@
+
+
+
+
+            OSPF Router with ID (198.51.100.7) (Process ID 29)
+
+		Router Link States (Area 0)
+
+Link ID         ADV Router      Age         Seq#       Checksum Link count
+198.51.100.1    198.51.100.1    847         0x800001AA 0x00464E 2         
+198.51.100.3    198.51.100.3    129         0x8000019F 0x00364F 2         
+198.51.100.5    198.51.100.5    1683        0x80000058 0x00B61A 2         
+198.51.100.6    198.51.100.6    748         0x80000108 0x00C261 2         
+198.51.100.7    198.51.100.7    1837        0x800001BA 0x00ADB5 2         
+
+		Net Link States (Area 0)
+
+Link ID         ADV Router      Age         Seq#       Checksum
+192.0.2.7       198.51.100.7    1837        0x800000F9 0x006391

@@ -1,0 +1,6 @@
+Port Qos Monitor
+Port         QP1      QP2      QP3      QP4      QP5      QP6      QP7      QP8 
+             Pkt      Pkt      Pkt      Pkt      Pkt      Pkt      Pkt      Pkt 
+            Xmts     Xmts     Xmts     Xmts     Xmts     Xmts     Xmts     Xmts 
+================================================================================
+1        5429281        0        0        0        0        0        0   477427 

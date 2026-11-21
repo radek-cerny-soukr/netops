@@ -1,0 +1,5 @@
+Type escape sequence to abort.
+Sending 5, 100-byte ICMP Echos to 192.0.2.250, timeout is 1 seconds:
+Packet sent with a source address of 192.0.2.7
+.....
+Success rate is 0 percent (0/5)

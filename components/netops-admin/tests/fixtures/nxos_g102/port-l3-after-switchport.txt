@@ -1,0 +1,2 @@
+Name: Ethernet1/3
+  Switchport: Disabled

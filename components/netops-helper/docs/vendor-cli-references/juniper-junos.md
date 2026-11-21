@@ -15,7 +15,7 @@ The audited release scope is recorded in the [Junos 23.4R2 release notes](https:
 
 ## Accepted common Phase-1 queries and source mapping
 
-Every accepted Junos command includes the fixed ` | no-more` output suffix. Juniper documents this as an operational output modifier; no other pipe or redirection is accepted.
+Every accepted Junos command ends with the fixed ` | no-more` output suffix, which Juniper documents as an operational output modifier. `log_messages` and `log_interactive_commands` also use ` | last 200`, `log_history` uses ` | last 2000`, and the structured configuration reads use ` | display xml`. Callers cannot add pipes or redirections.
 
 | Query names | Primary source |
 |---|---|
@@ -27,6 +27,8 @@ Every accepted Junos command includes the fixed ` | no-more` output suffix. Juni
 | `environment` | [show chassis environment](https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-chassis-environment.html) |
 | `interfaces` | [show interfaces terse](https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-interfaces-terse.html) |
 | `interface_details` | [show interfaces extensive](https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-interfaces-extensive.html) |
+| `interface_queue` | [show interfaces queue](https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-interfaces-queue.html) |
+| `interface_class_of_service` | [show class-of-service interface](https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-class-of-service-interface.html) |
 | `interface_optics` | [show interfaces diagnostics optics](https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-interfaces-diagnostics-optics-10-gigabit-ethernet.html) |
 | `route_summary` | [show route summary](https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-route-summary.html) |
 | `route_lookup`, `ipv6_route_lookup` | [show route](https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-route.html); the [Segment Routing guide](https://www.juniper.net/documentation/us/en/software/junos/segment-routing/segment-routing.pdf) contains an official IPv6 destination example |
@@ -50,9 +52,44 @@ Every accepted Junos command includes the fixed ` | no-more` output suffix. Juni
 | `ntp_associations` | [show ntp associations](https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-ntp-associations.html) |
 | `vrrp_summary` | [show vrrp](https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-vrrp.html) |
 | `bfd_sessions` | [show bfd session](https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-bfd-session.html) |
-| `log_messages`, `log_interactive_commands` | [show log](https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-log.html); the fixed `| last 200` pipe in front of ` | no-more` is the only other pipe accepted |
+| `log_messages`, `log_interactive_commands` | [show log](https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-log.html); the fixed `\| last 200` pipe in front of ` \| no-more` |
+| `ping`, `ping_instance` | [ping](https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/ping.html); fixed `count 5`, enrolled IPv4 `source` and optional `routing-instance`; the built-in read-only class lacks the `network` permission (`error: unknown command: ping`, measured on vJunos-switch 26.2R1.7) |
+| `traceroute`, `traceroute_instance` | [traceroute](https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/traceroute.html); fixed `no-resolve`, `ttl 30`, `wait 1` allow up to 90 s of probe waits within the 120 s traceroute read timeout |
+| `bgp_peer` | [show bgp neighbor](https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-bgp-neighbor.html) |
+| `bgp_peer_received_routes` | [show route receive-protocol](https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-route-receive-protocol.html) |
+| `bgp_peer_advertised_routes` | [show route advertising-protocol](https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-route-advertising-protocol.html) |
+| `ospf_neighbors_detail`, `ospfv3_neighbors_detail` | [show OSPF/OSPF3 neighbor](https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-ospf-ospf3-neighbor.html) (`detail`) |
+| `ospf_interface_detail`, `ospfv3_interface_detail` | [show OSPF/OSPF3 interface](https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-ospf-ospf3-interface.html) (`detail`) |
+| `ospf_database` | [show ospf database](https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-ospf-database.html) |
+| `ospfv3_database` | [show ospf3 database](https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-ospf3-database.html) |
+| `route_lookup_instance` | [show route table](https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-route-table.html) (`<instance>.inet.0`) |
+| `arp_table_instance` | [show arp](https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-arp.html) (`vpn <routing-instance>`; 26.2R1.7 has no `show arp routing-instance`) |
+| `ipv6_neighbors_instance` | [show ipv6 neighbors](https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-ipv6-neighbors.html) (`vpn <routing-instance>`) |
+| `bgp_summary_instance` | [show bgp summary](https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-bgp-summary.html) (`exact-instance`; `instance` matches every instance with that prefix) |
 
 The [Junos CLI reference](https://www.juniper.net/documentation/us/en/software/junos/cli-reference/), [pipe command reference](https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/pipe.html), and [operational-output filtering guide](https://www.juniper.net/documentation/us/en/software/junos/cli/topics/topic-map/filtering-operational-command.html) define the wider source context.
+
+## Accepted firewall and SRX operational reads
+
+The first three queries apply to both Junos profiles. The SRX queries require `juniper_junos`, a declared `firewall` device type and individual query enrollment.
+
+| Query | Juniper reference |
+|---|---|
+| `firewall_filters` | [show firewall](https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-firewall-filter.html) |
+| `firewall_filter` | [show firewall](https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-firewall-filter.html) |
+| `interface_firewall_filter` | [Configuring Firewall Filters](https://www.juniper.net/documentation/us/en/software/junos/routing-policy/topics/task/firewall-filter-ocx-series-cli.html) |
+| `security_policies` | [show security policies](https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-security-policies.html) |
+| `security_policy_hits` | [show security policies hit-count](https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-security-policies-hit-count.html) |
+| `security_match_policies` | [show security match-policies](https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-security-match-policies.html) |
+| `security_flow_sessions` | [show security flow session source-prefix](https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-security-flow-session-source-prefix.html) |
+| `security_source_nat_rules` | [show security nat source rule](https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-security-nat-source-rule.html) |
+| `security_destination_nat_rules` | [show security nat destination rule](https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-security-nat-destination-rule.html) |
+| `chassis_cluster_status` | [show chassis cluster status](https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-chassis-cluster-status.html) |
+| `chassis_cluster_interfaces` | [show chassis cluster interfaces](https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-chassis-cluster-interfaces.html) |
+| `chassis_cluster_statistics` | [show chassis cluster statistics](https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-chassis-cluster-statistics.html) |
+| `ike_security_associations` | [show security ike security-associations](https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-security-ike-security-associations.html) |
+| `ipsec_security_associations` | [show security ipsec security-associations](https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-security-ipsec-security-associations.html) |
+| `ipsec_statistics` | [show security ipsec statistics](https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-security-ipsec-statistics.html) |
 
 ## Accepted EX/QFX ELS extension
 
@@ -60,6 +97,12 @@ The ELS catalogue is an explicit superset of the common catalogue:
 
 | Query name | Primary source |
 |---|---|
+| `mac_table_vlan` | [show ethernet-switching table](https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-ethernet-switching-table-qfx-series.html) |
+| `vlan_details` | [show vlans](https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-vlans-bridging-qfx-series.html) |
+| `stp_interface_detail` | [show spanning-tree interface](https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-stp-interface-command.html) |
+| `stp_interface_statistics` | [show spanning-tree statistics](https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-stp-stats-command.html) |
+| `igmp_snooping_membership` | [show igmp snooping membership](https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-igmp-snooping-membership.html) |
+| `igmp_snooping_interfaces` | [show igmp snooping interface](https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-igmp-snooping-interface.html) |
 | `vlans` | [show vlans](https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-vlans-bridging-qfx-series.html) |
 | `mac_table` | [show ethernet-switching table](https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-ethernet-switching-table-qfx-series.html) |
 | `stp_bridge` | [show spanning-tree bridge](https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-stp-bridge-command.html) |
@@ -88,15 +131,15 @@ Compatibility is scoped to vJunos-switch 26.2R1.7 and its documented read-only r
 - `show virtual-chassis` on a switch that is not a virtual chassis member answers `error: the virtual-chassis-control subsystem is not running` with exit status 0 (measured before NetOps 1.0). Helper reports it as `device_cli_error`, not as a successful read.
 - Junos answers a refusal with exit status 0: `configure` gives `error: unknown command: configure`, `show configuration system login` gives `error: permission denied: system`, an unknown command `error: syntax error, expecting <command>: ...` (measured before NetOps 1.0). Helper reports these `error:` lines as `device_cli_error`, not as successful reads.
 
-The rows added in NetOps 1.0.7 were run, with every other template, on a vJunos-switch 26.2R1.7 lab node on 2026-11-09 (outputs in `tests/fixtures/real/juniper_junos_els/vjunosswitch_26.2R1.7`, generated tables below). `verified: docs-only` are the four templates the virtual platform refuses: Virtual Chassis (`virtual_chassis`, `virtual_chassis_ports`: `virtual-chassis-control` subsystem not running) and PoE (`poe_interfaces`, `poe_controller`: PoE subsystem not running). Measured but empty or "not configured" on the image, so only their empty answer is verified: `dot1x_interfaces`, `dhcp_security_bindings`, `bfd_sessions` (0 sessions), `interface_optics`, `lacp_interfaces` (an aggregate whose member is down prints nothing) and `bgp_summary` (`BGP is not running`, no licence key); the populated layouts of the last two come from the Juniper CLI reference pages cited above (`tests/fixtures/docs/juniper_junos*/bgp_summary.txt`, `lacp_interfaces.txt`). VRRP, NTP, RSTP and an aggregate were configured temporarily during the capture and removed afterwards. MX bridge-domain and SRX session reads of the design are not in the catalogue.
+The rows added in NetOps 1.0.7 were run, with every other template, on a vJunos-switch 26.2R1.7 lab node on 2026-11-09 (outputs in `tests/fixtures/real/juniper_junos_els/vjunosswitch_26.2R1.7`, generated tables below). `verified: docs-only` are the four templates the virtual platform refuses: Virtual Chassis (`virtual_chassis`, `virtual_chassis_ports`: `virtual-chassis-control` subsystem not running) and PoE (`poe_interfaces`, `poe_controller`: PoE subsystem not running). Measured but empty or "not configured" on the image, so only their empty answer is verified: `dot1x_interfaces`, `dhcp_security_bindings`, `bfd_sessions` (0 sessions), `interface_optics`, `lacp_interfaces` (an aggregate whose member is down prints nothing) and `bgp_summary` (`BGP is not running`, no licence key); the populated layouts of the last two come from the Juniper CLI reference pages cited above (`tests/fixtures/docs/juniper_junos*/bgp_summary.txt`, `lacp_interfaces.txt`). VRRP, NTP, RSTP and an aggregate were configured temporarily during the capture and removed afterwards. MX bridge-domain was outside the 1.0.7 catalogue.
 
 The measured target is a switch image. The claim of `juniper_junos` for routing platforms (MX, SRX, PTX) and every hardware model remain unmeasured, as does AAA command authorization.
 
 ## Explicit exclusions
 
-- `show configuration` and abbreviated configuration families, configuration rollback/history, rescue/backup configuration, and configuration database exports are prohibited.
+- General `show configuration` and abbreviated configuration families, configuration rollback/history, rescue/backup configuration, and configuration database exports are prohibited.
 - `show log` is prohibited except the two fixed bounded templates `log_messages` (`show log messages | last 200 | no-more`) and `log_interactive_commands` (`show log interactive-commands | last 200 | no-more`); trace output, core dumps, support information, request commands, file display, shell/start-shell, debug, monitor, packet capture, and operational writes are prohibited. The built-in `read-only` class returns `permission_denied` for these logs, a known limitation. Reading a specific log file requires command permission (`trace`) and file-read access beyond that class; NetOps does not recommend the broader permissions or a class with `maintenance`. Keep the built-in class and forward logs through syslog (see [read-only accounts](../read-only-accounts.md#junos-os)).
-- Only the exact final ` | no-more` suffix is accepted, after the one fixed `| last 200` of the two log templates. `save`, `match`, `find`, redirection, other chained pipes, and user-provided pipe text are excluded. `show configuration`, `show system rollback compare` and `| display json` are not used: every template reads the text output.
+- Only the exact final ` | no-more` suffix is accepted, after the one fixed `| last 200` of the two log templates. `save`, `match`, `find`, redirection, other chained pipes, and user-provided pipe text are excluded. The only `show configuration` template addresses the IPv4 filter leaf of one enrolled logical interface and requires `config_access: ["read"]`.
 - Global `show interfaces extensive` is excluded. Juniper documents a material CPU spike on an EX4300 with thousands of logical interfaces; only an inventory-bound interface form is accepted.
 - Full route-table output is excluded; only a summary and typed, inventory-bound single-address lookup are accepted.
 - The common profile excludes ELS MAC, VLAN, STP, and Virtual Chassis queries.
@@ -105,7 +148,7 @@ The measured target is a switch image. The claim of `juniper_junos` for routing 
 ## Deferred live-wire candidates
 
 - Routing-instance- or table-scoped route summaries and lookups.
-- Per-VLAN MAC, ARP, and neighbor filters.
+- Per-VLAN ARP and neighbor filters.
 - Additional chassis/FPC/PIC environmental and optics views.
 - Redundancy, cluster, MC-LAG, EVPN/VXLAN, and model-specific fabric summaries.
 - Richer Virtual Chassis member diagnostics.
@@ -130,64 +173,125 @@ Every template was run on the lab images with the read-only account; the stored 
 
 ### Junos OS (ELS)
 
+The queue, class-of-service, VLAN, STP and IGMP reads were measured with a lab account that has the Junos `network` permission. The virtual switch supplies the queue interface heading and CoS mapping; physical queue counters are covered by manufacturer output.
+
 <!-- lab-measurements:begin -->
 
 | Template | Command | vJunos-switch 26.2R1.7 | verified |
 |---|---|---|---|
-| `version` | `show version | no-more` | ok, 73 lines | live |
-| `uptime` | `show system uptime | no-more` | ok, 6 lines | live |
-| `system_alarms` | `show system alarms | no-more` | ok, 3 lines | live |
-| `chassis_alarms` | `show chassis alarms | no-more` | ok, 3 lines | live |
-| `hardware` | `show chassis hardware | no-more` | ok, 10 lines | live |
-| `environment` | `show chassis environment | no-more` | empty | live |
-| `interfaces` | `show interfaces terse | no-more` | ok, 68 lines | live |
-| `interface_details` | `show interfaces {interface} extensive | no-more` | ok, 87 lines | live |
-| `interface_optics` | `show interfaces diagnostics optics {interface} | no-more` | empty | live |
-| `route_summary` | `show route summary | no-more` | ok, 19 lines | live |
-| `route_lookup` | `show route {address} detail | no-more` | ok, 16 lines | live |
-| `ipv6_route_lookup` | `show route {address} detail | no-more` | empty | live |
-| `arp_table` | `show arp no-resolve | no-more` | ok, 10 lines | live |
-| `arp_interface` | `show arp no-resolve interface {interface} | no-more` | ok, 7 lines | live |
-| `ipv6_neighbors` | `show ipv6 neighbors | no-more` | empty | live |
-| `ipv6_neighbors_interface` | `show ipv6 neighbors interface {interface} | no-more` | empty | live |
-| `lldp_neighbors` | `show lldp neighbors | no-more` | ok, 2 lines | live |
-| `lldp_neighbors_interface` | `show lldp neighbors interface {interface} | no-more` | ok, 59 lines | live |
-| `lacp_interfaces` | `show lacp interfaces | no-more` | empty | live |
-| `lacp_interface` | `show lacp interfaces {interface} | no-more` | empty | live |
-| `bgp_summary` | `show bgp summary | no-more` | not configured | live |
-| `ospf_neighbors` | `show ospf neighbor | no-more` | ok, 5 lines | live |
-| `ospf_neighbors_interface` | `show ospf neighbor interface {interface} | no-more` | ok, 5 lines | live |
-| `ospfv3_neighbors` | `show ospf3 neighbor | no-more` | ok, 1 line | live |
-| `ospfv3_neighbors_interface` | `show ospf3 neighbor interface {interface} | no-more` | ok, 1 line | live |
-| `route_table` | `show route | no-more` | ok, 41 lines | live |
-| `route_instances` | `show route instance | no-more` | ok, 18 lines | live |
-| `ospf_interfaces` | `show ospf interface brief | no-more` | ok, 3 lines | live |
-| `lldp_neighbors_detail` | `show lldp neighbors detail | no-more` | ok, 59 lines | live |
-| `interfaces_descriptions` | `show interfaces descriptions | no-more` | empty | live |
-| `routing_engine` | `show chassis routing-engine | no-more` | ok, 36 lines | live |
-| `fpc` | `show chassis fpc | no-more` | ok, 14 lines | live |
-| `storage` | `show system storage | no-more` | ok, 4 lines | live |
-| `licenses` | `show system license | no-more` | ok, 3 lines | live |
-| `commit_history` | `show system commit | no-more` | ok, 9 lines | live |
-| `ntp_status` | `show ntp status | no-more` | ok, 9 lines | live |
-| `ntp_associations` | `show ntp associations no-resolve | no-more` | ok, 3 lines | live |
-| `vrrp_summary` | `show vrrp summary | no-more` | ok, 3 lines | live |
-| `bfd_sessions` | `show bfd session | no-more` | ok, 3 lines | live |
-| `log_messages` | `show log messages | last 200 | no-more` | refused to the read-only account, answered to admin | live |
-| `log_interactive_commands` | `show log interactive-commands | last 200 | no-more` | refused to the read-only account, answered to admin | live |
-| `vlans` | `show vlans brief | no-more` | ok, 9 lines | live |
-| `mac_table` | `show ethernet-switching table | no-more` | ok, 20 lines | live |
-| `stp_bridge` | `show spanning-tree bridge | no-more` | ok, 16 lines | live |
-| `virtual_chassis` | `show virtual-chassis status | no-more` | feature off or not supported by the image | docs-only |
-| `virtual_chassis_ports` | `show virtual-chassis vc-port | no-more` | feature off or not supported by the image | docs-only |
-| `ethernet_switching_interfaces` | `show ethernet-switching interface | no-more` | ok, 15 lines | live |
-| `ethernet_switching_interface` | `show ethernet-switching interface {interface} detail | no-more` | ok, 41 lines | live |
-| `mac_table_interface` | `show ethernet-switching table interface {interface} | no-more` | ok, 33 lines | live |
-| `mac_table_address` | `show ethernet-switching table {mac} | no-more` | ok, 11 lines | live |
-| `stp_interfaces` | `show spanning-tree interface | no-more` | ok, 6 lines | live |
-| `poe_interfaces` | `show poe interface | no-more` | feature off or not supported by the image | docs-only |
-| `poe_controller` | `show poe controller | no-more` | feature off or not supported by the image | docs-only |
-| `dot1x_interfaces` | `show dot1x interface | no-more` | empty | live |
-| `dhcp_security_bindings` | `show dhcp-security binding | no-more` | empty | live |
+| `version` | `show version \| no-more` | ok, 73 lines | live |
+| `uptime` | `show system uptime \| no-more` | ok, 6 lines | live |
+| `system_alarms` | `show system alarms \| no-more` | ok, 3 lines | live |
+| `chassis_alarms` | `show chassis alarms \| no-more` | ok, 3 lines | live |
+| `hardware` | `show chassis hardware \| no-more` | ok, 10 lines | live |
+| `environment` | `show chassis environment \| no-more` | empty | live |
+| `interfaces` | `show interfaces terse \| no-more` | ok, 68 lines | live |
+| `interface_details` | `show interfaces {interface} extensive \| no-more` | ok, 87 lines | live |
+| `interface_queue` | `show interfaces queue {interface} \| no-more` | ok, 2 lines | live |
+| `interface_class_of_service` | `show class-of-service interface {interface} \| no-more` | ok, 8 lines | live |
+| `interface_optics` | `show interfaces diagnostics optics {interface} \| no-more` | empty | live |
+| `route_summary` | `show route summary \| no-more` | ok, 19 lines | live |
+| `route_lookup` | `show route {address} detail \| no-more` | ok, 16 lines | live |
+| `ipv6_route_lookup` | `show route {address} detail \| no-more` | empty | live |
+| `arp_table` | `show arp no-resolve \| no-more` | ok, 10 lines | live |
+| `arp_interface` | `show arp no-resolve interface {interface} \| no-more` | ok, 7 lines | live |
+| `ipv6_neighbors` | `show ipv6 neighbors \| no-more` | empty | live |
+| `ipv6_neighbors_interface` | `show ipv6 neighbors interface {interface} \| no-more` | empty | live |
+| `lldp_neighbors` | `show lldp neighbors \| no-more` | ok, 2 lines | live |
+| `lldp_neighbors_interface` | `show lldp neighbors interface {interface} \| no-more` | ok, 59 lines | live |
+| `lacp_interfaces` | `show lacp interfaces \| no-more` | empty | live |
+| `lacp_interface` | `show lacp interfaces {interface} \| no-more` | empty | live |
+| `bgp_summary` | `show bgp summary \| no-more` | not configured | live |
+| `ospf_neighbors` | `show ospf neighbor \| no-more` | ok, 5 lines | live |
+| `ospf_neighbors_interface` | `show ospf neighbor interface {interface} \| no-more` | ok, 5 lines | live |
+| `ospfv3_neighbors` | `show ospf3 neighbor \| no-more` | ok, 1 line | live |
+| `ospfv3_neighbors_interface` | `show ospf3 neighbor interface {interface} \| no-more` | ok, 1 line | live |
+| `route_table` | `show route \| no-more` | ok, 41 lines | live |
+| `route_instances` | `show route instance \| no-more` | ok, 18 lines | live |
+| `ospf_interfaces` | `show ospf interface brief \| no-more` | ok, 3 lines | live |
+| `lldp_neighbors_detail` | `show lldp neighbors detail \| no-more` | ok, 59 lines | live |
+| `interfaces_descriptions` | `show interfaces descriptions \| no-more` | empty | live |
+| `routing_engine` | `show chassis routing-engine \| no-more` | ok, 36 lines | live |
+| `fpc` | `show chassis fpc \| no-more` | ok, 14 lines | live |
+| `storage` | `show system storage \| no-more` | ok, 4 lines | live |
+| `licenses` | `show system license \| no-more` | ok, 3 lines | live |
+| `commit_history` | `show system commit \| no-more` | ok, 9 lines | live |
+| `ntp_status` | `show ntp status \| no-more` | ok, 9 lines | live |
+| `ntp_associations` | `show ntp associations no-resolve \| no-more` | ok, 3 lines | live |
+| `vrrp_summary` | `show vrrp summary \| no-more` | ok, 3 lines | live |
+| `bfd_sessions` | `show bfd session \| no-more` | ok, 3 lines | live |
+| `log_messages` | `show log messages \| last 200 \| no-more` | refused to the read-only account, answered to admin | live |
+| `log_interactive_commands` | `show log interactive-commands \| last 200 \| no-more` | refused to the read-only account, answered to admin | live |
+| `dhcp_server_bindings` | `show dhcp server binding detail \| no-more` | - | docs-only |
+| `dhcp_server_statistics` | `show dhcp server statistics \| no-more` | - | docs-only |
+| `dhcp_relay_bindings` | `show dhcp relay binding \| no-more` | - | docs-only |
+| `dhcp_relay_statistics` | `show dhcp relay statistics \| no-more` | - | docs-only |
+| `system_users` | `show system users \| no-more` | - | docs-only |
+| `dns_lookup` | `show host {name} \| no-more` | - | docs-only |
+| `dns_resolvers` | `show configuration system name-server \| display xml \| no-more` | - | docs-only |
+| `snmp_statistics` | `show snmp statistics \| no-more` | - | docs-only |
+| `syslog_status` | `show configuration system syslog \| display xml \| no-more` | - | docs-only |
+| `authentication_order` | `show configuration system authentication-order \| display xml \| no-more` | - | docs-only |
+| `radius_servers` | `show configuration system radius-server \| display xml \| no-more` | - | docs-only |
+| `tacacs_servers` | `show configuration system tacplus-server \| display xml \| no-more` | - | docs-only |
+| `log_history` | `show log messages \| last 2000 \| no-more` | - | docs-only |
+| `ping` | `ping {address} count 5 source {source} \| no-more` | refused to the read-only account, answered to admin | live |
+| `ping_instance` | `ping {address} count 5 source {source} routing-instance {instance} \| no-more` | refused to the read-only account, answered to admin | live |
+| `traceroute` | `traceroute {address} no-resolve ttl 30 wait 1 \| no-more` | refused to the read-only account, answered to admin | live |
+| `traceroute_instance` | `traceroute {address} no-resolve routing-instance {instance} ttl 30 wait 1 \| no-more` | refused to the read-only account, answered to admin | live |
+| `bgp_peer` | `show bgp neighbor {address} \| no-more` | not configured | live |
+| `bgp_peer_received_routes` | `show route receive-protocol bgp {address} \| no-more` | ok, 3 lines | live |
+| `bgp_peer_advertised_routes` | `show route advertising-protocol bgp {address} \| no-more` | ok, 3 lines | live |
+| `ospf_neighbors_detail` | `show ospf neighbor detail \| no-more` | ok, 13 lines | live |
+| `ospf_interface_detail` | `show ospf interface {interface} detail \| no-more` | ok, 9 lines | live |
+| `ospf_database` | `show ospf database \| no-more` | ok, 9 lines | live |
+| `ospfv3_neighbors_detail` | `show ospf3 neighbor detail \| no-more` | ok, 1 line | live |
+| `ospfv3_interface_detail` | `show ospf3 interface {interface} detail \| no-more` | ok, 1 line | live |
+| `ospfv3_database` | `show ospf3 database \| no-more` | ok, 1 line | live |
+| `route_lookup_instance` | `show route table {instance}.inet.0 {address} detail \| no-more` | ok, 15 lines | live |
+| `arp_table_instance` | `show arp no-resolve vpn {instance} \| no-more` | empty | live |
+| `ipv6_neighbors_instance` | `show ipv6 neighbors vpn {instance} \| no-more` | empty | live |
+| `bgp_summary_instance` | `show bgp summary exact-instance {instance} \| no-more` | not configured | live |
+| `firewall_filters` | `show firewall \| no-more` | refused to the read-only account | live |
+| `firewall_filter` | `show firewall filter {filter} \| no-more` | refused to the read-only account | live |
+| `interface_firewall_filter` | `show configuration interfaces {interface} family inet filter \| no-more` | refused to the read-only account, answered to admin | live |
+| `mac_table_vlan` | `show ethernet-switching table vlan-name {vlan} \| no-more` | ok, 14 lines | live |
+| `vlan_details` | `show vlans {vlan} extensive \| no-more` | ok, 14 lines | live |
+| `stp_interface_detail` | `show spanning-tree interface {interface} detail \| no-more` | not configured | live |
+| `stp_interface_statistics` | `show spanning-tree statistics interface {interface} \| no-more` | not configured | live |
+| `igmp_snooping_membership` | `show igmp snooping membership \| no-more` | not configured | live |
+| `igmp_snooping_interfaces` | `show igmp snooping interface \| no-more` | not configured | live |
+| `vlans` | `show vlans brief \| no-more` | ok, 9 lines | live |
+| `mac_table` | `show ethernet-switching table \| no-more` | ok, 20 lines | live |
+| `stp_bridge` | `show spanning-tree bridge \| no-more` | ok, 16 lines | live |
+| `virtual_chassis` | `show virtual-chassis status \| no-more` | feature off or not supported by the image | docs-only |
+| `virtual_chassis_ports` | `show virtual-chassis vc-port \| no-more` | feature off or not supported by the image | docs-only |
+| `ethernet_switching_interfaces` | `show ethernet-switching interface \| no-more` | ok, 15 lines | live |
+| `ethernet_switching_interface` | `show ethernet-switching interface {interface} detail \| no-more` | ok, 41 lines | live |
+| `mac_table_interface` | `show ethernet-switching table interface {interface} \| no-more` | ok, 33 lines | live |
+| `mac_table_address` | `show ethernet-switching table {mac} \| no-more` | ok, 11 lines | live |
+| `stp_interfaces` | `show spanning-tree interface \| no-more` | ok, 6 lines | live |
+| `poe_interfaces` | `show poe interface \| no-more` | feature off or not supported by the image | docs-only |
+| `poe_controller` | `show poe controller \| no-more` | feature off or not supported by the image | docs-only |
+| `dot1x_interfaces` | `show dot1x interface \| no-more` | empty | live |
+| `dhcp_security_bindings` | `show dhcp-security binding \| no-more` | empty | live |
 
 <!-- lab-measurements:end -->
+
+`docs-only` in the generated table means that the 2026-11-08/09 lab run stored no output for the template. Later live runs on the same vJunos-switch 26.2R1.7 read `dhcp_server_statistics`, `dhcp_relay_statistics` and `snmp_statistics` through the Helper with the read-only account (`ok`, complete, equal to a separate CLI read) and `log_history` with an account that may read logs (`ok`, complete); the read-only account was refused `log_history` with `permission_denied`. The other `docs-only` rows rest on the documented syntax only. The stored read-only refusal of `traceroute` and `traceroute_instance` used `ttl 15`; the current `ttl 30` templates were verified later with the admin account, and for `traceroute` a later run also confirmed the refusal to the read-only account.
+
+### DHCP, management and message history
+
+- `dhcp_server_bindings` · [DHCP local server bindings](https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-dhcp-server-binding-command.html)
+- `dhcp_server_statistics` · [DHCP local server statistics](https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-dhcp-server-statistics-command.html)
+- `dhcp_relay_bindings` · [DHCP relay bindings](https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-dhcp-relay-binding.html)
+- `dhcp_relay_statistics` · [DHCP relay statistics](https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-dhcp-relay-statistics.html)
+- `system_users` · [System users](https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-system-users.html)
+- `dns_lookup` · [DNS host lookup](https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-host.html)
+- `dns_resolvers` · [System name servers](https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/statement/name-server-edit-system.html)
+- `snmp_statistics` · [SNMP statistics](https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-snmp-statistics.html)
+- `syslog_status` · [System syslog destinations](https://www.juniper.net/documentation/us/en/software/junos/network-mgmt/topics/topic-map/directing-system-log-messages-to-a-remote-destination.html)
+- `authentication_order` · [Authentication order](https://www.juniper.net/documentation/us/en/software/junos/user-access/topics/topic-map/junos-os-authentication-order.html)
+- `radius_servers` · [System RADIUS servers](https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/statement/radius-server-edit-system.html)
+- `tacacs_servers` · [Junos system hierarchy](https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/topic-map/hierarchy-edit-system.html)
+- `log_history` · [Display log file](https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-log.html), [Junos syslog formats](https://www.juniper.net/documentation/us/en/software/junos/network-mgmt/topics/topic-map/system-logging.html)

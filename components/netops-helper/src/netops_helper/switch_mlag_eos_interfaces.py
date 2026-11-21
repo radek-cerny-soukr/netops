@@ -26,10 +26,10 @@ header label columns:
 * the three cells starting at or after the ``local`` label column are the tail
   ``local``, ``remote`` and ``status``; exactly three single-token cells are required;
 * at most one single-token cell (the id) may start before the ``desc`` label column;
-* the cells in between are the description and the state.  The last of them is the
-  state only when it is a single token separated by two or more blanks that starts at
-  or after the ``state`` label column.  A word of a free-text description is therefore
-  never moved into an empty state column; the state is then missing.
+* the cells in between are the description and the state. A single-token final
+  cell starting at or after the ``state`` label occupies the state column. cEOS
+  can right-align a known state so it starts to the left of the label, within
+  the state column marked by the dashes.
 
 A row that does not fit this layout (missing tail cell, extra cell, overlong line) is
 not a member and is never guessed: the member list is reported incomplete and the
@@ -71,7 +71,7 @@ def _lines(text: Any) -> list[str]:
 
 
 def _columns(header: str, separator: str) -> dict[str, int] | None:
-    """Label start columns, or None when a label does not lie inside its dash column."""
+    """Label starts and the left edge of the state column, if the header is valid."""
     labels = list(_LABEL.finditer(header))
     dashes = list(_LABEL.finditer(separator))
     if len(labels) != len(_COLUMNS) or len(dashes) != len(_COLUMNS):
@@ -79,7 +79,9 @@ def _columns(header: str, separator: str) -> dict[str, int] | None:
     for label, dash in zip(labels, dashes):
         if not dash.start() <= label.start() < dash.end():
             return None
-    return {name: label.start() for name, label in zip(_COLUMNS, labels)}
+    columns = {name: label.start() for name, label in zip(_COLUMNS, labels)}
+    columns["state_left"] = dashes[_COLUMNS.index("state")].start()
+    return columns
 
 
 def _member(line: str, columns: dict[str, int]) -> dict[str, Any] | None:
@@ -93,8 +95,10 @@ def _member(line: str, columns: dict[str, int]) -> dict[str, Any] | None:
     if len(lead) > 1 or len(tail) != 3 or any(" " in value for _, value in lead + tail):
         return None  # a missing, extra or merged cell: the columns cannot be assigned
     state = None
-    if middle and " " not in middle[-1][1] and middle[-1][0] >= columns["state"]:
-        state = middle.pop()[1]  # an own state cell, never a description word
+    if middle:
+        start, value = middle[-1]
+        if (" " not in value and start >= columns["state"]) or (start >= columns["state_left"] and value in _STATES):
+            state = middle.pop()[1]
     description = None
     if middle:
         start = middle[0][0]

@@ -1,0 +1,42 @@
+{
+  "platform": "eos",
+  "table": "vrrp",
+  "versions": [
+    "4.36.1F"
+  ],
+  "exact_versions": true,
+  "ops": [
+    "create",
+    "update",
+    "delete"
+  ],
+  "table_scoped_key": true,
+  "key_pattern": "^Vlan[1-9][0-9]{0,3}:[1-9][0-9]{0,2}$",
+  "protected_keys": [],
+  "attributes": {
+    "virtual-ip": {
+      "type": "text",
+      "update": true,
+      "unset": false,
+      "referenced_update": true,
+      "required_on_create": true,
+      "max_length": 15,
+      "pattern": "^[0-9.]+$"
+    },
+    "priority": {
+      "type": "integer",
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "required_on_create": false,
+      "default": "100",
+      "minimum": 1,
+      "maximum": 254
+    }
+  },
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "G124 on cEOSLab 4.36.1F. EOS configuration session timer and verified running-config readback apply. The key is Vlan<id>:<group>. The SVI needs an IPv4 address and the group owns one primary IPv4 address. Additional settings are refused. The configured priority and address are read with the privileged account."
+}

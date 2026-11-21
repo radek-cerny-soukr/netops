@@ -24,6 +24,8 @@ COMMON = {
     "environment": ("show chassis environment | no-more", {}, False),
     "interfaces": ("show interfaces terse | no-more", {}, True),
     "interface_details": ("show interfaces {interface} extensive | no-more", {"interface": ("interfaces", "junos_interface")}, False),
+    "interface_queue": ("show interfaces queue {interface} | no-more", {"interface": ("interfaces", "junos_physical_interface")}, False),
+    "interface_class_of_service": ("show class-of-service interface {interface} | no-more", {"interface": ("interfaces", "junos_interface")}, False),
     "interface_optics": ("show interfaces diagnostics optics {interface} | no-more", {"interface": ("interfaces", "junos_physical_interface")}, False),
     "route_summary": ("show route summary | no-more", {}, False),
     "route_lookup": ("show route {address} detail | no-more", {"address": ("addresses", "ipv4_address")}, False),
@@ -57,8 +59,51 @@ COMMON = {
     "bfd_sessions": ("show bfd session | no-more", {}, False),
     "log_messages": ("show log messages | last 200 | no-more", {}, True),
     "log_interactive_commands": ("show log interactive-commands | last 200 | no-more", {}, True),
+    "log_history": ("show log messages | last 2000 | no-more", {
+        "start": ("literal", "junos_log_time"), "end": ("literal", "junos_log_time"),
+        "severity": ("literal", "junos_log_severity"), "interface": ("interfaces", "junos_interface"),
+    }, True),
+    "dhcp_server_bindings": ("show dhcp server binding detail | no-more", {}, True),
+    "dhcp_server_statistics": ("show dhcp server statistics | no-more", {}, False),
+    "dhcp_relay_bindings": ("show dhcp relay binding | no-more", {}, True),
+    "dhcp_relay_statistics": ("show dhcp relay statistics | no-more", {}, False),
+    "system_users": ("show system users | no-more", {}, False),
+    "dns_lookup": ("show host {name} | no-more", {"name": ("diagnostic_names", "junos_dns_name")}, False),
+    "dns_resolvers": ("show configuration system name-server | display xml | no-more", {}, False),
+    "snmp_statistics": ("show snmp statistics | no-more", {}, False),
+    "syslog_status": ("show configuration system syslog | display xml | no-more", {}, False),
+    "authentication_order": ("show configuration system authentication-order | display xml | no-more", {}, False),
+    "radius_servers": ("show configuration system radius-server | display xml | no-more", {}, False),
+    "tacacs_servers": ("show configuration system tacplus-server | display xml | no-more", {}, False),
+    # G132 (1.0.12): probes, routing-instance context and BGP/OSPF detail.
+    "ping": ("ping {address} count 5 source {source} | no-more", {"address": ("addresses", "ipv4_address"), "source": ("addresses", "ipv4_address")}, False),
+    "ping_instance": ("ping {address} count 5 source {source} routing-instance {instance} | no-more", {"address": ("addresses", "ipv4_address"), "source": ("addresses", "ipv4_address"), "instance": ("routing_instances", "routing_instance")}, False),
+    "traceroute": ("traceroute {address} no-resolve ttl 30 wait 1 | no-more", {"address": ("addresses", "ipv4_address")}, False),
+    "traceroute_instance": ("traceroute {address} no-resolve routing-instance {instance} ttl 30 wait 1 | no-more", {"address": ("addresses", "ipv4_address"), "instance": ("routing_instances", "routing_instance")}, False),
+    "bgp_peer": ("show bgp neighbor {address} | no-more", {"address": ("addresses", "address")}, True),
+    "bgp_peer_received_routes": ("show route receive-protocol bgp {address} | no-more", {"address": ("addresses", "address")}, True),
+    "bgp_peer_advertised_routes": ("show route advertising-protocol bgp {address} | no-more", {"address": ("addresses", "address")}, True),
+    "ospf_neighbors_detail": ("show ospf neighbor detail | no-more", {}, True),
+    "ospf_interface_detail": ("show ospf interface {interface} detail | no-more", {"interface": ("interfaces", "junos_logical_interface")}, False),
+    "ospf_database": ("show ospf database | no-more", {}, True),
+    "ospfv3_neighbors_detail": ("show ospf3 neighbor detail | no-more", {}, True),
+    "ospfv3_interface_detail": ("show ospf3 interface {interface} detail | no-more", {"interface": ("interfaces", "junos_logical_interface")}, False),
+    "ospfv3_database": ("show ospf3 database | no-more", {}, True),
+    "route_lookup_instance": ("show route table {instance}.inet.0 {address} detail | no-more", {"instance": ("routing_instances", "routing_instance"), "address": ("addresses", "ipv4_address")}, False),
+    "arp_table_instance": ("show arp no-resolve vpn {instance} | no-more", {"instance": ("routing_instances", "routing_instance")}, True),
+    "ipv6_neighbors_instance": ("show ipv6 neighbors vpn {instance} | no-more", {"instance": ("routing_instances", "routing_instance")}, True),
+    "bgp_summary_instance": ("show bgp summary exact-instance {instance} | no-more", {"instance": ("routing_instances", "routing_instance")}, True),
+    "firewall_filters": ("show firewall | no-more", {}, True),
+    "firewall_filter": ("show firewall filter {filter} | no-more", {"filter": ("firewall_filters", "junos_firewall_filter")}, False),
+    "interface_firewall_filter": ("show configuration interfaces {interface} family inet filter | no-more", {"interface": ("interfaces", "junos_filter_interface")}, False),
 }
 ELS_ONLY = {
+    "mac_table_vlan": ("show ethernet-switching table vlan-name {vlan} | no-more", {"vlan": ("vlans", "junos_vlan_name")}, True),
+    "vlan_details": ("show vlans {vlan} extensive | no-more", {"vlan": ("vlans", "junos_vlan_name")}, False),
+    "stp_interface_detail": ("show spanning-tree interface {interface} detail | no-more", {"interface": ("interfaces", "junos_interface")}, False),
+    "stp_interface_statistics": ("show spanning-tree statistics interface {interface} | no-more", {"interface": ("interfaces", "junos_interface")}, False),
+    "igmp_snooping_membership": ("show igmp snooping membership | no-more", {}, True),
+    "igmp_snooping_interfaces": ("show igmp snooping interface | no-more", {}, True),
     "vlans": ("show vlans brief | no-more", {}, True),
     "mac_table": ("show ethernet-switching table | no-more", {}, True),
     "stp_bridge": ("show spanning-tree bridge | no-more", {}, True),
@@ -75,7 +120,19 @@ ELS_ONLY = {
     "dhcp_security_bindings": ("show dhcp-security binding | no-more", {}, True),
 }
 SUFFIX = " | no-more"
-LOG_COMMANDS = {"show log messages | last 200", "show log interactive-commands | last 200"}
+LOG_COMMANDS = {"show log messages | last 200", "show log interactive-commands | last 200", "show log messages | last 2000"}
+MANAGEMENT_COMMANDS = {
+    "show snmp statistics", "show configuration interfaces {interface} family inet filter",
+    *(f"show configuration system {path} | display xml" for path in
+      ("name-server", "syslog", "authentication-order", "radius-server", "tacplus-server")),
+}
+# G132: the only non-show templates, fixed count/hops/wait with typed slots.
+PROBE_COMMANDS = {
+    "ping {address} count 5 source {source}",
+    "ping {address} count 5 source {source} routing-instance {instance}",
+    "traceroute {address} no-resolve ttl 30 wait 1",
+    "traceroute {address} no-resolve routing-instance {instance} ttl 30 wait 1",
+}
 METACHARS = set(";&`$><\\\"'*?[]()!#~")
 UNSAFE_SHOW_FAMILY = re.compile(
     r"^show\s+(?:run(?:ning-config)?|start(?:up-config)?|"
@@ -118,6 +175,10 @@ def _is_safe_junos_command(command: str) -> bool:
     if any(ord(char) < 32 or ord(char) == 127 for char in command):
         return False
     base = command[:-len(SUFFIX)]
+    if base in MANAGEMENT_COMMANDS:
+        return True
+    if base in PROBE_COMMANDS:
+        return True
     if base in LOG_COMMANDS:         # the fixed bounded log templates (they need command permission and file-read access on the device)
         return True
     if not base.startswith("show ") or "|" in base:
@@ -153,7 +214,10 @@ def test_commands_have_one_fixed_suffix_and_are_shell_safe() -> None:
             assert _is_safe_junos_command(command), (profile, name, command)
             base = command[:-len(SUFFIX)]
             fields = {field for _, field, _, _ in Formatter().parse(base) if field}
-            assert fields == set(query.slots), (profile, name, command)
+            if name == "log_history":
+                assert not fields and query.filter_slots == frozenset({"start", "end", "severity", "interface"})
+            else:
+                assert fields == set(query.slots), (profile, name, command)
 
 
 def test_safety_helper_rejects_abbreviations_secrets_and_extra_pipes() -> None:

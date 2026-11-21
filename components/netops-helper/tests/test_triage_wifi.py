@@ -247,11 +247,26 @@ def test_ap_or_vap_absent_from_the_listings_is_reported():
     assert "vap" in steps(result) and result["chain"]["vap"] is None
 
 
-def test_identity_other_than_the_measured_model_is_refused():
+def test_identity_other_than_the_tested_model_runs_with_a_warning():
+    # G00 (2026-11-17): another model or build is triaged, not refused.
     for status in ("Version: FortiGate-60F v7.6.8,build3744,260115 (GA.M)\n",
-                   "Version: FortiGate-80F v8.0.2,build0252,260928 (GA.F)\n", "garbage"):
-        with pytest.raises(triage_health.UnsupportedPlatform):
-            run(outputs(system_status=status))
+                   "Version: FortiGate-80F v8.0.2,build0252,260928 (GA.F)\n"):
+        result, _ = run(outputs(system_status=status))
+        assert result["ok"] is True and result["firmware_support"]["status"] == "untested"
+        assert result["warnings"] == [{"code": "firmware_untested",
+                                       "message": result["firmware_support"]["message"]}]
+        assert "wifi_triage was tested on (FortiGate-80F 8.0.2 build0251)" in result["firmware_support"]["message"]
+        summary = t.overview(result)
+        assert summary["firmware_support"] == result["firmware_support"]
+        assert summary["warnings"] == result["warnings"]
+    with pytest.raises(triage_health.UnsupportedPlatform):
+        run(outputs(system_status="garbage"))
+
+
+def test_tested_identity_has_no_warning():
+    result, _ = run(outputs())
+    assert result["firmware_support"]["status"] == "tested" and "warnings" not in result
+    assert "warnings" not in t.overview(result)
 
 
 @pytest.mark.parametrize("mac,ip", [

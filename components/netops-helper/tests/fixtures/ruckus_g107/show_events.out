@@ -1,0 +1,53 @@
+show events
+
+Last 300 Events/Activities:
+
+  Activity:
+
+    Date/Time= 2026/10/08 08:34:48
+
+    Severity= High
+
+    User= 
+
+    host-14
+
+  Activity:
+
+    Date/Time= 2026/10/08 08:34:48
+
+    Severity= High
+
+    User= 
+
+    host-15
+
+  Activity:
+
+    Date/Time= 2026/10/08 08:33:43
+
+    Severity= High
+
+    User= 
+
+    host-16
+
+  Activity:
+
+    Date/Time= 2026/10/08 08:33:41
+
+    Severity= High
+
+    User= 
+
+    host-17
+
+  Activity:
+
+    Date/Time= 2026/10/08 08:33:35
+
+    Severity= Medium
+
+    User= 
+
+    host-18

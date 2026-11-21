@@ -1,0 +1,24 @@
+{
+  "platform": "exos",
+  "table": "acl-policy",
+  "versions": ["33.6.1.14", "33.7.1.6"],
+  "ops": ["create", "update", "delete"],
+  "table_scoped_key": true,
+  "key_pattern": "^[A-Za-z][A-Za-z0-9_-]{0,31}$",
+  "protected_keys": [],
+  "attributes": {
+    "policy-content": {
+      "type": "text",
+      "update": true,
+      "unset": false,
+      "referenced_update": false,
+      "required_on_create": true,
+      "max_length": 8192
+    }
+  },
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "Read the named policy file over pinned SFTP and check its presence and syntax over independent SSH. Restore the exact original bytes, or remove a file created by the operation."
+}

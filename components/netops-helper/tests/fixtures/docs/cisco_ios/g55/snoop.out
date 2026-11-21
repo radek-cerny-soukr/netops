@@ -1,0 +1,14 @@
+Switch DHCP snooping is enabled
+DHCP snooping is configured on following VLANs:
+40-42
+Insertion of option 82 is enabled
+   circuit-id format: vlan-mod-port
+   remote-id format: string
+Option 82 on untrusted port is allowed
+Verification of hwaddr field is enabled
+Interface                Trusted    Rate limit (pps)
+------------------------ -------    ----------------
+GigabitEthernet1/0/1     yes        unlimited
+GigabitEthernet1/0/2     yes        unlimited
+GigabitEthernet1/0/3     no         2000
+GigabitEthernet1/0/4     yes        unlimited

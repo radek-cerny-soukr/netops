@@ -3,7 +3,7 @@ name: Release candidate
 on:
   push:
     branches:
-      - release/1.0.11-candidate
+      - release/1.0.12-candidate
   workflow_dispatch:
 
 permissions:
@@ -15,7 +15,7 @@ concurrency:
 
 env:
   IMAGE: ghcr.io/radek-cerny-soukr/netops
-  VERSION: 1.0.11
+  VERSION: 1.0.12
   BUILDKIT_IMAGE: moby/buildkit:v0.34.0@sha256:b059f8d7226d0b326bc871af489a5dddf65e36af4d20d14251b072974d9ee87c
   SYFT_VERSION: 1.54.1
   GRYPE_VERSION: 0.120.1
@@ -424,7 +424,7 @@ jobs:
           mkdir -p "qualification/$ROLE"
           chmod 0777 "qualification/$ROLE"
           status=0
-          docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges --memory 2g --cpus 2 --tmpfs /tmp:rw,nosuid,nodev,exec,size=512m,mode=1777 --tmpfs /pytmp:rw,nosuid,nodev,exec,size=512m,mode=1777 --mount "type=bind,source=$PWD/qualification/$ROLE,target=/reports" netops-engine-tests --role "$ROLE" --candidate-commit "$CANDIDATE_COMMIT" --candidate-image "${NETOPS_IMAGE#*@}" --output /reports/engine-report.json > "qualification/$ROLE.log" 2>&1 || status=$?
+          docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges --memory 2g --cpus 2 --tmpfs /tmp:rw,nosuid,nodev,exec,size=512m,mode=1777 --tmpfs /pytmp:rw,nosuid,nodev,exec,size=2g,mode=1777 --mount "type=bind,source=$PWD/qualification/$ROLE,target=/reports" netops-engine-tests --role "$ROLE" --candidate-commit "$CANDIDATE_COMMIT" --candidate-image "${NETOPS_IMAGE#*@}" --output /reports/engine-report.json > "qualification/$ROLE.log" 2>&1 || status=$?
           cat "qualification/$ROLE.log"
           cp "qualification/$ROLE/engine-report.json" "reports/acceptance-actions-$ARCH-engine-$ROLE.json"
           python3 -B release/report_gate.py reports

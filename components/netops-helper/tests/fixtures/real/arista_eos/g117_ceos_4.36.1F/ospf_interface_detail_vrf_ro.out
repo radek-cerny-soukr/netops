@@ -1,0 +1,11 @@
+Vlan10 is up
+  Interface Address 203.0.113.3/24, instance 29, VRF default, Area 0.0.0.0
+  Network Type Broadcast, Cost: 10
+  Transmit Delay is 1 sec, State Backup DR, Priority 1
+  Designated Router is 192.0.2.7
+  Backup Designated Router is 192.0.2.3
+  Timer intervals configured, Hello 10, Dead 40, Retransmit 5
+  Neighbor Count is 4
+  No authentication
+  Traffic engineering is disabled
+  TI-LFA protection is disabled

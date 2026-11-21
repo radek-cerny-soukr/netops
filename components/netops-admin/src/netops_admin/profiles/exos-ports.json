@@ -9,7 +9,7 @@
     "update"
   ],
   "implicit_keys": true,
-  "key_pattern": "^([1-9]|[1-9][0-9])$",
+  "key_pattern": "^[1-9][0-9]*(?::[1-9][0-9]*)?$",
   "protected_keys": [],
   "attributes": {
     "display-string": {
@@ -31,11 +31,20 @@
       "referenced_update": true,
       "required_on_create": false,
       "undo_to_default": true
+    },
+    "description-string": {
+      "type": "text",
+      "max_length": 255,
+      "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9 ._()/+-]{0,253}[A-Za-z0-9._()/+-])?$",
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "required_on_create": false
     }
   },
   "fixed": {},
   "volatile": [],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "ExtremeXOS 33.7.1.6-patch1-11 and EXOS 33.6.1.14 are separate firmware scopes. Port operations require the profile-specific read-back and rollback evidence for the exact firmware and privilege role. Software-image behavior does not establish hardware rollback guarantees. Treat missing or ambiguous clock or configuration-state evidence as unknown and keep write operations blocked. admin-state (disable ports N / enable ports N) is measured on X435-8P-4S and X440-G2-12p-10G4 with 33.7.1.6-patch1-11 only and is refused on other firmware: show configuration then holds the single line 'disable port N' in module vlan and loses it after enable; show ports N information detail reads 'Admin state: Disabled' or 'Enabled'. The timed UPM safeguard runs in non-persistent CLI mode by default, which left 'disable port N' in the configuration after 'enable ports N'; with 'configure cli mode persistent' as its first line it restored both the port and the configuration (measured on both models)."
+  "rollback_evidence": "ExtremeXOS stores a disabled data port as 'disable port N' in the vlan module. The inverse 'enable ports N' restores the default and removes the line. The timed UPM safeguard enters persistent CLI mode so the inverse restores both the port and its configuration. The check account reads admin state and port descriptions via 'show ports N information detail'."
 }

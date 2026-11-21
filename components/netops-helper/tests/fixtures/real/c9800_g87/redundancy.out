@@ -1,0 +1,41 @@
+Redundant System Information :
+------------------------------
+       Available system uptime = 22 minutes
+Switchovers system experienced = 0
+              Standby failures = 0
+        Last switchover reason = none
+
+                 Hardware Mode = Duplex
+    Configured Redundancy Mode = sso
+     Operating Redundancy Mode = sso
+              Maintenance Mode = Disabled
+                Communications = Up
+
+Current Processor Information :
+-------------------------------
+               Active Location = slot 1
+        Current Software state = ACTIVE
+       Uptime in current state = 22 minutes
+                 Image Version = Cisco IOS Software [Cupertino], C9800-CL Software (C9800-CL-K9_IOSXE), Version 17.9.2, RELEASE SOFTWARE (fc2)
+Technical Support: http://www.cisco.com/techsupport
+Copyright (c) 1986-2022 by Cisco Systems, Inc.
+Compiled Wed 02-Nov-22 15:12 by mcpre
+                          BOOT = bootflash:packages.conf,12;
+                   CONFIG_FILE =
+        Configuration register = 0x102
+               Recovery mode   = Not Applicable
+             Fast Switchover   = Enabled
+                Initial Garp   = Enabled
+
+Peer Processor Information :
+----------------------------
+              Standby Location = slot 2
+        Current Software state = STANDBY HOT
+       Uptime in current state = 20 minutes
+                 Image Version = Cisco IOS Software [Cupertino], C9800-CL Software (C9800-CL-K9_IOSXE), Version 17.9.2, RELEASE SOFTWARE (fc2)
+Technical Support: http://www.cisco.com/techsupport
+Copyright (c) 1986-2022 by Cisco Systems, Inc.
+Compiled Wed 02-Nov-22 15:12 by mcpre
+                          BOOT = bootflash:packages.conf,12;
+                   CONFIG_FILE =
+        Configuration register = 0x102

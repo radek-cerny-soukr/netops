@@ -7,6 +7,7 @@ from __future__ import annotations
 import datetime
 import json
 import re
+from copy import deepcopy
 
 import pytest
 from conftest import request_bytes
@@ -286,7 +287,7 @@ def test_shutdown_and_no_shutdown(tmp_path, device):
     up = execute.apply(runtime, "lab-nxos", request(changes={"admin-state": "enabled"}, request_id="req-up-1"))
     assert up["result"] == "confirmed" and device.interface(KEY) == []
     assert device.saves == 2 and device.saved_while_armed == 0
-    assert "port Ethernet1/48 is no trunk and has no learned MAC address and no LLDP neighbor" in up["plan"]["prechecks"]
+    assert "port Ethernet1/48: 0 learned MAC entries, no LLDP neighbor" in up["plan"]["prechecks"]
 
 
 def test_access_vlan_is_confirmed_and_undone(tmp_path, device):
@@ -507,7 +508,17 @@ def test_doctor_is_ready_after_enrollment(tmp_path, device):
     statuses = {item["check"]: item["status"] for item in report["checks"]}
     assert statuses["check account"] == "ok" and statuses["leftover safeguards"] == "ok"
     assert statuses["device prechecks"] == "ok" and statuses["enrollment"] == "ok", report
-    assert report["operations"] == {"interface": "update", "vlan-membership": "update"}
+    assert report["operations"] == {
+        "interface": "update", "vlan-membership": "update", "vlan": "create update delete",
+        "static-route": "create update delete", "l3-interface": "create update delete",
+        "dhcp-relay": "create update delete",
+        "port-bounce": "port-bounce", "port-channel": "create delete", "port-channel-member": "update",
+        "vpc-domain": "create update delete", "vpc-peer-link": "update", "vpc-port": "update",
+        "ip-access-list": "create update delete", "interface-access-group": "update",
+        "ntp-server": "create update delete", "ntp-source": "update",
+        "syslog-server": "create update delete", "syslog-source": "update",
+        "dns-server": "create update delete", "dns-domain": "update", "startup-config": "save",
+    }
 
 
 def test_doctor_reports_the_missing_scheduler_feature(tmp_path, device):
@@ -579,6 +590,32 @@ def test_recover_removes_the_job_of_an_interrupted_installation_before_it_runs(t
     assert device.uptime < 60 and device.clean() and device._config() == device.saved
     device.advance(900)
     assert device.logfile == [] and device.stuck_jobs == set() and device.rollback_log is None
+
+
+def test_recover_blocks_when_snapshot_is_lost_after_safeguard_cleanup(tmp_path, device):
+    installed = install_killed(tmp_path, device, "no checkpoint")
+    runtime = make_runtime(tmp_path, device)
+    writes = len(device.applied_blocks)
+    persisted = deepcopy(device.saved)
+
+    def lose_snapshot():
+        assert device.clean()
+        raise OSError("synthetic private NX-OS diagnostic")
+
+    device.snapshot = lose_snapshot
+    record, = execute.recover(runtime, "lab-nxos")
+
+    assert (record["result"], record["reason"]) == ("unknown", "interrupted")
+    assert steps(record)[-2:] == ["safeguard_removed", "revert_unverified"]
+    assert runtime.store.blocked("lab-nxos")["change_id"] == installed["change_id"]
+    label = installed["safeguard"]["name"]
+    assert device.applied_blocks[writes:] == [
+        ["configure terminal", f"no scheduler schedule name {label}", "end"],
+        ["configure terminal", f"no scheduler job name {label}", "end"],
+        [f"no checkpoint {label}"],
+    ]
+    assert device.clean() and device._config() == device.saved == persisted
+    assert "synthetic private NX-OS diagnostic" not in repr(runtime.store.records())
 
 
 @pytest.mark.parametrize("prefix, occurrence, phase", [

@@ -11,14 +11,16 @@ class FramedConfigurationBlock(TestCase):
   self.addCleanup(configuration._SNAPSHOTS.clear)
 
  def execute(self,wire,chunk=7):
-  def command(*args,**kwargs):
-   if args[5]=='get system status':
-    return SimpleNamespace(rc=0,stdout=STATUS.encode())
-   self.assertEqual(args[5],'show system interface')
+  def command(requested,**kwargs):
+   if requested=='get system status':
+    return engine.core_session.FortinetResult(0, STATUS.encode(), '', '', '')
+   self.assertEqual(requested,'show system interface')
    consumer=kwargs['stdout_consumer']
    for pos in range(0,len(wire),chunk):consumer(wire[pos:pos+chunk])
-   return SimpleNamespace(rc=0,stdout=b'')
-  with mock.patch.object(engine,'record'),mock.patch.object(engine,'_paced_connection',side_effect=lambda *a:contextlib.nullcontext()),mock.patch.object(engine,'_resolve_target_ipv4',return_value=['192.0.2.20']),mock.patch.object(engine,'host_key_line',return_value='fixture'),mock.patch.object(engine.core_ssh,'run_command',side_effect=command):
+   return engine.core_session.FortinetResult(0, b'', '', '', '')
+  terminal = SimpleNamespace(run=command)
+  with mock.patch.object(engine,'record'), mock.patch.object(engine,'_paced_connection'), \
+       mock.patch.object(engine.core_session,'fortinet_session', return_value=contextlib.nullcontext(terminal)):
    return engine.config_read(enrolled(),'fortios','system interface')
 
  def test_framed_stream_capture_pages_compare(self):

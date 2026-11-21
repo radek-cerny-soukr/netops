@@ -1,0 +1,17 @@
+session filter:
+	vd: any
+	sintf: any
+	dintf: any
+	proto: any
+	proto-state: any
+	source ip: any
+	NAT'd source ip: any
+	dest ip: any
+	source port: any
+	NAT'd source port: any
+	dest port: any
+	policy id: any
+	expire: any
+	duration: any
+	state1: any
+	state2: any

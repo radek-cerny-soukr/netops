@@ -1,0 +1,36 @@
+
+SysName:          host03
+SysLocation:      host04
+SysContact:       https://www.extremenetworks.com/support/
+System MAC:       00:00:5E:00:53:01
+System MAC Used:  Factory MAC
+System Type:      X435-8P-4S
+
+SysHealth check:  Enabled (Normal)
+Recovery Mode:    All
+System Watchdog:  Enabled
+
+Current Time:     Tue Nov 17 09:12:20 2026
+Timezone:         [Auto DST Disabled] GMT Offset: 0 minutes, name is UTC.
+Boot Time:        Mon Oct 19 14:46:47 2026
+Boot Count:       35
+Next Reboot:      None scheduled
+System UpTime:    28 days 18 hours 25 minutes 33 seconds
+
+Current State:    OPERATIONAL             
+Image Selected:   secondary               
+Image Booted:     secondary               
+Primary ver:      31.7.3.37               
+                  patch1-44
+Secondary ver:    33.7.1.6    
+                  patch1-11
+
+Config Selected:  primary.cfg                                          
+Config Booted:    primary.cfg                                          
+Config Automatic: NONE (Disabled)
+
+primary.cfg       Created by ExtremeXOS version 33.7.1.6
+                  192401 bytes saved on Sat Nov 14 19:02:18 2026
+
+
+LAA MAC:          Locally Administered MAC Address Disabled

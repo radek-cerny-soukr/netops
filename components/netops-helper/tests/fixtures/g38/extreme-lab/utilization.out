@@ -1,0 +1,7 @@
+Port     Link    Link   Rx             Peak Rx       Tx            Peak Tx
+         State   Speed  % bandwidth    % bandwidth   % bandwidth   % bandwidth[K
+================================================================================
+1         A       1000      0.68          0.68          0.01            0.16
+================================================================================
+          > indicates Port Display Name truncated past 8 characters
+          Link State: A-Active, R-Ready, NP-Port Not Present, L-Loopback

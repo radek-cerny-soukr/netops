@@ -1,0 +1,24 @@
+config system interface
+    edit "fortilink"
+        set fortilink enable
+        set type aggregate
+    next
+    edit "_default"
+        set switch-controller-feature default-vlan
+        set interface "fortilink"
+        set vlanid 1
+    next
+    edit "quarantine"
+        set switch-controller-feature quarantine
+        set interface "fortilink"
+        set vlanid 4093
+    next
+    edit "host01"
+        set interface "fortilink"
+        set vlanid 100
+    next
+    edit "host02"
+        set interface "fortilink"
+        set vlanid 211
+    next
+end

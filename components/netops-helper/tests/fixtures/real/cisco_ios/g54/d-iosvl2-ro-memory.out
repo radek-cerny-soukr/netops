@@ -1,0 +1,9 @@
+Processor Pool Total:  562253664 Used:   62107976 Free:  500145688
+      I/O Pool Total:  114294784 Used:   96571624 Free:   17723160
+
+ PID TTY  Allocated      Freed    Holding    Getbufs    Retbufs Process
+   0   0  223129864   71190216  146926704          0          0 *Init*
+   0   0      24408  216120448      24408          0          0 *Sched*
+   0   0 3306363872 3280905328    2384688    2619623          0 *Dead*
+   0   0          0          0     394768          0          0 *MallocLite*
+   1   0      13736          0      26832          0          0 Chunk Manager

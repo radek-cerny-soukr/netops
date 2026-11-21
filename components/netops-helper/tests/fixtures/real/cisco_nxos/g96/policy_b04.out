@@ -1,0 +1,20 @@
+
+
+Global statistics status :   enabled
+
+Ethernet1/2
+
+  Service-policy (queuing) output:   default-out-policy 
+
+    Class-map (queuing):   c-out-q3 (match-any)
+      priority level 1
+
+    Class-map (queuing):   c-out-q2 (match-any)
+      bandwidth remaining percent 0
+
+    Class-map (queuing):   c-out-q1 (match-any)
+      bandwidth remaining percent 0
+
+    Class-map (queuing):   c-out-q-default (match-any)
+      bandwidth remaining percent 100
+

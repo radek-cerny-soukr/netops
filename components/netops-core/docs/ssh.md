@@ -265,11 +265,28 @@ open descriptor outlives a finished or refused call of any of the three.
 
 ## Platform contracts
 
-Host-key algorithms, authentication methods and permitted legacy profiles are platform-specific. FortiOS, ExtremeXOS, Arista EOS, Cisco IOS/IOS-XE and Junos retain their exact documented version and account boundaries; transport support does not authorize device changes. Select a legacy profile only for the exact device that requires it. Ruckus Unleashed uses the documented [interactive session](session.md) path instead of an exec channel.
+Host-key algorithms, authentication methods and permitted legacy profiles are platform-specific. FortiOS, ExtremeXOS, Arista EOS, Cisco IOS/IOS-XE and Junos retain their documented account boundaries; the transport does not check firmware versions; a calling function that publishes firmware support reports an untested version itself, and transport support does not authorize device changes. Select a legacy profile only for the exact device that requires it. Ruckus Unleashed uses the documented [interactive session](session.md) path instead of an exec channel, and Helper FortiOS and FortiADC reads use the [held Fortinet session](session.md#fortinet-command-series).
 
 Exit status 255 is a transport refusal. Other command statuses remain a `Result` with their output, rather than being discarded as transport errors. An ExtremeXOS command can return status 250 with complete output; the caller must distinguish a command status, a device CLI error and the completeness of the returned answer. Neither a nonzero status nor a complete answer alone establishes semantic success.
 
 Credentials and temporary workspaces keep the cleanup and interrupted-call boundaries documented above. [Generic platform boundaries](../../../docs/verified-support.md#operator-responsibility) and [compatibility evidence limits](../../../docs/compatibility-boundaries.md#catalogue-and-parser-coverage) describe the scope without deployment identities or execution logs.
+
+## Fortinet host key from enrollment
+
+The FortiOS and FortiADC [held session](session.md#fortinet-command-series) takes the public
+OpenSSH key from the optional inventory field `host_key` in `<type> <base64>` form. Core
+validates its SHA-256 fingerprint against `host_key_fingerprint` and writes a 0600
+`known_hosts` in the private workspace for the address and port actually used. OpenSSH
+uses `StrictHostKeyChecking=yes`. A missing, malformed or mismatched key is rejected
+before Core uses the credential secret or OpenSSH starts, so nothing is sent to the device;
+the calling role may already have loaded the credential from its own vault. The held session performs zero scans.
+
+During device enrollment, take the key type and blob from a trusted known-hosts entry
+(`ssh-keygen -F <host> -f <trusted-file>` with `[<host>]:<port>` for a non-default
+port) or the device's trusted public-key export. Verify the key against the independently
+known fingerprint. If an enrollment needs to obtain a fresh entry over the network, do
+that once through OpenSSH in the enrollment step without authenticating and verify the
+resulting key before storing it. Store the two public fields together in inventory.
 
 ## Streaming standard output
 

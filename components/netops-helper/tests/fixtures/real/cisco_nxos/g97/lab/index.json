@@ -1,0 +1,8 @@
+{
+  "evpn_bgp_prefix": {"rc": 16},
+  "evpn_bgp_summary": {"rc": 16},
+  "evpn_mac_ip": {"rc": 0},
+  "nve_interface_detail": {"rc": 16},
+  "nve_peers": {"rc": 16},
+  "nve_vni": {"rc": 16}
+}

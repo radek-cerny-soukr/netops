@@ -1,0 +1,3 @@
+execute waf block-ip list
+ip	vs-name	expire
+192.0.2.249 LAB_VS_HTTPS 179

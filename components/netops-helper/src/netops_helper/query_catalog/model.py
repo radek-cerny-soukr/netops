@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import Mapping
 
@@ -34,29 +34,27 @@ class Query:
     # to classify the refusal; a new requirement needs a matching engine rule.
     requires_device_permission: str | None = None
     read_only_account: str | None = None
-    # Slots that may be left out; an omitted trailing "{slot}" is dropped with its space.
+    # Slots that may be left out; an omitted trailing command field is dropped with its space.
     optional_slots: frozenset[str] = frozenset()
     group: str | None = None
+    # Filter parameters are applied by the Helper to the redacted output.
+    filter_slots: frozenset[str] = field(default_factory=frozenset, kw_only=True)
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "slots", MappingProxyType(dict(self.slots)))
         object.__setattr__(self, "optional_slots", frozenset(self.optional_slots))
+        object.__setattr__(self, "filter_slots", frozenset(self.filter_slots))
 
 
 @dataclass(frozen=True, slots=True)
 class SequenceQuery(Query):
-    """Fixed command sequence run in one SSH session; `command` is only its display form.
-
-    Slots that no command uses (`filter_slots`) are applied by the Helper to the redacted output.
-    """
+    """Fixed command sequence; `command` is only its display form."""
 
     commands: tuple[str, ...] = ()
-    filter_slots: frozenset[str] = frozenset()
 
     def __post_init__(self) -> None:
         Query.__post_init__(self)
         object.__setattr__(self, "commands", tuple(self.commands))
-        object.__setattr__(self, "filter_slots", frozenset(self.filter_slots))
 
 
 NO_SLOTS: Mapping[str, Slot] = MappingProxyType({})
@@ -78,17 +76,26 @@ CISCO_IOS_INTERFACE: Mapping[str, Slot] = MappingProxyType({
 CISCO_IOS_PHYSICAL_INTERFACE: Mapping[str, Slot] = MappingProxyType({
     "interface": Slot("interfaces", "cisco_ios_physical_interface"),
 })
+CISCO_IOS_SWITCHPORT: Mapping[str, Slot] = MappingProxyType({
+    "interface": Slot("interfaces", "cisco_ios_switchport"),
+})
 CISCO_XE_INTERFACE: Mapping[str, Slot] = MappingProxyType({
     "interface": Slot("interfaces", "cisco_xe_interface"),
 })
 CISCO_XE_PHYSICAL_INTERFACE: Mapping[str, Slot] = MappingProxyType({
     "interface": Slot("interfaces", "cisco_xe_physical_interface"),
 })
+CISCO_XE_SWITCHPORT: Mapping[str, Slot] = MappingProxyType({
+    "interface": Slot("interfaces", "cisco_xe_switchport"),
+})
 CISCO_NXOS_INTERFACE: Mapping[str, Slot] = MappingProxyType({
     "interface": Slot("interfaces", "cisco_nxos_interface"),
 })
 CISCO_NXOS_ERRORS_INTERFACE: Mapping[str, Slot] = MappingProxyType({
     "interface": Slot("interfaces", "cisco_nxos_errors_interface"),
+})
+CISCO_NXOS_NON_SUBINTERFACE: Mapping[str, Slot] = MappingProxyType({
+    "interface": Slot("interfaces", "cisco_nxos_non_subinterface"),
 })
 SERVICE: Mapping[str, Slot] = MappingProxyType({
     "service": Slot("services", "service"),

@@ -1,0 +1,15 @@
+config system interface
+    edit "n439-v"
+        set vdom "root"
+        set ip 198.51.100.1 255.255.255.248
+        set allowaccess ping
+        set status down
+        set description "NetOps G19 test"
+        set alias "netops 439"
+        set device-identification enable
+        set role lan
+        set snmp-index 28
+        set interface "internal"
+        set vlanid 3439
+    next
+end

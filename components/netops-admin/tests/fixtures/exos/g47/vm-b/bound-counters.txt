@@ -1,0 +1,5 @@
+Policy Name       Vlan Name        Port   Direction
+    Counter Name                   Packet Count         Byte Count
+==================================================================
+netops-g47-capture netops-g47       *      ingress
+    g47_capture                    0

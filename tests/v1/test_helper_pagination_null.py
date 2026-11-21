@@ -15,6 +15,14 @@ from netops.audit import Audit
 from netops.files import write_private
 from netops_core.audit import Recorder
 from netops_helper import audit as helper_audit, engine, proxy, server
+from test_config_block import HOST_KEY, HOST_KEY_PIN
+
+
+def _read_reply(text, stdout_consumer=None):
+    if stdout_consumer is not None:
+        stdout_consumer(text.encode())
+        return 0, ""
+    return 0, text
 
 
 class HelperPaginationNull(unittest.IsolatedAsyncioTestCase):
@@ -22,7 +30,6 @@ class HelperPaginationNull(unittest.IsolatedAsyncioTestCase):
         self.state = Path(self.enterContext(tempfile.TemporaryDirectory()))
         helper = self.state / "helper"
         helper.mkdir(mode=0o700)
-        pin = "SHA256:" + "A" * 43
         section = {"account_role": "read-only", "ssh_platform": "fortios",
                    "enabled_queries": ["system_status"],
                    "read_inventory": {"schema_paths": ["firewall address"]},
@@ -33,7 +40,7 @@ class HelperPaginationNull(unittest.IsolatedAsyncioTestCase):
                               "allow_icmp": False, "allow_dns": False, "tls_server_names": []}}
         device = {"name": "device-a", "platform": "fortios", "address": "192.0.2.10",
                   "port": 22, "role": "lab", "credential": "fixture-ro",
-                  "host_key_fingerprint": pin, "legacy_ssh": None, "auditor": None,
+                  "host_key_fingerprint": HOST_KEY_PIN, "host_key": HOST_KEY, "legacy_ssh": None, "auditor": None,
                   "helper": section}
         write_private(helper / "inventory.json", json.dumps({"version": 2, "devices": [device]}).encode())
         write_private(helper / "vault.json", json.dumps({"version": 2, "credentials": {
@@ -47,7 +54,7 @@ class HelperPaginationNull(unittest.IsolatedAsyncioTestCase):
         write_private(helper / "library.json", library_bytes)
         write_private(helper / "registry.json", json.dumps({"format": 1, "targets": {"device-a": {
             "schema": "library.json", "sha256": hashlib.sha256(library_bytes).hexdigest(),
-            "host_key_fingerprint": pin}}}).encode())
+            "host_key_fingerprint": HOST_KEY_PIN}}}).encode())
         self.enterContext(patch.object(worker, "STATE", self.state))
         self.enterContext(patch.object(proxy, "INVENTORY", helper / "inventory.json"))
         self.enterContext(patch.dict(os.environ, {"NETOPS_SCHEMA_REGISTRY": str(helper / "registry.json")}))
@@ -65,13 +72,14 @@ class HelperPaginationNull(unittest.IsolatedAsyncioTestCase):
 
         self.rpc = self.enterContext(patch.object(gateway, "rpc", AsyncMock(side_effect=rpc)))
 
-    def device_read(self, auth, platform, command):
+    def device_read(self, auth, platform, command, *, stdout_consumer=None):
         self.assertEqual((auth.alias, platform), ("device-a", "fortinet"))
         if command == "get system status":
             return 0, ("Version: FortiGate-VM64-KVM v8.0.0,build0167,release\n"
                        "Current virtual domain: root\n" + "x" * 3500 + "\n")
         self.assertEqual(command, "show full-configuration")
-        return 0, 'config firewall address\n edit "one"\n set comment "' + "x" * 3500 + '"\n next\nend\n'
+        return _read_reply('config firewall address\n edit "one"\n set comment "' + "x" * 3500 +
+                           '"\n next\nend\n', stdout_consumer)
 
     def arguments(self, name):
         arguments = {"target": "device-a", "offset": 0, "max_bytes": 1000}
@@ -201,7 +209,8 @@ class HelperPaginationNull(unittest.IsolatedAsyncioTestCase):
         outputs = {}
 
         def transport(auth, address, known_hosts_line, credential, command, platform, **options):
-            return SimpleNamespace(rc=0, stdout=outputs[command].encode())
+            rc, text = _read_reply(outputs[command], options.get("stdout_consumer"))
+            return SimpleNamespace(rc=rc, stdout=text.encode())
 
         self.read.side_effect = engine._exec_read
         with patch.object(engine, "_resolve_target_ipv4", return_value=("192.0.2.10",)), \
@@ -259,10 +268,11 @@ class HelperPaginationNull(unittest.IsolatedAsyncioTestCase):
                     p.response(json.dumps({"jsonrpc": "2.0", "id": 1, "result": {}}).encode())
                 contexts = []
 
-                def read(auth, platform, command):
+                def read(auth, platform, command, *, stdout_consumer=None):
                     contexts.append(auth.redaction_secrets)
-                    rc, text = self.device_read(auth, platform, command)
-                    return rc, text.replace("x" * 3500, "plain " + " and ".join(secrets) + " tail " + "x" * 3500)
+                    _, text = self.device_read(auth, platform, command)
+                    text = text.replace("x" * 3500, "plain " + " and ".join(secrets) + " tail " + "x" * 3500)
+                    return _read_reply(text, stdout_consumer)
 
                 self.read.side_effect = read
                 for name in ("ssh_read", "schema_read"):
@@ -421,8 +431,12 @@ class HelperPaginationNull(unittest.IsolatedAsyncioTestCase):
 
     async def read_pages(self, body, tool="ssh_read", **changes):
         status = self.HEADER
-        self.read.side_effect = lambda auth, platform, command: (
-            0, status if tool == "schema_read" and command == "get system status" else body)
+
+        def read(auth, platform, command, *, stdout_consumer=None):
+            text = status if tool == "schema_read" and command == "get system status" else body
+            return _read_reply(text, stdout_consumer)
+
+        self.read.side_effect = read
         args = dict(self.arguments(tool), **changes)
         logged = len(self.log.read_text().splitlines()) if self.log.exists() else 0
         pages, expected_hash, reads_after_first = [], None, None
@@ -608,7 +622,7 @@ class HelperPaginationNull(unittest.IsolatedAsyncioTestCase):
         secret = 'SYNTHETICVALUE123'
         body = self.HEADER + 'x' * 980 + secret + 'z' * 1100
         report = {'value': 'x' * 990 + secret + 'z' * 1100}
-        self.read.side_effect = lambda *args: (0, body)
+        self.read.side_effect = lambda *args, stdout_consumer=None: _read_reply(body, stdout_consumer)
         with patch.object(schema_read, 'snapshot', return_value=report):
             for name in ('ssh_read', 'schema_read'):
                 self.bridge.proxy.session_secrets.pop(secret, None)

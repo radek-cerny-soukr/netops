@@ -1,0 +1,3 @@
+Controller  Maximum   Power      Power         Guard    Management   Status        Lldp
+index       power     reserved   consumption   band                                Priority
+   0        1650W     43.00W     8.00W           0W     Class        BT_MODE       Disabled

@@ -1,0 +1,4 @@
+Syntax error while parsing 'show ip access-lists interface ethernet 1/47'
+
+
+Cmd exec error.

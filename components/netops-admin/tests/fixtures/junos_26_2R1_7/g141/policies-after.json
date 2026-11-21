@@ -1,0 +1,16 @@
+{
+    "policy-information" : [
+    {
+        "attributes" : {"junos:style" : "brief"},
+        "policy" : [
+        {
+            "policy-name" : [
+            {
+                "data" : "NETOPS-G141-POLICY"
+            }
+            ]
+        }
+        ]
+    }
+    ]
+}

@@ -1,0 +1,2 @@
+interface Ethernet12
+   mtu 9000

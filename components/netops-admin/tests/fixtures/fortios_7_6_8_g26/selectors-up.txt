@@ -1,0 +1,2 @@
+proxyid_num=1 child_num=0 refcnt=5 ilast=488 olast=488 ad=/0
+proxyid=netops-g14 proto=0 sa=2 ref=3 serial=1 auto-negotiate

@@ -1,0 +1,3 @@
+# Module vlan configuration.
+enable jumbo-frame ports 10
+configure ports 10 auto off speed 100 duplex full

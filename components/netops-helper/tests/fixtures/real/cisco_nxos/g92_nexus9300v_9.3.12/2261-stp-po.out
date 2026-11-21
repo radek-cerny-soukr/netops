@@ -1,0 +1,9 @@
+ Port 4223 (port-channel128, vPC) of VLAN0428 is designated forwarding
+   Port path cost 1, Port priority 128, Port Identifier 128.4223
+   Designated root has priority 4524, address 0000.5e00.5308
+   Designated bridge has priority 4524, address 0000.5e00.5308
+   Designated port id is 128.4223, designated path cost 0
+   Timers: message age 0, forward delay 0, hold 0
+   Number of transitions to forwarding state: 1
+   Link type is point-to-point by default
+   BPDU: sent 41446, received 3

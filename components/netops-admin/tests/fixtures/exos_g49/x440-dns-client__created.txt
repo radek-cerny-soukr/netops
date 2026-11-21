@@ -1,0 +1,5 @@
+Number of domain suffixes: 1
+Domain Suffix 0:        host01         (DHCP)
+Number of domain servers: 2
+Name Server 0:  198.51.100.1  VR-Default  (DHCP)
+Name Server 1:  192.0.2.26     VR-Default

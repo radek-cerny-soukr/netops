@@ -1,0 +1,11 @@
+# Module stp configuration.
+create stpd g44stp
+configure stpd g44stp mode dot1w
+configure stpd g44stp priority 28672 extended-system-id 0
+configure stpd g44stp default-encapsulation dot1d
+configure stpd g44stp add vlan g44probe ports 10 dot1d
+configure stpd g44stp ports mode dot1d 10
+configure stpd g44stp ports cost 30000 10
+configure stpd g44stp ports link-type edge 10
+configure stpd g44stp ports edge-safeguard enable 10
+configure stpd g44stp ports bpdu-restrict enable 10

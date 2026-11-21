@@ -1,0 +1,14 @@
+diagnose server-load-balance vs_stat vdom root vs VS_APP_HTTP rs  999
+
+vdom name is root
+	virtual-server: VS_APP_HTTP, availability:DEAD
+		APP Response: 0
+		Client RTT: 1
+		Concurrent Connections: 0
+		Inbound Throughput: 0
+		Outbound Throughput: 0
+		Requests: 0
+		Server RTT: 1
+		real-server-pool: POOL_APP
+
+FortiADC-KVM # 

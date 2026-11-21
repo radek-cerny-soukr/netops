@@ -37,10 +37,13 @@ def test_fixture_shape_is_what_the_adapter_reads():
     assert sum(line.startswith('Software image version') for line in lines) == 1
 
 
-def test_real_ceos_admitted_and_build_kept():
+def test_real_ceos_tested_and_build_kept():
     firmware, meta = ad.verify_identity(CEOS)
-    assert firmware == FIRMWARE and firmware[:2] == ad.SUPPORTED
-    assert ad.firmware_admitted(firmware)
+    assert firmware == FIRMWARE and firmware[:2] == ad.TESTED
+    assert ad.firmware_record(firmware)
+    assert ad.firmware_support(firmware) == {
+        'status': 'tested', 'platform': 'Arista EOS', 'device_version': '4.36.1F', 'model': 'cEOSLab',
+        'tested_versions': ['cEOSLab 4.36.1F'], 'message': None}
     assert meta['config_scope'] == 'device-account-visible'
     assert meta['configuration_complete'] is False and meta['identity_scope_verified'] is False
     assert meta['visibility_limitations'] == ['account-rights-not-verified', 'formats-not-verified']
@@ -52,10 +55,11 @@ def test_real_ceos_admitted_and_build_kept():
     ('4.36.1F-48405728.4361F', '4.36.1F-48405728.4361F'),
     ('4.36.1F (engineering build)', '4.36.1F (engineering build)'),
 ], ids=['plain', 'suffix-only', 'note-only'])
-def test_same_release_with_other_build_text_is_admitted_and_recorded(image, build):
+def test_same_release_with_other_build_text_is_tested_and_recorded(image, build):
     text = CEOS.replace(IMAGE, 'Software image version: ' + image)
     firmware = ad.verify_identity(text)[0]
-    assert firmware == ('cEOSLab', '4.36.1F', build) and ad.firmware_admitted(firmware)
+    assert firmware == ('cEOSLab', '4.36.1F', build) and ad.firmware_record(firmware)
+    assert ad.firmware_support(firmware)['status'] == 'tested'
 
 
 def test_crlf_and_prompt_lines():
@@ -63,25 +67,31 @@ def test_crlf_and_prompt_lines():
     assert ad.verify_identity('ceos1#show version\r\n' + CEOS + '\r\nceos1#')[0] == FIRMWARE
 
 
-@pytest.mark.parametrize('old,new', [
-    (MODEL, 'Arista vEOS-lab'),                                                    # other model
-    (MODEL, 'Arista DCS-7050TX-64-R'),                                             # hardware model
-    (IMAGE, IMAGE.replace('4.36.1F-', '4.36.0F-')),                                # other release
-    (IMAGE, IMAGE.replace('4.36.1F-', '4.35.1F-')),                                # other train
-    (IMAGE, IMAGE.replace('4.36.1F-', '4.36.1M-')),                                # other release type
-    (IMAGE, IMAGE.replace('4.36.1F-', '4.36.1.1F-')),                              # four-part release
+@pytest.mark.parametrize('old,new,model,release', [
+    (MODEL, 'Arista vEOS-lab', 'vEOS-lab', '4.36.1F'),                                       # other model
+    (MODEL, 'Arista DCS-7050TX-64-R', 'DCS-7050TX-64-R', '4.36.1F'),                        # hardware model
+    (IMAGE, IMAGE.replace('4.36.1F-', '4.36.0F-'), 'cEOSLab', '4.36.0F'),                   # other release
+    (IMAGE, IMAGE.replace('4.36.1F-', '4.35.1F-'), 'cEOSLab', '4.35.1F'),                   # other train
+    (IMAGE, IMAGE.replace('4.36.1F-', '4.36.1M-'), 'cEOSLab', '4.36.1M'),                   # other release type
+    (IMAGE, IMAGE.replace('4.36.1F-', '4.36.1.1F-'), 'cEOSLab', '4.36.1.1F'),               # four-part release
 ], ids=['model-veos', 'model-hw', 'release', 'train', 'release-type', 'four-part'])
-def test_derived_foreign_wellformed_refused(old, new):
+def test_derived_foreign_wellformed_is_untested(old, new, model, release):
+    """G00: another model or release is read; firmware_support says untested."""
     assert old in CEOS
-    with pytest.raises(ad.UnsupportedEosFirmware, match='configuration firmware-not-supported'):
-        ad.verify_identity(CEOS.replace(old, new))
+    firmware, meta = ad.verify_identity(CEOS.replace(old, new))
+    assert firmware[:2] == (model, release) and meta == ad.metadata() and ad.firmware_record(firmware)
+    support = ad.firmware_support(firmware)
+    assert support['status'] == 'untested' and support['model'] == model and support['device_version'] == release
+    assert support['message'] == (
+        'Arista EOS %s on %s is not among the versions config_read was tested on (cEOSLab 4.36.1F). '
+        'It may or may not work as designed and tested; check the result.' % (release, model))
 
 
 def test_real_foreign_vendor_and_frozen_adapters():
     # The real IOS XE capture has no Arista identity lines: inconclusive, never admitted.
     with pytest.raises(ValueError, match=BAD) as info:
         ad.verify_identity(IOLXE)
-    assert not isinstance(info.value, ad.UnsupportedEosFirmware)
+    assert type(info.value) is ValueError
     # And the IOS / IOS XE adapters do not admit the EOS capture.
     for other in (ios_ad, xe_ad):
         with pytest.raises(ValueError):
@@ -118,7 +128,7 @@ def test_real_foreign_vendor_and_frozen_adapters():
 def test_unverifiable_identity(make):
     with pytest.raises(ValueError, match=BAD) as info:
         ad.verify_identity(make(CEOS))
-    assert not isinstance(info.value, ad.UnsupportedEosFirmware)
+    assert type(info.value) is ValueError
 
 
 def test_identity_ignores_image_file_internal_build_serial_and_hostname():
@@ -132,13 +142,15 @@ def test_identity_ignores_image_file_internal_build_serial_and_hostname():
     assert ad.version_identity(text) == FIRMWARE
 
 
-def test_firmware_admitted_only_for_the_record_shape():
-    assert ad.firmware_admitted(FIRMWARE)
-    for firmware in (ad.SUPPORTED, ('cEOSLab', '4.36.1F', ''), ('cEOSLab', '4.36.1F', '4.35.1F'),
-                     ('cEOSLab', '4.36.1F', '4.36.1F trailing'), ('vEOS-lab', '4.36.1F', '4.36.1F'),
-                     ('cEOSLab', '4.35.1F', '4.35.1F'), list(FIRMWARE), ('cEOSLab', '4.36.1F', None),
-                     FIRMWARE + ('x',), xe_ad.SUPPORTED, None):
-        assert not ad.firmware_admitted(firmware), firmware
+def test_firmware_record_only_for_the_record_shape():
+    # G00: any consistent record is a record (tested or not); the release must be the image's release.
+    for firmware in (FIRMWARE, ('vEOS-lab', '4.36.1F', '4.36.1F'), ('cEOSLab', '4.35.1F', '4.35.1F')):
+        assert ad.firmware_record(firmware), firmware
+    for firmware in (ad.TESTED, ('cEOSLab', '4.36.1F', ''), ('cEOSLab', '4.36.1F', '4.35.1F'),
+                     ('cEOSLab', '4.36.1F', '4.36.1F trailing'), ('', '4.36.1F', '4.36.1F'),
+                     ('c EOS', '4.36.1F', '4.36.1F'), list(FIRMWARE), ('cEOSLab', '4.36.1F', None),
+                     FIRMWARE + ('x',), xe_ad.TESTED, None):
+        assert not ad.firmware_record(firmware), firmware
 
 
 def test_read_command():
@@ -155,10 +167,10 @@ def test_read_command():
 def test_constants_and_profile_fingerprint():
     assert ad.PLATFORM == 'arista_eos' and ad.COMMAND == 'show running-config'
     assert ad.IDENTITY_COMMANDS == ('show version',) and ad.IDENTITY_MAX_BYTES == 65536
-    assert ad.SUPPORTED == ('cEOSLab', '4.36.1F')
+    assert ad.TESTED == ('cEOSLab', '4.36.1F') and ad.TESTED_NAME == 'Arista EOS'
     assert not hasattr(ad, 'IMAGE_FAMILY')
     assert ad.VISIBILITY == ('account-rights-not-verified', 'formats-not-verified')
-    desc = ('arista_eos', 'config_indented.EosStreamRedactor', 'eos-indent-allowlist-1', EOS_MARKER,
+    desc = ('arista_eos', 'config_indented.EosStreamRedactor', 'eos-indent-allowlist-2', EOS_MARKER,
             'show running-config', ('show version',), ('cEOSLab', '4.36.1F'))
     assert ad.POLICY_DESCRIPTOR == desc
     digest = hashlib.sha256(json.dumps(desc, separators=(',', ':')).encode('ascii')).hexdigest()

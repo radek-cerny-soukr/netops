@@ -1,0 +1,48 @@
+diagnose netlink interface list
+
+if=lo family=00 type=772 index=1 mtu=65536 link=0 master=0
+flags=up loopback run 
+
+if=imq0 family=00 type=65535 index=2 mtu=16000 link=0 master=0
+flags=noarp 
+
+if=bond0 family=00 type=1 index=3 mtu=1500 link=0 master=0
+flags=broadcast master multicast 
+
+if=port1 family=00 type=1 index=4 mtu=1500 link=0 master=0
+flags=up broadcast run multicast 
+
+if=port2 family=00 type=1 index=5 mtu=1500 link=0 master=0
+flags=up broadcast run multicast 
+
+if=port3 family=00 type=1 index=6 mtu=1500 link=0 master=0
+flags=up broadcast run multicast 
+
+if=port4 family=00 type=1 index=7 mtu=1500 link=0 master=0
+flags=up broadcast run multicast 
+
+if=port5 family=00 type=1 index=8 mtu=1500 link=0 master=0
+flags=up broadcast run multicast 
+
+if=gre0 family=00 type=778 index=9 mtu=1476 link=0 master=0
+flags=noarp 
+
+if=gretap0 family=00 type=1 index=10 mtu=1462 link=0 master=0
+flags=broadcast multicast 
+
+if=erspan0 family=00 type=1 index=11 mtu=1450 link=0 master=0
+flags=broadcast multicast 
+
+if=sit0 family=00 type=776 index=12 mtu=1480 link=0 master=0
+flags=noarp 
+
+if=vtb0 family=00 type=778 index=13 mtu=1476 link=0 master=0
+flags=p2p noarp master 
+
+if=haport0 family=00 type=1 index=14 mtu=1400 link=0 master=0
+flags=up broadcast run noarp multicast 
+
+if=vsport-A014C0A family=00 type=1 index=22 mtu=1500 link=0 master=0
+flags=up broadcast multicast vlan_id=1500 vlan_flag=
+
+FortiADC-KVM #

@@ -35,6 +35,7 @@ REASONS = {
     "address-port": "address and port must either both be null or both be set",
     "optional-reference": "must be null or a non-empty credential-store reference",
     "ssh-pin": "must be an OpenSSH SHA256 host-key pin",
+    "ssh-public-key": "must be an OpenSSH public host key matching host_key_fingerprint",
     "address-required": "must be null when the device has no address",
     "legacy-profile": "must name a supported legacy SSH profile or be null",
     "pin-required": "requires an explicit host-key fingerprint; first-contact trust is refused",
@@ -49,10 +50,12 @@ REASONS = {
     "fingerprint-component": "must be a string without U+001F, the finding fingerprint separator",
     "absolute": "must be an absolute path without NUL",
     "integer": "must be an integer in the documented range",
-    "admin-platform": "must be fortios, exos, eos, ios, iosxe, fortiadc, nxos or junos",
+    "admin-platform": "must be fortios, exos, eos, ios, iosxe, fortiadc, nxos, junos or ruckus",
     "opt-in": "must be a list of distinct opt-in table names; the only table is firewall policy",
     "protected": "must map table names to lists of names",
     "distinct-names": "must be a list of distinct non-empty account names",
+    "distinct-wlans": "must be a list of distinct WLAN names in the documented format",
+    "wlans": "is supported only for Ruckus Unleashed devices",
     "different-address": "must be a different address from the write address",
     "different-credential": "must name a different account from the write credential",
     "schema": "schema binding requires fortios and exactly the documented binding fields",
@@ -82,18 +85,20 @@ FIELDS = {
     "config", "config.version", "config.devices", "config.devices[]", "config.notify",
     "config.notify.server", "config.notify.topic_file", "config.notify.timeout_seconds",
     "config.notify.x509_strict", "config.limits", "config.export_status_require_audit_file",
+    "config.mcp_undo",
     "config.devices[].schema", "config.devices[].schema.vdoms",
     "config.devices[].schema.library", "config.devices[].schema.calibration",
     "auditor.tenant", "auditor.catalog",
 }
 FIELDS.update("inventory.devices[]." + field for field in (
-    "name", "platform", "address", "port", "role", "credential", "host_key_fingerprint",
+    "name", "platform", "address", "port", "role", "credential", "host_key_fingerprint", "host_key",
     "legacy_ssh", "helper", "helper.tls_ca_certificate", "auditor", "auditor.channel", "auditor.source",
     "auditor.required_sections", "auditor.required_sections[]", "auditor.tls_fingerprint"))
 FIELDS.update("config.devices[]." + field for field in (
-    "name", "platform", "address", "port", "host_key_fingerprint", "vault", "credential", "firmware",
+    "name", "platform", "address", "port", "host_key_fingerprint", "host_key", "vault", "credential", "firmware",
     "safeguard_seconds", "confirm_margin_seconds", "protected", "legacy_ssh", "accounts",
-    "check_credential", "check_address", "audit_policy", "opt_in"))
+    "check_credential", "check_address", "audit_policy", "opt_in", "wlans",
+    "fortiadc_https_port", "fortiadc_https_sha256"))
 FIELDS.update("config." + field for field in (
     "state_dir", "audit_file", "vault", "audit_policy", "schema.library", "schema.calibration",
     "export_status_file", "safeguard_seconds", "confirm_margin_seconds", "port",

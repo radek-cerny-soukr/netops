@@ -1,0 +1,13 @@
+Vdom: root
+
+S000SSSS00000001:
+Port(port5) is HW Admin up, SW Admin up, line protocol is down
+Interface Type is Serial Gigabit Media Independent Interface(SGMII/SerDes)
+Address is 00:00:5E:00:53:0A, None loopback
+MTU 10000 bytes, Encapsulation IEEE 802.3/Ethernet-II
+half-duplex, 0 Mb/s, link type is auto
+input  : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes
+         0 unicasts, 0 multicasts, 0 broadcasts, 0 unknowns
+output : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes
+         0 unicasts, 0 multicasts, 0 broadcasts
+0 fragments, 0 undersizes, 0 collisions, 0 jabbers

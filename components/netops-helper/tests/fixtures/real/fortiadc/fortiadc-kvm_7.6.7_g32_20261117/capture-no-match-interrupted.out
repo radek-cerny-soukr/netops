@@ -1,0 +1,8 @@
+diagnose sniffer packet port2 'host 198.51.100.99' 4 3 a
+interfaces=[port2]
+filters=[host 198.51.100.99]
+^C
+0 packets received by filter
+0 packets dropped by kernel
+
+FortiADC-KVM #

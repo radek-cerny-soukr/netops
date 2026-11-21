@@ -1,0 +1,30 @@
+{
+  "platform": "nxos",
+  "table": "vpc-peer-link",
+  "versions": [
+    "9.3(12)"
+  ],
+  "exact_versions": true,
+  "ops": [
+    "update"
+  ],
+  "table_scoped_key": true,
+  "key_pattern": "^port-channel[1-9][0-9]{0,3}$",
+  "protected_keys": [],
+  "attributes": {
+    "peer-link": {
+      "type": "text",
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "pattern": "^enabled$",
+      "max_length": 7,
+      "required_on_create": false
+    }
+  },
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "Assigns or removes the local peer-link on a preconfigured, idle trunk with spanning-tree port type network. Refuses a domain with vPC member ports."
+}

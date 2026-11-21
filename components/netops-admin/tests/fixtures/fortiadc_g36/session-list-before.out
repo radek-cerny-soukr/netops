@@ -1,0 +1,4 @@
+diagnose server-load-balance session list
+client-ip/port virtual-server-ip/port local-ip/port real-server-ip/port protocol service state in-bytes out-bytes expire virtual-server-name real-server-name
+192.0.2.100 40026 192.0.2.10 53 192.0.2.100 40026 198.51.100.12 53 17 udp UDP 62 62 64 LAB_VS_DNS RS_B
+192.0.2.100 43096 192.0.2.10 25 192.0.2.100 43096 198.51.100.12 25 6 tcp TIME_WAIT 268 204 2 LAB_VS_SMTP RS_B

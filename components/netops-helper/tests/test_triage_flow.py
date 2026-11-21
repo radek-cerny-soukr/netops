@@ -488,10 +488,28 @@ def test_a_destination_route_failure_does_not_hide_an_allowed_policy():
 @pytest.mark.parametrize("status", [
     "Version: FortiGate-60F v7.6.8,build3744,260115 (GA.M)\nVirtual domain configuration: disable\n",
     "Version: FortiGate-80F v8.0.2,build0252,260928 (GA.F)\nVirtual domain configuration: disable\n",
+])
+def test_untested_identity_runs_the_lookup_with_a_warning(status):
+    # G00 (2026-11-17): another model or build is looked up, not refused; the iprope parser still reports an
+    # unknown reply shape as unparsed.
+    result, calls, _ = run(outputs(system_status=status), sessions=NONE)
+    assert [query for query, _ in calls][0] == "system_status" and len(calls) > 1
+    assert result["ok"] is True and result["chain"]["policy"]["action"] == "accept"
+    assert result["firmware_support"]["status"] == "untested"
+    assert result["warnings"] == [{"code": "firmware_untested", "message": result["firmware_support"]["message"]}]
+    assert "triage_flow was tested on (FortiGate-80F 8.0.2 build0251)" in result["firmware_support"]["message"]
+
+
+def test_tested_identity_has_no_warning():
+    result, _, _ = run(outputs(), sessions=NONE)
+    assert result["firmware_support"]["status"] == "tested" and "warnings" not in result
+
+
+@pytest.mark.parametrize("status", [
     live("status").replace("Virtual domain configuration: disable", "Virtual domain configuration: multiple"),
     "no version here\n",
 ])
-def test_other_identities_and_vdom_modes_are_refused_after_the_identity_read(status):
+def test_vdom_modes_and_unreadable_identities_are_refused_after_the_identity_read(status):
     calls = []
 
     def read(query, parameters):
@@ -638,7 +656,7 @@ def test_session_read_of_an_unknown_source_port_sets_a_filter_without_it(monkeyp
     monkeypatch.setattr(engine, "_paced_connection", lambda *a: nullcontext())
     monkeypatch.setattr(engine, "DeviceCredential", lambda auth: None)
     monkeypatch.setattr(engine, "_FortiosDiagnosticShell", lambda session: session)
-    monkeypatch.setattr(engine.core_session, "Session", lambda *a, **k: nullcontext(SimpleNamespace(close=lambda: None)))
+    monkeypatch.setattr(engine.core_session, "fortinet_session", lambda *a, **k: nullcontext(SimpleNamespace(close=lambda: None)))
     out = engine._flow_session_text(_session_auth(), UNKNOWN_PORT_FLOW, "LAN-test")
     assert out["ok"] is True and out["text"].endswith("total session: 1\n")
     assert seen["recipe"] == "sessions" and seen["address"] == DST and seen["interface"] == "LAN-test"
@@ -666,7 +684,7 @@ def _patched_session_read(monkeypatch, raw):
     monkeypatch.setattr(engine, "_paced_connection", lambda *a: nullcontext())
     monkeypatch.setattr(engine, "DeviceCredential", lambda auth: None)
     monkeypatch.setattr(engine, "_FortiosDiagnosticShell", lambda session: session)
-    monkeypatch.setattr(engine.core_session, "Session", lambda *a, **k: nullcontext(SimpleNamespace(close=lambda: None)))
+    monkeypatch.setattr(engine.core_session, "fortinet_session", lambda *a, **k: nullcontext(SimpleNamespace(close=lambda: None)))
 
 
 def test_the_session_text_measured_on_the_80f_gives_allowed_no_session_through_the_engine_path(monkeypatch):

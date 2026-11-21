@@ -1,0 +1,20 @@
+
+
+
+Loopback8080 is up, line protocol is up
+  IPv6 is enabled, link-local address is FE80::100 
+  No Virtual link-local address(es):
+  Description: netops-g80 test
+  Global unicast address(es):
+    2001:DB8:80::1, subnet is 2001:DB8:80::/64 
+  Joined group address(es):
+    FF02::1
+    FF02::1:FF00:1
+    FF02::1:FF00:100
+  MTU is 1514 bytes
+  ICMP error messages limited to one every 100 milliseconds
+  ICMP redirects are enabled
+  ICMP unreachables are sent
+  ND DAD is not supported
+  ND reachable time is 30000 milliseconds (using 30000)
+  ND NS retransmit interval is 1000 milliseconds

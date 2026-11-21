@@ -140,7 +140,8 @@ def test_proxy_validates_literals_and_target_scope():
     from netops_helper.proxy import Proxy, ToolArgumentsError
     args = {'targets': ['sw1'], 'endpoint': '192.0.2.10'}
     assert Proxy._validate_tool_arguments('locate_endpoint', args) == args
-    for bad in ['host.example', '192.0.2.1;reload', '192.0.2.0/24', 'fe80::1%port1']:
+    assert Proxy._validate_tool_arguments('locate_endpoint', {**args, 'endpoint': 'host.example'})['endpoint'] == 'host.example'
+    for bad in ['host..example', '192.0.2.1;reload', '192.0.2.0/24', 'fe80::1%port1']:
         with pytest.raises(ToolArgumentsError):
             Proxy._validate_tool_arguments('locate_endpoint', {**args, 'endpoint': bad})
     for targets in [[], ['sw1'] * 2, ['s'+str(i) for i in range(locate.MAX_TARGETS + 1)], 'sw1']:
@@ -632,3 +633,31 @@ def test_worker_refuses_invalid_injected_read_reservation(tmp_path, limit):
     contexts['device-a'] = base64.urlsafe_b64encode(json.dumps(decoded).encode()).decode()
     with pytest.raises(AuthenticationContextError):
         endpoint_worker.decode(['device-a'], json.dumps(contexts))
+
+
+@pytest.mark.parametrize("platform, field", [("fortinet", "8.0.2"), ("extreme_exos", "33.6.1.14")])
+def test_locate_does_not_report_firmware_that_overlaps_a_credential(monkeypatch, platform, field):
+    from pathlib import Path
+    from conftest import _target
+
+    fixtures = Path(__file__).parent / "fixtures"
+    fortinet = platform == "fortinet"
+    version = "get system status" if fortinet else "show version"
+    identity = (fixtures / ("fortios_80f_802_flow_status.txt" if fortinet
+                           else "real/exos/exosvm_33.6.1.14/version.txt")).read_text()
+    query = "arp_table"
+    command = "get system arp" if fortinet else "show iparp"
+    calls = []
+
+    def read(auth, profile, actual):
+        assert profile == platform and actual in (version, command)
+        calls.append(actual)
+        return 0, identity if actual == version else ""
+
+    monkeypatch.setattr(engine, "read_from_device", read)
+    monkeypatch.setattr(engine, "record", lambda *args, **kwargs: None)
+    auth = replace(_target(platform, query, secret=field), device_types=("router",))
+    result = engine._locate_endpoint_run([auth], "192.0.2.10")
+    assert calls == [version, command]
+    assert result["vantage"][0]["firmware_support"]["status"] == "unknown"
+    assert result["vantage"][0]["firmware_support"]["device_version"] is None

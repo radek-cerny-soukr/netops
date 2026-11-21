@@ -1,0 +1,137 @@
+{
+    "ospf-neighbor-information" : [
+    {
+        "attributes" : {"xmlns" : "http://xml.juniper.net/junos/26.2R0/junos-routing"},
+        "ospf-neighbor" : [
+        {
+            "neighbor-address" : [
+            {
+                "data" : "192.0.2.3"
+            }
+            ],
+            "interface-name" : [
+            {
+                "data" : "irb.10"
+            }
+            ],
+            "ospf-neighbor-state" : [
+            {
+                "data" : "Full"
+            }
+            ],
+            "neighbor-id" : [
+            {
+                "data" : "198.51.100.3"
+            }
+            ],
+            "neighbor-priority" : [
+            {
+                "data" : "1"
+            }
+            ],
+            "activity-timer" : [
+            {
+                "data" : "34"
+            }
+            ]
+        },
+        {
+            "neighbor-address" : [
+            {
+                "data" : "192.0.2.5"
+            }
+            ],
+            "interface-name" : [
+            {
+                "data" : "irb.10"
+            }
+            ],
+            "ospf-neighbor-state" : [
+            {
+                "data" : "2Way"
+            }
+            ],
+            "neighbor-id" : [
+            {
+                "data" : "198.51.100.5"
+            }
+            ],
+            "neighbor-priority" : [
+            {
+                "data" : "1"
+            }
+            ],
+            "activity-timer" : [
+            {
+                "data" : "34"
+            }
+            ]
+        },
+        {
+            "neighbor-address" : [
+            {
+                "data" : "192.0.2.1"
+            }
+            ],
+            "interface-name" : [
+            {
+                "data" : "irb.10"
+            }
+            ],
+            "ospf-neighbor-state" : [
+            {
+                "data" : "2Way"
+            }
+            ],
+            "neighbor-id" : [
+            {
+                "data" : "198.51.100.1"
+            }
+            ],
+            "neighbor-priority" : [
+            {
+                "data" : "1"
+            }
+            ],
+            "activity-timer" : [
+            {
+                "data" : "37"
+            }
+            ]
+        },
+        {
+            "neighbor-address" : [
+            {
+                "data" : "192.0.2.7"
+            }
+            ],
+            "interface-name" : [
+            {
+                "data" : "irb.10"
+            }
+            ],
+            "ospf-neighbor-state" : [
+            {
+                "data" : "Full"
+            }
+            ],
+            "neighbor-id" : [
+            {
+                "data" : "198.51.100.7"
+            }
+            ],
+            "neighbor-priority" : [
+            {
+                "data" : "1"
+            }
+            ],
+            "activity-timer" : [
+            {
+                "data" : "31"
+            }
+            ]
+        }
+        ]
+    }
+    ]
+}

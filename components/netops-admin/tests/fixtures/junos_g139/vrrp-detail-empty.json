@@ -1,0 +1,36 @@
+{
+    "xnm:warning" : [
+    {
+        "attributes" : {"xmlns" : "http://xml.juniper.net/xnm/1.1/xnm",
+                        "xmlns:xnm" : "http://xml.juniper.net/xnm/1.1/xnm"
+                       },
+        "message" : [
+        {
+            "data" : "vrrp subsystem not running - not needed by configuration."
+        }
+        ],
+        "reason" : [
+        {
+            "daemon" : [
+            {
+                "data" : "vrrp"
+            }
+            ],
+            "process-not-configured" : [
+            {
+                "data" : [null]
+            }
+            ]
+        }
+        ]
+    }
+    ],
+    "cli" : [
+    {
+        "banner" : [
+        {
+        }
+        ]
+    }
+    ]
+}

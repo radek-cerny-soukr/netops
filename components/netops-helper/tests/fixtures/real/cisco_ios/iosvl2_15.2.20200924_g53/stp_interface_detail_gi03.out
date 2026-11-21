@@ -1,0 +1,10 @@
+
+ Port 4 (GigabitEthernet0/3) of VLAN0010 is designated forwarding 
+   Port path cost 4, Port priority 128, Port Identifier 128.4.
+   Designated root has priority 32778, address 0000.5e00.5301
+   Designated bridge has priority 32778, address 0000.5e00.5301
+   Designated port id is 128.4, designated path cost 0
+   Timers: message age 0, forward delay 0, hold 0
+   Number of transitions to forwarding state: 1
+   Link type is point-to-point by default
+   BPDU: sent 80400, received 0

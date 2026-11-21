@@ -1,0 +1,293 @@
+# fixture-opaque
+# Module devmgr configuration.
+# fixture-opaque
+# fixture-opaque
+# fixture-opaque
+
+# fixture-opaque
+# Module vlan configuration.
+# fixture-opaque
+configure vlan default delete ports all
+# fixture-opaque
+# fixture-opaque
+# fixture-opaque
+# fixture-opaque
+# fixture-opaque
+# fixture-opaque
+# fixture-opaque
+create vlan "host01"
+configure vlan host01   tag 304
+create vlan "host02"
+configure vlan host02  tag 4090
+create vlan "host03"
+configure vlan host03 tag 4091
+create vlan "host04"
+configure vlan host04 tag 10
+create vlan "host05"
+configure vlan host05 tag 20
+# fixture-opaque
+configure vlan host01   add ports 3 tagged
+configure vlan host01   add ports 5 untagged
+configure vlan host02  add ports 3 tagged
+configure vlan host03 add ports 4 untagged
+configure vlan host04 add ports 1 tagged
+configure vlan host04 add ports 2 untagged
+configure vlan host05 add ports 1 tagged
+configure vlan Default add ports 6-12 untagged
+configure vlan host02  ipaddress 192.0.2.1  255.255.255.252
+configure vlan host03 ipaddress 198.51.100.1 255.255.255.252
+configure vlan host04 ipaddress 203.0.113.4 255.255.255.0
+configure vlan host05 ipaddress 203.0.113.254 255.255.255.0
+configure vlan Mgmt ipaddress 203.0.113.253  255.255.255.0
+# fixture-opaque
+# fixture-opaque
+# fixture-opaque
+# fixture-opaque
+# fixture-opaque
+# fixture-opaque
+# fixture-opaque
+# fixture-opaque
+# fixture-opaque
+# fixture-opaque
+# fixture-opaque
+# fixture-opaque
+
+# fixture-opaque
+# Module mcmgr configuration.
+# fixture-opaque
+
+# fixture-opaque
+# Module otm configuration.
+# fixture-opaque
+
+# fixture-opaque
+# Module fdb configuration.
+# fixture-opaque
+
+# fixture-opaque
+# Module rtmgr configuration.
+# fixture-opaque
+# fixture-opaque
+
+# fixture-opaque
+# Module policy configuration.
+# fixture-opaque
+# fixture-opaque
+
+# fixture-opaque
+# Module aaa configuration.
+# fixture-opaque
+# fixture-opaque
+create account user fixture-user "[fixture-opaque]"
+create account user fixture-user "[fixture-opaque]"
+
+# fixture-opaque
+# Module acl configuration.
+# fixture-opaque
+
+
+
+
+# fixture-opaque
+# Module bfd configuration.
+# fixture-opaque
+
+# fixture-opaque
+# Module bgp configuration.
+# fixture-opaque
+
+# fixture-opaque
+# Module cfgmgr configuration.
+# fixture-opaque
+
+# fixture-opaque
+# Module dnsAnalytics configuration.
+# fixture-opaque
+
+# fixture-opaque
+# Module dosprotect configuration.
+# fixture-opaque
+
+# fixture-opaque
+# Module dot1ag configuration.
+# fixture-opaque
+
+# fixture-opaque
+# Module eaps configuration.
+# fixture-opaque
+
+# fixture-opaque
+# Module edp configuration.
+# fixture-opaque
+
+# fixture-opaque
+# Module elrp configuration.
+# fixture-opaque
+
+# fixture-opaque
+# Module ems configuration.
+# fixture-opaque
+
+# fixture-opaque
+# Module epm configuration.
+# fixture-opaque
+
+# fixture-opaque
+# Module erps configuration.
+# fixture-opaque
+
+# fixture-opaque
+# Module esrp configuration.
+# fixture-opaque
+
+# fixture-opaque
+# Module ethoam configuration.
+# fixture-opaque
+
+# fixture-opaque
+# Module etmon configuration.
+# fixture-opaque
+
+# fixture-opaque
+# Module exsshd configuration.
+# fixture-opaque
+enable ssh2
+
+# fixture-opaque
+# Module hal configuration.
+# fixture-opaque
+
+# fixture-opaque
+# Module idMgr configuration.
+# fixture-opaque
+
+# fixture-opaque
+# Module ipSecurity configuration.
+# fixture-opaque
+
+
+# fixture-opaque
+# Module iqagent configuration.
+# fixture-opaque
+
+# fixture-opaque
+# Module isis configuration.
+# fixture-opaque
+
+# fixture-opaque
+# Module lacp configuration.
+# fixture-opaque
+
+# fixture-opaque
+# Module lldp configuration.
+# fixture-opaque
+
+# fixture-opaque
+# Module mrp configuration.
+# fixture-opaque
+
+# fixture-opaque
+# Module msdp configuration.
+# fixture-opaque
+
+# fixture-opaque
+# Module netDb configuration.
+# fixture-opaque
+
+# fixture-opaque
+# Module netLogin configuration.
+# fixture-opaque
+
+# fixture-opaque
+# Module netTools configuration.
+# fixture-opaque
+# fixture-opaque
+# fixture-opaque
+
+# fixture-opaque
+# Module nodealias configuration.
+# fixture-opaque
+
+# fixture-opaque
+# Module ntp configuration.
+# fixture-opaque
+
+# fixture-opaque
+# Module ospf configuration.
+# fixture-opaque
+
+# fixture-opaque
+# Module ospfv3 configuration.
+# fixture-opaque
+
+# fixture-opaque
+# Module pim configuration.
+# fixture-opaque
+
+# fixture-opaque
+# Module poe configuration.
+# fixture-opaque
+
+# fixture-opaque
+# Module rip configuration.
+# fixture-opaque
+
+# fixture-opaque
+# Module ripng configuration.
+# fixture-opaque
+
+# fixture-opaque
+# Module snmpMaster configuration.
+# fixture-opaque
+# fixture-opaque
+
+# fixture-opaque
+# Module stp configuration.
+# fixture-opaque
+
+# fixture-opaque
+# Module techSupport configuration.
+# fixture-opaque
+
+# fixture-opaque
+# Module telnetd configuration.
+# fixture-opaque
+disable telnet
+
+# fixture-opaque
+# Module tftpd configuration.
+# fixture-opaque
+
+# fixture-opaque
+# Module thttpd configuration.
+# fixture-opaque
+# fixture-opaque
+
+# fixture-opaque
+# Module twamp configuration.
+# fixture-opaque
+
+# fixture-opaque
+# Module upm configuration.
+# fixture-opaque
+
+# fixture-opaque
+# Module vmt configuration.
+# fixture-opaque
+
+# fixture-opaque
+# Module vrrp configuration.
+# fixture-opaque
+
+# fixture-opaque
+# Module vsm configuration.
+# fixture-opaque
+# fixture-opaque
+# fixture-opaque
+# fixture-opaque
+# fixture-opaque
+# fixture-opaque
+
+# fixture-opaque
+# Module vpex configuration.
+# fixture-opaque

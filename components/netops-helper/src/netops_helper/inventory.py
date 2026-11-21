@@ -5,6 +5,7 @@ from contextlib import contextmanager
 
 from dataclasses import dataclass, field
 import ipaddress
+import math
 from pathlib import Path, PurePosixPath
 import re
 import ssl
@@ -13,6 +14,7 @@ from typing import Any
 from netops_core import inventory as core
 
 from .config_limits import ConfigurationLimits
+from .query_catalog.cisco import IOS_ADMIN_READS, IOS_XE_ADMIN_READS, XE_LOG_HISTORY
 from .query_catalog.model import DEVICE_TYPES
 
 from .read_policy import (
@@ -46,6 +48,7 @@ SECTION_FIELDS = (
     "fortios_rest_port",
     "fortios_rest_credential",
     "fortios_rest_certificate_sha256",
+    "intent",
 )
 REQUIRED_SECTION_FIELDS = (
     "account_role", "ssh_platform", "enabled_queries", "egress",
@@ -73,12 +76,12 @@ EGRESS_POLICY_FIELDS = (
 ACCOUNT_ROLE = "read-only"
 ADMIN_BOUNDED_ROLE = "admin-bounded"
 CATALOGUE_ROLE_BOUNDARY = "catalogue"
-ADMIN_BOUNDED_PLATFORMS = frozenset({"fortios", "fortiadc", "ruckus_unleashed"})
+ADMIN_BOUNDED_PLATFORMS = frozenset({"fortios", "fortiadc", "ruckus_unleashed", "cisco_ios", "cisco_xe", "cisco_nxos"})
 CATALOG_PLATFORMS = {"fortios": "fortinet", "exos": "extreme_exos"}
 CREDENTIAL_KINDS = ("password", "ssh-key")
 SNMP_CREDENTIAL_KIND = "snmpv3-authpriv"
 SNMP_LEGACY_KIND = "snmp-community"
-INVENTORY_CATEGORIES = ("vrfs", "virtual_routers", "routing_instances", "interfaces", "services", "addresses", "lookup_prefixes", "switches", "vlans", "managed_switches", "managed_switch_ports", "managed_switch_trunks", "certificates", "firewall_addresses", "nat_pools", "wireless_clients", "wtp_ids", "flow_ports", "ip_protocols", "policy_types", "sdwan_members", "sdwan_rules", "sdwan_health_checks", "link_monitors", "schema_paths", "diagnostic_recipes", "diagnostic_vdoms", "diagnostic_virtual_servers", "diagnostic_names", "diagnostic_http_endpoints", "adc_health_checks", "config_access", "adc_vdoms", "adc_virtual_servers")
+INVENTORY_CATEGORIES = ("route_maps", "vrfs", "virtual_routers", "routing_instances", "interfaces", "services", "addresses", "lookup_prefixes", "switches", "vlans", "managed_switches", "managed_switch_ports", "managed_switch_trunks", "certificates", "firewall_addresses", "nat_pools", "wireless_clients", "wtp_ids", "wlan_names", "flow_ports", "firewall_filters", "security_zones", "ip_protocols", "policy_types", "sdwan_members", "sdwan_rules", "sdwan_health_checks", "link_monitors", "ipsec_tunnels", "schema_paths", "diagnostic_recipes", "diagnostic_vdoms", "diagnostic_virtual_servers", "diagnostic_names", "diagnostic_http_endpoints", "adc_health_checks", "config_access", "adc_vdoms", "adc_virtual_servers")
 POLICY_SCHEMA = 1
 BACKEND = "iptables"
 BRIDGE_NAME = "nh-egress0"
@@ -102,6 +105,8 @@ RFC1918_NETWORKS = tuple(ipaddress.ip_network(value) for value in (
 ))
 SAFE_QUERY_NAME = re.compile(r"[a-z][a-z0-9_]{0,127}")
 SAFE_DNS_LABEL = re.compile(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?")
+INTENT_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,63}")
+INTENT_INTERFACE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:/-]{0,63}")
 
 InventoryError = core.InventoryError
 Device = core.Device
@@ -147,6 +152,7 @@ class HelperSection:
     fortios_rest_credential: str | None = None
     fortios_rest_certificate_sha256: str | None = None
     device_types: tuple = ()
+    intent: dict = field(default_factory=dict)
 
     def catalog_platform(self) -> str | None:
         return catalog_platform(self.ssh_platform)
@@ -411,6 +417,62 @@ def _checked_read_inventory(where: str, value: Any) -> dict:
     return normalized
 
 
+def _checked_intent(value: Any) -> dict:
+    """Validate named one-shot plans whose checks apply to this device."""
+    if not isinstance(value, dict) or len(value) > MAX_INVENTORY_ITEMS:
+        raise InventoryError("intent must be an object of named plans")
+    fields = {"lag": {"name", "active_members"}, "vlan": {"port", "vlan_id", "membership"},
+              "poe": {"port", "min_w", "max_w"}}
+
+    def interface(item):
+        return isinstance(item, str) and INTENT_INTERFACE.fullmatch(item) is not None
+
+    def watts(item):
+        return type(item) in (int, float) and 0 <= item <= 100_000 and math.isfinite(item)
+
+    for name, plan in value.items():
+        if not isinstance(name, str) or not INTENT_NAME.fullmatch(name):
+            raise InventoryError("intent plan name must be a short identifier")
+        if not isinstance(plan, dict) or not plan or plan.keys() - fields.keys():
+            raise InventoryError("intent plan must contain lag, vlan or poe checks")
+        seen = set()
+        for kind, checks in plan.items():
+            if not isinstance(checks, list) or not 1 <= len(checks) <= MAX_INVENTORY_ITEMS:
+                raise InventoryError("intent checks must be a nonempty bounded list")
+            for check in checks:
+                allowed = fields[kind] | ({"managed_switch"} if kind == "vlan" else set())
+                if not isinstance(check, dict) or fields[kind] - check.keys() or check.keys() - allowed:
+                    raise InventoryError("invalid fields for intent " + kind)
+                selector = check.get("name") if kind == "lag" else check["port"]
+                if not interface(selector):
+                    raise InventoryError("invalid intent interface or LAG selector")
+                if kind == "lag":
+                    members = check["active_members"]
+                    if (not isinstance(members, list) or len(members) > MAX_INVENTORY_ITEMS
+                            or not all(interface(member) for member in members) or len(set(members)) != len(members)):
+                        raise InventoryError("intent lag active_members must list unique interfaces")
+                if kind == "vlan":
+                    serial = check.get("managed_switch")
+                    if "managed_switch" in check:
+                        try:
+                            validate_inventory_item("managed_switches", serial)
+                        except (TypeError, ValueError):
+                            raise InventoryError("invalid intent managed_switch selector") from None
+                    if type(check["vlan_id"]) is not int or not 1 <= check["vlan_id"] <= 4094:
+                        raise InventoryError("intent vlan_id must be between 1 and 4094")
+                    if check["membership"] not in ("tagged", "untagged", "absent"):
+                        raise InventoryError("intent membership must be tagged, untagged or absent")
+                if kind == "poe" and not (
+                    watts(check["min_w"]) and watts(check["max_w"]) and check["min_w"] <= check["max_w"]
+                ):
+                    raise InventoryError("intent PoE bounds must be nonnegative watts in ascending order")
+                key = (kind, selector, check.get("managed_switch"), check.get("vlan_id"))
+                if key in seen:
+                    raise InventoryError("duplicate intent check")
+                seen.add(key)
+    return value
+
+
 def _checked_roots(where: str, value: Any) -> tuple:
     roots = _bounded_list(where, "sftp_roots", value, MAX_ROOTS)
     for root in roots:
@@ -569,6 +631,21 @@ def _checked_role_boundary(
     return CATALOGUE_ROLE_BOUNDARY
 
 
+def ios_management_read_only(queries, roots, read_inventory, snmp_credential):
+    """Limit privileged IOS enrollment to fixed reads and optional log interface scope."""
+    populated = {name for name, values in read_inventory.items() if values}
+    allowed_inventory = {"interfaces"} if XE_LOG_HISTORY in queries else set()
+    return (bool(queries) and set(queries) <= IOS_ADMIN_READS and not roots
+            and populated <= allowed_inventory and snmp_credential is None)
+
+
+def nxos_config_access_only(queries, roots, read_inventory, snmp_credential):
+    """A privileged NX-OS login is enrolled only for the fixed configuration tools."""
+    return (not queries and not roots and snmp_credential is None
+            and "read" in read_inventory.get("config_access", ())
+            and not any(value for name, value in read_inventory.items() if name != "config_access"))
+
+
 def _tls_ca_error(message: str, code: str) -> InventoryError:
     return InventoryError(message, field=TLS_CA_FIELD, code=code)
 
@@ -678,6 +755,11 @@ def section(entry: Device, kinds: dict | None = None) -> HelperSection:
                 "%s: read_inventory does not hold usable values for the enabled queries (%s)"
                 % (where, error)
             ) from None
+    with _field("helper.enabled_queries"):
+        if platform == "cisco_xe" and role == ADMIN_BOUNDED_ROLE and (
+            set(queries) - IOS_XE_ADMIN_READS or (not queries and "read" not in read_inventory.get("config_access", ()))
+        ):
+            raise RoleError("%s: an IOS XE admin-bounded account is limited to supported diagnostic queries" % where)
     with _field("helper.configuration_limits"):
         try:
             configuration_limits = ConfigurationLimits.from_mapping(item.get('configuration_limits', {}))
@@ -725,6 +807,16 @@ def section(entry: Device, kinds: dict | None = None) -> HelperSection:
         }))
     with _field("helper.snmp_credential"):
         snmp_credential = _checked_snmp_credential(where, item.get("snmp_credential"), kinds)
+    with _field("helper.intent"):
+        intent = _checked_intent(item.get("intent", {}))
+    if platform == "cisco_ios" and role == ADMIN_BOUNDED_ROLE:
+        with _field("helper.account_role"):
+            if not ios_management_read_only(queries, roots, read_inventory, snmp_credential):
+                raise RoleError("%s: an IOS admin-bounded account is limited to supported diagnostic queries" % where)
+    if platform == "cisco_nxos" and role == ADMIN_BOUNDED_ROLE:
+        with _field("helper.account_role"):
+            if not nxos_config_access_only(queries, roots, read_inventory, snmp_credential):
+                raise RoleError("%s: an NX-OS admin-bounded account is limited to config_access" % where)
     return HelperSection(
         account_role=role,
         role_boundary=boundary,
@@ -743,6 +835,7 @@ def section(entry: Device, kinds: dict | None = None) -> HelperSection:
         fortios_rest_port=rest_port,
         fortios_rest_credential=rest_credential,
         fortios_rest_certificate_sha256=rest_pin,
+        intent=intent,
     )
 
 

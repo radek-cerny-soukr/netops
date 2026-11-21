@@ -1,0 +1,26 @@
+{
+    "peers": {
+        "192.0.2.29": {
+            "condition": "reject",
+            "peerIpAddr": "192.0.2.29",
+            "refid": ".INIT.",
+            "stratumLevel": 16,
+            "peerType": "unicast",
+            "lastReceived": -2208988800.0,
+            "pollInterval": 64,
+            "reachabilityHistory": [
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false
+            ],
+            "delay": 0.0,
+            "offset": 0.0,
+            "jitter": 6e-05
+        }
+    }
+}

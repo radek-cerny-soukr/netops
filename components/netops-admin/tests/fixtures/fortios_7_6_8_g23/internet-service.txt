@@ -1,0 +1,5 @@
+config firewall internet-service-name
+    edit "Google-Gmail"
+        set internet-service-id 65646
+    next
+end

@@ -1,11 +1,17 @@
-"""FortiADC 7.6.7 read queries: fixed status, resource, hardware, interface, routing, load-balancer, WAF, log and update-contract views."""
+"""FortiADC 7.6.7 read queries: fixed status, resource, hardware, interface (one or all), routing, load-balancer, WAF, log and update-contract views."""
 
 from __future__ import annotations
 
-from .model import FORTIADC_INTERFACE, NO_SLOTS, Query, Slot
+from .model import FORTIADC_INTERFACE, NO_SLOTS, Query, SequenceQuery, Slot
 
 
 QUERIES: dict[str, Query] = {
+    "certificate_inventory": Query(
+        "get system certificate local",
+        NO_SLOTS,
+        "Inventory local, intermediate CA and CA certificates, expiry and SSL references from pinned "
+        "FortiADC HTTPS, with ACME status from SSH.",
+    ),
     "system_status": Query(
         "get system status",
         NO_SLOTS,
@@ -26,6 +32,37 @@ QUERIES: dict[str, Query] = {
         FORTIADC_INTERFACE,
         "Show state, MTU, and packet, error, and drop counters of one enrolled interface; empty output means no interface state returned.",
         empty_allowed=True,
+    ),
+    # G32 ADC-C12: every interface in one read, measured on FortiADC-KVM 7.6.7 build0676 (VM220, 2026-11-17).
+    "interface_list": Query(
+        "get system interface",
+        NO_SLOTS,
+        "Show every configured interface with type, VDOM, IPv4 and IPv6 address, administrative status and "
+        "allowed management access; it shows neither link state nor speed (nic_detail_all).",
+        high_volume=True,
+    ),
+    "interface_state_all": Query(
+        "diagnose netlink interface list",
+        NO_SLOTS,
+        "Show the kernel state of every interface, including VLAN, aggregate and virtual-server ports: MTU and "
+        "the up and run flags; it shows neither addresses nor speed.",
+        high_volume=True,
+    ),
+    "nic_detail_all": Query(
+        "diagnose hardware get deviceinfo nic-detail",
+        NO_SLOTS,
+        "Show the driver, link speed, duplex, detected link, and receive and transmit counters of every physical "
+        "network interface; over this read the per-port values are in the 'Settings for <port>' blocks, and the "
+        "'Interface: <port>' lines with the counters follow after all of them.",
+        high_volume=True,
+    ),
+    "interface_summary": SequenceQuery(
+        "get system interface; diagnose hardware get deviceinfo nic-detail",
+        NO_SLOTS,
+        "Join configured IPv4, IPv6 and administrative status with detected link and speed in Mb/s by interface "
+        "name. Missing source data is reported explicitly.",
+        high_volume=True,
+        commands=("get system interface", "diagnose hardware get deviceinfo nic-detail"),
     ),
     "interface_counters": Query(
         "diagnose netlink device",
@@ -102,6 +139,24 @@ QUERIES: dict[str, Query] = {
             "virtual_server": Slot("adc_virtual_servers", "fortiadc_virtual_server"),
         },
         "Show availability, connections, requests, RTT and throughput of one enrolled virtual server and the health state of all members of its real-server pool.",
+        high_volume=True,
+        pty=True,
+    ),
+    "slb_vs_overview": Query(
+        "diagnose server-load-balance vs_stat vdom {vdom}",
+        {"vdom": Slot("adc_vdoms", "fortiadc_vdom")},
+        "Show availability, connections, RTT and throughput for every virtual server in one enrolled VDOM.",
+        high_volume=True,
+        pty=True,
+    ),
+    "slb_rs_stat": Query(
+        "diagnose server-load-balance vs_stat vdom {vdom} vs {virtual_server} rs {real_server}",
+        {
+            "vdom": Slot("adc_vdoms", "fortiadc_vdom"),
+            "virtual_server": Slot("adc_virtual_servers", "fortiadc_virtual_server"),
+            "real_server": Slot(None, "fortiadc_member_id"),
+        },
+        "Show connections, throughput and RTT of one numeric pool member ID of an enrolled virtual server.",
         high_volume=True,
         pty=True,
     ),
@@ -188,6 +243,11 @@ QUERIES: dict[str, Query] = {
         "Show OSPF neighbor relationships to diagnose adjacency state on deployments using OSPF.",
         high_volume=True,
         pty=True,
+    ),
+    "ha_standby_status": Query(
+        "execute ha force failover-standby status",
+        NO_SLOTS,
+        "Show whether forced HA failover standby is set on this node; this read does not change the HA role.",
     ),
     "ha_status": Query(
         "get system ha-status",

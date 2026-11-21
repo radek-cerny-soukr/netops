@@ -1,0 +1,9 @@
+
+
+
+Routing entry for 192.0.2.0/24
+  Known via "static", distance 1, metric 0 (connected)
+  Advertised by bgp 65007
+  Routing Descriptor Blocks:
+  * directly connected, via Null0
+      Route metric is 0, traffic share count is 1

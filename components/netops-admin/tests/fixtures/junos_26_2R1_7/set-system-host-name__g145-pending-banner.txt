@@ -1,0 +1,5 @@
+set system host-name host01   
+
+# commit confirmed will be rolled back in 3 minutes
+[edit]
+netops-admin@host02# 

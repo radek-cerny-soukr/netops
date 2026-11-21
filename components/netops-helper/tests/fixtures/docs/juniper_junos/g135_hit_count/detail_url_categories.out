@@ -1,0 +1,7 @@
+Logical system: root-logical-system
+Index  From zone        To zone          Name                  Policy count  Action  Redirects
+1      junos-global    junos-global       policy1              5202            Permit        0
+URL-Categories
+Name                                  Count
+Enhanced_Information_Technology       1000
+Enhanced_Collaboration_Office         2000

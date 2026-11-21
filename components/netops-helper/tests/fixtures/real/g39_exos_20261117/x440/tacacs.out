@@ -1,0 +1,15 @@
+TACACS+ Configuration
+
+Admin Status                :  disabled
+Authorization               :  disabled
+Authorization priv-lvl      :  optional
+Fallback Authentication     :  local
+Accounting                  :  disabled
+
+Server Connect Timeout      :  3 sec
+Primary Server              :  none
+Secondary Server            :  none
+
+Acct Server Connect Timeout :  3 sec
+Primary Accounting Server   :  none
+Secondary Accounting Server :  none

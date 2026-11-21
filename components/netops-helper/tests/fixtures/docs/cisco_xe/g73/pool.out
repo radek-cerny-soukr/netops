@@ -1,0 +1,8 @@
+Pool Global :
+ Utilization mark (high/low)    : 100 / 0
+ Subnet size (first/next)       : 24 / 24 (autogrow)
+ Total addresses                : 6
+ Leased addresses               : 0
+ Pending event                  : none
+ 1 subnet is currently in the pool :
+ Current index        IP address range                    Leased addresses

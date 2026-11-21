@@ -102,8 +102,9 @@ def _users(access, pool: str) -> list:
     return sorted(name for name, attributes in servers.items() if attributes.get("load-balance-pool") == pool)
 
 
-def _write(access, spec, steps: list):
+def _write(access, spec, steps: list, role: str):
     try:
+        fortiadc.require_ha_write(access, role)
         access.apply(steps, spec)
     except Exception as exc:
         return "write failed (%s)" % type(exc).__name__
@@ -144,18 +145,21 @@ def add(access, pool: str, member: str, real_server: str, port: str) -> dict:
               "preview": {"commands": steps, "existing_members": sorted(before, key=int),
                           "virtual_servers": _users(access, pool),
                           "inverse": render_remove(pool, member)}}
-    failure = _write(access, spec, steps)
+    role = fortiadc.require_ha_write(access)
+    failure = _write(access, spec, steps, role)
     after = _members_back(access, pool)
     others = None if after is None else {key: value for key, value in after.items() if key != member}
     if failure is None and after is not None and member in after and others == before \
             and _matches(after[member], real_server, port):
-        return dict(record, result="confirmed", after="disable")
-    record["reason"] = failure or ("read-back differs" if after is not None else "read-back unreadable")
-    if after is None or member in after:
-        _write(access, spec, render_remove(pool, member))
-        after = _members_back(access, pool)
-    restored = after == before
-    return dict(record, result="rolled_back" if restored else "unknown", after=None if restored else "unverified")
+        result, member_state = "confirmed", "disable"
+    else:
+        record["reason"] = failure or ("read-back differs" if after is not None else "read-back unreadable")
+        if after is None or member in after:
+            _write(access, spec, render_remove(pool, member), role)
+            after = _members_back(access, pool)
+        result, member_state = ("rolled_back", None) if after == before else ("unknown", "unverified")
+    return dict(record, after=member_state) | fortiadc.member_outcome(
+        access, role, pool, result, lambda text: parse_members(text, pool), after)
 
 
 def remove(access, pool: str, member: str) -> dict:
@@ -178,17 +182,20 @@ def remove(access, pool: str, member: str) -> dict:
               "preview": {"commands": steps, "existing_members": sorted(before, key=int),
                           "virtual_servers": _users(access, pool), "member_before": dict(before[member]),
                           "inverse": inverse}}
-    failure = _write(access, spec, steps)
+    role = fortiadc.require_ha_write(access)
+    failure = _write(access, spec, steps, role)
     after = _members_back(access, pool)
     expected = {key: value for key, value in before.items() if key != member}
     if failure is None and after == expected:
-        return dict(record, result="confirmed", after="absent")
-    record["reason"] = failure or ("read-back differs" if after is not None else "read-back unreadable")
-    if after is None or member not in after:
-        restore = _write(access, spec, inverse)
-        record["restore"] = {"attempted": True, "write": restore or "ok"}
-        after = _members_back(access, pool)
+        result, member_state = "confirmed", "absent"
     else:
-        record["restore"] = {"attempted": False}
-    return dict(record, result="rolled_back" if after == before else "unknown",
-                after="present" if after == before else "unverified")
+        record["reason"] = failure or ("read-back differs" if after is not None else "read-back unreadable")
+        if after is None or member not in after:
+            restore = _write(access, spec, inverse, role)
+            record["restore"] = {"attempted": True, "write": restore or "ok"}
+            after = _members_back(access, pool)
+        else:
+            record["restore"] = {"attempted": False}
+        result, member_state = ("rolled_back", "present") if after == before else ("unknown", "unverified")
+    return dict(record, after=member_state) | fortiadc.member_outcome(
+        access, role, pool, result, lambda text: parse_members(text, pool), after)

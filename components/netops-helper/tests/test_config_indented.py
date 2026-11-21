@@ -194,26 +194,26 @@ EOS_ROWS = (
     K("!"),
     H("! boot system flash:/cEOS-lab.swi"),
     K("!"),
-    H("no aaa root"),
+    K("no aaa root"),
     K("!"),
     H("username admin privilege 15 role network-admin secret sha512 " + EOS_SECRETS[0]),
     K("!"),
     H("enable password sha512 " + EOS_SECRETS[1]),
     K("!"),
-    H("management api http-commands"),
-    H("   no shutdown"),
-    H("   !"),
-    H("   vrf MGMT"),
-    H("      no shutdown"),
+    K("management api http-commands"),
+    K("   no shutdown"),
+    K("   !"),
+    K("   vrf MGMT"),
+    K("      no shutdown"),
     K("!"),
     H("daemon TerminAttr"),
     H("   exec /usr/bin/TerminAttr -cvauth=token," + EOS_SECRETS[7] + " -taillogs"),
     H("   no shutdown"),
     K("!"),
-    H("service routing protocols model multi-agent"),
+    K("service routing protocols model multi-agent"),
     K("!"),
     K("hostname ceos-lab1"),
-    H("ip name-server vrf default 192.0.2.53"),
+    K("ip name-server vrf default 192.0.2.53"),
     K("!"),
     H("snmp-server user u1 g1 v3 auth sha " + EOS_SECRETS[2] + " priv aes " + EOS_SECRETS[3]),
     K("!"),
@@ -242,7 +242,7 @@ EOS_ROWS = (
     K("interface Management0"),
     K("   ip address 203.0.113.10/24"),
     K("!"),
-    H("ip routing"),
+    K("ip routing"),
     K("!"),
     K("ip route 0.0.0.0/0 203.0.113.1"),
     K("!"),
@@ -252,7 +252,7 @@ EOS_ROWS = (
     H("   neighbor 198.51.100.2 password 7 " + EOS_SECRETS[5]),
     K("   !"),
     K("   address-family ipv4"),
-    H("      neighbor 198.51.100.2 activate"),
+    K("      neighbor 198.51.100.2 activate"),
     K("      network 192.0.2.1/32"),
     K("!"),
     K("router ospf 1"),
@@ -399,9 +399,11 @@ def test_api_matches_the_ios_consumer_and_shares_building_blocks():
 
 
 def test_module_is_used_only_by_the_nxos_and_eos_config_read_path():
+    # G136: the Junos display-set redactor reuses the bounded scaffolding and the secret checks.
     users = {path.name for path in SOURCE.glob("*.py")
              if path.name != "config_indented.py" and "config_indented" in path.read_text()}
-    assert users == {"config_arista_eos_adapter.py", "config_cisco_nxos_adapter.py", "engine.py"}
+    assert users == {"config_arista_eos_adapter.py", "config_cisco_nxos_adapter.py", "config_junos_adapter.py",
+                     "engine.py"}
 
 
 # ---------------------------------------------------------------------------------------------
@@ -836,12 +838,13 @@ def test_indented_pem_block_ends_on_its_exact_end_line(dialect, size):
     assert_no_secret(rendered, ("FAKEcaNameNOTREAL", "MIIFAKEecKeyBodyNOTREAL", "FAKEkeyBodyNOTREAL"))
 
 
-def test_eos_management_api_and_heredoc_are_opaque_to_their_end():
+def test_eos_management_fields_are_selective_and_heredoc_stays_opaque():
     marker = module().EOS_MARKER
     raw = ("hostname h1\n!\nmanagement api http-commands\n   protocol https\n   !\n   vrf MGMT\n      no shutdown\n!\n"
            "event-handler h\n   action bash\nhostname FAKEscriptNOTREAL\n      EOF\n   delay 5\n!\nend\n").encode("ascii")
     text, count, summary, rendered = accepted("eos", raw)
-    assert text == ("hostname h1\n!\n" + (marker + "\n") * 5 + "!\n" + (marker + "\n") * 5 + "!\nend\n")
+    assert text == ("hostname h1\n!\nmanagement api http-commands\n" + marker + "\n"
+                    "   !\n   vrf MGMT\n      no shutdown\n!\n" + (marker + "\n") * 5 + "!\nend\n")
     assert_no_secret(rendered, ("FAKEscriptNOTREAL",))
     raw = b"hostname h1\n!\nevent-handler h\n   action bash\n      FAKEopenScriptNOTREAL\n!\nend\n"
     rendered = refused("eos", raw, "stream-incomplete")

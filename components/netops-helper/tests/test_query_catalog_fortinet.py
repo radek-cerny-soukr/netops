@@ -14,6 +14,7 @@ from netops_helper.read_policy import _validate_query_command, render_read_query
 # retained history, variable protocol peer/session/tunnel lists, and per-pool
 # allocation lists can need continuation. Aggregate and inventory-bound detail stay False.
 EXPECTED = {
+    "extender_modem_status": ("get extender modem-status {serial}", (("serial", "literal", "fortios_extender_serial"),), False),
     'managed_switch_port_stats': ('diagnose switch-controller switch-info port-stats {managed_switch} {port}',
         (('managed_switch', 'managed_switches', 'managed_switch_serial'), ('port', 'managed_switch_ports', 'managed_switch_port')), True),
     'managed_switch_port_vlans': ('show switch-controller managed-switch {managed_switch}',
@@ -44,6 +45,7 @@ EXPECTED = {
     "ha_nonsync_checksum": ("diagnose sys ha checksum show-nonsync", (), True),
     "ha_sync_statistics": ("diagnose sys ha sync-stats", (), True),
     "dhcp_leases": ("execute dhcp lease-list {interface}", (("interface", "interfaces", "fortios_interface"),), True),
+    "dhcp_leases_all": ("execute dhcp lease-list", (), True),
     "ipsec_tunnel_statistics": ("diagnose vpn tunnel stat", (), False),
     "ike_statistics": ("diagnose vpn ike stats", (), False),
     "nat_pool_usage": ("diagnose firewall ippool stats", (), False),
@@ -112,6 +114,9 @@ EXPECTED = {
     "cpu_cores": ("diagnose hardware sysinfo cpu", (), False),
     "fortiguard_communication": ("diagnose sys service-communication", (), True),
     "disk_status": ("diagnose hardware deviceinfo disk", (), False),
+    "hardware_sensors": ("execute sensor detail", (), False),
+    "crash_log": ("diagnose debug crashlog read", (), True),
+    "config_error_log": ("diagnose debug config-error-log read", (), False),
     "physical_interfaces": ("get system interface physical", (), True),
     "system_interfaces": ("get system interface", (), True),
     "interface_details": (
@@ -125,6 +130,16 @@ EXPECTED = {
         False,
     ),
     "routing_table": ("get router info routing-table all", (), True),
+    # G11 (1.0.12)
+    "ipv6_routing_table": ("get router info6 routing-table", (), True),
+    "routing_table_database": ("get router info routing-table database", (), True),
+    "ipv6_routing_table_database": ("get router info6 routing-table database", (), True),
+    "bgp_neighbor_detail": ("get router info bgp neighbors {peer}", (("peer", "addresses", "ipv4_address"),), True),
+    "ipv6_bgp_neighbor_detail": (
+        "get router info6 bgp neighbors {peer6}", (("peer6", "addresses", "ipv6_address"),), True),
+    "interface_list": ("diagnose netlink interface list", (), True),
+    "local_stp_ports": ("get system stp list", (), True),
+    "local_switch_vlans": ("show system virtual-switch", (), True),
     "route_lookup": (
         "get router info routing-table details {address}",
         (("address", "addresses", "ipv4_lookup"),),
@@ -157,6 +172,8 @@ EXPECTED = {
     "ha_history": ("diagnose sys ha history read", (), True),
     "ipsec_summary": ("get vpn ipsec tunnel summary", (), True),
     "ipsec_status": ("diagnose vpn ipsec status", (), False),
+    "ike_gateway_detail": ("diagnose vpn ike gateway list name {tunnel}", (("tunnel", "ipsec_tunnels", "fortios_ipsec_tunnel"),), False),
+    "ipsec_tunnel_detail": ("diagnose vpn tunnel list name {tunnel}", (("tunnel", "ipsec_tunnels", "fortios_ipsec_tunnel"),), False),
     "bgp_summary": ("get router info bgp summary", (), True),
     "bgp_advertised_ipv4": ("get router info bgp neighbors {peer} advertised-routes", (("peer", "addresses", "ipv4_address"),), True),
     "bgp_received_ipv4": ("get router info bgp neighbors {peer} received-routes", (("peer", "addresses", "ipv4_address"),), True),
@@ -180,6 +197,7 @@ EXPECTED = {
     "sslvpn_sessions": ("diagnose vpn ssl list", (), True),
     "sslvpn_statistics": ("diagnose vpn ssl statistics", (), False),
     "firewall_auth_users": ("diagnose firewall auth list", (), True),
+    "user_devices": ("diagnose user device list", (), True),
     "ips_filter_status": ("diagnose ips filter status", (), False),
     "ips_anomaly_status": ("diagnose ips anomaly status", (), False),
     "av_outbreak_stats": (
@@ -313,23 +331,33 @@ def test_commands_are_narrow_read_only_cli() -> None:
         if command in {
             "execute ping-options view-settings",
             "execute dhcp lease-list {interface}",
+            "execute dhcp lease-list",
             "execute traceroute-options view-settings",
             "diagnose debug info",
+            # G13: fixed reads measured with a read-only account (80F 8.0.2); no clear, set or interval argument.
+            "execute sensor detail",
+            "diagnose debug crashlog read",
+            "diagnose debug config-error-log read",
         }:
             continue
         assert command.startswith(("get ", "diagnose ")) or command in {
-            "show switch-controller managed-switch {managed_switch}", "show system interface"}
+            "show switch-controller managed-switch {managed_switch}", "show system interface",
+            "show system virtual-switch"}
         assert CONTROL_OR_SHELL.search(command) is None
         assert "\\" not in command
         lowered = command.lower()
         assert not any(term in lowered for term in FORBIDDEN_TERMS)
 
+    # G14: only the name-scoped detail of one enrolled tunnel; never the unscoped listing of every tunnel.
     assert "diagnose vpn ike gateway list" not in commands
     assert "diagnose vpn tunnel list" not in commands
+    assert "get vpn ipsec tunnel details" not in commands
     assert {command for command in commands if " ike " in command} == {
         "diagnose vpn ike counts", "diagnose vpn ike errors", "diagnose vpn ike stats",
+        "diagnose vpn ike gateway list name {tunnel}",
     }
-    assert all("tunnel list" not in command.lower() for command in commands)
+    assert {command for command in commands if "tunnel list" in command.lower()} == {
+        "diagnose vpn tunnel list name {tunnel}"}
 
 
 

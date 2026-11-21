@@ -15,8 +15,7 @@
   "attributes": {
     "description": {
       "type": "text",
-      "max_length": 64,
-      "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9 ._:/()+-]{0,62}[A-Za-z0-9._:/()+-])?$",
+      "max_length": 240,
       "update": true,
       "unset": true,
       "referenced_update": true,
@@ -32,11 +31,38 @@
       "referenced_update": true,
       "required_on_create": false,
       "undo_to_default": true
+    },
+    "speed": {
+      "type": "text",
+      "max_length": 4,
+      "pattern": "^(10m|100m|1g|10g|auto)$",
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "required_on_create": false
+    },
+    "auto-negotiation": {
+      "type": "text",
+      "max_length": 8,
+      "pattern": "^(enabled|disabled)$",
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "required_on_create": false
+    },
+    "mtu": {
+      "type": "integer",
+      "minimum": 256,
+      "maximum": 9192,
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "required_on_create": false
     }
   },
   "fixed": {},
   "volatile": [],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "Measured on vJunos-switch 26.2R1.7 (ELS, model ex9214; GNS3 lab, task netops-provoz-20261116-308, ref/mereni-c8) and repeated end to end through Admin in task netops-20261116-319. Safeguard first: Admin commits an empty 'commit confirmed 10 comment \"netops-<id>\"' in configure exclusive (configure private refuses commit confirmed) and verifies its row 'rollback pending' in show system commit. The change runs line by line in an interactive session: configure exclusive, an empty candidate (show | compare), the set and delete lines, show | compare and 'commit confirmed 10 comment \"netops-change\"', which restarts the timer from the change commit; an expiry then rolls back the change as well (measured). Admin never sends commit check, and it never commits the change or the inverse lines of an immediate return with a plain commit during the pending timer, because a plain commit and commit check both confirm it (commit check without any trace in the commit history or the log); both use commit confirmed. The only plain commit during the pending timer is the confirmation of the proven own timer: 'commit comment \"netops-<id>-ok\"'; the row 'rollback pending' must then be gone. It is sent after the readback of the change with at least confirm_margin_seconds left, or as the end of an immediate return (started with at least 240 s of the timer left): at once when no change commit exists yet (a snapshot then checks the state before), otherwise after the inverse commit confirmed and a snapshot proving the state before. The timer counts whole minutes and expired 0-60 s after them; the automatic rollback is committed as 'root via other' 55-112 s later, which is the proof Admin waits for; a confirmation that starts before the expiry won the measured race (the log reported 'automatic rollback failed as other commit triggered during rollback'). A commit took 15-150 s on the loaded lab, so Admin uses 10 minutes and a confirmation margin of at least 240 s. A commit is the saved configuration. The expiry returns the whole configuration to the state before the change commit, so a commit of someone else in the timer window is returned too. The timer across a reload is not measured. The write account needs the permissions configure, view and view-configuration (the lab uses class super-user); the check account (class read-only) reads show interfaces <if> terse, show interfaces descriptions and show ethernet-switching interface <if>; it cannot read the configuration. Junos accepts the configuration of a missing interface, so the interface must be listed by show interfaces <if> terse; management interfaces (fxp, em, me, vme) are refused. Interface lines: 'set interfaces <if> description \"TEXT\"' (always quoted; a text with a space is a syntax error without quotes) / 'delete interfaces <if> description', 'set interfaces <if> disable' / 'delete interfaces <if> disable'."
+  "rollback_evidence": "Measured on vJunos-switch 26.2R1.7 (ELS, model ex9214; GNS3 lab, task netops-provoz-20261116-308, ref/mereni-c8) and repeated end to end through Admin in task netops-20261116-319. Safeguard first: Admin commits an empty 'commit confirmed 10 comment \"netops-<id>\"' in configure exclusive (configure private refuses commit confirmed) and verifies its row 'rollback pending' in show system commit. The change runs line by line in an interactive session: configure exclusive, an empty candidate (show | compare), the set and delete lines, show | compare and 'commit confirmed 10 comment \"netops-change\"', which restarts the timer from the change commit; an expiry then rolls back the change as well (measured). Admin never sends commit check, and it never commits the change or the inverse lines of an immediate return with a plain commit during the pending timer, because a plain commit and commit check both confirm it (commit check without any trace in the commit history or the log); both use commit confirmed. The only plain commit during the pending timer is the confirmation of the proven own timer: 'commit comment \"netops-<id>-ok\"'; the row 'rollback pending' must then be gone. It is sent after the readback of the change with at least confirm_margin_seconds left, or as the end of an immediate return (started with at least 240 s of the timer left): at once when no change commit exists yet (a snapshot then checks the state before), otherwise after the inverse commit confirmed and a snapshot proving the state before. The timer counts whole minutes and expired 0-60 s after them; the automatic rollback is committed as 'root via other' 55-112 s later, which is the proof Admin waits for; a confirmation that starts before the expiry won the measured race (the log reported 'automatic rollback failed as other commit triggered during rollback'). A commit took 15-150 s on the loaded lab, so Admin uses 10 minutes and a confirmation margin of at least 240 s. A commit is the saved configuration. The expiry returns the whole configuration to the state before the change commit, so a commit of someone else in the timer window is returned too. The timer across a reload is not measured. The write account needs the permissions configure, view and view-configuration (the lab uses class super-user); the check account (class read-only) reads show interfaces <if> terse, show interfaces descriptions and show ethernet-switching interface <if>; it cannot read the configuration. Junos accepts the configuration of a missing interface, so the interface must be listed by show interfaces <if> terse; management interfaces (fxp, em, me, vme) are refused. Interface lines: 'set interfaces <if> description \"TEXT\"' (always quoted; a text with a space is a syntax error without quotes; 1.0.12 G137 JP17: up to 240 characters of UTF-8 text with diacritics, stored and shown literally, measured; the double quote, the backslash, the question mark, control characters and leading or trailing blanks are refused) / 'delete interfaces <if> description', 'set interfaces <if> disable' / 'delete interfaces <if> disable'. 1.0.12 G138 J23: 'set interfaces <if> speed 10m|100m|1g|10g|auto' / 'delete interfaces <if> speed', 'set interfaces <if> ether-options auto-negotiation' or 'no-auto-negotiation' (the two statements replace each other; delete of both, the missing one answers the tolerated 'warning: statement not found') and 'set interfaces <if> mtu <256..9192>' / 'delete interfaces <if> mtu' (syntax and ranges read by '?' and a discarded private candidate on vJunos-switch 26.2R1.7, task-evidence/g138/znalost/s3-help.txt, s5-private.txt; the MTU is also committed on the free port ge-0/0/9 and returned, task-evidence/g138/live). Speed is not committed on vJunos (virtual ports, no physical speed): its syntax is the measured completion list, the effect on a physical EX/QFX port comes from the Juniper EX documentation (fixtures/junos_g138/PROVENANCE.md). The check account verifies the changed physical link values using show interfaces <if> (the write account also verifies the saved configuration)."
 }

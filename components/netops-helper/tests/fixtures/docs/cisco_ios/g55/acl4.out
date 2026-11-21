@@ -1,0 +1,3 @@
+Extended IP access list 150
+    50 deny tcp any 192.0.2.0    0.0.0.255 eq 5060 (9 matches)
+    60 deny tcp any 192.0.2.0    0.0.0.255 eq 5061 (18 matches)

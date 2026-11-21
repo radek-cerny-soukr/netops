@@ -1,0 +1,16 @@
+diagnose server-load-balance session filter show
+filter flag: 1000
+type: any
+protocol: any
+source ip range: any
+source port range: any
+dest ip range: any
+dest port range: any
+trans source ip range: any
+trans source port range: any
+trans dest ip range: any
+trans dest port range: any
+virtual server: VS_APP_HTTP
+real server: any
+
+FortiADC-KVM # 

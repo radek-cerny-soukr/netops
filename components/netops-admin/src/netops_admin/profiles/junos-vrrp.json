@@ -1,0 +1,48 @@
+{
+  "platform": "junos",
+  "table": "vrrp",
+  "versions": [
+    "26.2R1.7"
+  ],
+  "exact_versions": true,
+  "ops": [
+    "create",
+    "update",
+    "delete"
+  ],
+  "table_scoped_key": true,
+  "key_pattern": "^irb\\.(?:0|[1-9][0-9]{0,9}):(?:[1-9][0-9]?|1[0-9]{2}|2[0-4][0-9]|25[0-5])$",
+  "protected_keys": [],
+  "attributes": {
+    "virtual-address": {
+      "type": "ipv4-address",
+      "update": true,
+      "unset": false,
+      "referenced_update": true,
+      "required_on_create": true
+    },
+    "priority": {
+      "type": "integer",
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "required_on_create": false,
+      "minimum": 1,
+      "maximum": 255
+    },
+    "preempt": {
+      "type": "text",
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "required_on_create": false,
+      "max_length": 8,
+      "pattern": "^(enabled|disabled)$"
+    }
+  },
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "G139 J47. The key combines the IRB and VRRP group. The IRB must already have one local IPv4 address. The check account uses show vrrp detail. The Junos interface profile commit confirmed safeguard protects the change; the inverse restores the exact configured attributes."
+}

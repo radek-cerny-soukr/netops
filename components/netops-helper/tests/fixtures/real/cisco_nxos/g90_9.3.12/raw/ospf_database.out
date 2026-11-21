@@ -1,0 +1,16 @@
+        OSPF Router with ID (203.0.113.248) (Process ID 29 VRF default)
+
+                Router Link States (Area 0.0.0.0)
+
+Link ID         ADV Router      Age        Seq#       Checksum Link Count
+203.0.113.250   203.0.113.250   513        0x800001a2 0x5646   2   
+203.0.113.249   203.0.113.249   130        0x80000196 0x4846   2   
+203.0.113.248   203.0.113.248   1331       0x8000004f 0xc811   2   
+203.0.113.247   203.0.113.247   2011       0x80000102 0xce5b   2   
+203.0.113.246   203.0.113.246   1148       0x800001b2 0xbdad   2   
+
+                Network Link States (Area 0.0.0.0)
+
+Link ID         ADV Router      Age        Seq#       Checksum 
+203.0.113.7     203.0.113.246   1148       0x800000f1 0x7389
+

@@ -1,0 +1,6 @@
+11/20/2026 07:37:03.41 <Info:vlan.msgs.portLinkStateUp> Port 11 link UP at speed 1 Gbps and full-duplex
+11/20/2026 07:37:01.06 <Info:vlan.msgs.portLinkStateDown> Port 11 link down
+11/20/2026 07:37:00.17 <Info:vlan.msgs.portLinkStateUp> Port 11 link UP at speed 1 Gbps and full-duplex
+11/20/2026 07:36:57.71 <Info:vlan.msgs.portLinkStateDown> Port 11 link down
+
+A total of 4 log messages were displayed.

@@ -1,0 +1,5 @@
+BGP device identifier 203.0.113.253, local AS number 200
+BGP table version is 1, main routing table version 1
+Neighbor           V    AS  MsgRcvd  MsgSent   TblVer  InQ  OutQ  Up/Down   State/PfxRcd
+2001:db8:1::2      4    200    6869     6882        0    0     0  06:25:24  Active
+

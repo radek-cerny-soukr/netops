@@ -1,0 +1,5 @@
+
+IPV6 ACL NETOPS-G103-V6
+	Total ACEs Configured: 2
+	Configured on interfaces:
+	Active on interfaces:

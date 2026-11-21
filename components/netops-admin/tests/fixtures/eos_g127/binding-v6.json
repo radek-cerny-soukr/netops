@@ -1,0 +1,53 @@
+{
+  "aclList": [
+    {
+      "type": "Ip6Acl",
+      "name": "netops-g127-v6",
+      "readonly": false,
+      "standard": false,
+      "countersEnabled": false,
+      "dynamic": false,
+      "sequenceLength": 2,
+      "configuredIngressIntfs": [
+        {
+          "name": "Ethernet5"
+        }
+      ],
+      "configuredEgressIntfs": [],
+      "activeIngressIntfs": [
+        {
+          "name": "Ethernet5"
+        }
+      ],
+      "activeEgressIntfs": [],
+      "notFullySupportedByHardware": false,
+      "sequence": [
+        {
+          "text": "deny tcp host 2001:db8:1::1   host 2001:db8:1::2   eq 8443",
+          "sequenceNumber": 10,
+          "ruleFilter": {
+            "dstPort": {
+              "oper": "eq",
+              "ports": [
+                8443
+              ],
+              "maxPorts": 10
+            }
+          }
+        },
+        {
+          "text": "permit ipv6 any any",
+          "sequenceNumber": 30,
+          "ruleFilter": {
+            "dstPort": {
+              "oper": "any",
+              "ports": [],
+              "maxPorts": 10
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "phoneAclBypass": false
+}

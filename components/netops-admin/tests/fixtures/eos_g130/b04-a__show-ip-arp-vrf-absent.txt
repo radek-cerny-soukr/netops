@@ -1,0 +1,5 @@
+{
+    "errors": [
+        "ARP table for VRF nosuch does not exist."
+    ]
+}

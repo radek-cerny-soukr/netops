@@ -1,0 +1,11 @@
+ Port 100 (Port-Channel128) of MST0 is root forwarding
+   Port path cost 7999, Port priority 128, Port Identifier 128.100.
+   Designated root has priority 4524, address 0c6c.0000.1b08
+   Designated bridge has priority 4524, address 0023.04ee.be80
+   Designated port id is 144.127, designated path cost 0 (Ext) 0 (Int)
+   Timers: message age 0, forward delay 15, hold 20
+   Number of transitions to forwarding state: 1
+   Link type is point-to-point by default, Boundary
+   BPDU: sent 3, received 38336, taggedErr 0, otherErr 0, rateLimiterCount 0
+   Rate-Limiter: enabled, Window: 10 sec, Max-BPDU: 400
+

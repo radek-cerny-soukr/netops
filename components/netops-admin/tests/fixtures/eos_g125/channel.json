@@ -1,0 +1,56 @@
+{
+    "interfaces": {
+        "Port-Channel104": {
+            "name": "Port-Channel104",
+            "forwardingModel": "bridged",
+            "lineProtocolStatus": "up",
+            "interfaceStatus": "connected",
+            "hardware": "portChannel",
+            "interfaceAddress": [],
+            "physicalAddress": "00:00:5e:00:53:02",
+            "description": "port-desc-01",
+            "bandwidth": 2000000000,
+            "mtu": 9214,
+            "l3MtuConfigured": false,
+            "l2Mru": 0,
+            "lastStatusChangeTimestamp": 1794911085.8765013,
+            "interfaceStatistics": {
+                "updateInterval": 300.0,
+                "inBitsRate": 231.82900205616036,
+                "inPktsRate": 0.1631309052530656,
+                "outBitsRate": 482.119617140943,
+                "outPktsRate": 0.48995896050908844
+            },
+            "interfaceCounters": {
+                "inOctets": 4848935,
+                "inUcastPkts": 5447,
+                "inMulticastPkts": 21811,
+                "inBroadcastPkts": 0,
+                "inDiscards": 0,
+                "inTotalPkts": 27258,
+                "outOctets": 9860664,
+                "outUcastPkts": 0,
+                "outMulticastPkts": 80168,
+                "outBroadcastPkts": 0,
+                "outDiscards": 0,
+                "outTotalPkts": 80168,
+                "linkStatusChanges": 2,
+                "totalInErrors": 0,
+                "totalOutErrors": 0,
+                "counterRefreshTime": 1795074757.4567282
+            },
+            "memberInterfaces": {
+                "Ethernet14": {
+                    "duplex": "duplexFull",
+                    "bandwidth": 1000000000
+                },
+                "Ethernet15": {
+                    "duplex": "duplexFull",
+                    "bandwidth": 1000000000
+                }
+            },
+            "fallbackEnabled": false,
+            "fallbackEnabledType": "fallbackNone"
+        }
+    }
+}

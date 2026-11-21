@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import re
+from pathlib import Path
 from types import SimpleNamespace
 
 
 VS_STAT = re.compile(r"diagnose server-load-balance vs_stat vdom root vs (\S+)")
 CHECK_ACCOUNT_REFUSAL = ("Parsing error at 'server-load-balance'\n"
                          "Command fail. Return code is -284 (CLI parsing error.)\n")
+HA_FIXTURES = Path(__file__).with_name("fixtures") / "fortiadc_g35"
+STANDALONE_HA = (HA_FIXTURES / "standalone.txt").read_text()
 
 
 class DeviceRefused(Exception):
@@ -90,6 +93,8 @@ class FakeFortiADC:
 
     def query(self, command):
         self.queries.append(command)
+        if command == "get system ha-status":
+            return STANDALONE_HA
         if self.unreadable or (self.unreadable_after_apply and self.applied_blocks):
             raise RuntimeError("device unavailable")
         if VS_STAT.fullmatch(command):

@@ -1,0 +1,7 @@
+OurAddr NeighAddr LD/RD RH/RS Holdown(mult) State Int
+Vrf
+192.0.2.1 192.0.2.2 1140850707/2147418093 Up 6393(4) Up Vlan2121
+default
+Session state is Up and using echo function with 50 ms interval
+Local Diag: 0, Demand mode: 0, Poll bit: 0, Authentication: None
+MinTxInt: 50000 us, MinRxInt: 2000000 us, Multiplier: 3

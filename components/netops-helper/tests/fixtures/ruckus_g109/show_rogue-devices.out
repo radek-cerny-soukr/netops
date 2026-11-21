@@ -1,0 +1,20 @@
+show rogue-devices
+Current Active Rogue Devices:
+  Rogue Devices:
+    Mac Address= 00:00:5e:00:53:04
+    Channel= 1
+    Radio= 802.11g/n
+    Type= AP
+    Encryption= Encrypted
+    SSID= ssid01
+    Last Detected= 2026/11/12 20:40:03
+  Rogue Devices:
+    Mac Address= 00:00:5e:00:53:05
+    Channel= 1
+    Radio= 802.11g/n
+    Type= AP
+    Encryption= Encrypted
+    SSID= ssid02
+    Last Detected= 2026/11/18 23:00:03
+Known/Recognized Rogue Devices:
+User Blocked Rogue Devices:

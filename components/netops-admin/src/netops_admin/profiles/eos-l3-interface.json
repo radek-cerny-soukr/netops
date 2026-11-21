@@ -1,0 +1,79 @@
+{
+  "platform": "eos",
+  "table": "l3-interface",
+  "versions": [
+    "4.36.1F"
+  ],
+  "exact_versions": true,
+  "ops": [
+    "create",
+    "update",
+    "delete"
+  ],
+  "table_scoped_key": true,
+  "key_pattern": "^(?:Vlan[1-9][0-9]{0,3}|Ethernet[1-9][0-9]{0,2}(?:/[1-9][0-9]{0,2}){0,2})$",
+  "protected_keys": [],
+  "attributes": {
+    "description": {
+      "type": "text",
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "required_on_create": false,
+      "max_length": 240,
+      "pattern": "^[^\\s?](?:[^?\\x00-\\x1f\\x7f-\\x9f]{0,238}[^\\s?])?$"
+    },
+    "mode": {
+      "type": "text",
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "required_on_create": false,
+      "default": "access",
+      "max_length": 6,
+      "pattern": "^(routed|access)$"
+    },
+    "admin-state": {
+      "type": "text",
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "required_on_create": false,
+      "default": "enabled",
+      "max_length": 8,
+      "pattern": "^(enabled|disabled)$"
+    },
+    "ipv4-address": {
+      "type": "text",
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "required_on_create": false,
+      "max_length": 18,
+      "pattern": "^[0-9.]+/[0-9]{1,2}$"
+    },
+    "ipv6-address": {
+      "type": "text",
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "required_on_create": false,
+      "max_length": 43,
+      "pattern": "^[0-9A-Fa-f:.]+/[0-9]{1,3}$"
+    },
+    "vrf": {
+      "type": "text",
+      "update": false,
+      "unset": false,
+      "referenced_update": true,
+      "required_on_create": false,
+      "max_length": 32,
+      "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,31}$"
+    }
+  },
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "G124 on cEOSLab 4.36.1F. EOS configuration session timer and verified running-config readback apply. Create or delete a standalone SVI for an existing VLAN, or update an existing Ethernet port. The routed port switchport mode is verified separately. A mode change requires a default access port or a standalone routed port. For a connected physical port the request must name endpoint_impact."
+}

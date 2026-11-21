@@ -1,0 +1,4 @@
+set protocols rstp bridge-priority 4k
+set protocols rstp interface ge-0/0/9 cost 12345
+set protocols rstp interface ge-0/0/9 edge
+set protocols rstp bpdu-block-on-edge

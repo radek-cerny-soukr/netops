@@ -1,0 +1,25 @@
+ID: 131073 Virtual-system: root, VPN Name: SPK_VPN1
+  Local Gateway: 192.0.2.2, Remote Gateway: 192.0.2.1
+  Local Identity: ipv4_subnet(any:0,[0..7]=0.0.0.0/0)
+  Remote Identity: ipv4_subnet(any:0,[0..7]=0.0.0.0/0)
+  Version: IKEv2
+  DF-bit: clear, Copy-Outer-DSCP Disabled, Bind-interface: st0.1
+  Port: 500, Nego#: 2, Fail#: 0, Def-Del#: 0 Flag: 0x600a29
+  Multi-sa, Configured SAs# 1, Negotiated SAs#: 1
+
+  Direction: inbound, SPI: 15e8de2c, AUX-SPI: 0
+                              , VPN Monitoring: UP Mode: optimized  Interval:10sec Threshold: 3
+    Hard lifetime: Expires in 1314 seconds
+    Lifesize Remaining:  Unlimited
+    Soft lifetime: Expires in 708 seconds
+    Mode: Tunnel(10 5), Type: dynamic, State: installed
+    Protocol: ESP, Authentication: None, Encryption: aes-gcm (256 bits)
+    Anti-replay service: counter-based enabled, Replay window size: 64
+  Direction: outbound, SPI: 2a1f46fb, AUX-SPI: 0
+                              , VPN Monitoring: UP Mode: optimized  Interval:10sec Threshold: 3
+    Hard lifetime: Expires in 1313 seconds
+    Lifesize Remaining:  Unlimited
+    Soft lifetime: Expires in 707 seconds
+    Mode: Tunnel(10 5), Type: dynamic, State: installed
+    Protocol: ESP, Authentication: None, Encryption: aes-gcm (256 bits)
+    Anti-replay service: counter-based enabled, Replay window size: 64

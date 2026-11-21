@@ -1,0 +1,29 @@
+Control link statistics:
+    Control link 0:
+        Heartbeat packets sent: 798
+        Heartbeat packets received: 784
+        Heartbeat packets errors: 0
+Fabric link statistics:
+    Child link 0
+        Probes sent: 793
+        Probes received: 0
+Services Synchronized:
+    Service name                              RTOs sent    RTOs received
+    Translation context                       0            0
+    Incoming NAT                              0            0
+    Resource manager                          0            0
+    Session create                            0            0
+    Session close                             0            0
+    Session change                            0            0
+    Gate create                               0            0
+    Session ageout refresh requests           0            0
+    Session ageout refresh replies            0            0
+    IPsec VPN                                 0            0
+    Firewall user authentication              0            0
+    MGCP ALG                                  0            0
+    H323 ALG                                  0            0
+    SIP ALG                                   0            0
+    SCCP ALG                                  0            0
+    PPTP ALG                                  0            0
+    RTSP ALG                                  0            0
+    MAC address learning                      0            0

@@ -38,6 +38,8 @@ OPERATION_NUMBERS = ("created_at_epoch", "finished_at_epoch", "budget_at_epoch")
 OPERATION_LISTS = ("differences", "postcheck_differences", "final_check_differences", "reason_details")
 SAFE_TEXT = re.compile(r"^[\x20-\x7e]{0,200}$")
 MAX_STATE_BYTES = 16 * 1024 * 1024
+PREVIEW_KINDS = ("undo", "unblock", "save")
+PREVIEW_FIELDS = ("device", "kind", "subject", "sha256", "generation")
 LOCK_FLAGS = os.O_WRONLY | os.O_CREAT | os.O_NONBLOCK | os.O_NOFOLLOW | os.O_CLOEXEC
 
 
@@ -372,6 +374,29 @@ class Store:
 
     def block(self, device: str, change_id: str, reason: str) -> None:
         write_atomic(self.blocks / ("%s.json" % device), {"device": device, "change_id": change_id, "reason": reason})
+
+    # 1.0.12 G07 r2 (502-rv finding 1): the last MCP undo or unblock preview this server issued for a device. Its hash
+    # is accepted once, only for that preview; the action takes (removes) the record whether it matches or not.
+    def _preview_path(self, device: str, kind: str) -> Path:
+        if not isinstance(device, str) or DEVICE_NAME.fullmatch(device) is None or kind not in PREVIEW_KINDS:
+            raise Rejected(["the device name or the preview kind cannot name a preview record"])
+        return _directory(self.root / "previews") / ("%s.%s.json" % (device, kind))
+
+    def issue_preview(self, device: str, kind: str, ticket: dict) -> None:
+        write_atomic(self._preview_path(device, kind), dict(ticket, device=device, kind=kind))
+
+    def withdraw_preview(self, device: str, kind: str) -> None:
+        path = self._preview_path(device, kind)
+        with _atomic_lock(path.parent):
+            self._removed(path)
+
+    def take_preview(self, device: str, kind: str):
+        path = self._preview_path(device, kind)
+        with _atomic_lock(path.parent):
+            document = self._document(path, PREVIEW_FIELDS, lambda found: _number(found.get("issued_at")))
+            if document is not None:
+                self._removed(path)
+        return document
 
     def unblock(self, device: str, expected) -> bool:
         path = self.blocks / ("%s.json" % device)

@@ -1,0 +1,9 @@
+                      Virtual                 Master                        
+   VLAN Name VRID Pri IP Address        State MAC Address       TP/TR/TV/P/T    /FR/G/HM
+
+  En-Enabled, Ds-Disabled, Pri-Priority, T-Advert Timer, P-Preempt
+  TP-Tracked Pings, TR-Tracked Routes, TV-Tracked VLANs, FR-Fabric Routing,
+  G-Group, HM-Host Mobility
+
+Total number of VRs : 0
+

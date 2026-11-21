@@ -1,0 +1,9 @@
+dhcp server
+   subnet 192.0.2.0/24
+      reservations
+         mac-address 0000.5e00.5301
+            ipv4-address 192.0.2.35
+      !
+      range 192.0.2.100    192.0.2.150
+      lease time 0 days 1 hours 30 minutes
+      default-gateway 192.0.2.1

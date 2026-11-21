@@ -8,6 +8,7 @@ from conftest import (
     FORTIOS_STATUS,
     PASSWORD,
     READ_QUERIES,
+    _fortinet_wire,
     _plain_query,
     _target,
     _write_client,
@@ -113,9 +114,10 @@ def test_device_specific_classifier_preserves_valid_status_and_data(wire, platfo
     if platform == "fortinet":
         query = "system_status"
         payload = FORTIOS_STATUS + output
+        _fortinet_wire(wire, {"get system status": payload})
     else:
         query, _ = _plain_query(platform)
-    _write_client(wire["binaries"], "ssh", EXEC_CLIENT.format(log=str(wire["log"]), output=payload, code=code))
+        _write_client(wire["binaries"], "ssh", EXEC_CLIENT.format(log=str(wire["log"]), output=payload, code=code))
     answer = engine.ssh_read(_target(platform, query), platform, query, {}, 0, 1000)
     assert answer["ok"] is True
     assert answer["rc"] == code

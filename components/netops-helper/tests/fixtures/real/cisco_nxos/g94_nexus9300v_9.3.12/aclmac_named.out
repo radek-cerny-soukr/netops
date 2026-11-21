@@ -1,0 +1,3 @@
+
+MAC access list copp-system-p-acl-mac-lldp
+	10 permit any 0180.c200.000e 0000.0000.0000 0x88cc

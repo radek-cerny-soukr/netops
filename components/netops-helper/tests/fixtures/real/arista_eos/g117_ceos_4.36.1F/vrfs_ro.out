@@ -1,0 +1,6 @@
+Maximum number of VRFs allowed: 1024
+   VRF           Protocols       State         Interfaces          
+------------- --------------- ---------------- --------------------
+   default       IPv4            routing       Lo0, Ma0, Vl10, Vl20
+   default       IPv6            no routing                        
+

@@ -1,0 +1,51 @@
+interface: Ethernet0/1.1
+    Crypto map tag: GetvpnAdvanced, local addr 203.0.113.254
+   protected vrf: (none)
+   local  ident (addr/mask/prot/port): (203.0.113.253/255.255.255.255/0/0)
+   remote ident (addr/mask/prot/port): (203.0.113.252/255.255.255.255/0/0)
+   Group: GetvpnAdvanced2
+   current_peer 0.0.0.0 port 848
+     PERMIT, flags={}
+    #pkts encaps: 0, #pkts encrypt: 0, #pkts digest: 0
+    #pkts decaps: 0, #pkts decrypt: 0, #pkts verify: 0
+    #pkts compressed: 0, #pkts decompressed: 0
+    #pkts not compressed: 0, #pkts compr. failed: 0
+    #pkts not decompressed: 0, #pkts decompress failed: 0
+    #send errors 0, #recv errors 0
+
+     local crypto endpt.: 203.0.113.254, remote crypto endpt.: 0.0.0.0
+     plaintext mtu 1446, path mtu 1500, ip mtu 1500, ip mtu idb Ethernet0/1.1
+     current outbound spi: 0x4A22A261(1243783777)
+     PFS (Y/N): N, DH group: none
+
+     inbound esp sas:
+      spi: 0x4A22A261(1243783777)
+        transform: esp-3des esp-sha-hmac ,
+        in use settings ={Tunnel, }
+        conn id: 5, flow_id: SW:5, sibling_flags 80000040, crypto map: GetvpnAdvanced
+        sa timing: remaining key lifetime (sec): 379
+        Kilobyte Volume Rekey has been disabled
+        IV size: 8 bytes
+        replay detection support: Y
+        ecn bit support: Y status: off
+        Status: ACTIVE(ACTIVE)
+
+     inbound ah sas:
+
+     inbound pcp sas:
+
+     outbound esp sas:
+      spi: 0x4A22A261(1243783777)
+        transform: esp-3des esp-sha-hmac ,
+        in use settings ={Tunnel, }
+        conn id: 6, flow_id: SW:6, sibling_flags 80000040, crypto map: GetvpnAdvanced
+        sa timing: remaining key lifetime (sec): 379
+        Kilobyte Volume Rekey has been disabled
+        IV size: 8 bytes
+        replay detection support: Y
+        ecn bit support: Y status: off
+        Status: ACTIVE(ACTIVE)
+
+     outbound ah sas:
+
+     outbound pcp sas:

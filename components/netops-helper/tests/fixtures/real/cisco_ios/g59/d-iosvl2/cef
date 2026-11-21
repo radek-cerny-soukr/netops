@@ -1,0 +1,4 @@
+
+0.0.0.0/0, epoch 0, flags [default route]
+  recursive via 192.0.2.1
+    attached to Vlan99

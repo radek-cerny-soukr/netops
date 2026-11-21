@@ -1,0 +1,27 @@
+Port Summary
+Port     Display              VLAN Name           Port  Link  Speed  Duplex
+#        String               (or # VLANs)        State State Actual Actual
+===========================================================================
+1        Jablotron            LAN                 E     A      100    FULL 
+2        Zyxel-GS1900-8HP     (0005)              E     A      1000   FULL 
+3        Ruckus-AP            (0003)              E     A      1000   FULL 
+4                             LAN                 E     R                               
+5        Kamera-102           KAMERY              E     A      100    FULL 
+6        RPi1-Clear           LAN                 E     A      100    FULL 
+7        Kamera-103           KAMERY              E     A      100    FULL 
+8        Dahua-NVR            KAMERY              E     A      100    FULL 
+9        Kamera-101           KAMERY              E     A      100    FULL 
+10                            LAN                 E     R                               
+11       Zyxel-5p-hloupy      LAN                 E     A      1000   FULL 
+12                            LAN                 D     R                               
+13       Uplink-SW3           (0007)              E     A      1000   FULL 
+14                            (0007)              E     R                               
+15                            (0007)              E     A      1000   FULL 
+16                            (0007)              E     R                               
+========================================================================
+   Port State: D-Disabled, E-Enabled, F-Disabled by link-flap detection,
+               L-Disabled due to licensing
+   Link State: A-Active, R-Ready, NP-Port not present, L-Loopback,
+               D-ELSM enabled but not up,
+               d-Ethernet OAM enabled but not up,
+               B-MACsec enabled but blocked awaiting authentication

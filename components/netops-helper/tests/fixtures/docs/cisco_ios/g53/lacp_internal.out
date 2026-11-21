@@ -1,0 +1,9 @@
+Flags:  S - Device is requesting Slow LACPDUs
+        F - Device is requesting Fast LACPDUs
+        A - Device is in Active mode       P - Device is in Passive mode
+
+Channel group 1
+                           LACP port    Admin    Oper    Port     Port
+Port      Flags   State    Priority     Key      Key     Number   State
+Gi2/0/1    SA      bndl     32768         0x3     0x3       0x4    0x3D
+Gi2/0/2    SA      bndl     32768         0x3     0x3       0x5    0x3D

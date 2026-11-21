@@ -1,0 +1,21 @@
+{
+  "platform": "exos",
+  "table": "dns-suffix",
+  "versions": [
+    "33.6.1.14",
+    "33.7.1.6"
+  ],
+  "ops": [
+    "create",
+    "delete"
+  ],
+  "table_scoped_key": true,
+  "key_pattern": "^[A-Za-z0-9](?:[A-Za-z0-9.-]{0,126}[A-Za-z0-9])?$",
+  "protected_keys": [],
+  "attributes": {},
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "Static domain suffix. Undo preserves the suffix order. Readback uses the check account. Changes are applied to running configuration."
+}

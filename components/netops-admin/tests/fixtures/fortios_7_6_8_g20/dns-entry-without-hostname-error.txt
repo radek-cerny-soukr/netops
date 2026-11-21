@@ -1,0 +1,3 @@
+node_check_object fail! for hostname is empty.
+Attribute 'hostname' MUST be set.
+Command fail. Return code -56

@@ -320,7 +320,7 @@ class SafeConfigurationDiagnostics(unittest.TestCase):
                 (state / "gateway").mkdir(mode=0o700)
                 from netops.files import write_private
                 write_private(state / "gateway/config.json", json.dumps({
-                    "version": 1, "product_version": "1.0.11", "audit": {"mode": "local"}}).encode())
+                    "version": 1, "product_version": "1.0.12", "audit": {"mode": "local"}}).encode())
                 (state / role).mkdir(mode=0o700)
                 stream = io.TextIOWrapper(io.BytesIO(json.dumps(document).encode()))
                 errors = io.StringIO()

@@ -38,9 +38,9 @@
       "type": "integer",
       "default": "80",
       "required_on_create": false,
-      "update": false,
+      "update": true,
       "unset": false,
-      "referenced_update": false,
+      "referenced_update": true,
       "minimum": 1,
       "maximum": 65535,
       "undo_to_default": true
@@ -48,9 +48,9 @@
     "pool-member-cookie": {
       "type": "text",
       "required_on_create": false,
-      "update": false,
-      "unset": false,
-      "referenced_update": false,
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
       "max_length": 63,
       "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$"
     },
@@ -58,16 +58,17 @@
       "type": "integer",
       "default": "1",
       "required_on_create": false,
-      "update": false,
+      "update": true,
       "unset": false,
-      "referenced_update": false,
+      "referenced_update": true,
       "minimum": 1,
-      "maximum": 256
+      "maximum": 256,
+      "undo_to_default": true
     }
   },
   "fixed": {},
   "volatile": [],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "FortiADC-KVM 7.6.7 build0676 (standalone) has no on-device timed return that Admin uses: the CLI has no automation-stitch, scheduler or cron, and the documented alert policy of type schedule with a CLI script action was not measured (task 306). Admin returns an unverified change itself in the same run by writing the inverse (update: the previous status; create: delete of the new member; delete: create of the member from its read attributes) and verifying the snapshot before; recover does the same after an interruption. If the Admin process or its management path is lost after the write, nothing returns the change on the device until recover runs. Measured live on VM220 in task 306 (see docs/verified-support.md, FortiADC bounds)."
+  "rollback_evidence": "FortiADC-KVM 7.6.7 build0676 (standalone) has no on-device timed return that Admin uses: the CLI has no automation-stitch, scheduler or cron, and the documented alert policy of type schedule with a CLI script action was not measured (task 306). Admin returns an unverified change itself in the same run by writing the inverse (update: the previous attributes; create: delete of the new member; delete: create of the member from its read attributes) and verifying the snapshot before; recover does the same after an interruption. If the Admin process or its management path is lost after the write, nothing returns the change on the device until recover runs. Measured live on VM220 in task 306 (see docs/verified-support.md, FortiADC bounds)."
 }

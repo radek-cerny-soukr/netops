@@ -1,0 +1,2 @@
+Interface                      Status         Protocol           Description
+Et12                           up             up                 

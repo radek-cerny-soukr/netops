@@ -1,4 +1,4 @@
-"""Task 298 (1.0.10 B1): FortiOS config_diff is a line diff (Myers), FortiADC stays positional.
+"""FortiOS and FortiADC configuration comparisons use a line diff (Myers).
 
 FortiOS: the base configuration is the REAL anonymized ``show system interface`` capture of the FortiGate-80F
 8.0.2 build 0251 (fixtures/real/fortinet/fortigate80f_8.0.2_build0251/captures_20261110/vlan_config.txt) and
@@ -184,26 +184,24 @@ def test_more_than_the_edit_bound_is_config_diff_limit_exceeded(wire):
     assert diff['secrets_changed_count'] == 2000
 
 
-def test_fortiadc_keeps_the_positional_comparison(schedule_wire):
+@pytest.mark.parametrize('insert', [True, False])
+def test_fortiadc_reports_only_the_changed_line(schedule_wire, insert):
     section = 'system schedule-group netops-173-sg-now'
     auth = replace(schedule_auth(), read_inventory={**schedule_auth().read_inventory,
                                                     'config_access': ('read', 'compare')})
-    first = engine.config_read(auth, 'fortiadc', section, redaction='full', include_defaults=True)
     view = real('schedule_group_sg_now_full.txt')
-    removed = '        set starttime-of-startdate 00:00\n'
-    assert view.count(removed) == 1
-    schedule_wire.views[section] = view.replace(removed, '', 1)
+    # Derived capture with the measured schedule field removed. Exercise both directions.
+    changed = '        set starttime-of-startdate 00:00\n'
+    assert view.count(changed) == 1
+    shorter = view.replace(changed, '', 1)
+    first_view, second_view = (shorter, view) if insert else (view, shorter)
+    schedule_wire.views[section] = first_view
+    first = engine.config_read(auth, 'fortiadc', section, redaction='full', include_defaults=True)
+    schedule_wire.views[section] = second_view
     second = engine.config_read(auth, 'fortiadc', section, redaction='full', include_defaults=True)
     diff = engine.config_diff(auth, 'fortiadc', first['snapshot_id'], second['snapshot_id'])
     assert diff['platform'] == 'fortiadc' and diff['identical'] is False
-    # Positional: every later line shifts (a line diff would be the one '-' line of the removed field).
-    assert _body(diff) == ('-    set starttime-of-startdate 00:00\n+    set endtime-of-enddate 23:59\n'
-                           '-    set endtime-of-enddate 23:59\n+    set day-of-week saturday\n'
-                           '-    set day-of-week saturday\n+next\n'
-                           '-next\n+end\n'
-                           '-end\n+next\n'
-                           '-next\n+end\n'
-                           '-end\n')
+    assert _body(diff) == ('+' if insert else '-') + '    set starttime-of-startdate 00:00\n'
 
 
 # Task 298-r2: the full profile numbers its hidden values (<REDACTED:credential#N>); an added or removed hidden

@@ -1,0 +1,53 @@
+{
+  "platform": "ios",
+  "table": "poe-cycle",
+  "action": "poe-cycle",
+  "versions": [
+    "15.2(20200924:215240)"
+  ],
+  "exact_versions": true,
+  "ops": [
+    "update"
+  ],
+  "table_scoped_key": true,
+  "key_pattern": "^[A-Z][A-Za-z-]{1,24}[0-9]{1,3}(?:/[0-9]{1,3}){0,2}(?:\\.[0-9]{1,4})?$",
+  "protected_keys": [],
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "attributes": {
+    "admin-state": {
+      "type": "text",
+      "max_length": 8,
+      "pattern": "^(enabled|disabled)$",
+      "default": "enabled",
+      "update": true,
+      "unset": false,
+      "referenced_update": true,
+      "required_on_create": false,
+      "undo_to_default": true
+    },
+    "mode": {
+      "type": "text",
+      "max_length": 6,
+      "pattern": "^(auto|never|static)$",
+      "default": "auto",
+      "update": false,
+      "unset": false,
+      "referenced_update": true,
+      "required_on_create": false,
+      "undo_to_default": true
+    },
+    "max-milliwatts": {
+      "type": "text",
+      "max_length": 5,
+      "pattern": "^[0-9]{4,5}$",
+      "update": false,
+      "unset": true,
+      "referenced_update": true,
+      "required_on_create": false
+    }
+  },
+  "rollback_evidence": "1.0.12 G61 (IOS-M024): 'power inline never', a pause, then the earlier 'power inline' line (auto, static, with or without max; 'power inline auto' when there was none) on one PoE-capable Ethernet port with a powered device, as ONE operation behind the revert timer of Admin. The PoE admin state before is restored exactly (checked in the running configuration); an expired timer returns the whole running configuration to the archive. Not measured on PoE hardware (see inline-power): the layout of show power inline INTERFACE (Admin off while never, Oper on when powered) is the one of the Cisco manual (fixtures/ios_g61/PROVENANCE.md). The operation has no undo; a device that does not draw power again within the wait is reported (result reverted with the reason) and the configuration stays as before."
+}

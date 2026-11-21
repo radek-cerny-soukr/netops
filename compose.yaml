@@ -20,6 +20,7 @@ services:
       NETOPS_BIND_IP: ${NETOPS_BIND_IP:?Set NETOPS_BIND_IP}
       NETOPS_PORT: ${NETOPS_PORT:?Set NETOPS_PORT}
       NETOPS_SERVER_NAME: ${NETOPS_SERVER_NAME:?Set NETOPS_SERVER_NAME}
+      NETOPS_FORTIADC_BACKUP_KEY_FILE: ${NETOPS_FORTIADC_BACKUP_KEY_FILE:-}
     volumes:
       - netops-state:/var/lib/netops
     tmpfs:

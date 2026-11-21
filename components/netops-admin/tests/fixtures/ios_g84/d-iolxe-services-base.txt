@@ -1,0 +1,3 @@
+hostname host02
+clock timezone CET 1 0
+end

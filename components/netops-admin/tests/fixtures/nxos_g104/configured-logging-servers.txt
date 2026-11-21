@@ -1,0 +1,6 @@
+Logging server:			enabled
+{198.51.100.20}
+	server severity:	notifications
+	server facility:	local7
+	server VRF:     	management
+	server port:    	514

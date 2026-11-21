@@ -1,0 +1,29 @@
+DHCP relay service is enabled
+Insertion of option 82 is disabled
+Insertion of option 82 customize circuitid is disabled
+Insertion of VPN suboptions is disabled
+Insertion of cisco suboptions is disabled
+Global smart-relay is disabled
+Relay Trusted functionality is disabled
+Relay Trusted Port is Globally disabled
+V4 Relay Source Address HSRP is Globally disabled
+Server-ID-override-disable is disabled
+
+Smart-relay is enabled on the following interfaces:
+------------------------------------------------------
+
+
+Subnet-broadcast is enabled on the following interfaces:
+------------------------------------------------------
+
+
+Relay Trusted Port is enabled on the following interfaces:
+----------------------------------------------------------
+
+
+Relay Source Address HSRP is enabled on the following interfaces:
+-------------------------------------------------------------------
+
+Helper addresses are configured on the following interfaces:
+ Interface        Relay Address     VRF Name
+ -------------    -------------     --------

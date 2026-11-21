@@ -1,0 +1,12 @@
+host01         # config load-balance real-server-ssl-profile
+  edit "LB_RS_SSL_PROF_DEFAULT"
+    set ssl enable
+    unset server-cert-verify
+    set ssl-sni-forward disable
+    set allow-ssl-versions sslv3 tlsv1.0 tlsv1.1 tlsv1.2
+    set ssl-session-reuse disable
+    set renegotiation enable
+    set secure-renegotiation require
+  next
+end
+host01         #

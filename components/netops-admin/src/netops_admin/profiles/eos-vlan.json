@@ -1,0 +1,35 @@
+{
+  "platform": "eos",
+  "table": "vlan",
+  "versions": [
+    "4.36.1F"
+  ],
+  "exact_versions": true,
+  "ops": [
+    "create",
+    "update",
+    "delete"
+  ],
+  "table_scoped_key": false,
+  "key_pattern": "^[1-9][0-9]{0,3}$",
+  "protected_keys": [
+    "1"
+  ],
+  "attributes": {
+    "name": {
+      "type": "text",
+      "pattern": "^[A-Za-z0-9_.-]{1,32}$",
+      "default": null,
+      "max_length": 32,
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "required_on_create": false
+    }
+  },
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "1.0.12 G122 (E05/E19), measured on cEOSLab 4.36.1F (GNS3 lab, task-evidence/g122). Safeguard first: Admin commits an empty configuration session netops-<id> with 'commit timer HH:MM:SS' before the change, so its checkpoint is the configuration before the change; the change then runs line by line through 'configure terminal'. Confirmation is 'configure session netops-<id> commit' and 'no configure session netops-<id>'; write memory runs only after it. An expired timer returns the WHOLE running configuration to the checkpoint of the session, so a change of someone else made in the timer window is reverted too; only the log proves the revert (CONFIG_SESSION_COMMIT_TIMER_TIMEDOUT and CONFIG_SESSION_COMMIT_REVERTED). The write account must log in with privilege 15 (aaa authorization exec default local); the check account (privilege 1) reads the state. EOS keeps VLANs in the running configuration ('vlan N' with '   name NAME'), so the timed safeguard returns a created, renamed or deleted VLAN as well. Lines: 'vlan N' / 'name NAME' (one ASCII word; EOS cuts a name longer than 32 characters without an error, so Admin allows 1-32 characters), 'no name' for the default name VLANnnnn, 'no vlan N'. A VLAN in a list line, with lines other than name, with a routed interface VlanN, named by a port (access, native, phone VLAN or an explicit allowed list; the default allowed list all is no reference) or with learned MAC addresses is not deleted. The check account reads show vlan id N."
+}

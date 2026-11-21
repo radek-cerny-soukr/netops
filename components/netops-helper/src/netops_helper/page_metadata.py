@@ -18,6 +18,13 @@ CONFIGURATION_PAGED_TOOLS = frozenset(("config_read", "config_diff"))
 CONFIGURATION_PAGE_METADATA = ("total_bytes", "offset", "returned_bytes", "next_offset", "content_sha256")
 CONFIGURATION_DIGESTS = ("snapshot_sha256", "filter_sha256")
 _SHA256 = re.compile(r"[0-9a-f]{64}")
+# switch_read interface_errors: `counter_baseline` is an engine-built token (base64url of compressed,
+# already redacted integers and port names) that the client passes back unchanged as `baseline`.
+# Response redaction of the opaque text would break the next delta, so it is kept out like a hash.
+BASELINE_TOOLS = frozenset(("switch_read",))
+BASELINE_METADATA = ("counter_baseline",)
+BASELINE_PATTERN = r"nb1\.[A-Za-z0-9_-]{8,32000}"
+_BASELINE = re.compile(BASELINE_PATTERN)
 
 
 def _count(value: object) -> bool:
@@ -30,6 +37,11 @@ def _digest(value: object) -> bool:
 
 def page_metadata(structured: object, tool: str = "ssh_read") -> dict[str, Any] | None:
     """The typed metadata of a successful page of `tool`, or None when any field has another shape."""
+    if tool in BASELINE_TOOLS:
+        if not isinstance(structured, dict) or structured.get("ok") is not True:
+            return None
+        token = structured.get("counter_baseline")
+        return {"counter_baseline": token} if isinstance(token, str) and _BASELINE.fullmatch(token) else None
     if tool in CONFIGURATION_PAGED_TOOLS:
         names = CONFIGURATION_PAGE_METADATA
     elif tool in PAGED_TOOLS:

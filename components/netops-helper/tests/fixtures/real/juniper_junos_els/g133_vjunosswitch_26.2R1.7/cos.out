@@ -1,0 +1,8 @@
+Physical interface: ge-0/0/0, Index: 143
+Maximum usable queues: 8, Queues in use: 4
+Exclude aggregate overhead bytes: disabled
+Logical interface aggregate statistics: disabled
+  Scheduler map: <default>, Index: 2
+  Congestion-notification: Disabled
+
+  Logical interface: ge-0/0/0.0, Index: 368

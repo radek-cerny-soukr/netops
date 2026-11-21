@@ -1,13 +1,19 @@
+from base64 import b64encode
+from contextlib import nullcontext
 from dataclasses import replace
 from unittest import TestCase, mock
 import json
 import unittest
 
+from netops_core.hostkey import fingerprint_of
 from netops_helper import engine
 from netops_helper.auth import TargetAuth, EgressPolicy
 
 A = 'CANARY-old-42'
 B = 'CANARY-new-43'
+HOST_KEY_BLOB = b64encode(b'\0\0\0\x0bssh-ed25519\0\0\0\x20' + bytes(range(32))).decode('ascii')
+HOST_KEY = 'ssh-ed25519 ' + HOST_KEY_BLOB
+HOST_KEY_PIN = fingerprint_of(HOST_KEY_BLOB)
 
 def fixture(status, secret):
     return ('config system interface\n edit "port1"\n set status ' + status +
@@ -32,7 +38,7 @@ def reading(*outputs, status=STATUS, rc=0, identity_rc=0):
 
 def enrolled(rights=('read', 'compare')):
     return TargetAuth(alias='fixture', host='192.0.2.20', port=22, login='reader',
-                      secret='auth-canary-91', host_key_fingerprint='SHA256:fixture',
+                      secret='auth-canary-91', host_key_fingerprint=HOST_KEY_PIN, host_key=HOST_KEY,
                       ssh_platform='fortinet', enabled_queries=('system_status',),
                       fortios_output_standard_verified=True,
                       read_inventory={'config_access': rights},
@@ -79,14 +85,11 @@ class ConfigurationBlock(TestCase):
 
     def test_inventory_proxy_mcp_block(self):
         import asyncio
-        from base64 import b64encode
         from types import SimpleNamespace
         from fastmcp import Client
-        from netops_core.hostkey import fingerprint_of
         from netops_helper import inventory, proxy, server
-        pin = fingerprint_of(b64encode(b"fixture-host-key").decode())
         entry = SimpleNamespace(credential='fixture-account', name='fixture', address='192.0.2.20', port=22,
-                                host_key_fingerprint=pin, legacy_ssh=None,
+                                host_key_fingerprint=HOST_KEY_PIN, host_key=HOST_KEY, legacy_ssh=None,
                                 helper={'account_role': 'read-only', 'ssh_platform': 'fortios',
                                         'enabled_queries': ['system_status'],
                                         'fortios_output_standard_verified': True,
@@ -104,6 +107,7 @@ class ConfigurationBlock(TestCase):
         credential = SimpleNamespace(login='reader', kind='password', use=lambda: 'auth-canary-91')
         envelope = gateway._auth_context(entry, section, credential, None, 'config_read')
         auth = TargetAuth.decode('fixture', envelope)
+        self.assertEqual((auth.host_key, auth.host_key_fingerprint), (HOST_KEY, HOST_KEY_PIN))
         self.assertEqual(auth.read_inventory['config_access'], ('read', 'compare'))
         self.assertEqual(auth.configuration_limits.as_dict(), entry.helper['configuration_limits'])
         for bad in ({'total_seconds': True}, {'idle_seconds': 1.5}, {'all_bytes': 256*1024*1024+1},
@@ -119,20 +123,22 @@ class ConfigurationBlock(TestCase):
             encoded = urlsafe_b64encode(json.dumps(decoded).encode()).decode().rstrip('=')
             with self.subTest(bad=bad), self.assertRaises(ValueError):
                 TargetAuth.decode('fixture', encoded)
-        with mock.patch.object(engine.core_ssh, 'run_command',return_value=SimpleNamespace()) as transport, mock.patch.object(
-                engine, '_paced_connection'):
+        transport = mock.Mock(return_value=engine.core_session.FortinetResult(0, b'', '', '', ''))
+        terminal = SimpleNamespace(run=transport)
+        with mock.patch.object(engine.core_session, 'fortinet_session', return_value=nullcontext(terminal)), \
+                mock.patch.object(engine, '_paced_connection'):
             engine._exec_command(auth, entry.address, 'fixture-pin', credential, 'show', 'fortinet',
                                  stdout_consumer=lambda data: None)
-        self.assertEqual(transport.call_args.kwargs['capture_max_bytes'],2*1024*1024)
-        self.assertEqual(transport.call_args.kwargs['idle_timeout_seconds'],5)
-        self.assertEqual(transport.call_args.kwargs['timeout_seconds'],60)
-        for error in (engine.core_ssh.OutputConsumerError(), engine.core_ssh.OutputLimitError()):
-            with mock.patch.object(engine.core_ssh,'run_command',side_effect=error), mock.patch.object(
-                    engine,'_paced_connection'), mock.patch.object(engine,'_forget_host_key_line') as forget:
-                with self.assertRaises(type(error)):
-                    engine._exec_command(auth,entry.address,'fixture-pin',credential,'show','fortinet',
-                                         stdout_consumer=lambda data: None)
-                forget.assert_not_called()
+            self.assertEqual(transport.call_args.kwargs['capture_max_bytes'],2*1024*1024)
+            self.assertEqual(transport.call_args.kwargs['idle_timeout_seconds'],5)
+            self.assertEqual(transport.call_args.kwargs['timeout_seconds'],60)
+            for error in (engine.core_ssh.OutputConsumerError(), engine.core_ssh.OutputLimitError()):
+                transport.side_effect = error
+                with mock.patch.object(engine, '_forget_host_key_line') as forget:
+                    with self.assertRaises(type(error)):
+                        engine._exec_command(auth, entry.address, 'fixture-pin', credential, 'show', 'fortinet',
+                                             stdout_consumer=lambda data: None)
+                    forget.assert_not_called()
 
         with self.assertRaises(proxy.ToolArgumentsError):
             gateway._validate_tool_arguments('config_read', {
@@ -527,13 +533,14 @@ class StreamingConfigurationBlock(TestCase):
         with self.assertRaises(ValueError):
             capture.finish()
         consume = mock.Mock()
-        def native(*args, **kwargs):
+        def native(command, **kwargs):
+            self.assertEqual(command, 'show system interface')
             self.assertIs(kwargs['stdout_consumer'], consume)
             kwargs['stdout_consumer'](b'fixture bytes')
-            return SimpleNamespace(rc=0, stdout=b'')
-        with mock.patch.object(engine, '_resolve_target_ipv4', return_value=['192.0.2.20']), \
-                mock.patch.object(engine, 'host_key_line', return_value='fixture pin'), \
-                mock.patch.object(engine.core_ssh, 'run_command', side_effect=native):
+            return engine.core_session.FortinetResult(0, b'', '', '', '')
+        terminal = SimpleNamespace(run=native)
+        with mock.patch.object(engine.core_session, 'fortinet_session', return_value=nullcontext(terminal)), \
+                mock.patch.object(engine, '_paced_connection'):
             self.assertEqual(engine.read_from_device(auth, 'fortinet', 'show system interface',
                                                     stdout_consumer=consume), (0, ''))
         consume.assert_called_once_with(b'fixture bytes')

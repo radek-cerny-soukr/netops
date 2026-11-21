@@ -1,0 +1,2 @@
+20 permit udp any any eq 53
+host01(config-ext-nacl)#

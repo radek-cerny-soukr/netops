@@ -1,0 +1,12 @@
+Building configuration...
+
+Current configuration : 223 bytes
+!
+interface Ethernet0/2
+ description port-desc-01
+ vrf forwarding blue
+ ip address 198.51.100.7 255.255.255.0
+ ip helper-address 192.0.2.10
+ ipv6 address 2001:db8:1::7/64
+ ipv6 nd ra suppress all
+end

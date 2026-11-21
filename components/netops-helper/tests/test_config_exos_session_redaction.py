@@ -327,7 +327,7 @@ def test_the_private_handoff_is_neither_published_nor_accepted_from_a_client(env
     assert env['wire'].calls == [] and env['paged'] == []
 
 
-def test_only_exos_config_read_receives_the_session_handoff(env):
+def test_config_reads_and_diffs_receive_the_private_session_handoff(env):
     proxy = env['bridge'].proxy
 
     def forwarded(request_id, name, arguments):
@@ -341,10 +341,10 @@ def test_only_exos_config_read_receives_the_session_handoff(env):
     assert B_SECRET in exos['redaction_context'] and exos['auth_context'] in exos['redaction_context']
     forti = forwarded(2, 'config_read', {'target': 'fw-c', 'platform': 'fortios', 'section': 'all',
                                               'include_all': True})
-    assert 'redaction_context' not in forti
+    assert {'fw-c-password-only', B_SECRET, forti['auth_context']} <= set(forti['redaction_context'])
     assert 'redaction_context' in forwarded(3, 'ssh_read', {'target': 'switch-a', 'platform': 'extreme_exos',
                                                              'query': 'version'})
-    # Task 157: with compare enrolled, config_diff of EXOS takes the handoff too; FortiOS config_diff does not.
+    # Comparisons must check the same secrets before returning stored configuration.
     inventory = env['helper'] / 'inventory.json'
     document = json.loads(inventory.read_text())
     for device in document['devices']:
@@ -354,7 +354,8 @@ def test_only_exos_config_read_receives_the_session_handoff(env):
     diff = forwarded(4, 'config_diff', {'target': 'switch-b', 'platform': 'extreme_exos',
                                         'base_snapshot': 'cfg_' + '0' * 32, 'other_snapshot': 'cfg_' + '1' * 32})
     assert B_SECRET in diff['redaction_context'] and diff['auth_context'] in diff['redaction_context']
-    assert 'redaction_context' not in forwarded(5, 'config_diff', {
+    forti_diff = forwarded(5, 'config_diff', {
         'target': 'fw-c', 'platform': 'fortios', 'base_snapshot': 'cfg_' + '0' * 32,
         'other_snapshot': 'cfg_' + '1' * 32})
+    assert {'fw-c-password-only', B_SECRET, forti_diff['auth_context']} <= set(forti_diff['redaction_context'])
     assert env['wire'].calls == []

@@ -1,0 +1,24 @@
+------------------------------------------------
+Local Intf: Et0/1
+Local Intf service instance: -
+Chassis id: 0000.5e00.530a
+Port id: Ethernet5
+Port Description - not advertised
+System Name: host08
+
+System Description:
+Arista Networks EOS version 4.36.1F-48405728.4361F (engineering build) running on an Arista cEOSLab
+
+Time remaining: 92 seconds
+System Capabilities: B,R
+Enabled Capabilities: B,R
+Management Addresses:
+    IP: 203.0.113.3
+Auto Negotiation - not supported
+Physical media capabilities - not advertised
+Media Attachment Unit type - not advertised
+Vlan ID: 1
+Peer Source MAC: 0000.5e00.530f
+
+
+Total entries displayed: 1

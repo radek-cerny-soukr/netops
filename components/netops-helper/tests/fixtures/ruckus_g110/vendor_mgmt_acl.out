@@ -1,0 +1,9 @@
+show mgmt-acl all
+Management ACL:
+Name= admin-range
+  Restriction Type= range
+  IP range= 192.0.2.1-192.0.2.253
+
+Name= admin-single
+  Restriction Type= single
+  IP address= 198.51.100.150

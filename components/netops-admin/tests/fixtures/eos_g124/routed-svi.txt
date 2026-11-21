@@ -1,0 +1,8 @@
+interface Vlan3984
+   description g124-vrrp
+   no autostate
+   vrf g124-route
+   ip address 192.0.2.2/24
+   ipv6 address 2001:db8:1::2/64
+   vrrp 24 priority-level 120
+   vrrp 24 ipv4 192.0.2.254

@@ -1,0 +1,4 @@
+AP Name          Mac Address     Slot  Admin State  Oper State  Width  Txpwr          Channel
+---------------------------------------------------------------------------------------------
+host03            0000.5e00.5309  0     Enabled      N/A         N/A    N/A            (Sensor)
+AP-SIDD-3702I     0000.5e00.530a  0     Enabled      Down        20     *1/8 (22 dBm)  (11)

@@ -1,0 +1,56 @@
+FortiADC-KVM # config load-balance virtual-server
+  edit "VS_APP_HTTP"
+    set type l7-load-balance
+    set interface port2
+    set ip 203.0.113.10
+    set load-balance-profile LB_PROF_HTTP
+    set load-balance-method LB_METHOD_ROUND_ROBIN
+    set load-balance-pool POOL_APP
+    set traffic-log enable
+  next
+  edit "LAB_VS_HTTPS"
+    set type l7-load-balance
+    set interface port2
+    set ip 203.0.113.10
+    set port 443 
+    set load-balance-profile LB_PROF_HTTPS
+    set client-ssl-profile LB_CLIENT_SSL_PROF_DEFAULT
+    set load-balance-method LB_METHOD_ROUND_ROBIN
+    set load-balance-pool POOL_APP
+    set traffic-log enable
+  next
+  edit "LAB_VS_SMTP"
+    set interface port2
+    set ip 203.0.113.10
+--More-- 
+         
+    set port 25 
+    set load-balance-profile LB_PROF_TCP
+    set load-balance-method LB_METHOD_ROUND_ROBIN
+    set load-balance-pool LAB_POOL_SMTP
+    set traffic-log enable
+  next
+  edit "LAB_VS_DNS"
+    set interface port2
+    set ip 203.0.113.10
+    set port 53 
+    set load-balance-profile LB_PROF_UDP
+    set load-balance-method LB_METHOD_ROUND_ROBIN
+    set load-balance-pool LAB_POOL_DNS
+  next
+  edit "netops-tlsca-vs"
+    set type l7-load-balance
+    set interface port1
+    set ip 198.51.100.46
+    set port 443 
+    set load-balance-profile LB_PROF_HTTPS
+    set client-ssl-profile netops-tlsca-ssl
+    set load-balance-method LB_METHOD_ROUND_ROBIN
+    set load-balance-pool netops-tlsca-pool
+    set traffic-log enable
+--More-- 
+         
+  next
+end
+
+FortiADC-KVM # 

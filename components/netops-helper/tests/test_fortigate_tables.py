@@ -125,5 +125,9 @@ def test_incomplete_blocks_and_bad_vlan_stay_unknown():
 def test_local_tables_do_not_accept_unrelated_filters(table):
     with pytest.raises(ValueError):
         tables.request('fortinet',table,ip='192.0.2.1')
+    if table == 'interface':
+        # G11 (FP-07): the interface filter narrows the physical table locally.
+        assert tables.request('fortinet',table,interface='wan1') == ('physical_interfaces', {}, {'name': 'wan1'})
+        return
     with pytest.raises(ValueError):
         tables.request('fortinet',table,interface='wan1')

@@ -1,0 +1,2 @@
+Port         Name               Status       Vlan       Duplex  Speed Type
+Et0/1                           disabled     1            full   auto 10/100/1000BaseTX

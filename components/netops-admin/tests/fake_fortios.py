@@ -137,6 +137,14 @@ class FakeFortiOS:
                     self.stitches.setdefault(current, {"trigger": None, "action": None})
             elif command == "next":
                 current = None
+            elif command == "move" and section == "firewall policy":
+                key, relation, anchor = tokens[1:]
+                if key not in self.policies or anchor not in self.policies or key == anchor:
+                    raise DeviceRefused(accepted)
+                row = self.policies.pop(key)
+                items = list(self.policies.items())
+                items.insert(list(self.policies).index(anchor) + (relation == "after"), (key, row))
+                self.policies = dict(items)
             elif command == "delete":
                 target = {"firewall policy": self.policies, "firewall address": self.addresses,
                           "firewall service custom": self.services, "system automation-action": self.actions,
@@ -149,6 +157,8 @@ class FakeFortiOS:
                 else:
                     pending = [raw.strip()]
             elif command == "set" and section == "firewall policy":
+                if tokens[1] == "uuid" and not self.manual_policy_uuid:
+                    raise DeviceRefused(accepted)
                 self.policies[current][tokens[1]] = " ".join(tokens[2:])
                 if tokens[1:3] == ["action", "deny"]:
                     self.policies[current]["logtraffic"] = "disable"
@@ -213,9 +223,13 @@ class FakeFortiOS:
         lines.append("end")
         return "\n".join(lines) + "\n"
 
+    manual_policy_uuid = True
+
     def query(self, command):
         self._connect()
         self._fire()
+        if command == "diagnose sys uuid allow-manual-set":
+            return "allow-manual-set is " + ("enabled" if self.manual_policy_uuid else "disabled") + "\n"
         if command == "get system status":
             return "Version: FortiGate-60F v%s,build%s,260420 (GA.F)\nSystem time: %s\n" % \
                 (self.firmware + (self.clock.strftime("%a %b %d %H:%M:%S %Y"),))
@@ -273,6 +287,10 @@ class FakeFortiOS:
         self._fire()
         if self.check_unreadable:
             raise RuntimeError("check account unavailable")
+        if command == "show firewall policy":
+            body = self.snapshot().split("config firewall policy\n", 1)[1]
+            lines = body.splitlines()
+            return "\n".join(["config firewall policy", *lines[:lines.index("end") + 1], ""])
         key = command.split('"')[1]
         if command.startswith("show firewall policy"):
             return self._policy_show(key)

@@ -6,21 +6,23 @@ every limit under test runs in the real engine code.
 
 from __future__ import annotations
 
-from base64 import b64encode
+from contextlib import nullcontext
 from dataclasses import replace
 import ipaddress
+from pathlib import Path
 import threading
+from types import SimpleNamespace
 
 from netops_core.hostkey import fingerprint_of
 import pytest
 
 from netops_helper.auth import EgressPolicy, TargetAuth
 import netops_helper.engine as engine
+from conftest import HOST_KEY_BLOB, _calls, _fortinet_wire
 
 
 ADDRESS = str(ipaddress.IPv4Address((192 << 24) | (2 << 8) | 30))
 OTHER_ADDRESS = str(ipaddress.IPv4Address((192 << 24) | (2 << 8) | 31))
-HOST_KEY_BLOB = b64encode(b"mutation-test-host-key").decode("ascii")
 PROMPT = b"ruckus#"
 
 
@@ -28,6 +30,7 @@ def _auth(platform: str = "fortinet") -> TargetAuth:
     return TargetAuth(
         alias="device-m", host=ADDRESS, port=22, login="reader", secret="credential-m",
         host_key_fingerprint=fingerprint_of(HOST_KEY_BLOB), credential_kind="password",
+        host_key=f"ssh-ed25519 {HOST_KEY_BLOB}",
         sftp_roots=("/safe",), read_inventory={}, account_role="read-only",
         fortios_output_standard_verified=True, ssh_platform=platform,
         enabled_queries=("system_status",),
@@ -94,14 +97,10 @@ def test_the_pty_body_drops_echo_blank_lines_and_prompt_only() -> None:
     assert engine._pty_body(b"\r\n\r\n", "show sysinfo", PROMPT) == ""
 
 
-class _Result:
-    def __init__(self, stdout: bytes) -> None:
-        self.rc, self.stdout, self.said = 0, stdout, ""
-
-
-def test_exec_output_with_invalid_utf8_is_replaced_not_fatal(monkeypatch) -> None:
-    monkeypatch.setattr(engine.core_ssh, "run_command",
-                        lambda *args, **kwargs: _Result(b"status \xff\xfe ok\n"))
+def test_fortinet_output_with_invalid_utf8_is_replaced_not_fatal(monkeypatch) -> None:
+    result = engine.core_session.FortinetResult(0, b"status \xff\xfe ok\n", "", "", "")
+    terminal = SimpleNamespace(run=lambda *args, **options: result)
+    monkeypatch.setattr(engine.core_session, "fortinet_session", lambda *args, **options: nullcontext(terminal))
     rc, text = engine._exec_read(_auth(), "fortinet", "get system status")
     assert rc == 0
     assert "�" in text and "ok" in text
@@ -143,27 +142,24 @@ def test_the_pty_session_logs_in_as_the_enrolled_account_with_a_bound(monkeypatc
     assert 0 < session["timeout_seconds"] <= 60
 
 
-def test_an_adc_prompt_read_sends_only_the_command_and_returns_its_answer(monkeypatch) -> None:
-    sessions = []
+def test_an_adc_prompt_read_sends_only_the_command_and_returns_its_answer(wire, monkeypatch) -> None:
+    command = "get router info routing-table all"
+    _fortinet_wire(wire, {command: "S>* 0.0.0.0/0 marker\r\r\n\r\n"}, prompt="SYNTH-ADC # ")
+    open_session = engine.core_session.fortinet_session
+    login_timeouts = []
 
-    class Prompted(_Session):
-        def __init__(self, *args, **options) -> None:
-            super().__init__(*args, **options)
-            self.answers = iter([b"banner\r\nSYNTH-ADC # ",
-                                 b"get router info routing-table all\r\r\nS>* 0.0.0.0/0 marker\r\r\n\r\nSYNTH-ADC # "])
-            self.closed = False
-            sessions.append(self)
+    def record_login_timeout(device, credential, **options):
+        login_timeouts.append(options["connect_timeout_seconds"])
+        return open_session(device, credential, **options)
 
-        def close(self) -> None:
-            self.closed = True
-
-    _Session.created, _Session.failure = [], None
-    monkeypatch.setattr(engine.core_session, "Session", Prompted)
-    assert engine._prompt_read(_auth("fortiadc"), "fortiadc", "get router info routing-table all") == (
-        None, "S>* 0.0.0.0/0 marker",
-    )
-    assert sessions[0].sent == ["get router info routing-table all"] and sessions[0].closed
-    assert 0 < _Session.created[0]["timeout_seconds"] <= 60
+    monkeypatch.setattr(engine.core_session, "fortinet_session", record_login_timeout)
+    assert engine._prompt_read(_auth("fortiadc"), "fortiadc", command) == (None, "S>* 0.0.0.0/0 marker")
+    assert wire["transcript"].read_text().splitlines() == [command]
+    (started,) = _calls(wire)
+    (known_hosts,) = (arg.split("=", 1)[1] for arg in started["argv"] if arg.startswith("UserKnownHostsFile="))
+    assert not Path(known_hosts).exists()
+    (login_timeout,) = login_timeouts
+    assert 0 < login_timeout <= 60
     for platform in ("linux", "ruckus_unleashed"):
         with pytest.raises(ValueError, match="prompt reads"):
             engine.read_from_device(_auth(platform), platform, "show sysinfo", prompt=True)
@@ -172,17 +168,11 @@ def test_an_adc_prompt_read_sends_only_the_command_and_returns_its_answer(monkey
                                 prompt=True, stdout_consumer=lambda chunk: None)
 
 
-@pytest.mark.parametrize("prompt", [b"(P) SYNTH-ADC # ", b"(S) SYNTH-ADC # ", b"(I) SYNTH-ADC # "])
-def test_an_adc_prompt_read_accepts_the_ha_role_of_the_node(monkeypatch, prompt) -> None:
-    class Prompted(_Session):
-        def __init__(self, *args, **options) -> None:
-            super().__init__(*args, **options)
-            self.answers = iter([b"banner\r\n" + prompt,
-                                 b"get system ha-status\r\r\nmarker\r\r\n\r\n" + prompt])
-
-    _Session.created, _Session.failure = [], None
-    monkeypatch.setattr(engine.core_session, "Session", Prompted)
-    assert engine._prompt_read(_auth("fortiadc"), "fortiadc", "get system ha-status") == (None, "marker")
+@pytest.mark.parametrize("prompt", ["(P) SYNTH-ADC # ", "(S) SYNTH-ADC # ", "(I) SYNTH-ADC # "])
+def test_an_adc_prompt_read_accepts_the_ha_role_of_the_node(wire, prompt) -> None:
+    command = "get system ha-status"
+    _fortinet_wire(wire, {command: "marker\r\r\n\r\n"}, prompt=prompt)
+    assert engine._prompt_read(_auth("fortiadc"), "fortiadc", command) == (None, "marker")
 
 
 def test_a_failed_pty_session_forgets_the_host_key_of_that_device(monkeypatch) -> None:

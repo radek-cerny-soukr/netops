@@ -1,0 +1,26 @@
+{
+    "vrfs": {
+        "default": {
+            "ipv4Server": {
+                "ipv4ServerActive": false,
+                "ipv4ActiveLeases": 0,
+                "ipv4Interfaces": {},
+                "ipv4Subnets": {},
+                "ipv4DnsServers": [],
+                "ipv4DomainName": "",
+                "ipv4LeaseDuration": 7200.0,
+                "ipv4EchoClientId": true
+            },
+            "ipv6Server": {
+                "ipv6ServerActive": false,
+                "ipv6ActiveLeases": 0,
+                "ipv6Interfaces": {},
+                "ipv6Subnets": {},
+                "ipv6DnsServers": [],
+                "ipv6DomainName": "",
+                "ipv6LeaseDuration": 7200.0
+            },
+            "addressFamily": "ipv4"
+        }
+    }
+}

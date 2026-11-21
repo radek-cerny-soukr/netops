@@ -1,0 +1,12 @@
+IPv6 Routing Table for VRF "default"
+'*' denotes best ucast next-hop
+'**' denotes best mcast next-hop
+'[x/y]' denotes [preference/metric]
+'%<string>' in via output denotes VRF <string>
+2001:db8:2::0/64, ubest/mbest: 1/0, attached
+    *via 2001:db8:2::1, Eth1/1, [0/0], 1d04h, direct
+2001:db8:3::0/128, ubest/mbest: 1/0
+    *via 2001:db8:4::1, Eth1/1, [110/81], 1d04h, ospf-100, intra
+2001:db8:5::0/128, ubest/mbest: 2/0, attached
+    *via 2001:db8:5::3, Lo0, [0/0], 1d04h, local
+    *via 2001:db8:5::3, Lo0, [0/0], 1d04h, direct

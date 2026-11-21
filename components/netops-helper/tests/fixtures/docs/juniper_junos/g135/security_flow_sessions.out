@@ -1,0 +1,12 @@
+Flow Sessions on FPC10 PIC1:
+Total sessions: 0
+
+Flow Sessions on FPC10 PIC2:
+
+Session ID: 420000002, Policy name: p1/4, Timeout: 488, Valid
+  In: 203.0.113.254/15198 --> 203.0.113.253/23;tcp, If: ge-7/1/0.0, Pkts: 9, Bytes: 507, CP Session ID: 420000002
+  Out: 203.0.113.253/23 --> 203.0.113.254/15198;tcp, If: ge-7/1/1.0, Pkts: 8, Bytes: 462, CP Session ID: 420000002
+Total sessions: 1
+
+Flow Sessions on FPC10 PIC3:
+Total sessions: 0

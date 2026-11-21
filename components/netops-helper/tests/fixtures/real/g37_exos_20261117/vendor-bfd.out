@@ -1,0 +1,6 @@
+Neighbor      Interface      Clients  Detection  Status      VR
+==============================================================
+30.30.30.2    bfdVlan        ----s    0          Down        VR-Default
+==============================================================
+Clients Flag: b - BGP, m - MPLS, o - OSPF, s - Static
+NOTE: All timers in milliseconds.

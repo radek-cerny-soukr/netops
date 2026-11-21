@@ -1,0 +1,7 @@
+ System config:
+  Non-IP: src-dst mac
+  IP: src-dst ip-l4port rotate 0
+Port Channel Load-Balancing Configuration for all modules:
+Module 1:
+  Non-IP: src-dst mac
+  IP: src-dst ip-l4port rotate 0

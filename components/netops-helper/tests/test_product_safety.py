@@ -119,12 +119,37 @@ def test_phase1_config_read_allowances_are_exact(tmp_path: Path, name: str, patt
     # A renamed copy receives no allowance; FortiADC also requires both occurrences.
     allowed.unlink()
     (source / "other.py").write_text(original, encoding="utf-8")
-    assert gate._phase1_surface_errors(tmp_path) == [f"{message}src/netops_helper/other.py: {pattern}"]
+    renamed = [f"{message}src/netops_helper/other.py: {pattern}"]
+    if name in {"config_arista_eos_adapter.py", "config_cisco_nxos_adapter.py",
+                "config_cisco_ios_adapter.py", "config_cisco_xe_adapter.py"}:
+        renamed.append(f"{message}src/netops_helper/other.py: show startup-config")
+    if name in {"config_cisco_ios_adapter.py", "config_cisco_xe_adapter.py"}:
+        renamed.append(f"{message}src/netops_helper/other.py: show archive config differences")
+    assert gate._phase1_surface_errors(tmp_path) == renamed
     (source / "other.py").unlink()
     if count > 1:
         before, _, after = original.rpartition(pattern)
         allowed.write_text(before + "show" + after, encoding="utf-8")
         assert gate._phase1_surface_errors(tmp_path) == [f"{message}src/netops_helper/{name}: {pattern}"]
+
+
+def test_nxos_startup_diff_allowance_requires_exact_commands(tmp_path: Path) -> None:
+    gate = _load_release_module("check_public_release")
+    source = tmp_path / "src/netops_helper"
+    source.mkdir(parents=True)
+    (source / "server.py").write_text("", encoding="utf-8")
+    name = "config_cisco_nxos_adapter.py"
+    original = (ROOT / "src/netops_helper" / name).read_text(encoding="utf-8")
+    adapter = source / name
+    mutations = (
+        original.replace("show running-config diff'", "show running-config diff extra'"),
+        original + '\nEXTRA = "show startup-config"\n',
+        original + '\nDIFF_COMMAND = "show running-config diff"\n',
+    )
+    for mutated in mutations:
+        assert mutated != original
+        adapter.write_text(mutated, encoding="utf-8")
+        assert any("configuration export pattern" in error for error in gate._phase1_surface_errors(tmp_path))
 
 
 def test_phase1_surface_rejects_removed_body_read_symbols_and_policy(

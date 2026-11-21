@@ -1,0 +1,9 @@
+Ethernet1/5 - Group 1 (IPV4)
+  State is Init(Administratively down)
+  Virtual IP address is 192.0.2.10
+  Priority 200, Configured 200
+  Forwarding threshold(for VPC), lower: 1 upper: 200
+  Advertisement interval 200
+  Preemption enabled
+  Virtual MAC address is 0000.5e00.5301
+  Master router is Unknown

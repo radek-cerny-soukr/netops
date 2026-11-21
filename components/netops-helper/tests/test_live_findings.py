@@ -33,11 +33,24 @@ def test_triage_failed_identity_is_structured(monkeypatch, tool, args, error, co
     assert "synthetic-secret" not in str(result)
 
 
-def test_health_unsupported_identity_is_structured(monkeypatch):
-    monkeypatch.setattr(engine, "read_from_device", lambda *a: (0, "Version: FortiGate-80F v8.0.2,build0252,260928 (GA.F)\n"))
+def test_health_untested_identity_runs_with_a_warning(monkeypatch):
+    # G00 (2026-11-17): an untested build is triaged; the result carries firmware_support and a warning.
+    monkeypatch.setattr(engine, "read_from_device", lambda *a: (
+        0, "Version: FortiGate-80F v8.0.2,build0252,260928 (GA.F)\nVirtual domain configuration: disable\n"))
+    result = engine.triage_health(_target("fortinet", "system_status"))
+    assert result["identity"] == {"product": "FortiGate-80F", "version": "8.0.2", "build": "0252"}
+    assert result["firmware_support"]["status"] == "untested"
+    assert result["warnings"] == [{"code": "firmware_untested", "message": result["firmware_support"]["message"]}]
+    assert result.get("error_code") != "config_platform_not_supported"
+
+
+def test_health_other_product_identity_is_structured(monkeypatch):
+    monkeypatch.setattr(engine, "read_from_device", lambda *a: (0, "Version: FortiADC-KVM v7.6.7,build0676,260522 (GA.M)\n"))
     result = engine.triage_health(_target("fortinet", "system_status"))
     assert result["error_code"] == "config_platform_not_supported"
     assert result["failed_step"] == "system_status"
+    assert result["error"] == ("The triage was not run: the target is not a FortiOS product; nothing past the identity "
+                               "read was read")
 
 
 def test_schema_without_registry_never_contacts_device(monkeypatch):
@@ -149,12 +162,13 @@ def test_published_count_bounds_cover_every_recipe_and_icmp_probe():
     assert (tools["icmp_probe"]["properties"]["count"]["minimum"], tools["icmp_probe"]["properties"]["count"]["maximum"]) == (1, 8)
     timeout, size = (tools["fortios_diagnostics"]["properties"][name] for name in ("timeout", "max_bytes"))
     assert (timeout["minimum"], timeout["maximum"], size["minimum"], size["maximum"]) == (1, 60, 1000, 16384)
-    assert timeout["default"] == 10
+    assert timeout["type"] == "integer" and "default" not in timeout
+    assert "Defaults to 60 for FortiADC ntp_status and 10 for other recipes" in timeout["description"]
     from netops_helper.proxy import Proxy
     normalized = Proxy._validate_tool_arguments("fortios_diagnostics", {
         "target": "device-a", "recipe": "nslookup", "address": "update.fortiguard.net", "interface": "",
     })
-    assert "timeout" not in normalized  # the proxy leaves omitted arguments to the published server default
+    assert "timeout" not in normalized  # the engine chooses the timeout from the recipe
 
 
 @pytest.mark.parametrize("args,field,hint", [

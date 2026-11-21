@@ -1,0 +1,5 @@
+Number of APs: 1
+
+AP Name             Slots AP Model Ethernet MAC    Radio MAC       Location          Country IP Address     State
+-----------------------------------------------------------------------------------------------------------------------
+host01               3     3802I    0000.5e00.5301  0000.5e00.5302  default location  US      192.0.2.186    Registered

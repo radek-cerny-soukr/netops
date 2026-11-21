@@ -1,0 +1,9 @@
+{
+  "hardware_sensors": {"command": "execute sensor detail", "captured_at": "2026-11-17T11:46:49Z",
+                       "account_role": "read-only", "sensors": 5, "projection": "transport prompt removed"},
+  "crash_log": {"command": "diagnose debug crashlog read", "captured_at": "2026-11-17T11:46:52Z",
+                "account_role": "read-only", "lines": 606,
+                "projection": "transport prompt removed; anonymized; 18 hex tokens zeroed"},
+  "config_error_log": {"command": "diagnose debug config-error-log read", "captured_at": "2026-11-17T11:46:56Z",
+                       "account_role": "read-only", "projection": "transport prompt removed; empty answer"}
+}

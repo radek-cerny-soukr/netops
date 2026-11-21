@@ -26,6 +26,7 @@ DEVICE_FIELDS = (
     "auditor",
     "helper",
 )
+OPTIONAL_DEVICE_FIELDS = ("host_key",)
 ROLES = ("perimeter", "internal", "lab")
 CONSUMERS = ("auditor", "helper")
 PORT_MIN = 1
@@ -62,6 +63,7 @@ class Device:
     legacy_ssh: str | None
     auditor: dict | None
     helper: dict | None
+    host_key: str | None = None
 
     def consumers(self) -> tuple:
         return tuple(name for name in CONSUMERS if getattr(self, name) is not None)
@@ -218,6 +220,16 @@ def _checked_legacy_ssh(where: str, value, host_key_fingerprint):
     return profile
 
 
+def _checked_public_key(where, value, pin):
+    if value is None:
+        return None
+    try:
+        return hostkey.checked_public_key(value, pin)
+    except hostkey.HostKeyError as error:
+        raise InventoryError("%s: %s" % (where, error), field="inventory.devices[].host_key",
+                             code="ssh-public-key") from None
+
+
 def _checked_section(where: str, name: str, value):
     if value is None:
         return None
@@ -245,7 +257,7 @@ def _device(index: int, item) -> Device:
     missing = [name for name in DEVICE_FIELDS if name not in item]
     if missing:
         raise InventoryError("%s: missing fields: %s" % (where, ", ".join(missing)), field='inventory.devices[].' + missing[0], code='required')
-    unknown = sorted(set(item) - set(DEVICE_FIELDS))
+    unknown = sorted(set(item) - set(DEVICE_FIELDS) - set(OPTIONAL_DEVICE_FIELDS))
     if unknown:
         raise InventoryError("%s: unknown fields: %s" % (where, ", ".join(unknown)), field='inventory.devices[]', code='unknown-fields')
     address = _checked_address(where, item["address"])
@@ -265,6 +277,7 @@ def _device(index: int, item) -> Device:
         legacy_ssh=_checked_legacy_ssh(where, item["legacy_ssh"], host_key_fingerprint),
         auditor=sections[0],
         helper=sections[1],
+        host_key=_checked_public_key(where, item.get("host_key"), host_key_fingerprint),
     )
 
 

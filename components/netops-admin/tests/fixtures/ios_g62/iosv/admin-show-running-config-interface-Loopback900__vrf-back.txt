@@ -1,0 +1,12 @@
+
+
+
+Building configuration...
+
+Current configuration : 135 bytes
+!
+interface Loopback900
+ description netops-g62 test
+ ip address 198.51.100.1 255.255.255.240
+ ipv6 address 2001:db8:2::1/64
+end

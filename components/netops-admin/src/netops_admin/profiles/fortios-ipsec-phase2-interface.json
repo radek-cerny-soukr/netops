@@ -1,0 +1,93 @@
+{
+  "platform": "fortios",
+  "table": "vpn ipsec phase2-interface",
+  "versions": ["7.6.8 build3744"],
+  "exact_versions": true,
+  "ops": ["create"],
+  "undo_ops": ["delete"],
+  "table_scoped_key": true,
+  "key_pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,34}$",
+  "protected_keys": [],
+  "attributes": {
+    "phase1name": {
+      "type": "text",
+      "max_length": 15,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,14}$",
+      "required_on_create": true,
+      "update": false,
+      "unset": false,
+      "referenced_update": false
+    },
+    "src-subnet": {
+      "type": "ipv4-network",
+      "default": "0.0.0.0 0.0.0.0",
+      "undo_to_default": true,
+      "required_on_create": true,
+      "update": false,
+      "unset": false,
+      "referenced_update": false
+    },
+    "dst-subnet": {
+      "type": "ipv4-network",
+      "default": "0.0.0.0 0.0.0.0",
+      "undo_to_default": true,
+      "required_on_create": true,
+      "update": false,
+      "unset": false,
+      "referenced_update": false
+    },
+    "proposal": {
+      "type": "text",
+      "max_length": 255,
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*( [a-z0-9]+(-[a-z0-9]+)*)*$",
+      "required_on_create": true,
+      "update": false,
+      "unset": false,
+      "referenced_update": false
+    },
+    "dhgrp": {
+      "type": "text",
+      "max_length": 48,
+      "pattern": "^(1|2|5|14|15|16|17|18|19|20|21|27|28|29|30|31|32)( (1|2|5|14|15|16|17|18|19|20|21|27|28|29|30|31|32))*$",
+      "required_on_create": false,
+      "update": false,
+      "unset": false,
+      "referenced_update": false
+    },
+    "pfs": {
+      "type": "text",
+      "max_length": 7,
+      "pattern": "^(enable|disable)$",
+      "default": "enable",
+      "required_on_create": false,
+      "update": false,
+      "unset": false,
+      "referenced_update": false
+    },
+    "auto-negotiate": {
+      "type": "text",
+      "max_length": 7,
+      "pattern": "^(enable|disable)$",
+      "default": "disable",
+      "required_on_create": false,
+      "update": false,
+      "unset": false,
+      "referenced_update": false
+    },
+    "keylifeseconds": {
+      "type": "integer",
+      "minimum": 120,
+      "maximum": 172800,
+      "default": "43200",
+      "required_on_create": false,
+      "update": false,
+      "unset": false,
+      "referenced_update": false
+    }
+  },
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "The undo deletes the newly created Phase 2 selector only, after verifying that it still matches its confirmed configuration."
+}

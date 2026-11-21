@@ -49,6 +49,18 @@ def _nxos_sku(chassis: str | None) -> str | None:
     return match[1] if match else chassis
 
 
+_IOS_XE = re.compile(
+    r"^Cisco IOS (?:XE Software,|Software, IOS[ -]XE\b|Software \[IOSXE\],"
+    r"|Software(?: \[[A-Za-z0-9]+\])?, [^\r\n()]+ Software "
+    r"\([A-Za-z0-9_-]+_IOSXE\),)",
+    re.IGNORECASE | re.MULTILINE,
+)
+
+
+def is_ios_xe(output: str) -> bool:
+    return bool(_IOS_XE.search(output))
+
+
 def parse_identity(profile: str, output: str, warnings: list[str] | None = None) -> dict:
     """Require an OS signature and version; read model, serial and uptime as data only.
 
@@ -62,7 +74,7 @@ def parse_identity(profile: str, output: str, warnings: list[str] | None = None)
             raise IdentityError('identity_os_mismatch')
         record.update(hostname=match[1], os_version=match[2])
     elif profile in {"cisco_ios", "cisco_xe"}:
-        xe = re.search(r"(?mi)^Cisco IOS (?:XE Software|Software, IOS[ -]XE|Software \[IOSXE\],)", output)       # IOL (17.18) prints only the last form
+        xe = is_ios_xe(output)
         ios = re.search(r"(?mi)^Cisco IOS Software,", output)
         if not (xe if profile == "cisco_xe" else ios and not xe):
             raise IdentityError("identity_os_mismatch")
@@ -70,8 +82,8 @@ def parse_identity(profile: str, output: str, warnings: list[str] | None = None)
             os_version=_one(output, r"^Cisco IOS XE Software, Version[ \t]+(\S+)" ) if xe else None,
             model=_optional(output, r"^cisco[ \t]+(\S+)[ \t]+\([^)\r\n]*\)[ \t]+(?:processor|with)\b", "model", warnings),
             serial_number=_optional(output, r"^Processor [Bb]oard ID[ \t]+(\S+)", "serial_number", warnings),
-            hostname=_optional(output, r"^[ \t]*(\S+) uptime is .+$", "hostname", warnings),
-            uptime=_optional(output, r"^[ \t]*\S+ uptime is (.+)$", "uptime", warnings),
+            hostname=_optional(output, r"^[ \t]*(\S+)[ \t]+uptime is .+$", "hostname", warnings),
+            uptime=_optional(output, r"^[ \t]*\S+[ \t]+uptime is (.+)$", "uptime", warnings),
         )
         if not record["os_version"]:
             record["os_version"] = _one(output, r"^Cisco IOS Software(?:,| \[[^\]\r\n]+\],).*?\bVersion[ \t]+([^, \t\r\n]+)")
@@ -196,9 +208,23 @@ def normalize_port(value: str) -> dict:
     return {'name': canonical, 'physical': parent, 'unit': int(unit) if separator else None, 'aggregate': aggregate, 'kind': kind}
 
 
+def counter_delta(before: object, after: object) -> tuple[int | None, str]:
+    """Increase of one cumulative counter between two reads of the same port.
+
+    `ok` carries the increase (zero included). `absent` means either read lacks the
+    counter. A lower second value is `reset_or_wrap`: a clear, a reload and a 32/64-bit
+    wrap look the same in two samples, so no increase is invented for it.
+    """
+    if type(before) is not int or type(after) is not int or before < 0 or after < 0:
+        return None, 'absent'
+    if after < before:
+        return None, 'reset_or_wrap'
+    return after - before, 'ok'
+
+
 RESULT_STATES = frozenset({
     'ok', 'empty', 'not_applicable', 'unsupported', 'permission_denied',
-    'unparsed', 'truncated', 'timeout', 'transport_error',
+    'incomplete', 'unparsed', 'truncated', 'timeout', 'transport_error',
 })
 # Explicit authorization/permission refusals of every CLI.
 _PERMISSION = re.compile(
@@ -210,6 +236,11 @@ _PERMISSION = re.compile(
 )
 # IOS/IOS XE hide commands outside the read-only view behind a plain syntax error.
 _IOS_INVALID_INPUT = re.compile(r'(?mi)^[^\S\n]*%\s*Invalid input')
+_IOS_TACACS_DENIED = re.compile(r'(?mi)^[ \t]*Command authorization failed\.[ \t]*\r?$')
+_EOS_PRIVILEGED = re.compile(r"(?mi)^[ \t]*% Invalid input \(privileged mode required\) at line [0-9]+[ \t]*\r?$")
+EOS_UNAVAILABLE_LINE = (r'%[ \t]*Unavailable command(?: \(not supported on this hardware platform\))?'
+                        r'(?: at line [0-9]+)?')
+_EOS_UNAVAILABLE = re.compile(r'(?mi)^[ \t]*' + EOS_UNAVAILABLE_LINE + r'[ \t]*\r?$')
 _UNSUPPORTED = re.compile(
     r'(?mi)^[^\S\n]*(?:Method is not implemented on this platform\.'
     r'|%{1,2}\s*(?:Unrecognized command|Incomplete command|Ambiguous command|Invalid command|Invalid input)'
@@ -222,8 +253,14 @@ _UNSUPPORTED = re.compile(
 # EOS "! IPv6 routing not enabled", Junos "BGP is not running", "Spanning-tree is not enabled at global level"
 # and "warning: lacp subsystem not running - not needed by configuration.").
 _NOT_CONFIGURED = re.compile(r'(?mi)^[^\S\n]*(?:%\s*BGP (?:not active|inactive)\b|!\s*IPv6 routing not enabled\b|BGP is not running\b'
+                             r'|%\s*OSPF3 process does not exist in vrf [A-Za-z0-9_.:-]+ at line [0-9]+[ \t]*$'
+                             r'|%\s*(?:No VRF named [A-Za-z0-9_.:-]+|IP routing table vrf [A-Za-z0-9_.:-]+ does not exist)\.?[ \t]*$'
                              r'|Spanning-tree is not enabled at global level\b'
+                             r'|%\s*Switch is not in mst mode\b'
                              r'|warning: [a-z0-9-]+ subsystem not running - not needed by configuration\b)')
+
+
+_JUNOS_OSPF_ABSENT = re.compile(r"(?i)OSPF instance is not running")
 
 
 # Device refusal patterns search the complete output at line boundaries, as in 1fad86c.
@@ -261,12 +298,29 @@ def output_status(output: str, *, rc: int | None = 0, truncated: bool = False, p
     """`truncated` is for a capture limit; a paged but complete capture is not truncated."""
     if truncated or _terminal_pager(output):
         return 'truncated'
-    if _PERMISSION.search(output) or (profile in {'cisco_ios', 'cisco_xe'} and _IOS_INVALID_INPUT.search(output)):
+    if (profile == 'arista_eos' and _EOS_PRIVILEGED.search(output)
+            or _PERMISSION.search(output)
+            or profile in {'cisco_ios', 'cisco_xe'} and (_IOS_INVALID_INPUT.search(output) or _IOS_TACACS_DENIED.search(output))):
         return 'permission_denied'
-    if _UNSUPPORTED.search(output):
+    if _UNSUPPORTED.search(output) or (profile == 'arista_eos' and _EOS_UNAVAILABLE.search(output)):
         return 'unsupported'
-    if _NOT_CONFIGURED.search(output):
+    if (_NOT_CONFIGURED.search(output)
+            or profile in {'cisco_ios', 'cisco_xe'} and command in {'show snmp', 'show snmp engineID'} and rc in (0, None)
+            and output.strip() == '%SNMP agent not enabled'
+            or profile in {'juniper_junos', 'juniper_junos_els'} and rc in (0, None)
+            and _JUNOS_OSPF_ABSENT.fullmatch(output.strip())):
         return 'not_applicable'
+    if profile == 'cisco_nxos' and command and command.startswith(
+            ('show spanning-tree mst', 'show lldp neighbors interface ', 'show cdp neighbors interface ')):
+        answer = ' '.join(output.split())
+        if rc == 244 and command == 'show spanning-tree mst' and answer == 'ERROR: Switch is not in mst mode Cmd exec error.':
+            return 'not_applicable'
+        if (rc == 244 and command.startswith('show lldp neighbors interface ')
+                and answer == 'ERROR: No neighbour information Cmd exec error.'):
+            return 'empty'
+        if (rc in (0, None) and command.startswith('show cdp neighbors interface ')
+                and answer == 'Note: CDP Neighbor entry not found'):
+            return 'empty'
     if rc not in (0, None) and not exos_exit_250(profile, rc, output):
         return 'transport_error'
     return 'ok' if output.strip() else 'empty'
@@ -323,7 +377,9 @@ def refusal_hint(profile: str | None, output: str, command: str | None = None) -
 def permission_refused(profile: str, output: str, command: str | None = None) -> bool:
     """Extra RO-account refusals, scoped to the OS that emits them."""
     if profile in {"cisco_ios", "cisco_xe"}:
-        return _IOS_RO_REFUSAL.search(output) is not None
+        return _IOS_RO_REFUSAL.search(output) is not None or _IOS_TACACS_DENIED.search(output) is not None
+    if profile == "arista_eos" and _EOS_PRIVILEGED.search(output):
+        return True
     if profile in {"cisco_nxos", "arista_eos"}:
         return _CISCO_RO_REFUSAL.search(output) is not None
     if profile.startswith("juniper_junos"):

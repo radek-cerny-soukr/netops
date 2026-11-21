@@ -785,6 +785,7 @@ def _gathered(record, section, credential, max_response_bytes) -> tuple:
         credential,
         record.host_key_fingerprint,
         legacy_ssh=record.legacy_ssh,
+        host_key=record.host_key,
     )
     return snapshot, tuple(events)
 

@@ -31,6 +31,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey, X25519PublicKey
 
 from netops_core import ssh as core_ssh
+from netops_core import session as core_session
 from netops_core.audit import Recorder
 from netops_core.hostkey import fingerprint_of
 import netops_helper.audit as helper_audit
@@ -286,6 +287,13 @@ def _random_pin():
     return fingerprint_of(base64.b64encode(os.urandom(51)).decode("ascii"))
 
 
+def _enrolled_host_key():
+    public = Ed25519PrivateKey.generate().public_key().public_bytes(
+        serialization.Encoding.OpenSSH, serialization.PublicFormat.OpenSSH,
+    ).decode("ascii")
+    return public, fingerprint_of(public.split()[1])
+
+
 class _ExecutionSpy:
     def __init__(self):
         self.calls = []
@@ -366,24 +374,26 @@ class HelperSshRead(_Case):
 
 class _Credential:
     login = "auditor-reader"
+    kind = core_ssh.KIND_PASSWORD
 
     def use(self):
         return "f3-synthetic-credential"
 
 
 class AuditorCollectSsh(_Case):
-    def collect(self, address, port, pin, run):
+    def collect(self, address, port, pin, run, *, host_key=None):
         return collect.collect_ssh(
             "f3-device", "fortios", address, port, _Credential(), pin,
-            timeout=SHORT_TIMEOUT, run=run,
+            timeout=SHORT_TIMEOUT, run=run, host_key=host_key,
         )
 
     def test_unreachable_target_is_not_reported_as_host_key_problem(self):
         spy = _ExecutionSpy()
+        host_key, pin = _enrolled_host_key()
         for label, address, port in _unreachable_targets(self):
             with self.subTest(label):
                 with self.assertRaises(collect.CollectError) as raised:
-                    self.collect(address, port, _random_pin(), spy)
+                    self.collect(address, port, pin, spy, host_key=host_key)
                 self.assert_reachability_diagnosis(label, str(raised.exception))
         self.assertEqual(spy.calls, [])
 
@@ -391,28 +401,42 @@ class AuditorCollectSsh(_Case):
         server = ForeignKeySshServer()
         self.addCleanup(server.close)
         spy = _ExecutionSpy()
+        host_key, pin = _enrolled_host_key()
         with self.assertRaises(collect.CollectError) as raised:
-            self.collect(LOOPBACK, server.port, _random_pin(), spy)
+            self.collect(LOOPBACK, server.port, pin, spy, host_key=host_key)
         self.assertGreaterEqual(server.key_exchanges, 1, "harness: the test server was never asked")
         self.assert_host_key_refusal(str(raised.exception))
+        self.assertEqual(spy.calls, [])
+
+    def test_missing_host_key_is_refused_before_network_attempt(self):
+        _, pin = _enrolled_host_key()
+        spy = _ExecutionSpy()
+        with mock.patch.object(core_session, "_spawn") as spawn, mock.patch.object(collect.hostkey, "scan") as scan:
+            with self.assertRaisesRegex(collect.CollectError, "add host_key") as raised:
+                self.collect(UNROUTED, 22, pin, spy)
+            self.assert_host_key_refusal(str(raised.exception))
+        spawn.assert_not_called()
+        scan.assert_not_called()
         self.assertEqual(spy.calls, [])
 
 
 class AdminDeviceAccess(_Case):
     def setUp(self):
-        timeout = mock.patch.object(access, "QUERY_TIMEOUT_SECONDS", SHORT_TIMEOUT)
-        timeout.start()
-        self.addCleanup(timeout.stop)
+        for setting in ("QUERY_TIMEOUT_SECONDS", "LOGIN_TIMEOUT_SECONDS"):
+            timeout = mock.patch.object(access, setting, SHORT_TIMEOUT)
+            timeout.start()
+            self.addCleanup(timeout.stop)
         self.spy = _ExecutionSpy()
         execution = mock.patch.object(access.ssh, "run_command", self.spy)
         execution.start()
         self.addCleanup(execution.stop)
 
-    def handle(self, address, port, pin):
+    def handle(self, address, port):
+        host_key, pin = _enrolled_host_key()
         handle = access.DeviceAccess.__new__(access.DeviceAccess)
         handle.device = SimpleNamespace(
             name="f3-device", platform="fortios", address=address, port=port,
-            host_key_fingerprint=pin, legacy_ssh=None, check_address=None,
+            host_key_fingerprint=pin, host_key=host_key, legacy_ssh=None, check_address=None,
         )
         handle.credential = handle.check_credential = _Credential()
         handle._host_key_lines = {}
@@ -422,7 +446,7 @@ class AdminDeviceAccess(_Case):
         for label, address, port in _unreachable_targets(self):
             with self.subTest(label):
                 with self.assertRaises(access.AccessError) as raised:
-                    self.handle(address, port, _random_pin()).query("get system status")
+                    self.handle(address, port).query("get system status")
                 self.assert_reachability_diagnosis(label, str(raised.exception))
         self.assertEqual(self.spy.calls, [])
 
@@ -430,7 +454,7 @@ class AdminDeviceAccess(_Case):
         server = ForeignKeySshServer()
         self.addCleanup(server.close)
         with self.assertRaises(access.AccessError) as raised:
-            self.handle(LOOPBACK, server.port, _random_pin()).query("get system status")
+            self.handle(LOOPBACK, server.port).query("get system status")
         self.assertGreaterEqual(server.key_exchanges, 1, "harness: the test server was never asked")
         self.assert_host_key_refusal(str(raised.exception))
         self.assertEqual(self.spy.calls, [])

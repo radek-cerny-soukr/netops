@@ -1,0 +1,12 @@
+# Module vlan configuration.
+create vlan "netops-g48"
+# Module vlan configuration.
+configure vlan netops-g48 tag 3940
+# Module vlan configuration.
+configure vlan netops-g48 add ports 10 tagged
+# Module vlan configuration.
+configure vlan netops-g48 ipaddress 192.0.2.1    255.255.255.0
+# Module vlan configuration.
+enable ipforwarding vlan netops-g48
+# Module netTools configuration.
+configure bootprelay vlan netops-g48 add 192.0.2.254

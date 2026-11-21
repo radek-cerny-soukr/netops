@@ -10,8 +10,8 @@ from .cisco import IOS_QUERIES, IOS_XE_QUERIES, NXOS_QUERIES
 from .extreme import QUERIES as EXTREME_EXOS_QUERIES
 from .fortiadc import QUERIES as FORTIADC_QUERIES
 from .fortinet import QUERIES as FORTINET_QUERIES
-from .junos import COMMON_QUERIES as JUNIPER_JUNOS_QUERIES
 from .junos import ELS_QUERIES as JUNIPER_JUNOS_ELS_QUERIES
+from .junos import JUNOS_QUERIES as JUNIPER_JUNOS_QUERIES
 from .linux import QUERIES as LINUX_QUERIES
 from .model import Query
 from .ruckus import QUERIES as RUCKUS_UNLEASHED_QUERIES

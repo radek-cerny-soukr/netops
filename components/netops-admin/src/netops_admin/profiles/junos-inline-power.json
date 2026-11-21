@@ -1,0 +1,34 @@
+{
+  "platform": "junos",
+  "table": "inline-power",
+  "action": "poe-cycle",
+  "versions": [
+    "26.2R1.7"
+  ],
+  "exact_versions": true,
+  "ops": [
+    "update"
+  ],
+  "implicit_keys": true,
+  "table_scoped_key": true,
+  "key_pattern": "^[a-z]{2,8}(?:-[0-9]{1,2}/[0-9]{1,2}/[0-9]{1,3}|[0-9]{1,3})$",
+  "protected_keys": [],
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "attributes": {
+    "admin-state": {
+      "type": "text",
+      "max_length": 8,
+      "pattern": "^(enabled|disabled)$",
+      "default": "enabled",
+      "update": true,
+      "unset": false,
+      "referenced_update": true,
+      "required_on_create": false,
+      "undo_to_default": true
+    }
+  },
+  "rollback_evidence": "1.0.12 G138 J10 (poe-cycle: disable, hold, enable of the port power): 'set poe interface <if> disable' / 'delete poe interface <if> disable' (PoE of one port; the syntax is read by '?' on vJunos-switch 26.2R1.7 and the statement is accepted into a discarded private candidate, task-evidence/g138/znalost/s3-help.txt, s5-private.txt). vJunos has no PoE controller: 'show poe interface <if>' answers only 'warning: satellite-platform-management-process subsystem not running', which Admin turns into poe_not_capable before any write; the layout of the answer of a real EX (Interface, Admin-status, Oper-status, Max-power, Priority, Power-consumption, Class) comes from the Juniper EX documentation (fixtures/junos_g138/PROVENANCE.md), not measured. The change runs behind the same commit confirmed safeguard as every Junos change (exec_junos.py). Used only by the poe-cycle operation (junos_cycle.py)."
+}

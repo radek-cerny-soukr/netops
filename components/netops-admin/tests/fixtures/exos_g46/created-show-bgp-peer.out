@@ -1,0 +1,74 @@
+
+Peer Description    :
+EBGP Peer           : 198.51.100.2      AS                  : 65146
+Enabled             : No                OperStatus          : Down
+Weight              : 1                 Shutdown-Priority   : 1024
+ConnectRetry        : 30                MinAsOrig           : 30
+HoldTimeCfg         : 180               KeepaliveCfg        : 60
+Source Interface    : Not configured    RRClient            : No
+EBGP-Multihop       : No                Remove Private AS   : No
+BFD                 : Off               BFD Status          : Not Required
+Capabilities Config : ipv4-unicast,ipv4-multicast,4-Byte-As,route-refresh (old & new)
+Policy for NLRI Type ipv4-unicast
+  In Policy         : None
+  Out Policy        : None
+  NextHopSelf       : Disabled          Send Communities    : No
+  Soft Input Recfg  : Disabled          Allow Looped AS-Path: No
+  NextHopUnchanged  : Disabled
+Policy for NLRI Type ipv4-multicast
+  In Policy         : None
+  Out Policy        : None
+  NextHopSelf       : Disabled          Send Communities    : No
+  Soft Input Recfg  : Disabled          Allow Looped AS-Path: No
+  NextHopUnchanged  : Disabled
+Policy for NLRI Type vpnv4
+  In Policy         : None
+  Out Policy        : None
+  NextHopSelf       : Disabled          Send Communities    : Standard, Extended
+  Soft Input Recfg  : Disabled          Allow Looped AS-Path: No
+  NextHopUnchanged  : Disabled
+Policy for NLRI Type ipv6-unicast
+  In Policy         : None
+  Out Policy        : None
+  NextHopSelf       : Disabled          Send Communities    : No
+  Soft Input Recfg  : Disabled          Allow Looped AS-Path: No
+  NextHopUnchanged  : Disabled
+Policy for NLRI Type ipv6-multicast
+  In Policy         : None
+  Out Policy        : None
+  NextHopSelf       : Disabled          Send Communities    : No
+  Soft Input Recfg  : Disabled          Allow Looped AS-Path: No
+  NextHopUnchanged  : Disabled
+Policy for NLRI Type ipv4-vxlan
+  In Policy         : None
+  Out Policy        : None
+  NextHopSelf       : Enabled           Send Communities    : No
+  Soft Input Recfg  : Disabled          Allow Looped AS-Path: No
+  NextHopUnchanged  : Disabled
+Policy for NLRI Type l2vpn-evpn
+  In Policy         : None
+  Out Policy        : None
+  NextHopSelf       : Disabled          Send Communities    : Standard, Extended
+  Soft Input Recfg  : Disabled          Allow Looped AS-Path: No
+  NextHopUnchanged  : Enabled
+State               : IDLE
+FSM Down since      : Thu Nov 19 17:30:11 2026
+ (Duration: 0:0:00:00)
+Remote Addr         : 198.51.100.2      Local Addr          : 0.0.0.0
+Remote Port         : 0                 Local Port          : 0
+Remote RouterId     : 0.0.0.0           Local RouterId      : 0.0.0.0
+HoldTimeNegotiated  : 0                 KeepAliveNegotiated : 0
+FsmTransitions      : 0
+InUpdateElapsedTime : 00:00:00:00       InMsgElapsedTime    : 0:0:00:00
+InUpdates           : 0                 OutUpdates (in TxQ) : 0 (0)
+InTotalMsgs         : 0                 OutTotalMsgs        : 0
+InRouteRefreshes    : 0                 OutRouteRefreshes   : 0
+Capabilities Tx     : None
+Capabilities Rx     : None
+NLRI for the session:  None
+
+BGP Peer Statistics
+  Total Peers       : 1
+  EBGP Peers        : 1                 IBGP Peers          : 0
+  RR Client         : 0                 EBGP Multihop       : 0
+  Enabled           : 0                 Disabled            : 1

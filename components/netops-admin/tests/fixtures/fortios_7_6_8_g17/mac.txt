@@ -1,0 +1,38 @@
+Vdom: root
+
+Managed Switch : S000SSSS00000001 0
+
+flag bit pattern: 0x00000000
+flag bit Mask:    0x00000000
+vlan map: 0-4094
+port-id map: 0-11
+trunk-id map: 0-127
+
+MAC: 00:00:5e:00:53:01	VLAN: 4094 Trunk: 00005E005301-0(trunk-id 0)
+  Flags: 0x000000c1 [ hit trunk dynamic ]
+
+MAC: 00:00:5e:00:53:03	VLAN: 100 Port: port4(port-id 4)
+  Flags: 0x00000041 [ hit dynamic ]
+
+MAC: 00:00:5e:00:53:04	VLAN: 100 Port: port4(port-id 4)
+  Flags: 0x00000041 [ hit dynamic ]
+
+MAC: 00:00:5e:00:53:05	VLAN: 100 Port: port4(port-id 4)
+  Flags: 0x00000041 [ hit dynamic ]
+
+MAC: 00:00:5e:00:53:06	VLAN: 100 Port: port4(port-id 4)
+  Flags: 0x00000041 [ hit dynamic ]
+
+MAC: 00:00:5e:00:53:07	VLAN: 100 Port: port4(port-id 4)
+  Flags: 0x00000041 [ hit dynamic ]
+
+MAC: 00:00:5e:00:53:08	VLAN: 100 Port: port4(port-id 4)
+  Flags: 0x00000041 [ hit dynamic ]
+
+MAC: 00:00:5e:00:53:01	VLAN: 100 Trunk: 00005E005301-0(trunk-id 0)
+  Flags: 0x000000c1 [ hit trunk dynamic ]
+
+MAC: 00:00:5e:00:53:09	VLAN: 4094 Port: internal(port-id 11)
+  Flags: 0x00000060 [ static ]
+
+Total Displayed: 9

@@ -1,0 +1,11 @@
+Vlan      Forwarded        Dropped     DHCP Drops      ACL Drops
+----      ---------        -------     ----------      ---------
+   5              3           4618           4605              4
+
+Vlan   DHCP Permits    ACL Permits  Source MAC Failures
+----   ------------    -----------  -------------------
+   5              0             12                    0
+
+Vlan   Dest MAC Failures   IP Validation Failures   Invalid Protocol Data
+----   -----------------   ----------------------   ---------------------
+   5                   0                        9                       3

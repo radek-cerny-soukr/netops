@@ -1,0 +1,16 @@
+FortiADC-KVM # == [ Factory ]
+	acme-status: not_set
+	is-hsm: no
+== [ Fortiadc_ssl ]
+	acme-status: not_set
+	is-hsm: no
+== [ SSLPROXY_LOCAL_CA ]
+	acme-status: not_set
+	is-hsm: no
+== [ HTTP2_RSA_2048 ]
+	acme-status: not_set
+	is-hsm: no
+== [ host01             ]
+	acme-status: not_set
+	is-hsm: no
+FortiADC-KVM #

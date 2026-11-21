@@ -1,0 +1,9 @@
+GigabitEthernet0/3.3954 - Group 54
+  State is Init (interface down)
+  Virtual IP address is 192.0.2.54
+  Hello time 3 sec, hold time 10 sec
+  Preemption disabled
+  Active router is unknown
+  Standby router is unknown
+  Priority 100 (default 100)
+  Group name is "hsrp-Gi0/3.3954-54" (default)

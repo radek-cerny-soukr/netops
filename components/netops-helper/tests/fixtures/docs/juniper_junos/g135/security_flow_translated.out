@@ -1,0 +1,4 @@
+Session ID: 249108247036, Policy name: 01_Internet/20, State: Stand-alone, Timeout: 854, Valid
+  In: 192.0.2.11/59874 --> 198.51.100.179/443;tcp, Conn Tag: 0x0, If: ae0.0, Pkts: 8, Bytes: 1278,
+  Out: 198.51.100.179/443 --> 203.0.113.145/8983;tcp, Conn Tag: 0x0, If: ge-0/0/0.0, Pkts: 18, Bytes: 13734,
+Total sessions: 1

@@ -39,10 +39,16 @@ def parse(table, text):
         r'diagnose switch-controller switch-info lldp (?:neighbors-summary|neighbor (?:\x08)?s-summary) ' + SERIAL,
         r'[A-Za-z0-9_-]+(?:\((?:Primary|Secondary)\))?\s*[#$]',
     )
+    raw_lines = text.splitlines()
+    totals = [int(match[1]) for raw in raw_lines
+              if (match := re.fullmatch(r'Total Displayed:\s*(\d{1,9})', raw.strip()))]
     text = '\n'.join('' if any(re.fullmatch(pattern, raw.strip()) for pattern in metadata) else raw
-                     for raw in text.splitlines())
+                     for raw in raw_lines)
     if table != 'lldp_neighbor' or not re.search(r'Portname\s+Status\s+Device-name\s+TTL\s+Capability\s+MED-type\s+Port-ID', text):
-        return tables.fortinet(table, text)
+        rows, unknown = tables.fortinet(table, text)
+        if table == 'mac_entry' and totals and sum(totals) != len(rows):
+            unknown.append({'line': len(raw_lines), 'text': 'FortiSwitch MAC table count does not match the rows'})
+        return rows, unknown
 
     def row(value):
         match = re.fullmatch(r'(port\d+(?:\.\d+)?)\s++(?:Up|Down)\s++(\S(?:.*?\S)?)\s++(\d+|-)\s++([A-Z]+|-)\s++(\S+)\s++(\S+)', value)

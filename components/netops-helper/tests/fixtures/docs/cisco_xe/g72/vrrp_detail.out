@@ -1,0 +1,9 @@
+Ethernet1/0 - Group 1
+  State is Master
+  Virtual IP address is 192.0.2.3
+  Advertisement interval is 1.000 sec
+  Priority is 105
+    Track object 1 state Down decrement 15
+  Master Router is 192.0.2.2 (local), priority is 105
+  Master Advertisement interval is 1.000 sec
+  Master Down interval is 3.531 sec

@@ -1,0 +1,27 @@
+show sysinfo
+System Overview:
+  Name= host03
+  IP Address= 192.0.2.5
+  MAC Address= 00:00:5e:00:53:01
+  Uptime= 41d 16h 17m
+  Model= r610
+  Serial Number= 000000000001
+  Version= 200.15.6.212 build 27
+Devices Overview:
+  Number of APs= 1
+  Number of Client Devices= 13
+  Number of Rogue Devices= 2
+Usage Summary:
+  Usage of 1 hr:
+    Max. Concurrent Users= 14
+    Bytes Transmitted= 35.67M
+    Number of Rogue Devices= 2
+  Usage of 24 hr:
+    Max. Concurrent Users= 16
+    Bytes Transmitted= 32.13G
+    Number of Rogue Devices= 13
+Memory Utilization:
+  Used Bytes= 236464(kB)
+  Used Percentage= 51%
+  Free Bytes= 234492(kB)
+  Free Percentage= 49%

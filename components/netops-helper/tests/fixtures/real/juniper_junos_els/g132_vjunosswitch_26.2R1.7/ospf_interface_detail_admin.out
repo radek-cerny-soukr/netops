@@ -1,0 +1,9 @@
+Interface           State   Area            DR ID           BDR ID          Nbrs
+irb.10              DRother 0.0.0.0         203.0.113.250   203.0.113.253      4
+  Type: LAN, Address: 192.0.2.6, Mask: 255.255.255.0, MTU: 1500, Cost: 1
+  DR addr: 192.0.2.7, BDR addr: 192.0.2.3, Priority: 128
+  Adj count: 2
+  Hello: 10, Dead: 40, ReXmit: 5, Not Stub
+  Auth type: None
+  Protection type: None
+  Topology default (ID 0) -> Cost: 1

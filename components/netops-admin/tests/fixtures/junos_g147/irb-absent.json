@@ -1,0 +1,9 @@
+{
+    "interface-information" : [
+    {
+        "attributes" : {"xmlns" : "http://xml.juniper.net/junos/26.2R0/junos-interface",
+                        "junos:style" : "terse"
+                       }
+    }
+    ]
+}

@@ -1,0 +1,13 @@
+Vlan3900 is down (VLAN/BD is down), line protocol is down, autostate enabled
+  Hardware is EtherSVI, address is  0000.5e00.5301
+  Internet Address is 192.0.2.1/28
+  MTU 1500 bytes, BW 1000000 Kbit, DLY 10 usec,
+   reliability 255/255, txload 1/255, rxload 1/255
+  Encapsulation ARPA, loopback not set
+  Keepalive not supported
+  ARP type: ARPA
+  Last clearing of "show interface" counters never
+  L3 in Switched:
+    ucast: 0 pkts, 0 bytes
+  L3 out Switched:
+    ucast: 0 pkts, 0 bytes

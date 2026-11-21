@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import hashlib
+import ipaddress
 import json
 import re
 from typing import Iterable
 import bisect
 from netops.redaction_spans import Marked, mask, dumps
 from netops import redaction_spans as _spans
+
+from .normalization import EOS_UNAVAILABLE_LINE
 
 
 # Span operations of the response chain (task 165-r4). The same results as the
@@ -237,23 +240,808 @@ EXOS_ACCOUNT_SECRET = re.compile(
     r"(?im)^([ \t]*(?:configure[ \t]+account|create[ \t]+account[ \t]+(?:admin|user))[ \t]+\S+"
     r"[ \t]+encrypted[ \t]+)" + _LINE_CREDENTIAL
 )
-_ACCOUNT_SECRETS = (CISCO_USER_ACCOUNT_SECRET, CISCO_ENABLE_ACCOUNT_SECRET, AAA_SERVER_KEY, EXOS_ACCOUNT_SECRET)
-_ACCOUNT_REPLACE = {CISCO_ENABLE_ACCOUNT_SECRET: lambda match: _replace_enable(match)}
-_ACCOUNT_HINT = re.compile(r"(?i)username|enable|(?:tacacs|radius)-server|account|\\u")
+# NX-OS `show snmp` includes the configured communities in an unlabelled first
+# column. Hide whole rows: quoted values or spaces must not leave a secret tail.
+NXOS_SNMP_COMMUNITY_TABLE = re.compile(
+    r"(?im)^([ \t]*Community[ \t]+(?:Group|<REDACTED>)[ \t]*/[ \t]*Access\b[^\r\n]*\r?\n)"
+    r"((?:[ \t]*[^ \t\r\n][^\r\n]*(?:\r?\n|$))+)"
+)
+_NXOS_SNMP_PAGER_SUFFIX = re.compile(r"(?i)--More--[ \t]*(?=\r?\n?\Z)")
+
+
+def _mask_nxos_community_line(line: str) -> str:
+    pager = _NXOS_SNMP_PAGER_SUFFIX.search(line)
+    suffix = line[pager.start():] if pager else line[len(line.rstrip('\r\n')):]
+    return '<REDACTED>' + suffix
+
+
+def _mask_community_rows(match):
+    return match.group(1) + ''.join(
+        line if re.fullmatch(r'[- \t\r\n]+', line) else _mask_nxos_community_line(line)
+        for line in match.group(2).splitlines(keepends=True)
+    )
+
+
+# NX-OS `show snmp` / `show snmp community` (task 490): NXOS_SNMP_COMMUNITY_TABLE only knows the 9.3(12) header.
+# The community block is checked first: an empty table, the role notice or that exact header (optional underline,
+# rows up to the first blank line) stay with the general rules; any other shape is masked line by line (fail-closed).
+NXOS_SNMP_COMMUNITY_NOTE = "[netops-helper: unrecognized SNMP community-table format; all lines redacted]"
+_NXOS_SNMP_KNOWN_HEADER = re.compile(
+    r"[ \t]*Community[ \t]+(?:Group|<REDACTED>)[ \t]*/[ \t]*Access[ \t]+context[ \t]+acl_filter[ \t]*\r?")
+_NXOS_SNMP_ROLE_NOTICE = re.compile(
+    r"[ \t]*User does not have permission to view community (?:strings\.|<REDACTED>)[ \t]*\r?")
+_NXOS_SNMP_BLOCK_START = re.compile(r"[ \t]*Max packetsize:[ \t]*\d+[ \t]*\r?")
+_NXOS_SNMP_SECTION_RULE = re.compile(r"_{20,}[ \t]*\r?")
+_NXOS_SNMP_SECTION_HEADING = re.compile(
+    r"[ \t]*(?:SNMP USERS|NOTIFICATION TARGET USERS \(configured +for sending V3 Inform\))[ \t]*\r?")
+_NXOS_SNMP_COMMUNITY_WORD = re.compile(r"(?i)[ \t]*community\b")
+# Device status lines stay readable in a masked block, so a refusal or a pager stop is still recognized.
+_NXOS_SNMP_STATUS_LINE = re.compile(
+    r"(?i)[ \t]*(?:%[ \t]*(?:Authorization failed|Authorization denied|Permission denied|Access denied)\b[^\r\n]*"
+    r"|%{1,2}[ \t]*(?:Unrecognized command|Incomplete command|Ambiguous command|Invalid command|Invalid input)\b[^\r\n]*"
+    r"|Syntax error while parsing\b[^\r\n]*|Cmd exec error\.|\^|--More--|---\(more(?: [0-9]+%)?\)---"
+    r"|Press <SPACE> to continue[^\r\n]*)[ \t]*\r?")
+
+
+def _nxos_community_block_known(lines: list[str]) -> bool:
+    body = [i for i, line in enumerate(lines) if line.strip()]
+    if not body:
+        return True
+    first = lines[body[0]]
+    if len(body) == 1 and _NXOS_SNMP_ROLE_NOTICE.fullmatch(first):
+        return True
+    if not _NXOS_SNMP_KNOWN_HEADER.fullmatch(first):
+        return False
+    rows_end = next((i for i in range(body[0] + 1, len(lines)) if not lines[i].strip()), len(lines))
+    return all(i < rows_end for i in body)
+
+
+# NX-OS 9.3(12) with a configured community prints no table but one labelled triple per community (task 490-r3,
+# live d-nxos capture): `Community name:`, `Community groupname:`, `Context mapped:`. Only the name value is masked
+# here; the group and the context stay. A missing, extra, reordered or split line is not this shape.
+_NXOS_SNMP_NAME = re.compile(r"(?P<label>[ \t]*Community name:[ \t]*)(?P<value>\S[^\r\n]*)(?P<cr>\r?)")
+_NXOS_SNMP_LABELLED = (
+    _NXOS_SNMP_NAME,
+    re.compile(r"[ \t]*Community groupname:[ \t]*\S*[ \t]*\r?"),
+    re.compile(r"[ \t]*Context mapped:[ \t]*\S*[ \t]*\r?"),
+)
+
+
+def _nxos_community_block_labelled(lines: list[str]) -> list[str] | None:
+    """The block with every community name value masked when it holds only blank lines and complete labelled
+    triples (at least one); None for any other shape."""
+    masked, expected = [], 0
+    for line in lines:
+        if not line.strip():
+            if expected:
+                return None
+            masked.append(line)
+            continue
+        match = _NXOS_SNMP_LABELLED[expected].fullmatch(line)
+        if not match:
+            return None
+        masked.append(match["label"] + "<REDACTED>" + match["cr"] if expected == 0 else line)
+        expected = (expected + 1) % len(_NXOS_SNMP_LABELLED)
+    return masked if not expected and any(line.strip() for line in lines) else None
+
+
+_NXOS_SNMP_VALUE_LINE = re.compile(r"(?P<label>[ \t]*(?:Community groupname|Context mapped):[ \t]*)(?P<value>[^\r\n]*)")
+
+
+def redact_short_nxos_community_values(text: str, secrets: Iterable[str]) -> str:
+    """Mask community names below the general redaction floor (1-2 bytes, e.g. `ro`) without touching other text.
+
+    The value of every `Community name:` line is masked; on the `Community groupname:` and `Context mapped:` lines
+    only a whole whitespace-delimited token equal to the community is replaced, never part of another word."""
+    short = {value for value in secrets if value}
+    if not short:
+        return text
+    out = []
+    for line in text.split("\n"):
+        name = _NXOS_SNMP_NAME.fullmatch(line)
+        if name and name["value"].rstrip(" \t") in short:
+            line = name["label"] + "<REDACTED>" + name["cr"]
+        else:
+            other = _NXOS_SNMP_VALUE_LINE.fullmatch(line.rstrip("\r"))
+            if other and short.intersection(other["value"].split()):
+                value = re.sub(r"[^ \t]+", lambda token: "<REDACTED>" if token[0] in short else token[0], other["value"])
+                line = other["label"] + value + line[len(line.rstrip("\r")):]
+        out.append(line)
+    return "\n".join(out)
+
+
+def redact_nxos_snmp_communities(text: str, *, community_secrets: set[str] | None = None) -> tuple[str, bool]:
+    """Fail-closed community block of NX-OS `show snmp` (after `Max packetsize:`, up to the next known section) or of
+    `show snmp community` (no `Max packetsize:` line: the whole output). Returns (text, masked): a known table shape
+    is returned unchanged and the labelled 9.3(12) shape with only its community name values masked, both with
+    masked False; otherwise every non-blank line of the block except device status lines (refusal, syntax error,
+    pager) becomes <REDACTED> behind one note line (masked True), and a `Community…` line outside the block makes
+    the whole output the block. A block of status lines only (a refusal) is returned unchanged.
+    If supplied, community_secrets collects labelled names from the entire output for general redaction."""
+    lines = text.split("\n")
+    if community_secrets is not None:
+        for line in lines:
+            match = _NXOS_SNMP_NAME.fullmatch(line)
+            if match:
+                community_secrets.add(match["value"].rstrip(" \t"))
+    start = next((i + 1 for i, line in enumerate(lines) if _NXOS_SNMP_BLOCK_START.fullmatch(line)), None)
+    if start is None:
+        begin, end = 0, len(lines)
+    else:
+        begin = start
+        # A table underline can look identical to the rule framing a section heading.
+        end = next((i - 1 for i in range(start + 1, len(lines) - 1)
+                    if _NXOS_SNMP_SECTION_HEADING.fullmatch(lines[i])
+                    and _NXOS_SNMP_SECTION_RULE.fullmatch(lines[i - 1])
+                    and _NXOS_SNMP_SECTION_RULE.fullmatch(lines[i + 1])), len(lines))
+        if any(_NXOS_SNMP_COMMUNITY_WORD.match(line) for line in lines[:begin] + lines[end:]):
+            begin, end = 0, len(lines)
+    if _nxos_community_block_known(lines[begin:end]):
+        return text, False
+    labelled = _nxos_community_block_labelled(lines[begin:end])
+    if labelled is not None:
+        return "\n".join(lines[:begin] + labelled + lines[end:]), False
+    masked = [line if not line.strip() or _NXOS_SNMP_STATUS_LINE.fullmatch(line)
+              else _mask_nxos_community_line(line) for line in lines[begin:end]]
+    if masked == lines[begin:end]:
+        return text, False
+    return "\n".join(lines[:begin] + [NXOS_SNMP_COMMUNITY_NOTE] + masked + lines[end:]), True
+
+# G95 publishes only recognized operational fields. SNMP's credentials can
+# appear outside the community table, including in user and notification rows.
+_NX_G95_NAME = r"[A-Za-z0-9_.@+-]+"
+_NX_G95_IPS = r"[0-9A-Fa-f:.]+(?:[ ,]+[0-9A-Fa-f:.]+)*"
+_NX_G95_DATE = r"[0-9]{2}:[0-9]{2}:[0-9]{2} [A-Za-z]{1,6} [A-Z][a-z]{2} +[0-9]{1,2} [0-9]{4}"
+_NX_G95_AAA_GROUP = rf"(?:local|none|group {_NX_G95_NAME})"
+_NX_G95_AAA_COUNTER = (
+    r"(?:failed transactions|sucessfull transactions|successful transactions|requests sent|"
+    r"requests timed out|responses with no matching requests|responses not processed|"
+    r"responses containing errors)"
+)
+_NX_G95_USERS_HEADER = r"NAME +LINE +TIME +IDLE +PID +COMMENT"
+_NX_G95_USER_DATE = r"(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) +[0-9]{1,2}"
+_NX_G95_SESSION_HEADER = r"Name +Session Owner +Creation Time"
+_NX_G95_SESSION_ROW = rf"{_NX_G95_NAME} +{_NX_G95_NAME} +{_NX_G95_DATE}"
+_NX_G95_SESSION_COUNT = re.compile(r"Number of active configuration sessions = ([0-9]{1,10})")
+_NX_G95_HOST_ROW = re.compile(rf"{_NX_G95_NAME}[ \t]+({_NX_G95_IPS})")
+_NX_G95_DNS_HEADER = r"Host[ \t]+Address"
+_NX_G95_DNS_VRF_HEADER = r"Vrf +Use-vrf +Token +Config"
+_NX_G95_DNS_VRF_SERVER = re.compile(rf"{_NX_G95_NAME} +{_NX_G95_NAME} +name-server\(s\) +({_NX_G95_IPS})")
+_NX_G95_SNMP_COUNTER = (
+    r"[0-9]+ (?:SNMP packets (?:input|output)|Bad SNMP versions|"
+    r"Encoding errors|Number of (?:requested|altered) variables|"
+    r"(?:Get-request|Get-next|Set-request) PDUs|No such name PDU|Bad value PDU|Read Only PDU|"
+    r"General errors|Get Responses|Unknown Context name|Access policy violation|Trap PDU|"
+    r"Too big errors \(Maximum packet size [0-9]+\)|No such name errors|Bad values errors|"
+    r"Get Requests|Get Next Requests|Set Requests|Silent drops)"
+)
+_NX_G95_AAA_STATS = (
+    r"Server is not monitored",
+    r"(?:Authentication|Accounting|Authorization) Statistics",
+    rf"{_NX_G95_AAA_COUNTER}: [0-9]+",
+)
+_NX_G95_LINES = {
+    "dns_hosts": (
+        r"DNS lookup (?:enabled|disabled)",
+        r"Name/address lookup (?:uses|does not use) domain service",
+        rf"Name servers are +{_NX_G95_IPS}",
+        rf"Vrf Name: {_NX_G95_NAME} +Default domain is {_NX_G95_NAME}",
+        rf"(?:Default domain name|Domain names|Domain name servers) (?:is|are) {_NX_G95_NAME}",
+        _NX_G95_DNS_HEADER,
+    ),
+    "snmp_statistics": (
+        _NX_G95_SNMP_COUNTER,
+        r"Max packetsize: [0-9]+",
+        r"SNMP Tcp Authentication Flag *: (?:Enabled|Disabled)\.",
+        r"SNMP protocol *: (?:Enabled|Disabled)",
+    ),
+    "snmp_engine_id": (
+        r"Local SNMP engineID: \[Hex\] [0-9A-Fa-f]{10,64}",
+        r"\[Dec\] [0-9]{1,3}(?::[0-9]{1,3}){4,31}",
+    ),
+    "aaa_authentication": (
+        rf"(?:default|console|iscsi|dhchap): {_NX_G95_AAA_GROUP}(?: (?:local|none))*",
+    ),
+    "radius_statistics": _NX_G95_AAA_STATS,
+    "tacacs_statistics": _NX_G95_AAA_STATS,
+    "users": (
+        _NX_G95_USERS_HEADER,
+        rf"{_NX_G95_NAME} +(?:pts/[0-9]+|tty[0-9]+) +{_NX_G95_USER_DATE} +[0-9]{{2}}:[0-9]{{2}}"
+        r" +(?:\.|old|[0-9:]+) +[0-9]+(?: +\([0-9a-fA-F:.]+\))?",
+    ),
+    "ssh_server": (r"ssh version [0-9]+ is (?:enabled|disabled)",),
+    "configuration_sessions": (
+        r"Session Manager Database:", r"-{20,}", _NX_G95_SESSION_HEADER, _NX_G95_SESSION_ROW,
+        r"There are no active configuration sessions", _NX_G95_SESSION_COUNT.pattern,
+    ),
+}
+_NX_G95_LINE = {query: re.compile("|".join(patterns)) for query, patterns in _NX_G95_LINES.items()}
+_NX_G95_REQUIRED = {
+    "dns_hosts": (r"DNS lookup (?:enabled|disabled)", _NX_G95_DNS_HEADER),
+    "snmp_statistics": (r"[0-9]+ SNMP packets input", r"[0-9]+ SNMP packets output",
+                        r"Max packetsize: [0-9]+", r"[0-9]+ Trap PDU", r"[0-9]+ Silent drops",
+                        r"SNMP protocol *: (?:Enabled|Disabled)"),
+    "snmp_engine_id": _NX_G95_LINES["snmp_engine_id"],
+    "aaa_authentication": (r"default: .*", r"console: .*"),
+    "radius_statistics": (r"Authentication Statistics", r"Accounting Statistics"),
+    "tacacs_statistics": (r"Authentication Statistics", r"Authorization Statistics", r"Accounting Statistics"),
+    "users": (_NX_G95_USERS_HEADER,),
+    "ssh_server": _NX_G95_LINES["ssh_server"],
+    "configuration_sessions": (r"Session Manager Database:", _NX_G95_SESSION_HEADER),
+}
+# Recognize raw and previously redacted copies of these two static counter labels.
+_NX_G95_SNMP_COUNTER_NAME = re.compile(
+    r"([0-9]+ (?:Unknown community|Illegal operation for community)) (?:name|<REDACTED>|\[redacted\])( supplied)?"
+)
+_NX_G95_PAGER = re.compile(r"(?i)(--More--|---\(more(?: [0-9]+%)?\)---|Press <SPACE> to continue)[^\n]*$")
+_NX_G95_SYNTAX = re.compile(r"Syntax error while parsing '[^'\n]*'")
+
+
+def _nxos_dns_addresses(value: str) -> bool:
+    try:
+        for address in re.split(r"[ ,]+", value):
+            ipaddress.ip_address(address)
+    except ValueError:
+        return False
+    return True
+
+
+def nxos_management_output(query: str, output: str) -> tuple[str, bool]:
+    """Return only recognized management fields and whether their capture is complete."""
+    accepted = _NX_G95_LINE[query]
+    fields = []
+    complete = True
+    in_snmp_config = False
+    past_snmp_protocol = False
+    in_dns_cache = False
+    in_dns_vrf_table = False
+    has_dns_vrf_server = False
+    for line in strip_terminal_controls(output).split("\n"):
+        value = line.strip()
+        if not value:
+            continue
+        pager = _NX_G95_PAGER.search(value)
+        if pager:
+            fields.append("[redacted]" + pager[1])
+            complete = False
+        elif _NX_G95_SYNTAX.fullmatch(value):
+            fields.append("Syntax error while parsing '[redacted]'")
+        elif value in {"% Permission denied for the role", "Cmd exec error.", "RADIUS server not found"}:
+            fields.append(value)
+        elif query == "snmp_statistics" and value.startswith("SNMP Tcp Authentication Flag"):
+            in_snmp_config = False
+            if accepted.fullmatch(value):
+                fields.append(value)
+            else:
+                fields.append("[redacted]")
+                complete = False
+        elif in_snmp_config or past_snmp_protocol:
+            continue
+        elif query == "snmp_statistics" and value.startswith(("sys contact:", "sys location:")):
+            continue
+        elif query == "snmp_statistics" and (counter := _NX_G95_SNMP_COUNTER_NAME.fullmatch(value)):
+            # Use the same spelling as IOS management output so subsequent
+            # generic credential redaction leaves the static label readable.
+            fields.append(counter[1] + "-name" + (counter[2] or ""))
+        elif query == "dns_hosts" and value.startswith("Name servers are ") and not _nxos_dns_addresses(
+            value.removeprefix("Name servers are ").strip()
+        ):
+            fields.append("[redacted]")
+            complete = False
+        elif query == "dns_hosts" and in_dns_cache and (host := _NX_G95_HOST_ROW.fullmatch(value)):
+            if _nxos_dns_addresses(host[1]):
+                fields.append(value)
+            else:
+                fields.append("[redacted]")
+                complete = False
+        elif query == "dns_hosts" and re.fullmatch(_NX_G95_DNS_VRF_HEADER, value):
+            fields.append(value)
+            in_dns_vrf_table = True
+        elif in_dns_vrf_table and (server := _NX_G95_DNS_VRF_SERVER.fullmatch(value)):
+            has_dns_vrf_server = _nxos_dns_addresses(server[1])
+            fields.append(value if has_dns_vrf_server else "[redacted]")
+            complete = complete and has_dns_vrf_server
+        elif in_dns_vrf_table and has_dns_vrf_server and line.startswith(" ") and _nxos_dns_addresses(value):
+            fields.append(line.rstrip())
+        elif accepted.fullmatch(value):
+            fields.append(value)
+            if query == "dns_hosts" and re.fullmatch(_NX_G95_DNS_HEADER, value):
+                in_dns_cache = True
+                in_dns_vrf_table = False
+            if query == "snmp_statistics":
+                if value.startswith("Max packetsize:"):
+                    fields.append("[redacted]")
+                    in_snmp_config = True
+                past_snmp_protocol = value.startswith("SNMP protocol")
+        else:
+            fields.append("[redacted]")
+            complete = False
+    complete = complete and all(any(re.fullmatch(pattern, value) for value in fields)
+                                for pattern in _NX_G95_REQUIRED[query])
+    if query in ("radius_statistics", "tacacs_statistics") and complete:
+        counters = re.split(r"(?:Authentication|Accounting|Authorization) Statistics\n", "\n".join(fields))[1:]
+        complete = len(counters) == len(_NX_G95_REQUIRED[query]) and all(
+            len(set(re.findall(rf"(?m)^({_NX_G95_AAA_COUNTER}): [0-9]+$", section))) == 7
+            for section in counters
+        )
+    if query == "configuration_sessions":
+        rows = sum(bool(re.fullmatch(_NX_G95_SESSION_ROW, field)) for field in fields)
+        counts = [int(match[1]) for field in fields if (match := _NX_G95_SESSION_COUNT.fullmatch(field))]
+        complete = complete and (counts == [rows] or (
+            not rows and not counts and "There are no active configuration sessions" in fields))
+    return "\n".join(fields) + ("\n" if fields else ""), complete
+
+
+_ACCOUNT_SECRETS = (CISCO_USER_ACCOUNT_SECRET, CISCO_ENABLE_ACCOUNT_SECRET, AAA_SERVER_KEY, EXOS_ACCOUNT_SECRET, NXOS_SNMP_COMMUNITY_TABLE)
+_ACCOUNT_REPLACE = {NXOS_SNMP_COMMUNITY_TABLE: _mask_community_rows, CISCO_ENABLE_ACCOUNT_SECRET: lambda match: _replace_enable(match)}
+_ACCOUNT_HINT = re.compile(r"(?i)username|enable|(?:tacacs|radius)-server|account|community|\\u")
 SNMP_CLI_SECRET = re.compile(
     r"(?im)^([^\S\n]*(?:snmp-server\s+community|set\s+community)\s+)(?:" + _DOUBLE_QUOTED + "|" + _SINGLE_QUOTED + r"|\S+)"
 )
 SNMP_STATUS_SECRET = re.compile(
     r"(?i)(\bSNMP\s+community\s+string\s+(?:configured|is)\s*[:=]\s*)\S+"
 )
+# Labels occasionally returned by management diagnostics; mask their complete value
+# before the legacy community rule can consume just the word "name".
+CISCO_MANAGEMENT_SECRET = re.compile(
+    r"(?im)^([ \t]*(?:(?:SNMP[ \t]+)?community[ \t]+(?:name|string)|"
+    r"(?:shared|encryption)[ \t]+(?:key|secret))[ \t]*[:=][ \t]*)[^\r\n]+"
+)
+# IOS / IOS XE management reads can include unexpected credential sections.
+# Admit complete operational rows only. In particular, a missing table header
+# must never turn a community, SNMPv3 key or shared secret into printable text.
+_IOS_MGMT_ADDR = r"(?:[0-9]{1,3}(?:\.[0-9]{1,3}){3}|[a-f0-9]*:[a-f0-9:.]+)"
+_IOS_MGMT_NAME = r"[a-z0-9_][a-z0-9_.@-]*"
+_IOS_MGMT_DNS = r"[a-z0-9_][a-z0-9_.-]*"
+_IOS_MGMT_HEX_ID = r"[a-f0-9]{10,64}"
+_IOS_MGMT_REMOTE_HEADER = r"Remote Engine ID +IP-addr +Port"
+_IOS_MGMT_REMOTE_ROW = rf"{_IOS_MGMT_HEX_ID} +(?:remote +)?{_IOS_MGMT_ADDR} +\d+"
+_IOS_MGMT_TIME = r"(?:\d+(?:[wdhms]\d*)*|\d+:\d+(?::\d+)?)"
+_IOS_RADIUS_COUNTER = (
+    r"(?:(?:Maximum|Current) (?:inQ|waitQ|doneQ) length|Total responses seen|Packets (?:with|without) responses|"
+    r"Access (?:Rejects|Accepts)|(?:Average|Maximum) response delay\(ms\)|Number of Radius timeouts|"
+    r"Radius Timers (?:Started|Created|Create Failed|Stopped|Stop Failed|Outstanding|Added|Add Failed|Jitterred|Jitter Failed)|"
+    r"Duplicate ID detects|Buffer Allocation Failures|Maximum Buffer Size \(bytes\)|"
+    r"Malformed Responses|Bad Authenticators|Unknown Responses|<= 2ms|\d+-\d+m(?:s)?|>100ms)"
+    r" *: +(?:NA|\d+)(?: +(?:NA|\d+)){0,2}"
+)
+_IOS_MGMT_ROWS = {
+    "aaa_servers": (
+        rf"(?:RADIUS|TACACS\+?): id \d+, priority \d+, host {_IOS_MGMT_ADDR}"
+        rf"(?:, auth-port \d+, acct-port \d+|, port \d+)(?:, hostname {_IOS_MGMT_DNS})?",
+        r"(?:State|Platform State from (?:SMD|WNCD \(\d+\)))[ ]*: current (?:UP|DOWN|DEAD|UNKNOWN)"
+        r"(?:, duration \d+s, previous duration \d+s)?",
+        r"(?:(?:SMD )?Platform )?Dead: total time \d+s, count \d+",
+        r"Quarantined: (?:Yes|No)",
+        r"(?:Authen|Author|Acct): request \d+, timeouts \d+, failover \d+, retransmission \d+",
+    ),
+    "radius_statistics": (
+        r"Auth\. +Acct\. +Both", _IOS_RADIUS_COUNTER,
+        r"Source Port Range: \(\d+ ports? only\)", r"\d+ +- +\d+",
+        r"Last used Source Port/Identifier:", r"\d+/\d+",
+        rf"Elapsed time since counters last cleared: {_IOS_MGMT_TIME}", r"Radius Latency Distribution:",
+    ),
+    "tacacs_statistics": (
+        rf"Tacacs\+ Server(?: +- +(?:private|public))? *: +{_IOS_MGMT_ADDR}(?:/\d+)?",
+        r"(?:Socket (?:opens|closes|aborts|errors|timeouts)|Failed Connect Attempts|"
+        r"Total Packets (?:Sent|Recv)|Expected Replies) *: +\d+",
+        r"No current connection",
+    ),
+    "snmp_statistics": (
+        r"Chassis: [a-z0-9-]+", r"\d+ SNMP packets (?:input|output)",
+        r"\d+ (?:Bad SNMP version errors|Unknown community name|Illegal operation for community name supplied|"
+        r"Encoding errors|Number of (?:requested|altered) variables|(?:Get-(?:request|next|bulk)|Set-request|"
+        r"Inform-request|Inform response|Response|Trap) PDUs|Timeouts|Drops|Responses with errors|"
+        r"Too big errors(?: \(Maximum packet size \d+\))?|No such name errors|Bad values errors|General errors)",
+        r"SNMP (?:logging|informs): (?:enabled|disabled)",
+        r"SNMP Manager-role (?:input|output) packets",
+        r"Informs in flight \d+/\d+ \(current/max\)",
+        rf"Logging to {_IOS_MGMT_ADDR}(?:\.\d+)?(?:, \d+/\d+, \d+ sent, \d+ dropped\.)?",
+        r"\d+ sent, \d+ in-flight, \d+ retries, \d+ failed, \d+ dropped",
+        rf"Destination: {_IOS_MGMT_ADDR}(?:\.\d+)?",
+    ),
+    "snmp_engine_id": (
+        rf"Local SNMP engineID: {_IOS_MGMT_HEX_ID}", _IOS_MGMT_REMOTE_HEADER,
+    ),
+    "dns_hosts": (
+        rf"(?:Name lookup view:|Default domain is) {_IOS_MGMT_DNS}",
+        r"(?:Default domain is not set|Name/address lookup uses (?:static mappings|domain service))",
+        rf"Name servers are {_IOS_MGMT_ADDR}(?:[, ]+{_IOS_MGMT_ADDR})*",
+        r"Codes: UN - unknown, EX - expired, OK - OK, \?\? - revalidate",
+        rf"Domain list: {_IOS_MGMT_DNS}(?:, +{_IOS_MGMT_DNS})*",
+        r"temp - temporary, perm - permanent", r"NA - Not Applicable None - Not defined",
+        r"Host +(?:Port +)?Flags? +Age +Type +Address\(es\)",
+        r"NAME +TTL +CLASS +TYPE +DATA/ADDRESS", r"-{5,}",
+        rf"{_IOS_MGMT_DNS} +(?:(?:None|NA|\d+) +)?\((?:temp|perm), +(?:OK|EX|\?\?|UN)\)"
+        rf" +(?:NA|\d+) +(?:IP|IPv6) +{_IOS_MGMT_ADDR}(?: +{_IOS_MGMT_ADDR})*",
+        rf"{_IOS_MGMT_DNS} +\d+ +IN +(?:(?:A|AAAA) +{_IOS_MGMT_ADDR}|(?:CNAME|NS|PTR) +{_IOS_MGMT_DNS})",
+        rf"{_IOS_MGMT_ADDR}(?: +{_IOS_MGMT_ADDR})*",
+    ),
+    "users": (
+        r"Line +User +Host\(s\) +Idle +Location", r"Interface +User +Mode +Idle +Peer Address",
+        rf"\*? *\d+ +(?:con|aux|vty|tty) +\d+ +(?:{_IOS_MGMT_NAME} +)?"
+        rf"(?:idle|Virtual-Access\d+) +{_IOS_MGMT_TIME}(?: +(?:{_IOS_MGMT_ADDR}|{_IOS_MGMT_DNS}))?",
+    ),
+    "ssh_sessions": (
+        r"Connection +Version +(?>Mode +)?Encryption +Hmac\s+State\s+Username",
+        r"%?\s*No SSH(?:v[12])? server connections(?: running)?\.?",
+        rf"\d+ +[12]\.\d +(?:(?:IN|OUT) +)?"
+        r"(?:aes(?:128|192|256)-(?:cbc|ctr|gcm(?:@(?:openssh\.com|o))?)|3des(?:-cbc)?|chacha20-pol(?:y1305@openssh\.com)?|none)"
+        r"(?: *(?:hmac-(?:sha1(?:-96)?|sha2-(?:256|512)|md5(?:-96)?)(?:-etm@openssh\.com)?|none))?"
+        rf" +Session (?:started|closed)(?: +{_IOS_MGMT_NAME})?",
+    ),
+    "lines": (
+        r"Tty +Typ +Tx/Rx +A +Modem +Roty +AccO +AccI +Uses +Noise +Overruns +Int",
+        r"\*? *\d+ +(?:CTY|AUX|VTY|TTY) +(?:\d+/\d+ +)?(?:[-0-9]+ +){5}\d+ +\d+ +\d+/\d+ +[-0-9]+",
+        r"Line\(s\) not in async mode -or- with no hardware support:", r"\d+(?:-\d+)?(?: *, *\d+(?:-\d+)?)*",
+    ),
+}
+_IOS_MGMT_PATTERNS = {query: re.compile("|".join(f"(?:{row})" for row in rows), re.I)
+                      for query, rows in _IOS_MGMT_ROWS.items()}
+_IOS_MGMT_PAGER = re.compile(r"--[ ]*More[ ]*--|\(q(?:uit)?\s+to\s+abort\)", re.I)
+_IOS_MGMT_HIDDEN = "[redacted]"
+_IOS_MGMT_REFUSAL = re.compile(
+    r"(?:%\s*(?:Invalid input detected|Incomplete command|Ambiguous command|Invalid command|"
+    r"Authorization (?:failed|denied)|Permission denied|Access denied)|"
+    r"Command authorization failed|Line has invalid autocommand)\b", re.I
+)
+_IOS_MGMT_REQUIRED = {
+    "aaa_servers": (r"^(?:RADIUS|TACACS\+?): id", r"^ *State: current"),
+    "radius_statistics": (r"^ *Auth\. +Acct\. +Both", r"^ *Total responses seen:", r"^ *Current doneQ length:"),
+    "tacacs_statistics": (r"^Tacacs\+ Server", r"^ *Total Packets Recv:"),
+    "snmp_statistics": (r"^ *\d+ SNMP packets input", r"^ *\d+ SNMP packets output", r"^ *\d+ Trap PDUs"),
+    "snmp_engine_id": (r"^Local SNMP engineID:",),
+    "dns_hosts": (r"^(?:Default domain is|Name servers are)", r"^(?:Host +(?:Port +)?Flags?|NAME +TTL)"),
+    "users": (r"^ *Line +User +Host", r"^ *\*? *\d+ +(?:con|aux|vty|tty)"),
+    "ssh_sessions": (r"^(?:Connection +Version|%? *No SSH)", r"^(?: *\d+ +[12]\.\d|%? *No SSH)"),
+    "lines": (r"^ *Tty +Typ", r"^\s*\*? *\d+ +(?:CTY|VTY|TTY)"),
+}
+
+
+def redact_ios_management(query: str, output: str, *, classic_ios=False) -> tuple[str, bool]:
+    """Return the safe CLI projection and whether its operational shape is complete."""
+    rows = _IOS_MGMT_PATTERNS[query]
+    safe = []
+    incomplete = False
+    remote_engines = False
+    # Stop at a device pager. Neither its suffix nor wrapped text can reach a page.
+    body = strip_terminal_controls(output.replace("\r\n", "\n"))
+    pager = _IOS_MGMT_PAGER.search(body)
+    if pager:
+        body = body[:pager.start()]
+    for line in body.splitlines(keepends=True):
+        row = line.strip()
+        if query == "snmp_engine_id" and re.fullmatch(_IOS_MGMT_REMOTE_HEADER, row, re.I):
+            remote_engines = True
+        remote_engine = remote_engines and re.fullmatch(_IOS_MGMT_REMOTE_ROW, row, re.I)
+        refusal = _IOS_MGMT_REFUSAL.match(row)
+        if refusal:
+            reason = refusal[0]
+            if reason.lower() == "line has invalid autocommand":
+                reason = 'Line has invalid autocommand "[redacted]"'
+            elif reason.lower() == "command authorization failed":
+                reason += "."
+            safe.append(reason + "\n")
+        elif not row or rows.fullmatch(row) or remote_engine or (
+                query in {"snmp_statistics", "snmp_engine_id"} and row == "%SNMP agent not enabled"):
+            # Spell the numeric counters so the shared CLI credential redactor
+            # cannot mistake literal counter labels for community values.
+            if query == "snmp_statistics":
+                line = line.replace("Unknown community name", "Unknown community-name")
+                line = line.replace("Illegal operation for community name supplied",
+                                    "Illegal operation for supplied community-name")
+            safe.append(line)
+        else:
+            if query == "snmp_statistics" and row.startswith("Destination:"):
+                destination = row.partition(",")[0]
+                if rows.fullmatch(destination):
+                    safe.append(destination + "\n")
+            remote_engines = False
+            if not safe or safe[-1] != _IOS_MGMT_HIDDEN + "\n":
+                safe.append(_IOS_MGMT_HIDDEN + "\n")
+            incomplete = True
+    if pager:
+        safe.append("\n--More--\n")
+    projected = "".join(safe)
+    complete = not incomplete and not pager and all(
+        re.search(required, projected, re.I | re.M) for required in _IOS_MGMT_REQUIRED[query])
+    if complete and classic_ios and query in {"aaa_servers", "tacacs_statistics"}:
+        heading, required = _IOS_MGMT_REQUIRED[query]
+        blocks = re.split(rf"(?={heading})", projected, flags=re.I | re.M)[1:]
+        complete = all(re.search(required, block, re.I | re.M) for block in blocks)
+    return projected, complete
+
+
+_IOS_LOGGED_CONFIG = re.compile(r"(?im)%PARSER-[0-7]-CFGLOG_LOGGEDCMD:[ \t]*(?P<body>[^\r\n]*)")
+_IOS_LOGGED_COMMAND = re.compile(
+    r"(?im)%[A-Z0-9_]+-[0-7]-[A-Z0-9_]+:[^\r\n]*?"
+    r"\b(?:logged command|executed command|command (?:executed|entered|logged))[ \t]*[:=][ \t]*(?P<body>[^\r\n]*)"
+)
+_IOS_LOG_COMMAND_SECRET = re.compile(
+    r"(?i)(?<![\w-])(?:"
+    r"(?:standby|vrrp)\b[^\r\n]*?[ \t]+authentication\b(?:[ \t]+(?:text|md5(?:[ \t]+key-string)?))?"
+    r"|snmp-server[ \t]+user\b|(?:auth|priv|key(?:-string)?|password|secret|community)\b"
+    r")(?P<separator>[ \t]*[:=][ \t]*|[ \t]+)\S[^\r\n]*"
+)
+
+
+def redact_ios_log_commands(output: str) -> str:
+    """Remove command credentials from Cisco configuration audit messages."""
+    def mask(message):
+        body = message["body"]
+        secret = _IOS_LOG_COMMAND_SECRET.search(body)
+        if secret is None:
+            return message[0]
+        pager = _NXOS_SNMP_PAGER_SUFFIX.search(body)
+        prefix = message[0][:message.start("body") - message.start()]
+        return prefix + body[:secret.end("separator")] + "<REDACTED>" + ("\n" + pager[0].strip() if pager else "")
+
+    return _IOS_LOGGED_CONFIG.sub(mask, _IOS_LOGGED_COMMAND.sub(mask, strip_terminal_controls(output)))
+
+
+EXOS_LOG_ENTRY = re.compile(
+    r"(?P<prefix>(?P<stamp>\d{2}/\d{2}/\d{4} \d{2}:\d{2}:\d{2}(?:\.\d{2})?) "
+    r"<(?P<level>Crit|Erro|Warn|Noti|Info|Summ|Verb|Data|UNKNW):(?P<event>[A-Za-z0-9_.-]+)>[ \t]+)"
+    r"(?P<body>\S.*)")
+EXOS_LOG_TOTAL = re.compile(r"A total of (\d{1,7}) log messages? (?:was|were) displayed\.")
+EXOS_LOG_EMPTY = "No log messages were displayed."
+_EXOS_LOGGED_COMMAND = re.compile(
+    r"(?i)\b(?:CLI[ -]command|command (?:executed|entered|logged)|(?:executed|entered|logged) command)\b"
+    r"|\b(?:configure|config|create|enable)\b[^\r\n]*\b(?:account|community|snmpv3|password|passphrase|"
+    r"secret|(?:shared|auth|privacy|pre-shared|authentication)[ -]key)\b"
+)
+_EXOS_SSH_USER = r"[A-Za-z0-9_@.\\*-]+"
+_EXOS_SSH_SOURCE = r"[0-9A-Fa-f:.]+(?:%[A-Za-z0-9_.-]+)?"
+_EXOS_ATTEMPTED_USER = rf"(?P<attempted_user>{_EXOS_SSH_USER})"
+_EXOS_SSH_LOGIN = re.compile(
+    r"(?P<diagnostic>Msg from Master : (?:"
+    rf"(?:(?:Did (?:key|password) authentication|Login passed) for user {_EXOS_SSH_USER}"
+    rf"|Login failed for user {_EXOS_ATTEMPTED_USER})"
+    rf"(?:[ \t]+through ssh)?[ \t]+\({_EXOS_SSH_SOURCE}\)"
+    rf"|Found valid key for user {_EXOS_SSH_USER}))"
+    r"(?:[ \t]+(?P<label>password|passphrase|secret|(?:private|shared)[ -]key)[ \t]*[:=][ \t]*.+)?")
+_EXOS_FAILED_LOGIN = {
+    "AAA.authFail": re.compile(
+        rf"Login failed due to invalid username/password for user {_EXOS_ATTEMPTED_USER}"
+        rf" through ssh \({_EXOS_SSH_SOURCE}\)"),
+    "exsshd.KeyAuthFail": re.compile(
+        rf"Key authentication failed for user {_EXOS_ATTEMPTED_USER}[ \t]+from {_EXOS_SSH_SOURCE}\."
+        r" Key invalid/not configured to the user\."),
+}
+_EXOS_AAA_LOGIN = {
+    "AAA.authPass": re.compile(rf"Login passed for user {_EXOS_SSH_USER} through ssh \({_EXOS_SSH_SOURCE}\)"),
+    "AAA.logout": re.compile(rf"(?:Administrative|Non-administrative) account \({_EXOS_SSH_USER}\)"
+                              rf" logout from ssh \({_EXOS_SSH_SOURCE}\)"),
+}
+# These event identifiers come from operational EXOS captures. An unfamiliar event may
+# be an audit event, even when its CLI record header is recognized.
+_EXOS_OPERATIONAL_EVENTS = frozenset({
+    "DM.Info", "DM.Notice", "DM.Warning", "DOSProt.Init", "EAPS.DmnInfo",
+    "EDP.PortVLANIdCfgMismatch", "EPM.UnexpctRebootDtect", "EPM.Upgrade.Fail", "EPM.Upgrade.State",
+    "EPM.all_shutdown", "EPM.reboot", "EPM.start", "EPM.system_stable", "EPM.wd_warm_reset",
+    "EPM.wdg_enable", "HAL.Card.Info", "HAL.Card.Warning", "HAL.Sys.Info", "HAL.Sys.Notice",
+    "HAL.Sys.Warning", "NM.StrtProc", "NetTools.SNTP.SrvrNameNotRslved", "SNMP.Master.InitDone",
+    "STP.DomainEnable", "STP.InBPDU.Drop", "cm.loadErr", "cm.sys.LoadApplCfgObjFail",
+    "exsshd.CfgHostKeyAlgWeak", "exsshd.RejctConnKeyExchgFail",
+    "licMgr.EnblFeatLcns", "lldp.MaxNbrsReached", "log.NVRAMFull", "log.serverStarted",
+    "nl.init", "telnetd.info", "tftpd.info", "thttpd.CrtfctVld",
+    "vlan.msgs.portLinkStateDown", "vlan.msgs.portLinkStateUp",
+})
+# Exact bodies of ordinary events that are not audit records (measured on EXOS-VM 33.6.1.14 boot and X435/X440
+# 33.7.1.6): SSH host-key start-up messages and the telemetry agents that report a missing decoder component.
+_EXOS_FIXED_BODIES = (
+    ("AAA.LogSsh", re.compile(r"Msg from Master : Loaded Private Key of size [0-9]{1,5} from System")),
+    ("AAA.LogSsh", re.compile(r"Msg from Master : Generating RSA-[0-9]{3,5} public key")),
+    ("AAA.LogSsh", re.compile(r"Msg from Master : Existing host key with fingerprint SHA256(?::[0-9a-f]{2}){16,64} "
+                              r"loaded successfully")),
+    ("inlets.0", re.compile(r'NO MESSAGE DECODE; Missing component "inlets" v[0-9]{1,3}\.[0-9]{1,3}')),
+    ("telegraf.0", re.compile(r'NO MESSAGE DECODE; Missing component "telegraf" v[0-9]{1,3}\.[0-9]{1,3}')),
+)
+
+
+def _exos_fixed_body(event: str, body: str) -> bool:
+    return any(event == name and pattern.fullmatch(body) for name, pattern in _EXOS_FIXED_BODIES)
+
+
+def _exos_redact_attempted_user(body: str, login: re.Match[str]) -> str:
+    # A rejected user field can be a password typed into the wrong prompt.
+    start, end = login.span("attempted_user")
+    if start < 0:
+        return body
+    return body[:start] + "<user-redacted>" + body[end:]
+
+
+def redact_exos_log_commands(output: str) -> tuple[str, bool]:
+    """Return the safe projection and whether any unrecognized log content was withheld."""
+    rows, incomplete = [], False
+    text = strip_terminal_controls(output.replace("\r\n", "\n").replace("\r", "\n"))
+    for line in text.splitlines():
+        entry = EXOS_LOG_ENTRY.fullmatch(line)
+        if entry is None:
+            if not line.strip() or line == EXOS_LOG_EMPTY or EXOS_LOG_TOTAL.fullmatch(line):
+                rows.append(line)
+            else:
+                rows.append("    <REDACTED>")
+                incomplete = True
+            continue
+        event, body = entry["event"], entry["body"]
+        if event == "AAA.LogSsh" and (login := _EXOS_SSH_LOGIN.fullmatch(body)):
+            # Assignment punctuation would make the response-wide redactor remove the label too.
+            credential = f" {login['label']} <REDACTED>" if login["label"] else ""
+            diagnostic = _exos_redact_attempted_user(login["diagnostic"], login)
+            rows.append(entry["prefix"] + diagnostic + credential)
+        elif (failure := _EXOS_FAILED_LOGIN.get(event)) and (login := failure.fullmatch(body)):
+            rows.append(entry["prefix"] + _exos_redact_attempted_user(body, login))
+        elif _EXOS_LOGGED_COMMAND.search(body):
+            rows.append(entry["prefix"] + "<REDACTED>")
+        elif event in _EXOS_OPERATIONAL_EVENTS or _exos_fixed_body(event, body) or (
+                event in _EXOS_AAA_LOGIN and _EXOS_AAA_LOGIN[event].fullmatch(body)):
+            rows.append(line)
+        else:
+            rows.append(entry["prefix"] + "<REDACTED>")
+            incomplete = True
+    return "\n".join(rows) + ("\n" if text.endswith("\n") else ""), incomplete
+
+
 COMMUNITY_VALUE_SECRET = re.compile(r"(?i)(\bcommunity[ \t]+)(?!string\b)\S+")
 CISCO_TYPE7_SECRET = re.compile(r"(?im)(\b(?:key|key-string|md5|password)[ \t]+7[ \t]+)\S+")
 PRESHARED_SECRET = re.compile(
     r"(?im)(\b(?:pre-shared-key|psksecret|psk|wpa-passphrase|bind-password)(?:[ \t]*[:=][ \t]*|[ \t]+))(?:"
     + _DOUBLE_QUOTED + "|" + _SINGLE_QUOTED + r"|\S+)"
 )
+_JUNOS_SA_KEY = re.compile(
+    r"(?im)^([ \t]*(?:(?:authentication|auth|encryption|encrypt|integrity|session|inbound|outbound)"
+    r"[ -]+)?(?:key(?:[ -]+(?:value|material))?|pre[ -]shared[ -]key|psk)[ \t]*[:=][ \t]*)[^\r\n]*"
+)
+
+
+def redact_junos_sa_keys(text: str) -> str:
+    """Withhold any key-value labels before hashing or paging SRX SA output."""
+    return _JUNOS_SA_KEY.sub(r"\g<1><REDACTED>", text)
+
+
+# SA status normally prints algorithms, lifetimes and identifiers. Keep any unexpected
+# labeled key material out of the raw output, hashes and subsequently derived records.
+_CISCO_SA_SECRET = re.compile(
+    r"(?i)(\b(?:(?:pre[- ]shared|auth(?:entication)?|enc(?:ryption)?|integrity|session|inbound|outbound)"
+    r"[ -]+)?(?:key(?:[ -]+(?:value|material))?|psk(?:secret)?|SK_[A-Za-z]{1,4})[ \t]*[:=][ \t]*)"
+    r"[^\r\n]*"
+)
+# A wrapped key can end immediately before a suffix, so consume the full hex run.
+_CISCO_SA_HEX = r"(?:0x)?[0-9a-f]{2,}+"
+_CISCO_SA_CONTINUATION = re.compile(rf"[ \t:\-]*+{_CISCO_SA_HEX}(?:[ \t:\-]++{_CISCO_SA_HEX})*+", re.I)
+
+
+def redact_cisco_sa_keys(text: str) -> str:
+    text = strip_terminal_controls(text.replace("\r\n", "\n"))
+
+    def mask(match):
+        pager = _NXOS_SNMP_PAGER_SUFFIX.search(match[0])
+        return match[1] + "<REDACTED>" + ("\n" + pager[0].strip() if pager else "")
+
+    lines = []
+    in_key = False
+    for line in text.split("\n"):
+        if in_key and _NXOS_SNMP_PAGER_SUFFIX.fullmatch(line.strip()):
+            lines.append(line)
+            continue
+        continuation = in_key and _CISCO_SA_CONTINUATION.match(line)
+        if continuation:
+            # Keep any public suffix on its own line so a terminal pager still counts after an LF.
+            line = line[continuation.end():].lstrip(" \t")
+            if not line:
+                continue
+        cleaned, labels = _CISCO_SA_SECRET.subn(mask, line)
+        in_key = bool(labels or continuation)
+        lines.append(cleaned)
+    return "\n".join(lines)
+
+
+# G14 (FP-09): FortiOS IPsec detail reads print live key material even to a read-only account (measured on a
+# FortiGate-60F 7.6.8 build3744): `diagnose vpn ike gateway list` the IKE SA keys (`SK_ei: <hex>-<hex>-<hex>-<hex>`),
+# `diagnose vpn tunnel list` the ESP keys (`esp=aes key=32 <hex>`, `ah=sha256 key=32 <hex>`) and
+# `get vpn ipsec tunnel details` (`enc:  aes-cb  <hex>`, `auth: sha256  <hex>`). The value after the label is
+# withheld whole; as a net for an unknown label any run of 32 or more hex digits (also split by `-`, `:` or one
+# space) is withheld too. SPIs (8 hex digits) and IKE cookies (16) stay, the parser needs them.
+_FORTIOS_SK_KEY = re.compile(r"(?im)^([ \t]*SK_[A-Za-z]{1,4}[ \t]*:[ \t]*)[^\r\n]*")
+_FORTIOS_SA_KEY = re.compile(r"(?i)(\bkey=\d*[ \t]*)[0-9A-Fa-f][^\r\n]*")
+_FORTIOS_SA_ALG_KEY = re.compile(r"(?im)^([ \t]*(?:enc|auth)[ \t]*:[ \t]+[A-Za-z0-9_-]+[ \t]+)[0-9A-Fa-f][^\r\n]*")
+_FORTIOS_LABELED_KEY = re.compile(
+    r"(?im)((?<![\w.-])(?:enc[ \t]+key|auth[ \t]+key|psksecret|psk)[ \t]*[:=][ \t]*"
+    r"|^[ \t]*(?:set[ \t]+)?(?:psksecret|psk)[ \t]+(?![ \t]*[:=]))[^\r\n]*"
+)
+_LONG_HEX = re.compile(r"(?<![0-9A-Za-z])[0-9A-Fa-f]{2}(?:[-: ]?[0-9A-Fa-f]{2}){15,}(?![0-9A-Za-z])")
+
+
+# FortiOS queries whose output passes redact_fortios_ipsec_keys right after the device read.
+FORTIOS_IPSEC_KEY_QUERIES = frozenset({"ike_gateway_detail", "ipsec_tunnel_detail"})
+
+
+def redact_fortios_ipsec_keys(text: str) -> str:
+    """Withhold IKE/IPsec key material of FortiOS IPsec detail output before hashing, paging or parsing."""
+    text = _FORTIOS_LABELED_KEY.sub(r"\g<1><REDACTED>", text)
+    text = _FORTIOS_SK_KEY.sub(r"\g<1><REDACTED>", text)
+    text = _FORTIOS_SA_KEY.sub(r"\g<1><REDACTED>", text)
+    text = _FORTIOS_SA_ALG_KEY.sub(r"\g<1><REDACTED>", text)
+    return _LONG_HEX.sub("<REDACTED>", text)
+
+
 DYNAMIC_PSK_STATE = re.compile(r"(?i)[ \t]*dynamic[ \t]+psk[ \t]*=[ \t]*(?:enabled|disabled)[ \t]*\r?")
 RUCKUS_PASSPHRASE = re.compile(r"(?im)^([ \t]*passphrase[ \t]*=[ \t]*)[^\r\n]*")
+# Ruckus Unleashed `show` trees (WLAN, AAA, mesh): one `Label = value` per line, values unquoted and possibly with
+# spaces. Any label naming a key, passphrase, PSK, secret or password hides the whole rest of its line
+# (`Key = …`, `RADIUS Key = …`, `SAE-Passphrase = …`, `Secret= …`, G110: `RO Community= …`, `Token= …`,
+# `Authentication Pass Phrase= …`, `Privacy Phrase= …`); the `Dynamic PSK = Enabled|Disabled` state stays.
+RUCKUS_SECRET_LINE = re.compile(
+    r"(?im)^([ \t]*[^\r\n=:]*?\b(?:key|keys|passphrase|pass[ \t]+phrase|privacy[ \t]+phrase|psk|secret|password|passwd|community|token)\b[^\r\n=:]*?[ \t]*[=:][ \t]*)"
+    r"([^\r\n]*?)[ \t]*(?=\r?$)"
+)
+_RUCKUS_SECRET_STATE = re.compile(
+    r"(?i)[ \t]*(?:dynamic[ \t]+psk|guest[ \t]+friendly[ \t]+key)[ \t]*=[ \t]*(?:enabled|disabled)"
+)
+
+def redact_ruckus_secrets(value: str, secrets: Iterable[str] = ()) -> str:
+    """Whole-value redaction of secret lines in Ruckus Unleashed output, before the general rules (G107 475-r2).
+
+    The result has no terminal controls when the input had any: the line rule runs both on the text as read and
+    on the text without ANSI sequences and C0 controls (475-r3), so a label split by them is still recognised.
+
+    The known secrets (`secrets`, e.g. the login password, possibly spanning lines) are replaced first, as the
+    general chain does: a line rule must never cut a known secret and leave its other lines unmatched.
+    """
+    for secret in sorted({item for item in secrets if len(item.encode("utf-8")) >= 3}, key=lambda item: (-len(item), item)):
+        value = value.replace(secret, "<REDACTED>")
+    # Use the equivalent ESC form so both encodings of C1 controls use the same ANSI grammar.
+    value = _RUCKUS_C1_CONTROL.sub(lambda match: "\x1b" + chr(ord(match[0]) - 0x40), value)
+
+    def replace(match: re.Match[str]) -> str:
+        text = match.group(2)
+        if not text or _MARKERS_ONLY.fullmatch(text):
+            return match.group(0)
+        # Only a suffix made up of ANSI controls and horizontal space may follow a public state.
+        state = _RUCKUS_SECRET_STATE.match(match[0])
+        if state and not ANSI_CONTROL.sub("", match[0][state.end():]).strip(" \t"):
+            return match.group(0)
+        return match.group(1) + "<REDACTED>"
+    value = RUCKUS_SECRET_LINE.sub(replace, value)
+    # A label is recognisable only once ANSI sequences and other controls are gone (475-r3): the line rule runs
+    # again on that cleaned text, which is what the general chain and the response finally carry.
+    cleaned = strip_terminal_controls(value)
+    return RUCKUS_SECRET_LINE.sub(replace, cleaned) if cleaned != value else value
+# G110 (RP08): `show config` of Unleashed holds PSKs, RADIUS secrets, the admin password, the network token and SNMP
+# communities spread over many sections. Only these top-level sections are passed on (allowlist); every other block,
+# including any section a later release adds, is replaced by one withheld marker, and the lines of the kept
+# blocks still go through redact_ruckus_secrets (labels naming a key, secret, password, community, token, phrase).
+RUCKUS_CONFIG_SECTIONS = (
+    "Device IP Address", "Country Code", "Identity", "NTP", "Log", "Bonjour Service", "Telnet Server", "FTP Server",
+    "IPv4 Management Interface", "Management ACL", "L2/MAC ACL", "AAA", "DHCP servers for DHCP relay agent",
+    "Static Route", "SNMP Agent", "SNMP Trap", "SNMPV3 Agent",
+)
+RUCKUS_CONFIG_WITHHELD = "[section withheld]"
+
+
+def ruckus_config_allowlist(value: str, secrets: Iterable[str] = ()) -> str:
+    """The allowlisted sections of a Unleashed `show config` with secrets withheld (see RUCKUS_CONFIG_SECTIONS)."""
+    cleaned = strip_terminal_controls(redact_ruckus_secrets(value, secrets))
+    lines = cleaned.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    out: list[str] = []
+    keep = True
+    for number, line in enumerate(lines):
+        if number == 0 and line.strip().startswith("show "):
+            out.append(line)  # the device echo of the command
+            continue
+        if line and not line[0].isspace():
+            heading = line.rstrip()
+            name = heading[:-1] if heading.endswith(":") else None
+            # `Protocol Mode= IPv4-Only` is a top-level setting, not a block heading.
+            keep = name in RUCKUS_CONFIG_SECTIONS or ("=" in heading and heading.split("=", 1)[0].strip() == "Protocol Mode")
+            if not keep:
+                out.append(RUCKUS_CONFIG_WITHHELD + " " + (name or "setting"))
+                continue
+        if keep:
+            out.append(line)
+    return "\n".join(out)
+
 CLI_OPTION_SECRET = re.compile(
     r"(?i)((?<!\S)--(?:password|passwd|secret|token|api-key|api-token|access-token)(?:=|[ \t]+))(?:"
     + _DOUBLE_QUOTED + "|" + _SINGLE_QUOTED + r"|\S+)"
@@ -379,6 +1167,7 @@ ANSI_CONTROL = re.compile(
     r"|[ -/]*[0-~])"
 )
 C0_CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f]")
+_RUCKUS_C1_CONTROL = re.compile(r"[\x80-\x9f]")
 
 
 def strip_terminal_controls(value: str) -> str:
@@ -911,6 +1700,7 @@ def _redact_current(value: str, normalized: tuple[str, ...]) -> str:
     value = sub(PRESHARED_SECRET, _quoted_only(_replace_preshared), value)
     value = sub(CLI_OPTION_SECRET, _quoted_only(lambda match: match.group(1) + "<REDACTED>"), value)
     # Before ENC/bearer/type-7 rules, which could split a quoted or escaped value.
+    value = sub(CISCO_MANAGEMENT_SECRET, lambda match: match.group(1) + "<REDACTED>", value)
     value = _account_credentials(value)
     value = _assigned(ASSIGNED_QUOTED_SECRET, _replace_quoted, value)
     value = sub(FORTI_ENC, "ENC <REDACTED>", value)
@@ -1359,3 +2149,100 @@ def _outside(text: str, start: int, end: int, spans: list):
 
 def digest_text(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8", "replace")).hexdigest()
+
+
+# EOS can show the v1/v2c community as a notification destination's "user".
+# Preserve only the documented status grammar before logging, hashing or paging.
+_EOS_HOST = r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,252}"
+_EOS_VRF = r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}"
+_EOS_READ_REFUSAL = re.compile(
+    r"(?:%(?: Invalid input(?: \(privileged mode required\))?| (?:Incomplete command|"
+    r"Ambiguous command|Authorization denied|Authorization failed|Permission denied))"
+    r"(?: at line [0-9]+)?|" + EOS_UNAVAILABLE_LINE + r")", re.I,
+)
+_EOS_BACKEND_COUNTER = (
+    r"(?:Connection (?:opens|closes|disconnects|failures|timeouts)|"
+    r"Messages (?:sent|received)|Requests (?:accepted|rejected|timeout|retransmitted)|"
+    r"Bad responses|Receive (?:errors|timeouts)|Send (?:timeouts|failures)|"
+    r"(?:Access|Accounting)-(?:Requests|Accepts|Rejects|Challenges|Responses)|"
+    r"Retransmissions|Timeouts|Malformed responses|Bad authenticators|"
+    r"Pending requests|Unknown types|Packets dropped)[ \t]*:[ \t]+[0-9]+"
+)
+_EOS_MANAGEMENT_STATUS = {
+    "radius": (
+        rf"RADIUS server[ \t]*:[ \t]+{_EOS_HOST}(?:/[0-9]+)?|"
+        rf"server[0-9]+:[ \t]+{_EOS_HOST}|"
+        rf"No (?:RADIUS )?servers (?:configured|defined)\.?|{_EOS_BACKEND_COUNTER}|"
+        r"Last time counters were cleared: (?:never|[0-9]+(?: days?,)? [0-9:]+ ago|[0-9:]+ ago)"
+    ),
+    "radius_status": (
+        r"Probe method: (?:Disabled|Status-Server packet|Access-Request packet)|"
+        r"RADIUS Server[ \t]+Messages Sent[ \t]+Messages Accepted[ \t]+Messages Dropped[ \t]+Status|"
+        r"[- \t]+|"
+        rf"{_EOS_HOST}[ \t]+[0-9]+[ \t]+[0-9]+[ \t]+[0-9]+[ \t]+(?:alive|not alive)"
+    ),
+    "tacacs": (
+        rf"TACACS\+? server[ \t]*:[ \t]+{_EOS_HOST}(?:/[0-9]+)?|"
+        rf"No (?:TACACS\+? )?servers (?:configured|defined)\.?|{_EOS_BACKEND_COUNTER}|"
+        r"Last time counters were cleared: (?:never|[0-9]+(?: days?,)? [0-9:]+ ago|[0-9:]+ ago)"
+    ),
+    "snmp_status": (
+        rf"SNMP agent enabled in VRFs: {_EOS_VRF}(?:[ \t,]+{_EOS_VRF})*|"
+        r"SNMP agent (?:enabled|disabled)(?:: Either no communities and no users are configured, or no VRFs are configured\.)?|"
+        r"SNMP logging: (?:enabled|disabled)|"
+        r"[0-9]+ (?:SNMP packets (?:input|output)|Bad SNMP version errors|Unknown community name|"
+        r"Illegal operation for community name supplied|Encoding errors|Number of (?:requested|altered) variables|"
+        r"(?:Get-request|Get-next|Set-request|Response|Trap) PDUs|"
+        r"(?:Too big|No such name|Bad value|General) errors)"
+    ),
+    "snmp_targets": (
+        rf"Notification host: {_EOS_HOST}[ \t]+udp-port: [0-9]{{1,5}}[ \t]+"
+        r"type: (?:trap|inform)[ \t]+refresh: (?:True|False)|"
+        r"No (?:SNMP )?(?:notification )?hosts (?:configured|defined)\.?"
+    ),
+    # DHCP option payloads and TFTP URLs may contain credentials.
+    "dhcp_server": (
+        r"IPv[46] DHCP server is (?:active|inactive)|"
+        r"Client ID echo: (?:enabled|disabled)|"
+        r"Lease duration: [0-9]+ days? [0-9]+ hours? [0-9]+ minutes?|Active leases: [0-9]+|"
+        r"IPv[46] DHCP interface status:|Interface[ \t]+Status|[- \t]+|"
+        rf"{_EOS_VRF}[ \t]+(?:Active|Inactive)(?: \((?:Could not determine VRF|"
+        r"Not in default VRF|Kernel interface not created yet|Not up|No IP address|"
+        r"No Link Local address|DHCP relay is configured for this interface|DHCP relay is always on)\))?|"
+        r"Subnet: [0-9a-f:.]+/[0-9]{1,3}(?: \(Subnet is disabled\))?|"
+        rf"Subnet name:(?:[ \t]+{_EOS_VRF})?|"
+        r"(?:Range|Overlapping range): [0-9a-f:.]+ to [0-9a-f:.]+|"
+        r"(?:IPv[46] address|Duplicate IPv[46] address reservation): [0-9a-f:.]+|"
+        r"MAC address: [0-9a-f.:-]+|Reservations:|Disabled reason\(s\):|"
+        r"Overlapping subnets: [0-9a-f:.]+/[0-9]{1,3}(?:[, \t]+[0-9a-f:.]+/[0-9]{1,3})*"
+    ),
+    # AAA-returned attributes can contain arbitrary provider data. Keep the local
+    # authentication diagnosis and VLAN fields without passing those attributes through.
+    "dot1x_clients": (
+        rf"Interface(?: host details)?: {_EOS_VRF}|Operational:|"
+        r"Supplicant MAC: [0-9a-f.:-]+|Supplicant IP: [0-9a-f:.]+(?: sourceLldp)?|"
+        r"(?:Authentication method|Supplicant state|Fallback Applied): [A-Za-z0-9_-]+|"
+        r"VLAN ID: [0-9]{1,4}(?: \((?:static|dynamic)\))?|"
+        rf"VLAN Name: {_EOS_VRF}"
+    ),
+    "logging_status": (
+        r"Syslog logging: (?:enabled|disabled)|"
+        r"(?:Buffer|Console|Monitor|Persistent|Trap) logging: (?:disabled|level "
+        r"(?:emergencies|alerts|critical|errors|warnings|notifications|informational|debugging))|"
+        rf"Logging to (?:'{_EOS_HOST}'|{_EOS_HOST}) port [0-9]{{1,5}} in VRF {_EOS_VRF} via (?:udp|tcp|tls)"
+    ),
+}
+_EOS_MANAGEMENT_STATUS = {query: re.compile(pattern, re.I) for query, pattern in _EOS_MANAGEMENT_STATUS.items()}
+
+
+def eos_management_status(query: str, output: str) -> str:
+    """Project status-only EOS reads onto fixed fields; unknown lines stay private."""
+    pattern = _EOS_MANAGEMENT_STATUS.get(query)
+    if pattern is None or not output.strip():
+        return output
+    kept = []
+    for line in output.splitlines():
+        line = line.strip()
+        if len(line) <= 512 and (pattern.fullmatch(line) or _EOS_READ_REFUSAL.fullmatch(line)):
+            kept.append(line)
+    return "\n".join(kept) + ("\n" if kept else "")

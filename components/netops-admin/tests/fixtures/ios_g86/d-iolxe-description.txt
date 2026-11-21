@@ -1,0 +1,2 @@
+Interface                      Status         Protocol Description
+Et1/2                          admin down     down

@@ -1,0 +1,28 @@
+MAC                                      VLAN Name( Tag)  Age  Flags          Port / Virtual Port List
+------------------------------------------------------------------------------------------------------
+00:00:5e:00:53:0a                          Default(0001) 0136  d m            1
+00:00:5e:00:53:0b                          Default(0001) 0083  d m            1
+00:00:5e:00:53:08                          Default(0001) 0042  d m            1
+00:00:5e:00:53:0c                          Default(0001) 0030  d m            1
+00:00:5e:00:53:0d                          Default(0001) 0031  d m            1
+00:00:5e:00:53:07                          Default(0001) 0076  d m            1
+00:00:5e:00:53:0e                          Default(0001) 0231  d m            1
+00:00:5e:00:53:0f                          Default(0001) 0265  d m            1
+00:00:5e:00:53:06                          Default(0001) 0042  d m            1
+00:00:5e:00:53:09                          Default(0001) 0028  d m            1
+00:00:5e:00:53:01                          Default(0001) 0028  d m            1
+00:00:5e:00:53:10                          Default(0001) 0171  d m            1
+00:00:5e:00:53:04                          Default(0001) 0052  d m            1
+00:00:5e:00:53:03                          Default(0001) 0097  d m            1
+00:00:5e:00:53:02                          Default(0001) 0028  d m            1
+00:00:5e:00:53:05                          Default(0001) 0041  d m            1
+
+Flags : d - Dynamic, s - Static, p - Permanent, n - NetLogin, m - MAC, i - IP,
+        x - IPX, l - lockdown MAC, L - lockdown-timeout MAC, M- Mirror, B - Egress Blackhole,
+        b - Ingress Blackhole, v - MAC-Based VLAN, P - Private VLAN, T - VLAN translation,
+        D - drop packet, h - Hardware Aging (Age=0), o - IEEE 802.1ah Backbone MAC,
+        S - Software Controlled Deletion, r - MSRP,
+        X - VXLAN, E - EVPN
+
+Total: 16 Static: 0  Perm: 0  Dyn: 16  Dropped: 0  Locked: 0  Locked with Timeout: 0
+FDB Aging time: 300

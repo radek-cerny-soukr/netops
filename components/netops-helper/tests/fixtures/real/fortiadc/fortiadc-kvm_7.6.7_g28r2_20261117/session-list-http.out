@@ -1,0 +1,8 @@
+diagnose server-load-balance session list
+client-ip/port virtual-server-ip/port local-ip/port real-server-ip/port protocol service state in-bytes out-bytes expire virtual-server-name real-server-name
+203.0.113.100 59220 203.0.113.10 80 203.0.113.253 27678 203.0.113.254 80 6 http ESTABLISHED 0 0 100 VS_APP_HTTP RS_A
+203.0.113.100 59224 203.0.113.10 80 203.0.113.253 30672 203.0.113.252 80 6 http ESTABLISHED 0 0 100 VS_APP_HTTP RS_B
+203.0.113.100 59228 203.0.113.10 80 203.0.113.253 27694 203.0.113.254 80 6 http ESTABLISHED 0 0 100 VS_APP_HTTP RS_A
+203.0.113.100 59244 203.0.113.10 80 203.0.113.253 30688 203.0.113.252 80 6 http ESTABLISHED 0 0 100 VS_APP_HTTP RS_B
+
+FortiADC-KVM # 

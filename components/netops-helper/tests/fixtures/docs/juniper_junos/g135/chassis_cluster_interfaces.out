@@ -1,0 +1,26 @@
+Control link status: Down
+
+Control interfaces:
+    Index   Interface   Monitored-Status   Internal-SA   Security
+    0       ixlv0       Down               Enabled       Disabled
+    1       igb0        Down               Enabled       Disabled
+
+Fabric link status: Down
+
+Fabric interfaces:
+    Name    Child-interface    Status                    Security
+                               (Physical/Monitored)
+    fab0
+    fab0
+
+Redundant-ethernet Information:
+    Name         Status      Redundancy-group
+    reth0        Down        Not configured
+    reth1        Down        Not configured
+    reth2        Down        Not configured
+    reth3        Down        Not configured
+    reth4        Down        Not configured
+
+Redundant-pseudo-interface Information:
+    Name         Status      Redundancy-group
+    lo0          Up          0

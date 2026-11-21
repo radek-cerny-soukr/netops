@@ -1,0 +1,3 @@
+
+> show ip bgp summary vrf default
+% BGP inactive at line 1

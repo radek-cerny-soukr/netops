@@ -1,0 +1,23 @@
+##
+## '0' was expanded from interface-range 'g137-rng'
+##
+unit 0 {
+    ##
+    ## 'ethernet-switching' was expanded from interface-range 'g137-rng'
+    ##
+    family ethernet-switching {
+        ##
+        ## 'access' was expanded from interface-range 'g137-rng'
+        ##
+        interface-mode access;
+        ##
+        ## 'vlan' was expanded from interface-range 'g137-rng'
+        ##
+        vlan {
+            ##
+            ## 'g137-voice' was expanded from interface-range 'g137-rng'
+            ##
+            members g137-voice;
+        }
+    }
+}

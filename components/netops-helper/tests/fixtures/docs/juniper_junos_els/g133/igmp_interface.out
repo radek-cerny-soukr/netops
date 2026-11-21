@@ -1,0 +1,6 @@
+Learning-Domain: default
+Interface: ae0.1
+    State:         Up Groups:      1
+    mc-lag state: standby
+    Immediate leave: Off
+Router interface: no

@@ -1,0 +1,21 @@
+{
+  "platform": "ios",
+  "table": "dhcp-exclusion",
+  "versions": [
+    "15.9(3)M12"
+  ],
+  "exact_versions": true,
+  "ops": [
+    "create",
+    "delete"
+  ],
+  "table_scoped_key": true,
+  "key_pattern": "^[0-9]{1,3}(?:\\.[0-9]{1,3}){3}(?:-[0-9]{1,3}(?:\\.[0-9]{1,3}){3})?$",
+  "protected_keys": [],
+  "attributes": {},
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "G65, GNS3 d-iosv IOSv 15.9(3)M12. One global excluded IPv4 address or an inclusive range keyed first-last. Uses the IOS confirmed revert timer and exact running-configuration readback of the affected object."
+}

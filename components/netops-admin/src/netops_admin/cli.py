@@ -5,7 +5,8 @@ import json
 import sys
 from pathlib import Path
 
-from netops_admin import __version__, fortiadc
+from netops_admin import __version__, fortiadc, ios
+from netops_admin.access import operation
 from netops_admin.engine import build_plan, verify
 from netops_admin.errors import Rejected, shown
 from netops_admin.jsontext import loads
@@ -87,7 +88,8 @@ def _pool_member(args) -> int:
         access = open_access(device)
     except Exception as exc:
         raise Rejected(["the device cannot be reached (%s)" % type(exc).__name__]) from None
-    record = fortiadc.run(access, args.pool, args.member, args.status)
+    with operation(access):
+        record = fortiadc.run(access, args.pool, args.member, args.status)
     _emit(dict(record, device=device.name))
     return fortiadc.exit_code(record)
 
@@ -108,7 +110,8 @@ def _pool_member_add(args) -> int:
     from netops_admin import fortiadc_member
 
     device, access = _member_access(args)
-    record = fortiadc_member.add(access, args.pool, args.member, args.real_server, args.service_port)
+    with operation(access):
+        record = fortiadc_member.add(access, args.pool, args.member, args.real_server, args.service_port)
     _emit(dict(record, device=device.name))
     return fortiadc.exit_code(record)
 
@@ -117,7 +120,8 @@ def _pool_member_remove(args) -> int:
     from netops_admin import fortiadc_member
 
     device, access = _member_access(args)
-    record = fortiadc_member.remove(access, args.pool, args.member)
+    with operation(access):
+        record = fortiadc_member.remove(access, args.pool, args.member)
     _emit(dict(record, device=device.name))
     return fortiadc.exit_code(record)
 
@@ -181,14 +185,44 @@ def _operate(args, *, require_export=True) -> int:
         settled = execute.recover(runtime, args.device)
         _emit({"device": args.device, "settled": settled})
         return EXIT_CONFIRMED_BLOCKED if any(execute.blocks(r.get("result"), r.get("reason")) for r in settled) else 0
-    if args.command == "poe-cycle":
-        from netops_admin import exos_poe
-        cycle = exos_poe.request(args.device, args.port, args.reason, args.user_request, args.request_id)
+    target = runtime.config.devices.get(args.device) if args.command in execute.CYCLE_KINDS else None
+    if target is not None and (target.platform in ("eos", "fortios", "junos", *ios.PLATFORMS)
+                               or (target.platform == "nxos" and args.command == "port-bounce")):
+        if target.platform == "junos":
+            from netops_admin import junos_cycle as cycle_adapter
+        elif target.platform == "fortios":
+            from netops_admin import exec_fortios as cycle_adapter
+        elif target.platform == "nxos":
+            from netops_admin import exec_nxos as cycle_adapter
+        elif target.platform in ios.PLATFORMS:
+            from netops_admin import ios_cycle as cycle_adapter
+        else:
+            from netops_admin import eos_cycle as cycle_adapter
+        cycle = cycle_adapter.request(args.command, args.device, args.port, args.reason, args.user_request,
+                                  args.request_id, args.endpoint_impact)
         if args.preview:
-            result = exos_poe.preview(runtime, args.device, cycle)
+            result = cycle_adapter.preview(runtime, args.device, args.command, cycle)
             _emit(result)
             return 0 if result["result"] == "ready" else EXIT_REJECTED
-        record = exos_poe.apply(runtime, args.device, cycle)
+        record = cycle_adapter.apply(runtime, args.device, args.command, cycle,
+                                 expected_plan_sha256=args.expect_plan_sha256)
+        _emit(record)
+        if record.get("result") != "confirmed":
+            return EXIT_NOT_CONFIRMED
+        if record.get("reason") in execute.BLOCKING_REASONS:
+            return EXIT_CONFIRMED_BLOCKED
+        # confirmed, but the link or the powered device did not come back within the wait
+        return EXIT_NOT_CONFIRMED if record.get("reason") else 0
+    if args.command in execute.CYCLE_KINDS:
+        from netops_admin import exos_poe
+        cycle = exos_poe.request(args.device, args.port, args.reason, args.user_request, args.request_id,
+                                 action=args.command, endpoint_impact=args.endpoint_impact)
+        if args.preview:
+            result = exos_poe.preview(runtime, args.device, cycle, action=args.command)
+            _emit(result)
+            return 0 if result["result"] == "ready" else EXIT_REJECTED
+        record = exos_poe.apply(runtime, args.device, cycle, action=args.command,
+                                expected_plan_sha256=args.expect_plan_sha256)
         _emit(record)
         if record.get("result") != "confirmed":
             return EXIT_NOT_CONFIRMED
@@ -197,11 +231,11 @@ def _operate(args, *, require_export=True) -> int:
         # confirmed, but a powered device did not return to delivering within the wait
         return EXIT_NOT_CONFIRMED if record.get("reason") else 0
     if args.command == "undo" and args.preview:
-        result = execute.preview_undo(runtime, args.change_id, args.reason)
+        result = execute.preview_undo(runtime, args.change_id, args.reason, issue=True)
         _emit(result)
         return 0 if result["result"] == "ready" else EXIT_REJECTED
     if args.command == "undo":
-        record = execute.undo(runtime, args.change_id, args.reason)
+        record = execute.undo(runtime, args.change_id, args.reason, expected_plan_sha256=args.expect_plan_sha256)
     else:
         record = execute.apply(runtime, args.device, parse_request(_read(args.request)),
                                expected_plan_sha256=args.expect_plan_sha256)
@@ -214,8 +248,8 @@ def _operate(args, *, require_export=True) -> int:
 def main(argv=None, *, require_export=True) -> int:
     parser = argparse.ArgumentParser(
         prog="netops-admin",
-        description="Plan a bounded device change, execute it behind a rollback safeguard, "
-                    "and compare predictions with device snapshots.",
+        description="Preview and apply a bounded device change with readback. Configuration requests use a return "
+                    "mechanism. Operational clear is irreversible and requires an approved live preview.",
     )
     parser.add_argument("--version", action="version", version="netops-admin %s" % __version__)
     commands = parser.add_subparsers(dest="command", required=True)
@@ -244,13 +278,12 @@ def main(argv=None, *, require_export=True) -> int:
     check.add_argument("--plan", required=True, type=Path)
     check.add_argument("--snapshot", required=True, type=Path)
     check.add_argument("--expect", choices=("after", "before"), default="after")
-    run = commands.add_parser("apply", help="execute one request on a configured device with a rollback safeguard")
+    run = commands.add_parser("apply", help="execute one request on a configured device")
     run.add_argument("--config", required=True, type=Path)
     run.add_argument("--device", required=True)
     run.add_argument("--request", required=True, type=Path)
-    run.add_argument("--expect-plan-sha256", help="profile requests: refuse with plan_changed when the fresh plan "
-                                                  "differs from the plan_sha256 of the approved preview")
-    look_ahead = commands.add_parser("preview", help="run every check of apply against the device and print the plan, without any change")
+    run.add_argument("--expect-plan-sha256", help="bind apply to the approved preview; required for operational clear")
+    look_ahead = commands.add_parser("preview", help="run the planning checks of apply against the device and print the plan, without applying it (a FortiOS sessions clear preview temporarily sets and resets the diagnostic session filter); apply checks the current state again; for a profile request, pass --expect-plan-sha256 to bind apply to the approved preview (schema transactions refuse it)")
     look_ahead.add_argument("--config", required=True, type=Path)
     look_ahead.add_argument("--device", required=True)
     look_ahead.add_argument("--request", required=True, type=Path)
@@ -258,12 +291,101 @@ def main(argv=None, *, require_export=True) -> int:
     ready.add_argument("--config", required=True, type=Path)
     ready.add_argument("--device", required=True)
     ready.add_argument("--local", action="store_true", help="check only local readiness; exit 0 means local readiness only, remote readiness remains unverified")
+    export = commands.add_parser("backup", help="preview or export an encrypted global FortiOS backup")
+    export.add_argument("--host", required=True)
+    export.add_argument("--port", type=int, default=443)
+    export.add_argument("--login", help="FortiOS administrator; omit to use NETOPS_BACKUP_TOKEN")
+    export.add_argument("--tls-sha256", required=True, help="SHA-256 of the FortiOS leaf certificate, in hexadecimal")
+    export.add_argument("--directory", required=True, type=Path, help="private directory on the backup host")
+    export.add_argument("--keep", type=int, default=7, help="number of encrypted backups to keep per target")
+    export.add_argument("--confirm", help="plan_sha256 from the preview; reads NETOPS_BACKUP_KEY and the credential from the environment")
+    export_eos = commands.add_parser("backup-eos", help="preview or export an encrypted Arista EOS running configuration")
+    export_eos.add_argument("--host", required=True)
+    export_eos.add_argument("--port", type=int, default=22)
+    export_eos.add_argument("--login", required=True, help="EOS account with privilege 15")
+    export_eos.add_argument("--ssh-host-key", required=True, help="pinned OpenSSH SHA256 host key fingerprint")
+    export_eos.add_argument("--directory", required=True, type=Path, help="private directory on the backup host")
+    export_eos.add_argument("--keep", type=int, default=7, help="number of encrypted backups to keep per target")
+    export_eos.add_argument("--confirm", help="plan_sha256 from the preview; reads NETOPS_BACKUP_KEY and NETOPS_BACKUP_PASSWORD")
+    export_nxos = commands.add_parser("backup-nxos", help="preview, export or inspect an encrypted Cisco NX-OS backup")
+    export_nxos.add_argument("--host", required=True)
+    export_nxos.add_argument("--port", type=int, default=22)
+    export_nxos.add_argument("--login", required=True, help="NX-OS account with full configuration visibility")
+    export_nxos.add_argument("--ssh-host-key", required=True, help="pinned OpenSSH SHA256 host key fingerprint")
+    export_nxos.add_argument("--directory", required=True, type=Path, help="private directory outside a Git worktree")
+    export_nxos.add_argument("--keep", type=int, default=7, help="number of encrypted backups to keep per target")
+    nxos_mode = export_nxos.add_mutually_exclusive_group()
+    nxos_mode.add_argument("--confirm", help="plan_sha256 from the preview; reads NETOPS_BACKUP_KEY and NETOPS_BACKUP_PASSWORD")
+    nxos_mode.add_argument("--status", action="store_true", help="inspect local retention using NETOPS_BACKUP_KEY")
+    export_xe = commands.add_parser("backup-xe", help="preview or export an encrypted Cisco IOS XE running configuration")
+    export_xe.add_argument("--host", required=True)
+    export_xe.add_argument("--port", type=int, default=22)
+    export_xe.add_argument("--directory", required=True, type=Path)
+    export_xe.add_argument("--login", required=True, help="IOS XE account authorized to read the configuration")
+    export_xe.add_argument("--ssh-sha256", required=True, help="pinned OpenSSH SHA256 host key fingerprint")
+    export_xe.add_argument("--legacy-ssh", choices=("rsa-sha1", "rsa-sha1-dh14"))
+    export_xe.add_argument("--keep", type=int, default=7, help="number of encrypted backups to keep per target")
+    export_xe.add_argument("--confirm", help="plan_sha256 from the preview; reads NETOPS_BACKUP_KEY and NETOPS_BACKUP_PASSWORD")
+    status_xe = commands.add_parser("backup-xe-status", help="authenticate and report the last Cisco IOS XE backup")
+    status_xe.add_argument("--host", required=True)
+    status_xe.add_argument("--port", type=int, default=22)
+    status_xe.add_argument("--directory", required=True, type=Path)
+    unseal = commands.add_parser("backup-unseal", help="authenticate and extract an encrypted backup to a private restore file")
+    unseal.add_argument("--platform", choices=("fortios", "eos", "nxos", "ios", "xe"), default="fortios")
+    unseal.add_argument("--input", required=True, type=Path)
+    unseal.add_argument("--output", required=True, type=Path)
+    export_ios = commands.add_parser("backup-ios", help="preview or export an encrypted Cisco IOS configuration")
+    status_ios = commands.add_parser("backup-ios-status", help="check the last authenticated Cisco IOS backup")
+    for command in (export_ios, status_ios):
+        command.add_argument("--host", required=True)
+        command.add_argument("--port", type=int, default=22)
+        command.add_argument("--directory", required=True, type=Path, help="private directory outside a Git worktree")
+    export_ios.add_argument("--login", required=True, help="IOS account permitted to show running-config")
+    export_ios.add_argument("--ssh-sha256", required=True, help="pinned SSH key fingerprint as SHA256:...")
+    export_ios.add_argument("--legacy-ssh", choices=("rsa-sha1", "rsa-sha1-dh14"))
+    export_ios.add_argument("--keep", type=int, default=7)
+    export_ios.add_argument("--confirm", help="plan_sha256 from the preview. Reads NETOPS_BACKUP_KEY and NETOPS_BACKUP_PASSWORD")
+    export_exos = commands.add_parser("backup-exos", help="preview or export an encrypted saved ExtremeXOS configuration")
+    export_exos.add_argument("--host", required=True)
+    export_exos.add_argument("--port", type=int, default=22)
+    export_exos.add_argument("--login", required=True)
+    export_exos.add_argument("--ssh-sha256", required=True, help="pinned SSH key fingerprint as SHA256:...")
+    export_exos.add_argument("--legacy-ssh", choices=("rsa-sha1", "rsa-sha1-dh14"))
+    export_exos.add_argument("--identity", type=Path, help="private SSH key file; omit to use NETOPS_BACKUP_PASSWORD")
+    export_exos.add_argument("--file", required=True, help="existing saved configuration filename, including .cfg")
+    export_exos.add_argument("--directory", required=True, type=Path, help="private directory outside a Git worktree")
+    export_exos.add_argument("--keep", type=int, default=7)
+    export_exos.add_argument("--confirm", help="plan_sha256 from the preview; reads NETOPS_BACKUP_KEY")
+    unseal_exos = commands.add_parser("backup-exos-unseal", help="extract an authenticated ExtremeXOS backup to a private .cfg file")
+    unseal_exos.add_argument("--input", required=True, type=Path)
+    unseal_exos.add_argument("--output", required=True, type=Path)
+    export_junos = commands.add_parser("backup-junos", help="preview or export an encrypted Junos configuration (optionally saving the rescue configuration)")
+    export_junos.add_argument("--host", required=True)
+    export_junos.add_argument("--port", type=int, default=22)
+    export_junos.add_argument("--login", required=True)
+    export_junos.add_argument("--ssh-sha256", required=True, help="pinned SSH key fingerprint as SHA256:...")
+    export_junos.add_argument("--directory", required=True, type=Path, help="private directory outside a Git worktree")
+    export_junos.add_argument("--keep", type=int, default=7)
+    export_junos.add_argument("--rescue", action="store_true", help="also run request system configuration rescue save")
+    export_junos.add_argument("--confirm", help="plan_sha256 from the preview; reads NETOPS_BACKUP_KEY and NETOPS_BACKUP_PASSWORD")
+    unseal_junos = commands.add_parser("backup-junos-unseal", help="extract an authenticated Junos backup to a private .conf file")
+    unseal_junos.add_argument("--input", required=True, type=Path)
+    unseal_junos.add_argument("--output", required=True, type=Path)
+    restore_junos = commands.add_parser("restore-junos", help="preview or restore an encrypted Junos backup with load override and commit confirmed")
+    restore_junos.add_argument("--host", required=True)
+    restore_junos.add_argument("--port", type=int, default=22)
+    restore_junos.add_argument("--login", required=True)
+    restore_junos.add_argument("--ssh-sha256", required=True, help="pinned SSH key fingerprint as SHA256:...")
+    restore_junos.add_argument("--input", required=True, type=Path, help="sealed Junos backup artifact")
+    restore_junos.add_argument("--minutes", type=int, default=10, help="commit confirmed timer (2-60 minutes)")
+    restore_junos.add_argument("--confirm", help="plan_sha256 from the preview; reads NETOPS_BACKUP_KEY and NETOPS_BACKUP_PASSWORD")
     enroll = commands.add_parser("enroll", help="operator: test actual on-device rollback before enabling writes")
     enroll.add_argument("--config", required=True, type=Path)
     enroll.add_argument("--device", required=True)
     enroll.add_argument("--probe", required=True, help="unused IPv4 subnet for FortiOS, unused VLAN tag for EXOS, "
                         "an unused Ethernet interface for EOS, IOS, IOS XE and NX-OS (its description is set and returned), "
-                        "POOL:MEMBER:REAL_SERVER:PORT (an unused member number, created disabled) for FortiADC")
+                        "POOL:MEMBER:REAL_SERVER:PORT (an unused member number, created disabled) or "
+                        "certificate/GROUP:MEMBER:REPLACEMENT (an existing test certificate group member) for FortiADC")
     look = commands.add_parser("status", help="show the journal record of an operation")
     look.add_argument("--config", required=True, type=Path)
     look.add_argument("--change-id")
@@ -282,17 +404,27 @@ def main(argv=None, *, require_export=True) -> int:
     back.add_argument("--config", required=True, type=Path)
     back.add_argument("--change-id", required=True)
     back.add_argument("--reason", required=True)
+    back.add_argument("--expect-plan-sha256", help="hash from the approved undo preview, required for a profile batch")
     back.add_argument("--preview", action="store_true",
-                      help="run every check of the undo and print its plan, without any change")
-    cycle = commands.add_parser("poe-cycle", help="ExtremeXOS: power-cycle one PoE port (disable, then enable inline "
-                                                  "power) behind a rollback safeguard; no undo")
-    cycle.add_argument("--config", required=True, type=Path)
-    cycle.add_argument("--device", required=True)
-    cycle.add_argument("--port", required=True, help="one port number, e.g. 8")
-    cycle.add_argument("--reason", required=True)
-    cycle.add_argument("--user-request", required=True, help="the request of the person, as written")
-    cycle.add_argument("--request-id", required=True)
-    cycle.add_argument("--preview", action="store_true", help="run every check of the cycle and print its plan, without any change")
+                      help="run the planning checks of the undo and print its plan, without any change; the undo checks again")
+    cycle = commands.add_parser("poe-cycle", help="ExtremeXOS, Arista EOS, FortiOS, Junos and Cisco IOS/IOS XE: power-cycle one PoE port (disable, then "
+                                                  "enable inline power) behind a rollback safeguard; no undo")
+    bounce = commands.add_parser("port-bounce", help="ExtremeXOS, Arista EOS, FortiOS, Junos, NX-OS and Cisco IOS/IOS XE: bounce one Ethernet port "
+                                                     "behind a rollback safeguard; no undo")
+    for parser_ in (cycle, bounce):
+        parser_.add_argument("--config", required=True, type=Path)
+        parser_.add_argument("--device", required=True)
+        parser_.add_argument("--port", required=True, help="one port: number or slot:port on EXOS, EthernetN on EOS, SERIAL:portN on FortiOS, the full name (GigabitEthernet1/0/5) on IOS")
+        parser_.add_argument("--reason", required=True)
+        parser_.add_argument("--user-request", required=True, help="the request of the person, as written")
+        parser_.add_argument("--request-id", required=True)
+        parser_.add_argument("--endpoint-impact", help="name the port again after the person accepted that the device on it (LLDP neighbor, "
+                                                       "learned MAC or powered device) loses its link or power; when the preview requires it, "
+                                                       "pass it identically with --preview and apply")
+        parser_.add_argument("--expect-plan-sha256", help="approved preview hash, required for every bounce and for every PoE cycle except "
+                                                          "on ExtremeXOS")
+        parser_.add_argument("--preview", action="store_true",
+                             help="run the planning checks of the operation and print its plan, without any change; apply checks again")
     member = commands.add_parser("pool-member", help="FortiADC (deprecated, " + LEGACY + "): set the status of one real-server pool member and verify it")
     member.add_argument("--config", required=True, type=Path)
     member.add_argument("--device", required=True)
@@ -305,10 +437,102 @@ def main(argv=None, *, require_export=True) -> int:
     removed = commands.add_parser("pool-member-remove", help="FortiADC (deprecated, " + LEGACY + "): remove one DISABLED or MAINTAIN pool member and verify it")
     for flag in ("--config", "--device", "--pool", "--member"):
         removed.add_argument(flag, required=True, type=Path if flag == "--config" else str)
+    cert_import = commands.add_parser("certificate-import", help="preview or import a new FortiADC PEM certificate from private files")
+    cert_import.add_argument("--config", type=Path, required=True)
+    cert_import.add_argument("--device", required=True)
+    cert_import.add_argument("--name", required=True)
+    cert_import.add_argument("--certificate", type=Path, required=True)
+    cert_import.add_argument("--key", type=Path, required=True)
+    cert_import.add_argument("--confirm", help="approved plan_sha256 from the import preview")
     args = parser.parse_args(argv)
     if args.command in ("pool-member", "pool-member-add", "pool-member-remove"):
         sys.stderr.write(LEGACY_NOTICE % args.command)
     try:
+        if args.command == "certificate-import":
+            from netops_admin import fortiadc_certificate_import
+            from netops_admin.config import load_config
+            config = load_config(args.config)
+            device = config.devices.get(args.device)
+            if device is None:
+                raise Rejected(["unknown Admin device"])
+            result = fortiadc_certificate_import.import_certificate(build_runtime(config, require_export=require_export), device,
+                                                 args.name, args.certificate, args.key, args.confirm)
+            _emit(result)
+            return EXIT_UNKNOWN if result["result"] == "unknown" else 0
+        if args.command == "backup":
+            from netops_admin import backup
+            _emit(backup.run(args.host, args.port, args.login, args.tls_sha256, args.directory, args.keep, args.confirm))
+            return 0
+        if args.command == "backup-eos":
+            from netops_admin import backup_eos
+            _emit(backup_eos.run(args.host, args.port, args.login, args.ssh_host_key, args.directory, args.keep,
+                                 args.confirm))
+            return 0
+        if args.command == "backup-nxos":
+            from netops_admin import backup_nxos
+            _emit(backup_nxos.run(args.host, args.port, args.login, args.ssh_host_key, args.directory, args.keep,
+                                  args.confirm, status=args.status))
+            return 0
+        if args.command == "backup-xe":
+            from netops_admin import backup_xe
+            result = backup_xe.run(args.host, args.port, args.login, args.ssh_sha256, args.directory, args.keep,
+                                   args.confirm, legacy=args.legacy_ssh)
+            _emit(result)
+            return 0 if result.get("retention_ok", True) else EXIT_NOT_CONFIRMED
+        if args.command == "backup-xe-status":
+            from netops_admin import backup_xe
+            result = backup_xe.status(args.host, args.port, args.directory)
+            _emit(result)
+            return 0 if result["result"] == "confirmed" else EXIT_NOT_CONFIRMED
+        if args.command == "backup-unseal":
+            if args.platform == "eos":
+                from netops_admin import backup_eos as backup
+            elif args.platform == "xe":
+                from netops_admin import backup_xe as backup
+            elif args.platform == "nxos":
+                from netops_admin import backup_nxos as backup
+            elif args.platform == "ios":
+                from netops_admin import backup_ios as backup
+            else:
+                from netops_admin import backup
+            _emit(backup.unseal(args.input, args.output))
+            return 0
+        if args.command == "backup-ios":
+            from netops_admin import backup_ios
+            result = backup_ios.run(args.host, args.port, args.login, args.ssh_sha256, args.directory,
+                                    args.keep, args.confirm, legacy=args.legacy_ssh)
+            _emit(result)
+            return EXIT_NOT_CONFIRMED if result.get("retention_ok") is False else 0
+        if args.command == "backup-ios-status":
+            from netops_admin import backup_ios
+            result = backup_ios.status(args.host, args.port, args.directory)
+            _emit(result)
+            return EXIT_NOT_CONFIRMED if result["result"] == "missing" else 0
+        if args.command == "backup-exos":
+            from netops_admin import backup_exos
+            _emit(backup_exos.run(args.host, args.port, args.login, args.ssh_sha256, args.file, args.directory,
+                                  args.keep, args.confirm, identity=args.identity, legacy=args.legacy_ssh))
+            return 0
+        if args.command == "backup-junos":
+            from netops_admin import backup_junos
+            _emit(backup_junos.run(args.host, args.port, args.login, args.ssh_sha256, args.directory, args.keep,
+                                   args.confirm, rescue=args.rescue))
+            return 0
+        if args.command == "backup-junos-unseal":
+            from netops_admin import backup_junos
+            _emit(backup_junos.unseal(args.input, args.output))
+            return 0
+        if args.command == "restore-junos":
+            from netops_admin import backup_junos
+            result = backup_junos.restore(args.host, args.port, args.login, args.ssh_sha256, args.input, args.minutes,
+                                          args.confirm)
+            _emit(result)
+            return {"ready": 0, "confirmed": 0, "rejected": EXIT_REJECTED,
+                    "unknown": EXIT_UNKNOWN, "revert-failed": EXIT_UNKNOWN}.get(result["result"], EXIT_NOT_CONFIRMED)
+        if args.command == "backup-exos-unseal":
+            from netops_admin import backup_exos
+            _emit(backup_exos.unseal(args.input, args.output))
+            return 0
         if args.command == "pool-member":
             return _pool_member(args)
         if args.command == "pool-member-add":
@@ -316,7 +540,7 @@ def main(argv=None, *, require_export=True) -> int:
         if args.command == "pool-member-remove":
             return _pool_member_remove(args)
         if args.command in ("apply", "status", "recover", "unblock", "notify-retry", "undo", "enroll",
-                            "preview", "doctor", "poe-cycle"):
+                            "preview", "doctor", "poe-cycle", "port-bounce"):
             return _operate(args, require_export=require_export)
         if args.command in ("schema-plan", "schema-verify"):
             from netops_core import schema

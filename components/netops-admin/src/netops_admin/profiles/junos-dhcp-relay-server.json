@@ -1,0 +1,32 @@
+{
+  "platform": "junos",
+  "table": "dhcp-relay-server",
+  "versions": [
+    "26.2R1.7"
+  ],
+  "exact_versions": true,
+  "ops": [
+    "create",
+    "update",
+    "delete"
+  ],
+  "table_scoped_key": true,
+  "key_pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,62}$",
+  "protected_keys": [],
+  "attributes": {
+    "servers": {
+      "type": "text",
+      "required_on_create": true,
+      "update": true,
+      "unset": false,
+      "referenced_update": false,
+      "max_length": 150,
+      "pattern": "^[0-9. ]{7,150}$"
+    }
+  },
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "G144 J30. A DHCP relay server group of 1 to 8 IPv4 server addresses (forwarding-options dhcp-relay server-group); a group used by a relay group cannot be deleted. The Junos commit confirmed safeguard protects the change and the inverse restores the exact configured attributes (G144). The write account reads the object back from the scoped configuration; the read-only account cannot read the configuration and no operational view lists an address-assignment pool or a relay group."
+}

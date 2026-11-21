@@ -1,0 +1,22 @@
+  Interface index: 152, SNMP ifIndex: 532
+  Link-level type: Ethernet, MTU: 1514, LAN-PHY mode, Speed: 1000mbps, BPDU Error: None, Loop Detect PDU Error: None, Ethernet-Switching Error: None, Remote Bounce: None, MAC-REWRITE Error: None, Loopback: Disabled, Source filtering: Disabled, Flow control: Enabled, Auto-negotiation: Enabled, Remote fault: Online, Media type: Fiber
+  Device flags   : Present Running Down
+  Interface Specific flags: Internal: 0x101200
+  Interface flags: Hardware-Down SNMP-Traps Internal: 0x4000
+  Link flags     : None
+  CoS queues     : 8 supported, 8 maximum usable queues
+  Current address: 00:00:5e:00:53:0a, Hardware address: 00:00:5e:00:53:0a
+  Last flapped   : 2026-11-18 18:16:35 UTC (09:33:59 ago)
+  Input rate     : 0 bps (0 pps)
+  Output rate    : 0 bps (0 pps)
+  Active alarms  : LINK
+  Active defects : LINK
+  PCS statistics                      Seconds
+    Bit errors                             0
+    Errored blocks                         0
+  Interface transmit statistics: Disabled
+
+  Logical interface ge-0/0/9.16386 (Index 353) (SNMP ifIndex 533)
+    Flags: Device-Down SNMP-Traps 0x4004000 Encapsulation: ENET2
+    Input packets : 0
+    Output packets: 0

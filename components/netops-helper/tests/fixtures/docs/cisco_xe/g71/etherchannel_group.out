@@ -1,0 +1,17 @@
+Group state = L2
+Ports: 2   Maxports = 16
+Port-channels: 1 Max Port-channels = 16
+Protocol:      LACP
+                   Ports in the group:
+                   -------------------
+Port: Gi1/0/1
+------------
+Port state    = Up Mstr In-Bndl
+Channel group = 1        Mode  = Active        Gcchange = -
+
+                   Port-channels in the group:
+                   ----------------------
+
+Port-channel: Po1   (Primary Aggregator)
+Age of the Port-channel = 01d:20h:20m:26s
+Logical slot/port = 10/1          Number of ports = 2

@@ -1,0 +1,32 @@
+config
+You have all rights in this mode.
+ruckus(config)# wlan netops-g112-test
+The WLAN service 'netops-g112-test' has been loaded. To save the WLAN service, type 'end' or 'exit'.
+ruckus(config-wlan)# dot1x wpa2 algorithm AES auth-server name nonexistent-aaa
+The RADIUS server 'nonexistent-aaa' could not be found. Please check the spelling, and then try again.
+ruckus(config-wlan)# dot1x wpa2 algorithm AES auth-server name
+The command is either unrecognized or incomplete. To view a list of commands that you can run  from this context, type '?' or 'help'.
+ruckus(config-wlan)# dot1x wpa2 algorithm AES auth-server local
+The command was executed successfully. To save the changes, type 'end' or 'exit'.
+ruckus(config-wlan)# max-clients abc
+The Max. client value must be a number between 1 and 512.
+ruckus(config-wlan)# rate-limit uplink 0 downlink 5
+The rate of limiting must be between 0.10 and 200.00, 2 digits after the decimal point is retained. 020 or 020.0 is error format. 
+ruckus(config-wlan)# rate-limit uplink 201 downlink 5
+The rate of limiting must be between 0.10 and 200.00, 2 digits after the decimal point is retained. 020 or 020.0 is error format. 
+ruckus(config-wlan)# rate-limit perssid_uplink 5.5
+The command was executed successfully. To save the changes, type 'end' or 'exit'.
+ruckus(config-wlan)# client-isolation isolation-on-ap maybe
+The command is either unrecognized or incomplete. To view a list of commands that you can run  from this context, type '?' or 'help'.
+ruckus(config-wlan)# open wpa2 passphrase short algorithm aes
+PSK Passphrase can only contain between 8 and 63 characters or 64 HEX characters, and can't start or end with space.
+ruckus(config-wlan)# abort
+No changes have been saved.
+ruckus(config)# dhcp netops-g112-dhcp
+The DHCP server 'netops-g112-dhcp' has been loaded. To save the DHCP server, type 'end' or 'exit'.
+ruckus(config-dhcp)# second 192.0.2.53
+The command was executed successfully. To save the changes, type 'end' or 'exit'.
+ruckus(config-dhcp)# first 192.0.2.53
+The command was executed successfully. To save the changes, type 'end' or 'exit'.
+ruckus(config-dhcp)# abort
+ruckus(config)# 

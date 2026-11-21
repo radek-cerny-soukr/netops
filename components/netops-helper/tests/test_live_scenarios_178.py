@@ -6,7 +6,9 @@
    since 1.0.10 (task 298).
 2. cEOS ``show mlag interfaces`` answering ``No MLAG ports configured`` is the complete empty member table.
 3. N1: a device refusal of the IOS/IOS XE/EXOS read is the same ``device-refused`` answer as on EOS/NX-OS, and an
-   unsupported or unverifiable identity is ``config_platform_not_supported``, not ``-32603 Role operation failed``.
+   unverifiable identity is ``config_platform_not_supported``, not ``-32603 Role operation failed``.  Since G00
+   (decision of 2026-11-17) an identity that is read but untested is no refusal: the configuration is read and
+   the reply carries ``firmware_support`` with a ``firmware_untested`` warning.
 
 End-to-end cases run through the real root ``netops.worker.HelperBridge.call`` -> ``Proxy.request`` -> FastMCP
 ``server.config_read``/``server.config_diff`` -> engine -> ``Proxy.response`` -> the worker (fixture ``env`` of
@@ -391,20 +393,40 @@ def test_eos_and_nxos_refusals_are_the_same_answer(env):
     assert _error(_read(env)) == DEVICE_REFUSED
 
 
-UNSUPPORTED = {
-    # REAL identities of task 178 that are not the admitted one.
-    'cisco_ios': ({'show version': (REAL / 'cisco_ios/iosvl2_15.2.20200924/version.txt').read_text()},
-                  'configuration firmware-not-supported for cisco_ios; supported IOSv 15.9(3)M12 fc1 '
-                  'VIOS-ADVENTERPRISEK9-M; output withheld'),
-    'extreme_exos': ({'show version': (REAL / 'exos/exosvm_33.6.1.14/version.txt').read_text(),
-                      'show switch': (REAL / 'exos/exosvm_33.6.1.14/switch.txt').read_text()},
+EXOSVM = {'show version': (REAL / 'exos/exosvm_33.6.1.14/version.txt').read_text(),
+          'show switch': (REAL / 'exos/exosvm_33.6.1.14/switch.txt').read_text()}
+UNVERIFIABLE = {
+    # DERIVED from the REAL EXOS-VM identity of task 178: an indented line that is no patch after the booted
+    # image keeps the identity inconclusive (task 441; the image without a patch itself is read, see below).
+    'extreme_exos': ({'show version': EXOSVM['show version'],
+                      'show switch': EXOSVM['show switch'].replace(
+                          'Primary ver:      33.6.1.14               \n',
+                          'Primary ver:      33.6.1.14               \n                  something-else\n')},
                      'configuration identity-unverifiable; output withheld'),
+}
+UNTESTED_REAL = {
+    # IOSvL2 identity of task 178 and the X435 remain outside the tested profiles.
+    'cisco_ios': {'show version': (REAL / 'cisco_ios/iosvl2_15.2.20200924/version.txt').read_text()},
+    'extreme_exos': {'show version': (REAL / 'exos/x435-8p-4s_33.7.1.6/version.txt').read_text(),
+                     'show switch': (REAL / 'exos/x435-8p-4s_33.7.1.6/switch.txt').read_text()},
 }
 
 
 @pytest.mark.parametrize('env', ['cisco_ios', 'extreme_exos'], indirect=True)
-def test_unsupported_identity_is_config_platform_not_supported(env):
-    identity, text = UNSUPPORTED[env['platform']]
+def test_untested_real_identity_is_read_with_a_warning(env):
+    _identity(env, **UNTESTED_REAL[env['platform']])
+    result = _read(env)
+    data = result['structuredContent']
+    assert result['isError'] is False and data['ok'] is True, result
+    assert data['firmware_support']['status'] == 'untested'
+    assert data['warnings'] == [{'code': 'firmware_untested', 'message': data['firmware_support']['message']}]
+    assert json.loads(result['content'][0]['text'])['warnings'] == data['warnings']
+    assert _config_commands(env)
+
+
+@pytest.mark.parametrize('env', ['extreme_exos'], indirect=True)
+def test_unverifiable_identity_is_config_platform_not_supported(env):
+    identity, text = UNVERIFIABLE[env['platform']]
     _identity(env, **identity)
     result = _read(env)
     data = result['structuredContent']
@@ -422,13 +444,14 @@ def test_unsupported_identity_is_config_platform_not_supported(env):
 
 
 @pytest.mark.parametrize('env', ['cisco_xe', 'cisco_nxos', 'arista_eos'], indirect=True)
-def test_other_release_of_the_family_is_config_platform_not_supported(env):
-    # DERIVED: the admitted identity text with another release number.
+def test_other_release_of_the_family_is_read_with_a_warning(env):
+    # DERIVED: the tested identity text with another release number (G00: read, untested warning).
     version = env['spec']['identity']['show version']
     release = {'cisco_xe': '17.18.2', 'cisco_nxos': '9.3(12)', 'arista_eos': '4.36.1F'}[env['platform']]
     assert release in version
-    _identity(env, **{'show version': version.replace(release, release.replace('1', '7', 1))})
+    other = release.replace('1', '7', 1)
+    _identity(env, **{'show version': version.replace(release, other)})
     data = _read(env)['structuredContent']
-    assert data['ok'] is False and data['error_code'] == 'config_platform_not_supported', data
-    assert data['error'].startswith('configuration ') and data['error'].endswith('; output withheld')
-    assert not _config_commands(env)
+    assert data['ok'] is True and data['firmware']['version'] == other, data
+    assert data['firmware_support']['status'] == 'untested' and data['warnings'][0]['code'] == 'firmware_untested'
+    assert _config_commands(env)

@@ -1,0 +1,16 @@
+Port              Sent Received Tagged Error Other Error RateLimiterCount
+--------------- ------ -------- ------------ ----------- ----------------
+Ethernet1       373362        0            0           0                0
+Ethernet2       373363        0            0           0                0
+Ethernet3       373365        7            0           0                0
+Ethernet4       373364        4            0           0                0
+Ethernet5       373362        0            0           0                0
+Ethernet6       371347        0            0           0                0
+Ethernet7       373363        0            0           0                0
+Ethernet8       373363        0            0           0                0
+Ethernet9       373363        0            0           0                0
+Ethernet10       74860        0            0           0                0
+Ethernet11      373363        0            0           0                0
+Ethernet12      373363        0            0           0                0
+Ethernet13      373363        0            0           0                0
+Port-Channel104  13331        0            0           0                0

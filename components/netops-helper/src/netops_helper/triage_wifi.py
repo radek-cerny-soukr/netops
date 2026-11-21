@@ -15,8 +15,11 @@ from datetime import datetime, timezone
 from typing import Any
 
 from . import wifi_parse
-from .triage_health import REASONS, UnsupportedPlatform, _lines, _utc, missing_read
+from .triage_health import (
+    C9800_HA_QUERIES, REASONS, UnsupportedPlatform, _lines, _utc, firmware_fields, firmware_support, missing_read,
+)
 
+# Tested identity (G00): not a gate; another model or build runs with firmware_support "untested" and a warning.
 IDENTITIES = frozenset({("FortiGate-80F", "8.0.2", "0251")})
 EVENT_LINES = 200
 HISTORY_LIMIT = 20
@@ -56,8 +59,11 @@ def identity(text: str) -> dict[str, str]:
         found = tuple(platforms.version_record(text))
     except platforms.VersionRecordError:
         raise UnsupportedPlatform("config_platform_not_supported: one exact FortiOS identity is required") from None
-    if found not in IDENTITIES:
-        raise UnsupportedPlatform("config_platform_not_supported: wifi_triage is qualified only for the measured model and build")
+    from .fortios_diagnostics import well_formed
+    if not well_formed(found):
+        raise UnsupportedPlatform("config_platform_not_supported: one exact FortiOS identity is required")
+    if not found[0].startswith(platforms.PRODUCT_HARDWARE["fortios"]):
+        raise UnsupportedPlatform("config_platform_not_supported: the target is not a FortiOS product")
     return {"product": found[0], "version": found[1], "build": found[2]}
 
 
@@ -204,6 +210,7 @@ def run(read, clock, mac: str | None, ip: str | None, alias: str, live=None, *, 
     if not first.get("ok"):
         raise UnsupportedPlatform("config_platform_not_supported: the identity read failed")
     ident = identity(first["text"])
+    support = firmware_support(ident, IDENTITIES, "wifi_triage")
     checked = ["system_status"]
     missing: list[dict[str, Any]] = []
     sources: dict[str, dict[str, str]] = {}
@@ -793,6 +800,7 @@ def run(read, clock, mac: str | None, ip: str | None, alias: str, live=None, *, 
         "missing": missing,
         "checked": checked,
         "verdict": verdict, "rf_verdict": rf_verdict, "findings_max_severity": findings_max_severity, "thresholds": policy,
+        **firmware_fields(support),
     }
 
     if name is not None:
@@ -808,7 +816,8 @@ def overview(result: dict[str, Any]) -> dict[str, Any]:
     chain = result["chain"]
     last = (chain["events"] or {}).get("last_event")
     live = chain.get("live_client")
-    carried = {key: result[key] for key in ("error_code", "failed_step", "identity_trust") if key in result}
+    carried = {key: result[key] for key in ("error_code", "failed_step", "identity_trust", "firmware_support", "warnings")
+               if key in result}
     return {
         **carried,
         "ok": result["ok"], "view": "summary", "target": result["target"], "identity": result["identity"],
@@ -871,4 +880,418 @@ def full_page(result, history_limit=100, history_offset=0):
             timeline.pop()
             metadata()
             return result if timeline else too_large("history")
+    return result
+
+
+# --- G108 (RP02, RP09): Ruckus Unleashed client triage --------------------------------------------------------
+#
+# Measured on R610 on Ruckus Unleashed 200.15.6.212.27 (master AP, read with the admin `enable` CLI). Every read is a
+# catalogue `show` query of the same target. The device prints the client signal without a unit, so no signal
+# threshold is applied; the radio counters are reported as printed. The AP Ethernet port goes to the switch only
+# through `locate_endpoint` (switch LLDP and MAC tables); Unleashed prints no LLDP neighbour and no port VLAN.
+
+RUCKUS_IDENTITIES = frozenset({("r610", wifi_parse.RUCKUS_R610_RELEASE, wifi_parse.RUCKUS_R610_BUILD)})
+RUCKUS_NOT_REPORTED = ("access point LAN port VLAN and tagging", "access point management VLAN",
+                       "LLDP neighbour of the access point")
+
+
+def ruckus_identity(text: str) -> dict[str, Any]:
+    """`show sysinfo`: model, version and build of the Unleashed system (one `System Overview` block)."""
+    values: dict[str, str] = {}
+    for _, path, key, value in wifi_parse._ruckus_walk(text):
+        if path == ("System Overview",) and value not in (None, "\0") and key not in values:
+            values[key] = value
+    found = re.fullmatch(r"(\d+(?:\.\d+)+) build (\d+)", values.get("Version", ""))
+    if not values.get("Model") or found is None:
+        raise UnsupportedPlatform("config_platform_not_supported: one Ruckus Unleashed identity (Model, Version) is required")
+    return {"product": values["Model"], "version": found.group(1), "build": found.group(2),
+            "name": values.get("Name"), "ip": values.get("IP Address"), "mac": (values.get("MAC Address") or "").lower() or None}
+
+
+def ruckus_support(ident: dict[str, Any], function: str) -> dict[str, Any]:
+    from netops_core import tested
+    version = "%s build %s" % (ident["version"], ident["build"]) if ident else None
+    return tested.support("Ruckus Unleashed", version,
+                          sorted((model, "%s build %s" % (version, build)) for model, version, build in RUCKUS_IDENTITIES),
+                          model=ident.get("product"), function=function)
+
+
+def _band(channel: Any) -> str | None:
+    """The band of a printed Wi-Fi channel number (1-14: 2.4 GHz, above: 5 GHz); the radio letters are not used."""
+    if type(channel) is not int or channel < 1:
+        return None
+    return "2.4g" if channel <= 14 else "5g"
+
+
+def _link_speed(text: str | None) -> int | None:
+    found = re.search(r"(\d+)\s*Mbps", text or "")
+    return int(found.group(1)) if found else None
+
+
+def ruckus_relations(ap: dict[str, Any] | None, wlan: dict[str, Any] | None, client: dict[str, Any] | None,
+                     ethinfo: list[dict[str, Any]] | None, client_query: str) -> dict[str, Any]:
+    """RP09: the AP management values, its LAN ports and the SSID -> VLAN -> AP port path as relations.
+
+    Only what the reads print is stated; the VLAN carried on the AP LAN port is not printed by Unleashed and is
+    listed under `not_reported`, never inferred. `ethinfo` describes the master AP (the CLI's own device).
+    """
+    ports = []
+    for port in (ap or {}).get("lan_ports", []):
+        own = next((row for row in ethinfo or [] if row["interface"] == port["interface"]), None)
+        ports.append({**port, "mac": own["mac"] if own else None, "speed": own["speed"] if own else None,
+                      "source": "access_point" + (" + ethernet_info" if own else "")})
+    uplinks = [port["interface"] for port in ports if (port.get("logical_link") or "").lower() == "up"]
+    bindings = []
+    if client is not None and ap is not None:
+        bindings.append({"from": "client:%s" % client["mac"], "relation": "associated_to",
+                         "to": "ap:%s" % ap["mac"], "source": client_query})
+    if client is not None and client.get("wlan"):
+        bindings.append({"from": "client:%s" % client["mac"], "relation": "on_wlan", "to": "wlan:%s" % client["wlan"],
+                         "vlan_id": client.get("vlan_id"), "source": client_query})
+    if wlan is not None:
+        bindings.append({"from": "wlan:%s" % wlan["name"], "relation": "bridged_to_vlan",
+                         "to": "vlan:%s" % wlan["vlan_id"] if wlan["vlan_id"] is not None else None,
+                         "dynamic_vlan": wlan["dynamic_vlan"], "ssid": wlan["ssid"], "source": "wlans"})
+    if ap is not None:
+        for interface in uplinks:
+            bindings.append({"from": "ap:%s" % ap["mac"], "relation": "wired_uplink", "to": "ap_port:%s" % interface,
+                             "source": "access_point"})
+        bindings.append({"from": "ap_port:%s" % (uplinks[0] if len(uplinks) == 1 else "?"), "relation": "connected_to",
+                         "to": None, "status": "not_correlated",
+                         "detail": "the switch port comes from locate_endpoint with the AP MAC over the enrolled switches"})
+    return {
+        "access_point": None if ap is None else {
+            "mac": ap["mac"], "name": ap["name"], "model": ap["model"], "role": ap["role"], "location": ap["location"],
+            "management": {key: ap.get(key) for key in ("ip", "netmask", "gateway", "ip_mode", "protocol_mode")},
+            "lldp_status": ap.get("lldp_status"), "mesh": ap.get("mesh")},
+        "lan_ports": ports, "uplink_ports": uplinks,
+        "wlan": None if wlan is None else {key: wlan.get(key) for key in (
+            "name", "ssid", "vlan_id", "dynamic_vlan", "band", "service_enabled", "authentication", "encryption")},
+        "bindings": bindings,
+        "not_reported": list(RUCKUS_NOT_REPORTED),
+    }
+
+
+def _ruckus_uplink_ethinfo(ap: dict[str, Any], ethinfo: list[dict[str, Any]], checked: list[str],
+                           missing: list[dict[str, Any]]) -> list[dict[str, Any]] | None:
+    """The Ethernet step is incomplete only when the port the AP is connected by (a logically up LAN port) has no
+    interface/link data; an unused LAN port without link data is normal (489-r3). Without a known uplink every
+    printed port must be complete."""
+    uplinks = [port["interface"] for port in ap["lan_ports"]
+               if (port["logical_link"] or "").lower() == "up" and port["interface"]]
+    whole = {row["interface"] for row in ethinfo if row["interface"] and row["physical_link"]}
+    if uplinks:
+        lacking = [interface for interface in uplinks if interface not in whole]
+        detail = "no interface or physical link data for the AP uplink port(s) %s" % ", ".join(lacking)
+    else:
+        lacking = [row["interface"] or "port %d" % row["port"] for row in ethinfo
+                   if not (row["interface"] and row["physical_link"])]
+        detail = "no logically up uplink is known and port(s) %s print no interface or physical link" % ", ".join(lacking)
+    if not lacking:
+        return ethinfo
+    checked.remove("ethernet_info")
+    missing.append({"step": "ethernet_info", "reason": "incomplete", "ports": lacking, "detail": detail})
+    return None
+
+
+def ruckus_client_query(mac: str | None) -> str:
+    return "client_detail" if mac is not None else "clients"
+
+
+def run_ruckus(read, clock, mac: str | None, ip: str | None, alias: str, enabled_queries=()) -> dict[str, Any]:
+    """One Wi-Fi client on a Ruckus Unleashed system: association, authentication, address, SSID/VLAN, AP, radio.
+
+    `read(query, parameters)` returns the redacted text answer of one catalogue query of this target. The verdict is
+    `fault_found`, `client_not_associated`, `incomplete` or `no_fault_observed`; never healthy.
+    """
+    if sum(v is not None for v in (mac, ip)) != 1 or (mac is not None and not valid_mac(mac)) or (ip is not None and not valid_ip(ip)):
+        raise ValueError("invalid_argument: exactly one of mac (lower-case aa:bb:cc:dd:ee:ff) or ip (IPv4) is required "
+                         "for a Ruckus Unleashed target")
+    started = clock()
+    first = read("system_info", None)
+    if not first.get("ok"):
+        raise UnsupportedPlatform("config_platform_not_supported: the identity read failed")
+    ident = ruckus_identity(first["text"])
+    support = ruckus_support(ident, "wifi_triage")
+    checked = ["system_info"]
+    missing: list[dict[str, Any]] = []
+    sources: dict[str, dict[str, str]] = {"system_info": _source("system_info", first, started)}
+    meta: dict[str, Any] = {}
+
+    def get(query: str, parameters: dict[str, str] | None = None, absent_ok: bool = False) -> list[dict[str, Any]] | None:
+        if enabled_queries and query not in enabled_queries:
+            missing.append({"step": query, "reason": "not_enabled"})
+            return None
+        moment = clock()
+        answer = read(query, parameters)
+        if not answer.get("ok"):
+            missing.append(missing_read(query, answer))
+            return None
+        sources[query] = _source(query, answer, moment)
+        if answer.get("absent"):
+            # The device names no such client / AP / station: an answer, not a failed read.
+            checked.append(query)
+            if not absent_ok:
+                missing.append({"step": query, "reason": "not_listed"})
+            return []
+        parsed = wifi_parse.summarize_ruckus(query, answer["text"])
+        if parsed["unparsed_count"]:
+            missing.append({"step": query, "reason": "unparsed", "lines": parsed["unparsed"]})
+            return None
+        # ethernet_info with port records is judged by the AP uplink port below, not by unused LAN ports.
+        if (query in ("client_detail", "clients", "access_point", "client_performance", "ethernet_info")
+                and parsed.get("incomplete") and not (query == "ethernet_info" and parsed["records"])):
+            missing.append({"step": query, "reason": "incomplete"})
+            return None
+        checked.append(query)
+        meta[query] = parsed
+        return parsed["records"]
+
+    # 1. the client record (MAC directly; an IP through the active client list of this controller)
+    client = None
+    detail_query = ruckus_client_query(mac)
+    if mac is not None:
+        rows = get(detail_query, {"mac": mac}, absent_ok=True)
+    else:
+        rows = get(detail_query)
+        rows = None if rows is None else [row for row in rows if row["ip"] == ip]
+    if rows is not None and len(rows) > 1:
+        missing.append({"step": "client", "reason": "ambiguous", "detail": "several active clients have this IP"})
+    elif rows:
+        client = rows[0]
+    association = "unknown" if rows is None or len(rows) > 1 else "associated" if client else "not_associated"
+
+    # 2. access point, WLAN and RF of that association
+    ap = wlan = station = radio = None
+    ethinfo = None
+    if client is not None:
+        found = get("access_point", {"ap_mac": client["ap_mac"]}, absent_ok=True) if client["ap_mac"] else None
+        if found == []:
+            missing.append({"step": "access_point", "reason": "not_listed", "detail": "the client's AP is not listed"})
+        elif found:
+            ap = found[0]
+        wlans = get("wlans")
+        if wlans is not None:
+            named = [item for item in wlans if item["name"] == client["wlan"] or item["ssid"] == client["wlan"]]
+            wlan = named[0] if len(named) == 1 else None
+            if wlan is None:
+                missing.append({"step": "wlan", "reason": "ambiguous" if named else "not_listed",
+                                "detail": "the client's WLAN cannot be matched to exactly one WLAN service"})
+        performance = get("client_performance", {"mac": client["mac"]})
+        station = performance[0] if performance else None
+        band = _band(client["channel"])
+        if client["ap_mac"] and band:
+            query = "radio_performance_5" if band == "5g" else "radio_performance_24"
+            rows = get(query, {"ap_mac": client["ap_mac"]}, absent_ok=True)
+            radio = rows[0] if rows else None
+            if rows is not None and (radio is None or not radio["counters_reported"]):
+                missing.append({"step": query, "reason": "incomplete",
+                                "detail": "the radio performance answer has no counters; repeat the read"})
+        if ap is not None and (ap["role"] or "").lower() == "master":
+            ethinfo = get("ethernet_info")
+            if ethinfo is not None:
+                ethinfo = _ruckus_uplink_ethinfo(ap, ethinfo, checked, missing)
+
+    # 3. rules: only facts the device printed, thresholds only where the unit is printed
+    findings: list[dict[str, Any]] = []
+    hypotheses: list[dict[str, Any]] = []
+
+    def add(rule, severity, layer, obj, fact, queries):
+        findings.append({"id": rule, "severity": severity, "layer": layer, "object": obj, "fact": fact,
+                         "sources": [sources[q] for q in queries if q in sources]})
+
+    obj = "client:" + (client["mac"] if client else mac or ip)
+    if client is not None:
+        if (client["status"] or "").lower() != "authorized":
+            add("F-WIFI-CLIENT-NOT-AUTHORIZED", "fault", "authentication", obj,
+                "client status %r (auth method %s), not Authorized" % (client["status"], client["auth_method"] or "unknown"),
+                [detail_query])
+        if not valid_ip(client["ip"]) or client["ip"].startswith(("0.", "169.254.")):
+            add("F-WIFI-CLIENT-NO-IPV4", "warning", "dhcp", obj,
+                "no usable IPv4 address in User/IP (%r): DHCP not completed, or the client uses another address family"
+                % client["ip"], [detail_query])
+        if wlan is not None:
+            if wlan["service_enabled"] is False:
+                hypotheses.append({"id": "H-WIFI-WLAN-SERVICE-DISABLED", "basis": [sources["wlans"]],
+                                   "text": "the WLAN service %s is disabled although the client is listed on it" % wlan["name"]})
+            if (wlan["vlan_id"] is not None and client["vlan_id"] is not None and wlan["vlan_id"] != client["vlan_id"]
+                    and wlan["dynamic_vlan"] is not True):
+                add("F-WIFI-VLAN-MISMATCH", "warning", "vlan", obj,
+                    "client VLAN %s differs from the WLAN %s VLAN-ID %s without dynamic VLAN"
+                    % (client["vlan_id"], wlan["name"], wlan["vlan_id"]), [detail_query, "wlans"])
+        if client["tx_retry_fail_drops"]:
+            add("F-WIFI-CLIENT-RETRY-DROPS", "notice", "client", obj,
+                "%d frames to the client dropped after retry failure (counter since association %s)"
+                % (client["tx_retry_fail_drops"], client["connected_since"]), [detail_query])
+    if ap is not None:
+        uplinks = [port for port in ap["lan_ports"] if (port["logical_link"] or "").lower() == "up"]
+        if not uplinks and (ap["mesh"] or "").lower() in ("disabled", ""):
+            add("F-WIFI-AP-NO-WIRED-UPLINK", "fault", "access_point", "ap:" + ap["mac"],
+                "no LAN port of the AP is logically up and mesh is %s" % (ap["mesh"] or "not reported"), ["access_point"])
+        for port in uplinks:
+            speed = _link_speed(port["physical_link"])
+            if (speed is not None and speed < 1000) or "half" in (port["physical_link"] or "").lower():
+                add("F-WIFI-AP-UPLINK-DEGRADED", "notice", "access_point", "ap:%s/%s" % (ap["mac"], port["interface"]),
+                    "AP uplink %s physical link %r" % (port["interface"], port["physical_link"]), ["access_point"])
+        radio_band = next((item for item in ap["radios"] if client and item["band"] == _band(client["channel"])), None)
+        if client and radio_band and radio_band["channel"] is not None and client["channel"] is not None \
+                and radio_band["channel"] != client["channel"]:
+            hypotheses.append({"id": "H-WIFI-CHANNEL-CHANGED", "basis": [sources["access_point"]],
+                               "text": "the client is listed on channel %s, the AP radio now on channel %s"
+                                       % (client["channel"], radio_band["channel"])})
+
+    relations = ruckus_relations(ap, wlan, client, ethinfo, detail_query)
+    next_steps = []
+    if ap is not None:
+        next_steps.append({"tool": "locate_endpoint", "arguments": {"targets": [alias], "endpoint": ap["mac"]},
+                           "why": "find the switch port of this AP (switch LLDP and MAC tables); add the enrolled "
+                                  "switch targets of the path"})
+    if client is not None and "client_detail" in enabled_queries and mac is None:
+        next_steps.append({"tool": "ssh_read", "arguments": {"target": alias, "platform": "ruckus_unleashed",
+                                                              "query": "client_detail", "parameters": {"mac": client["mac"]}},
+                           "why": "re-read only this client"})
+    missing.append({"step": "ap_switch_port", "reason": LOCATE_NOT_CORRELATED,
+                    "detail": "this triage does not read switches; use locate_endpoint with the client or AP MAC"})
+    faults = [item for item in findings if item["severity"] == "fault"]
+    severity = max((item["severity"] for item in findings),
+                   key=lambda value: {"notice": 1, "warning": 2, "fault": 3}[value], default=None)
+    gaps = [item for item in missing if item["step"] != "ap_switch_port"]
+    verdict = ("client_not_associated" if association == "not_associated" else "fault_found" if faults else
+               "incomplete" if gaps or client is None else "no_fault_observed")
+    events = (meta.get("client_detail") or {}).get("events", [])
+    observation = None if client is None else {
+        "ap": client["ap_mac"], "ap_name": ap["name"] if ap else None, "bssid": client["bssid"],
+        "wlan": client["wlan"], "vlan_id": client["vlan_id"], "radio": client["radio"], "channel": client["channel"],
+        "signal": client["signal"],
+        "signal_note": "the device prints the signal without a unit; it is shown as printed and not thresholded",
+        "station_performance": station, "radio_performance": radio,
+        "radio_performance_note": "counters as printed; the device prints no unit for capacity/throughput",
+    }
+    return {
+        "ok": True, "identity": {key: ident[key] for key in ("product", "version", "build")}, "target": alias,
+        "client": None if client is None else {key: client[key] for key in (
+            "mac", "ip", "hostname", "os_type", "auth_method", "status", "connected_since", "role")},
+        "started_at": _utc(started), "finished_at": _utc(clock()),
+        "vantage": {"kind": "device_cli_read", "device": alias, "packets_sent": False,
+                    "path": "Ruckus Unleashed CLI over SSH (privileged show)",
+                    "sees": "active client record, access point radios and LAN ports, WLAN services, station and radio "
+                            "performance counters, the master AP Ethernet ports",
+                    "does_not_see": "the switch port behind the AP, the VLAN carried on the AP port, client events "
+                                    "older than the controller keeps, a signal unit"},
+        "chain": {"association": {"status": association}, "client_record": client, "observation": observation,
+                  "access_point": ap, "wlan": wlan, "relations": relations,
+                  "events": {"window": {"scope": "client_detail events", "records": len(events)},
+                             "timeline": events}},
+        "findings": findings, "hypotheses": hypotheses, "next_steps": next_steps, "missing": missing,
+        "checked": checked, "verdict": verdict, "findings_max_severity": severity,
+        **firmware_fields(support),
+    }
+
+
+def ruckus_overview(result: dict[str, Any]) -> dict[str, Any]:
+    """summary=true of the Ruckus triage: verdict, findings, gaps and the deciding chain facts; no rows or sources."""
+    chain = result["chain"]
+    carried = {key: result[key] for key in ("error_code", "failed_step", "firmware_support", "warnings") if key in result}
+    return {**carried, "ok": result["ok"], "view": "summary", "target": result["target"], "identity": result["identity"],
+            "client": result["client"], "started_at": result["started_at"], "finished_at": result["finished_at"],
+            "verdict": result["verdict"], "findings_max_severity": result["findings_max_severity"],
+            "findings": [{key: item[key] for key in ("id", "severity", "object", "fact")} for item in result["findings"]],
+            "missing": result["missing"], "checked": result["checked"], "next_steps": result["next_steps"],
+            "chain": {"association": chain["association"], "observation": chain["observation"],
+                      "relations": {key: chain["relations"][key] for key in ("uplink_ports", "bindings", "not_reported")}}}
+
+
+def c9800_read(read, query, parameters=None):
+    from .wifi_parse import summarize_c9800
+
+    response = read(query, parameters)
+    if not response.get("ok"):
+        return {"complete": False, "records": [],
+                "reason": response.get("reason") or response.get("error_code", "device_cli_error")}
+    parsed = summarize_c9800(query, response["text"])
+    if response.get("content_sha256"):
+        parsed["source"] = {"query": query, "content_sha256": response["content_sha256"]}
+    return parsed
+
+
+def c9800_identity(read, function):
+    from netops_core import c9800, tested
+    from .normalization import IdentityError, parse_identity
+
+    response = read("version", None)
+    version = response.get("text", "")
+    if not (response.get("ok") and c9800.CONTROLLER_IMAGE.search(version)):
+        return None
+    try:
+        identity = parse_identity("cisco_xe", version)
+    except IdentityError:
+        return None
+    support = tested.support("IOS XE", identity["os_version"], c9800.DOCUMENTED_RELEASES,
+                             model=identity["model"], function=function)
+    warning = tested.warning(support)
+    return {"identity": identity, "firmware_support": support, "warnings": [warning] if warning else [],
+            "source": {"query": "version", "content_sha256": response.get("content_sha256")}}
+
+
+def run_c9800(read, mac, alias, *, summary=False):
+    from .wifi_parse import c9800_ap
+
+    result = {"ok": False, "target": alias, "verdict": "incomplete", "missing": [], "sources": []}
+    identity = c9800_identity(read, "wifi_triage for Catalyst 9800")
+    if identity is None:
+        result["missing"].append({"step": "version", "reason": "identity_unverified"})
+        return result
+    result["sources"].append(identity.pop("source"))
+    result.update(ok=True, **identity)
+    detail = c9800_read(read, "c9800_client_detail", {"mac": mac})
+    stats = c9800_read(read, "c9800_client_stats")
+    aps = c9800_read(read, "c9800_aps")
+    for query, item in (("c9800_client_detail", detail), ("c9800_client_stats", stats), ("c9800_aps", aps)):
+        if item.get("source"):
+            result["sources"].append(item["source"])
+        if not item["complete"]:
+            result["missing"].append({"step": query, "reason": item.get("reason", "incomplete")})
+    client = next((row for row in detail["records"] if row["mac"] == mac), None)
+    ap = c9800_ap(client, aps["records"]) if client else None
+    if ap is None:
+        result["missing"].append({"step": "c9800_aps", "reason": "ap_join_unverified"})
+    result.update(client=client, ap=ap, verdict="incomplete" if result["missing"] else "associated")
+    if not summary:
+        result["controller_statistics"] = stats["records"]
+    if client:
+        result["next_steps"] = [{"tool": "locate_endpoint",
+                                 "arguments": {"targets": [alias], "endpoint": mac}}]
+    return result
+
+
+def c9800_ha(read, os_version):
+    result = {"missing": [], "sources": []}
+    redundancy, chassis = (c9800_read(lambda query, _: read(query), query) for query in C9800_HA_QUERIES)
+    for query, item in zip(C9800_HA_QUERIES, (redundancy, chassis)):
+        if item.get("source"):
+            result["sources"].append(item["source"])
+        if not item["complete"]:
+            result["missing"].append({"step": query, "reason": item.get("reason", "incomplete")})
+    system = next(iter(redundancy["records"]), {})
+    processors = {row["role"]: row for row in system.get("processors", ())}
+    roles = {row["role"].lower(): row for row in chassis["records"]}
+    if len(chassis["records"]) != 2 or roles.keys() != processors.keys() or roles.keys() != {"active", "standby"}:
+        result["missing"].append({"step": "ha", "reason": "pair_unverified"})
+    result["ha"] = {"state": "incomplete", "redundancy": system, "chassis": chassis["records"]}
+    if not result["missing"]:
+        local, peer = processors["active"], processors["standby"]
+        # IOS XE's show version may zero-pad the minor release, unlike Image Version.
+        version = lambda value: re.sub(r"(?<=\.)0(?=\d)", "", value)
+        same_slots = all(roles[role]["slot"] == processors[role]["slot"] for role in roles)
+        comparable = same_slots and roles["active"]["local"] and not roles["standby"]["local"]
+        if not comparable:
+            result["missing"].append({"step": "ha", "reason": "chassis_role_mismatch"})
+        else:
+            synchronized = (
+                local["state"] == "ACTIVE" and peer["state"] == "STANDBY HOT"
+                and version(local["version"]) == version(peer["version"]) == version(os_version)
+                and system["configured_mode"].casefold() == system["operating_mode"].casefold() == "sso"
+                and system["communications"] == "Up" and all(row["state"] == "Ready" for row in roles.values())
+            )
+            result["ha"]["state"] = "synchronized" if synchronized else "degraded"
     return result

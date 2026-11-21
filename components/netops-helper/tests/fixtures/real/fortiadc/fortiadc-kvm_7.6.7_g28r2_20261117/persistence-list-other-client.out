@@ -1,0 +1,4 @@
+diagnose server-load-balance persistence list
+client-ip/port virtual-server-ip/port local-ip/port real-server-ip/port protocol service expire virtual-server-name real-server-name
+
+FortiADC-KVM # 

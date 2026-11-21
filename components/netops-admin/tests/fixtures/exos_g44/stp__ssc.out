@@ -1,0 +1,6 @@
+# Module stp configuration.
+create stpd g44stp
+configure stpd g44stp mode dot1w
+configure stpd g44stp default-encapsulation dot1d
+configure stpd g44stp add vlan g44probe ports 10 dot1d
+configure stpd g44stp ports mode dot1d 10

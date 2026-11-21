@@ -1,0 +1,10 @@
+host01        $ config firewall address
+    edit "netops-g21-interface"
+        set uuid 00000000-0000-4000-8000-000000000005
+        set type interface-subnet
+        set subnet 192.0.2.0  255.255.255.0
+        set interface "dmz"
+    next
+end
+
+host01        $

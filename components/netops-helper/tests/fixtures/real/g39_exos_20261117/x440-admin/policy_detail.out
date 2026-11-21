@@ -1,0 +1,14 @@
+Policies at Policy Server:
+Policy: x04test
+entry x04-deny-doc { 
+if match all { 
+    source-address 198.51.100.0/24 ;
+}
+then {
+    deny  ;
+    count x04-doc-hits ;
+}
+}
+Number of clients bound to policy: 1
+Client: acl bound once
+

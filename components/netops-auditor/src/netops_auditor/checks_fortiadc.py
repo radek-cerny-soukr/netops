@@ -2,11 +2,18 @@ from __future__ import annotations
 
 import re
 
+from netops_core import tested
+
 from . import jsontext
 from .engine import EVALUATED, NOT_EVALUATED, check
 from .inputs import InputError, read_regular
 
-SUPPORTED = ("FortiADC-KVM", "7.6.7", "0676")
+# The identity (platform, version, build) the catalog was tested on.  G00 (decision of 2026-11-17): another
+# FortiADC version or build is no scope gate; the rules are evaluated and the untested-version rule reports it.
+TESTED = ("FortiADC-KVM", "7.6.7", "0676")
+TESTED_NAME = "FortiADC"
+# A product that is not a FortiADC at all (e.g. a FortiGate identity) stays outside the catalog's scope.
+PRODUCT_PREFIX = "FortiADC"
 CONTEXT_KEY = "fortiadc_snapshot_context"
 MAX_CONTEXT_BYTES = 65536
 
@@ -23,6 +30,7 @@ KNOWN_LIMITATIONS = AREAS | GLOBAL_LIMITATIONS | VALUE_LIMITATIONS | {VDOM_LIMIT
 
 REASON_NO_CONTEXT = "snapshot-context-missing"
 REASON_IDENTITY = "identity-mismatch"
+REASON_UNTESTED = "untested-version"
 REASON_DEFAULT = "default-undocumented"
 REASON_MARKER = "redacted-or-unverified-value"
 REASON_SECTION = "section-absent"
@@ -148,9 +156,22 @@ def _entries(tree, name):
 
 
 def _version_reason(context):
+    """The scope reason that keeps every rule from being evaluated, None when the identity is usable.
+
+    No metadata: snapshot-context-missing.  A platform that is not a FortiADC: identity-mismatch (another
+    product, not another version).  Another FortiADC model, version or build is usable (G00): the rules run
+    and fortiadc.scope.untested-version reports the untested identity.
+    """
     if context is None:
         return REASON_NO_CONTEXT
-    return None if context.identity == SUPPORTED else REASON_IDENTITY
+    return None if context.identity[0].startswith(PRODUCT_PREFIX) else REASON_IDENTITY
+
+
+def firmware_support(context):
+    """The firmware_support structure (netops_core.tested) of a snapshot context against the tested identity."""
+    platform, version, build = context.identity
+    return tested.support(TESTED_NAME, version + " build " + build, [(TESTED[0], TESTED[1] + " build " + TESTED[2])],
+                          model=platform, function="the FortiADC audit catalog")
 
 
 @check("fortiadc_unsupported_version", contextual=True)
@@ -165,6 +186,25 @@ def fortiadc_unsupported_version(tree, policy=None):
         "section": "identity",
         "line": 0,
         "evidence": {"reason": reason, "platform": platform, "version": version, "build": build},
+    }
+
+
+@check("fortiadc_untested_version", contextual=True)
+def fortiadc_untested_version(tree, policy=None):
+    context = _context(policy)
+    if context is None or _version_reason(context) is not None:
+        return
+    support = firmware_support(context)
+    if tested.is_tested(support):
+        return
+    platform, version, build = context.identity
+    yield {
+        "object_key": "identity",
+        "section": "identity",
+        "line": 0,
+        "evidence": {"reason": REASON_UNTESTED, "platform": platform, "version": version, "build": build,
+                     "status": support["status"], "tested_versions": ", ".join(support["tested_versions"]),
+                     "message": support["message"]},
     }
 
 

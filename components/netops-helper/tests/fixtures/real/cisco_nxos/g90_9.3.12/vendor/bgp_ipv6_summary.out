@@ -1,0 +1,12 @@
+BGP summary information for VRF default, address family IPv6 Unicast
+BGP router identifier 203.0.113.6, local AS number 333
+BGP table version is 109289, IPv6 Unicast config peers 2, capable peers 2
+31 network entries and 31 paths using 7068 bytes of memory
+BGP attribute entries [4/656], BGP AS path entries [3/106]
+BGP community entries [3/128], BGP clusterlist entries [7/28]
+Dampening configured, 10 history paths, 0 dampened paths
+20 received paths for inbound soft reconfiguration
+20 identical, 0 modified, 0 filtered received paths using 0 bytes
+
+Neighbor        V    AS MsgRcvd MsgSent   TblVer  InQ OutQ Up/Down  State/PfxRcd
+2001:db8:1::1002 4   333    2748    2746   109289    0    0    1d05h 20fec0::2002      4   888   46416    2742   109289    0    0    1d05h 0

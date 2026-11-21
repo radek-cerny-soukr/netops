@@ -17,7 +17,9 @@ PACKAGE = "netops_admin"
 PLANNING_MODULES = frozenset((
     "__future__", "argparse", "dataclasses", "hashlib", "ipaddress", "json", "pathlib", "re", "sys",
 ))
-PLANNING_FROM = {"netops_auditor": frozenset(("l1_fortios", "l1_exos")), "importlib": frozenset(("resources",))}
+# netops_core.tested (G00-1) is a pure comparison of the device version with the tested versions: no I/O
+PLANNING_FROM = {"netops_auditor": frozenset(("l1_fortios", "l1_exos")), "importlib": frozenset(("resources",)),
+                 "netops_core": frozenset(("tested",))}
 EXECUTION_MODULES = PLANNING_MODULES | frozenset(("datetime", "fcntl", "os", "secrets", "stat", "time"))
 INPUTS = {"netops_core.inputs": frozenset(("InputError", "read_regular"))}
 FILE_RULES = {
@@ -25,12 +27,41 @@ FILE_RULES = {
     "access.py": (
         EXECUTION_MODULES,
         {
+            "contextlib": frozenset(("ExitStack", "contextmanager", "nullcontext")),
             "netops_core": frozenset(("hostkey", "platforms", "prompt", "session", "ssh", "vault", "schema", "fortios")),
             "netops_auditor": frozenset(("collect",)),
+            "socket": frozenset(("SOCK_STREAM", "getaddrinfo")),
         },
     ),
+    # Operator-only FortiOS export. HTTPS and backup encryption stay in this module.
+    "backup.py": (EXECUTION_MODULES, {
+        "contextlib": frozenset(("contextmanager",)),
+        "hmac": frozenset(("compare_digest",)),
+        "http.client": frozenset(("HTTPSConnection", "HTTPException")),
+        "http.cookies": frozenset(("CookieError", "SimpleCookie")),
+        "ssl": frozenset(("CERT_NONE", "PROTOCOL_TLS_CLIENT", "SSLContext")),
+        "uuid": frozenset(("uuid4",)),
+        "cryptography.exceptions": frozenset(("InvalidTag",)),
+        "cryptography.hazmat.primitives.ciphers.aead": frozenset(("AESGCM",)),
+        "netops.files": frozenset(("read_private", "sync_directory", "write_private")),
+    }),
+    # Operator-only EXOS export. The adapter can only import the named SFTP download entry point.
+    "backup_exos.py": (PLANNING_MODULES | {"os"}, {
+        "hmac": frozenset(("compare_digest",)),
+        "xml.etree": frozenset(("ElementTree",)),
+        "netops.files": frozenset(("read_private", "write_private")),
+        "netops_core": frozenset(("hostkey", "legacy_ssh", "vault")),
+        "netops_core.sftp": frozenset(("DEFAULT_TIMEOUT_SECONDS", "EXOS_CONFIG_FILE", "EXOS_CONFIG_MAX_BYTES",
+                                      "SftpError", "read_exos_configuration")),
+    }),
+    # Operator-only Junos export and restore (G136): pinned SSH exec reads and one interactive configuration session.
+    "backup_junos.py": (PLANNING_MODULES | {"os", "secrets", "time"}, {
+        "hmac": frozenset(("compare_digest",)),
+        "netops.files": frozenset(("write_private",)),
+        "netops_core": frozenset(("hostkey", "session", "ssh", "tested", "vault")),
+    }),
     "notify.py": (EXECUTION_MODULES | frozenset(("ssl", "urllib.error", "urllib.request", "subprocess")), INPUTS),
-    "execute.py": (EXECUTION_MODULES, {"contextlib": frozenset(("contextmanager",)),
+    "execute.py": (EXECUTION_MODULES, {"contextlib": frozenset(("ExitStack", "contextmanager")),
                                     "netops_core.target_lock": frozenset(("target_lock", "TargetBusy", "TargetLockError"))}),
     "enrollment.py": (EXECUTION_MODULES, {}),
     "exec_fortios.py": (EXECUTION_MODULES, {}),
@@ -38,8 +69,23 @@ FILE_RULES = {
     "exec_eos.py": (EXECUTION_MODULES, {}),
     "exec_ios.py": (EXECUTION_MODULES, {}),
     "exec_junos.py": (EXECUTION_MODULES, {}),
-    "exec_fortiadc.py": (EXECUTION_MODULES, {}),
+    "exec_fortiadc.py": (EXECUTION_MODULES, {"netops_core": frozenset(("prompt",))}),
+    "exec_ruckus.py": (EXECUTION_MODULES, {}),
     "exec_nxos.py": (EXECUTION_MODULES, {}),
+    # Direct pool-member operations poll HA synchronization with a bounded delay.
+    "fortiadc.py": (PLANNING_MODULES, {"netops_core": frozenset(("prompt",)),
+                                     "time": frozenset(("sleep",))}),
+    # Local certificate staging accepts private files and uses the pinned FortiADC management client.
+    "fortiadc_certificate_import.py": (EXECUTION_MODULES, dict(INPUTS, **{
+        "hmac": frozenset(("compare_digest",)),
+        "uuid": frozenset(("uuid4",)),
+        "cryptography": frozenset(("x509",)),
+        "cryptography.exceptions": frozenset(("UnsupportedAlgorithm",)),
+        "cryptography.hazmat.primitives": frozenset(("hashes", "serialization")),
+        "netops.files": frozenset(("read_private",)),
+        "netops_core.fortiadc_https": frozenset(("Management", "RequestError")),
+        "netops_core.tested": frozenset(("support",)),
+    })),
     "fortiadc_plan.py": (PLANNING_MODULES, {}),
     "membership.py": (PLANNING_MODULES, {"netops_auditor.management": frozenset(("exos_model", "port_inventory", "ports"))}),
     "audit_gate.py": (PLANNING_MODULES, {"netops_auditor": frozenset(("checks_exos", "checks_fortios", "management")),
@@ -49,11 +95,15 @@ FILE_RULES = {
                       {"fastmcp": frozenset(("FastMCP",)), "fastmcp.exceptions": frozenset(("ToolError",))}),
     "state.py": (EXECUTION_MODULES | {"math", "subprocess"}, dict(INPUTS, **{"contextlib": frozenset(("contextmanager",))})),
     "audit.py": (EXECUTION_MODULES | {"math"}, INPUTS),
-    "config.py": (EXECUTION_MODULES, dict(INPUTS, **{"netops_auditor.management": frozenset(("load_policy",))})),
+    "config.py": (EXECUTION_MODULES, dict(INPUTS, **{
+        "netops_auditor.management": frozenset(("load_policy",)),
+        "netops_core.hostkey": frozenset(("HostKeyError", "checked_public_key")),
+    })),
     "cli.py": (EXECUTION_MODULES, dict(INPUTS, **{"netops_core": frozenset(("schema",))})),
     "schema_request.py": (PLANNING_MODULES | {"copy"}, {}),
     "exec_schema_fortios.py": (EXECUTION_MODULES, {"netops_core": frozenset(("fortios",))}),
     "schema_runtime.py": (PLANNING_MODULES | {"copy"}, {
+        "contextlib": frozenset(("ExitStack",)),
         "netops_core": frozenset(("fortios", "schema")),
         "netops_auditor": frozenset(("schema_checks", "scoped_fortios", "checks_fortios")),
         "netops_auditor.engine": frozenset(("EVALUATED",)),
@@ -67,9 +117,56 @@ FILE_RULES = {
         "netops_auditor": frozenset(("schema_checks",)),
     }),
 }
+PATH_RULES = {
+    # ACL planning shares the policy limits. Only the execution adapter can transfer policy files.
+    "src/netops_admin/exos_acl.py": (PLANNING_MODULES | {"base64", "binascii"}, {
+        "netops_core.sftp": frozenset(("EXOS_POLICY_MAX_BYTES", "EXOS_POLICY_NAME")),
+    }),
+    "src/netops_admin/exec_exos_acl.py": (PLANNING_MODULES, {
+        "netops_core.sftp": frozenset(("SftpError", "put_exos_policy", "read_exos_policy",
+                                      "remove_exos_policy", "rename_exos_policy")),
+    }),
+    # IOS save computes a configuration diff in memory.
+    "src/netops_admin/ios_save.py": (PLANNING_MODULES, {
+        "difflib": frozenset(("SequenceMatcher",)),
+    }),
+    # Operator-only IOS export uses the pinned SSH client and the shared private archive helpers.
+    "src/netops_admin/backup_ios.py": (PLANNING_MODULES | {"fcntl", "os"}, {
+        "hmac": frozenset(("compare_digest",)),
+        "netops_core": frozenset(("hostkey", "legacy_ssh", "ssh", "tested", "vault")),
+        "netops.files": frozenset(("write_private",)),
+    }),
+    # The Fortinet dialog frames commands on the Core PTY supplied by access.py.
+    "src/netops_admin/fortinet_cli.py": (PLANNING_MODULES, {
+        "time": frozenset(("monotonic",)),
+        "netops_core.session": frozenset(("FORTINET_COMMAND_MAX_BYTES", "SessionError", "_FORTINET_REFUSAL",
+                                         "_FortinetOutput", "_fortinet_prompt")),
+    }),
+    # Operator-only EOS export uses the pinned SSH client and the shared private archive helpers.
+    "src/netops_admin/backup_eos.py": (PLANNING_MODULES | {"datetime", "fcntl", "os"}, {
+        "hmac": frozenset(("compare_digest",)),
+        "uuid": frozenset(("uuid4",)),
+        "netops_core": frozenset(("hostkey", "ssh")),
+        "netops_core.vault": frozenset(("Credential", "VaultError")),
+        "netops.files": frozenset(("read_private", "sync_directory", "write_private")),
+    }),
+    # Operator-only NX-OS export uses pinned SSH and shared private file helpers.
+    "src/netops_admin/backup_nxos.py": (PLANNING_MODULES | {"fcntl", "os"}, {
+        "hmac": frozenset(("compare_digest",)),
+        "netops_core": frozenset(("hostkey", "nxos_config", "ssh")),
+        "netops_core.vault": frozenset(("Credential", "VaultError")),
+        "netops.files": frozenset(("read_private", "write_private")),
+    }),
+    # Operator-only IOS XE export uses fixed SSH reads and the shared private archive helpers.
+    "src/netops_admin/backup_xe.py": (PLANNING_MODULES | {"fcntl", "os"}, {
+        "hmac": frozenset(("compare_digest",)),
+        "netops_core": frozenset(("hostkey", "legacy_ssh", "ssh", "vault")),
+        "netops.files": frozenset(("write_private",)),
+    }),
+}
 FORBIDDEN_NAMES = frozenset(("eval", "exec", "compile", "__import__", "breakpoint"))
 FORBIDDEN_ATTRIBUTES = frozenset(("system", "popen", "spawnv", "spawnve", "execv", "execve", "fork"))
-PLATFORMS = frozenset(("fortios", "exos", "eos", "ios", "iosxe", "fortiadc", "nxos", "junos"))
+PLATFORMS = frozenset(("fortios", "exos", "eos", "ios", "iosxe", "fortiadc", "nxos", "junos", "ruckus"))
 
 
 DOCUMENTATION_NETWORKS = (
@@ -229,8 +326,9 @@ def _own(module: str) -> bool:
     return module == PACKAGE or module.startswith(PACKAGE + ".")
 
 
-def _rules(name: str):
-    modules, extra = FILE_RULES.get(name, (PLANNING_MODULES, {}))
+def _rules(relative: str):
+    name = relative.rsplit("/", 1)[-1]
+    modules, extra = PATH_RULES.get(relative, FILE_RULES.get(name, (PLANNING_MODULES, {})))
     allowed_from = {key: set(value) for key, value in PLANNING_FROM.items()}
     for key, value in extra.items():
         allowed_from.setdefault(key, set()).update(value)
@@ -241,7 +339,7 @@ def import_errors(root: Path = ROOT) -> list:
     errors = []
     for path in sorted((root / "src" / PACKAGE).rglob("*.py")):
         relative = path.relative_to(root).as_posix()
-        modules, allowed_from = _rules(path.name)
+        modules, allowed_from = _rules(relative)
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=relative)
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):

@@ -12,7 +12,7 @@ FIELDS = ('local_port', 'neighbor', 'neighbor_port', 'management_ip', 'platform'
 PROFILES = ('cisco_ios', 'cisco_xe', 'cisco_nxos')
 
 
-def parse(table, text):
+def parse(table, text, *, check_total=False):
     from . import tables
     from .normalization import normalize_port
 
@@ -84,7 +84,7 @@ def parse(table, text):
         if re.fullmatch(r'(?:Management|Mgmt) address\(es\):\s*', value, re.I):
             section = 'management'
             continue
-        match = re.fullmatch(r'(?:IP|IPv4|IPv6) [Aa]ddress:\s*(\S+)', value)
+        match = re.fullmatch(r'(?:IP|IPv4|IPv6) [Aa]ddress:\s*(\S+)(?:\s+\((?:global unicast|link-local)\))?', value)
         if match and section in ('entry', 'management'):
             try:
                 address = str(ipaddress.ip_address(match[1]))
@@ -113,12 +113,14 @@ def parse(table, text):
         if any(re.fullmatch(pattern, value, re.I) for pattern in (
                 r'Holdtime\s*:\s*\d+ sec', r'Duplex:\s*(?:full|half)',
                 r'(?:Peer Source|Local Interface|Remote Interface) MAC:\s*[0-9a-f:.]+',
-                r'VTP Management Domain:.*', r'Native VLAN:\s*\d+',
+                r'VTP Management Domain:.*', r'Native VLAN:\s*\d+', r'MTU:\s*\d+', r'System Name:\s*\S.*',
                 # IP phone power and second-port TLVs: recognized, not exposed by the schema.
                 r'Power (?:drawn|request|Available TLV)\b.*', r'Second Port Status:.*')):
             continue
         unknown.append({'line': number, 'text': raw})
     close()
+    if check_total and displayed is None:
+        unknown.append({'line': 1, 'text': 'missing CDP entry total'})
     if displayed is not None and displayed[2] != len(rows):
         # The device's own entry count disagrees with the parsed blocks: never a complete read.
         line, raw, count = displayed
@@ -132,3 +134,5 @@ def register(fields, optional, bindings, parsers):
     for profile in PROFILES:
         bindings[profile]['cdp_neighbor'] = 'cdp_neighbors'
         parsers[(profile, 'cdp_neighbor', 'cdp_neighbors')] = parse
+
+    parsers[('cisco_nxos', 'cdp_neighbor', 'cdp_neighbor_interface')] = parse

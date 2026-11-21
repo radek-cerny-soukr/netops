@@ -1,6 +1,6 @@
 import copy
 
-from fake_fortios import FakeFortiOS, DeviceRefused
+from fake_fortios import FakeFortiOS, DeviceRefused, quoted
 from fake_exos import FakeExos
 from netops_auditor.l1_fortios import tokenize
 
@@ -10,8 +10,8 @@ def table(name, objects):
     for key, attrs in objects.items():
         lines.append('edit "' + key + '"')
         for attr, value in attrs.items():
-            values = value.split() if attr == "member" else [value]
-            lines.append("set " + attr + " " + " ".join('"' + item + '"' for item in values))
+            values = tokenize(value) if attr == "member" else [value]
+            lines.append("set " + attr + " " + " ".join(quoted(item) for item in values))
         lines.append("next")
     return "\n".join(lines + ["end", ""])
 
@@ -53,7 +53,10 @@ class FortiOS767(FakeFortiOS):
                 key = tokens[1]
                 objects.setdefault(key, {})
             elif in_child and tokens[0] == "set":
-                objects[key][tokens[1]] = " ".join(tokens[2:])
+                values = tokens[2:]
+                if tokens[1] == "member":
+                    values = [quoted(item) if " " in item else item for item in values]
+                objects[key][tokens[1]] = " ".join(values)
             elif in_child and tokens[0] == "unset":
                 objects[key].pop(tokens[1], None)
             elif in_child and tokens[0] == "delete":

@@ -1,0 +1,7 @@
+Port Rx Error Monitor
+Port      Link     Rx      Rx      Rx        Rx      Rx         Rx         Rx   
+          State    Crc    Over    Under     Frag    Jabber      Align      Lost 
+================================================================================
+1         A        0       0        0        0        0          0          0
+================================================================================
+          Link State: A-Active, R-Ready, NP-Port Not Present L-Loopback

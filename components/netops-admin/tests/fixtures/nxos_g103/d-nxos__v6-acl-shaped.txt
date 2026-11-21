@@ -1,0 +1,3 @@
+
+IPv6 access list copp-system-p-acl-vrrp6
+	10 permit ipv6 any ff02::12/128

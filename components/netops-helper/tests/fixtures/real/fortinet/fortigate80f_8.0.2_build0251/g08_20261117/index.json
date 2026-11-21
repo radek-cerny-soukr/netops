@@ -1,0 +1,10 @@
+{
+  "user_devices": {"command": "diagnose user device list", "rc": 0, "captured_at": "2026-11-17T09:11:07Z",
+                   "account_role": "read-only", "devices": 18, "projection": "transport prompt removed; anonymized"},
+  "managed_switch_status": {"rest": "GET /api/v2/monitor/switch-controller/managed-switch/status", "http_status": 200,
+                            "captured_at": "2026-11-17T09:11:08Z", "account_role": "read-only api token",
+                            "projection": "ports and faceplate_xml removed; anonymized"},
+  "managed_switch_health": {"rest": "GET /api/v2/monitor/switch-controller/managed-switch/health-status", "http_status": 200,
+                            "captured_at": "2026-11-17T09:11:08Z", "account_role": "read-only api token",
+                            "projection": "anonymized"}
+}

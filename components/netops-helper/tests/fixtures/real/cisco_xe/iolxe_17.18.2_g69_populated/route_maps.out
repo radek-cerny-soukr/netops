@@ -1,0 +1,9 @@
+
+
+
+route-map G69-PBR, permit, sequence 10
+  Match clauses:
+    ip address (access-lists): G69-PBR-ACL 
+  Set clauses:
+    interface Null0
+  Policy routing matches: 2 packets, 164 bytes

@@ -1,0 +1,37 @@
+{
+    "interfaces": {
+        "Vlan3930": {
+            "name": "Vlan3930",
+            "forwardingModel": "routed",
+            "lineProtocolStatus": "up",
+            "interfaceStatus": "connected",
+            "hardware": "vlan",
+            "interfaceAddress": [
+                {
+                    "primaryIp": {
+                        "address": "192.0.2.1",
+                        "maskLen": 24
+                    },
+                    "secondaryIps": {},
+                    "secondaryIpsOrderedList": [],
+                    "virtualIp": {
+                        "address": "0.0.0.0",
+                        "maskLen": 0
+                    },
+                    "virtualSecondaryIps": {},
+                    "virtualSecondaryIpsOrderedList": [],
+                    "broadcastAddress": "255.255.255.255",
+                    "dhcp": false
+                }
+            ],
+            "physicalAddress": "00:00:5e:00:53:01",
+            "burnedInAddress": "00:00:5e:00:53:01",
+            "description": "",
+            "bandwidth": 0,
+            "mtu": 1500,
+            "l3MtuConfigured": false,
+            "l2Mru": 0,
+            "lastStatusChangeTimestamp": 1795089732.2285655
+        }
+    }
+}

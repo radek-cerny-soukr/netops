@@ -1,0 +1,22 @@
+begin to search logs
+date=2026-11-17 time=07:07:58 log_id=0000000100 type=event subtype=config pri=information vd=root msg_id=35681 user=user01 ui=SSH(192.0.2.20) action=del cfgpath=load-balance content-routing cfgobj=name cfgattr=host01
+date=2026-11-17 time=07:07:58 log_id=0000000100 type=event subtype=config pri=information vd=root msg_id=35680 user=user01 ui=SSH(192.0.2.20) action=del cfgpath=load-balance content-routing cfgobj=name cfgattr=host02
+date=2026-11-17 time=07:07:58 log_id=0000000100 type=event subtype=config pri=information vd=root msg_id=35679 user=user01 ui=SSH(192.0.2.20) action=edit cfgpath=load-balance virtual-server cfgobj=content-routing
+date=2026-11-17 time=07:01:36 log_id=0000000100 type=event subtype=config pri=information vd=root msg_id=35543 user=user01 ui=SSH(192.0.2.20) action=edit cfgpath=load-balance virtual-server cfgobj=host03
+date=2026-11-17 time=07:01:36 log_id=0000000100 type=event subtype=config pri=information vd=root msg_id=35542 user=user01 ui=SSH(192.0.2.20) action=edit cfgpath=load-balance virtual-server cfgobj=content-routing
+date=2026-11-17 time=07:01:35 log_id=0000000100 type=event subtype=config pri=information vd=root msg_id=35541 user=user01 ui=SSH(192.0.2.20) action=add cfgpath=load-balance content-routing cfgobj=name cfgattr=host01
+date=2026-11-17 time=07:01:35 log_id=0000000100 type=event subtype=config pri=information vd=root msg_id=35540 user=user01 ui=SSH(192.0.2.20) action=add cfgpath=load-balance content-routing -> match-condition cfgobj=host04
+date=2026-11-17 time=07:01:33 log_id=0000000100 type=event subtype=config pri=information vd=root msg_id=35539 user=user01 ui=SSH(192.0.2.20) action=add cfgpath=load-balance content-routing cfgobj=name cfgattr=host02
+date=2026-11-17 time=07:01:33 log_id=0000000100 type=event subtype=config pri=information vd=root msg_id=35538 user=user01 ui=SSH(192.0.2.20) action=add cfgpath=load-balance content-routing -> match-condition cfgobj=host04
+date=2026-11-17 time=06:35:03 log_id=0000000100 type=event subtype=config pri=information vd=root msg_id=35526 user=user01 ui=SSH(198.51.100.36) action=del cfgpath=load-balance content-routing cfgobj=name cfgattr=host01
+date=2026-11-17 time=06:35:03 log_id=0000000100 type=event subtype=config pri=information vd=root msg_id=35525 user=user01 ui=SSH(198.51.100.36) action=del cfgpath=load-balance content-routing cfgobj=name cfgattr=host02
+date=2026-11-17 time=06:35:03 log_id=0000000100 type=event subtype=config pri=information vd=root msg_id=35524 user=user01 ui=SSH(198.51.100.36) action=edit cfgpath=load-balance virtual-server cfgobj=host05
+date=2026-11-17 time=06:35:03 log_id=0000000100 type=event subtype=config pri=information vd=root msg_id=35523 user=user01 ui=SSH(198.51.100.36) action=edit cfgpath=load-balance virtual-server cfgobj=content-routing
+date=2026-11-17 time=06:13:03 log_id=0000000100 type=event subtype=config pri=information vd=root msg_id=35401 user=user01 ui=SSH(198.51.100.36) action=edit cfgpath=user03 user01 cfgobj=host06
+date=2026-11-17 time=06:11:59 log_id=0000000100 type=event subtype=config pri=information vd=root msg_id=35398 user=user01 ui=SSH(198.51.100.36) action=edit cfgpath=load-balance virtual-server cfgobj=host05
+date=2026-11-17 time=06:11:59 log_id=0000000100 type=event subtype=config pri=information vd=root msg_id=35397 user=user01 ui=SSH(198.51.100.36) action=edit cfgpath=load-balance virtual-server cfgobj=host03
+date=2026-11-17 time=06:11:59 log_id=0000000100 type=event subtype=config pri=information vd=root msg_id=35396 user=user01 ui=SSH(198.51.100.36) action=edit cfgpath=load-balance virtual-server cfgobj=content-routing
+date=2026-11-17 time=06:11:58 log_id=0000000100 type=event subtype=config pri=information vd=root msg_id=35395 user=user01 ui=SSH(198.51.100.36) action=add cfgpath=load-balance content-routing cfgobj=name cfgattr=host01
+date=2026-11-17 time=06:11:58 log_id=0000000100 type=event subtype=config pri=information vd=root msg_id=35394 user=user01 ui=SSH(198.51.100.36) action=add cfgpath=load-balance content-routing -> match-condition cfgobj=host04
+date=2026-11-17 time=06:11:56 log_id=0000000100 type=event subtype=config pri=information vd=root msg_id=35393 user=user01 ui=SSH(198.51.100.36) action=add cfgpath=load-balance content-routing cfgobj=name cfgattr=host02
+display 20 lines log messages one time at most,you can tune the starline if you want to see more logs

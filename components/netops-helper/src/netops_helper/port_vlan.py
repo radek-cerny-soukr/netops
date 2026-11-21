@@ -4,6 +4,8 @@ from __future__ import annotations
 import re
 
 CAMPUS = frozenset({'cisco_ios', 'cisco_xe', 'cisco_nxos', 'arista_eos'})
+IOS_VOICE_PROFILES = frozenset({'cisco_ios', 'cisco_xe'})
+SWITCHPORT = 'interface_switchport'
 BINDINGS = {**dict.fromkeys(CAMPUS, 'interfaces_trunk'),
             'juniper_junos_els': 'ethernet_switching_interfaces',
             'extreme_exos': 'vlan_detail'}
@@ -166,14 +168,26 @@ def exos(text):
     from . import tables
     ports = {}
     current_vlan, membership, in_flags = None, None, False
+    block = False
+    expected = None
+    counted = {}
+    incomplete = []
+
+    def close():
+        if block and (current_vlan is None or expected != (len(counted), sum(counted.values()))):
+            incomplete.append('VLAN membership port count missing or mismatched')
+
     # These are metadata fields of show vlan detail, not arbitrary lines to discard.
     metadata = re.compile(r'(?:Admin State|Description|Virtual router|IP Anycast|IPv[46](?: MC)? Forwarding|'
                           r'Primary IP|Secondary IP|IPv6|STPD|Layer 2 Forwarding|Protocol|Loopback|NetLogin|'
-                          r'QosProfile|Flood Rate Limit QosProfile|Suppress ARP|Suppress ND|Proxy ARP|Ports):')
+                          r'QosProfile|Flood Rate Limit QosProfile|Suppress ARP|Suppress ND|Proxy ARP):')
 
     def handle(raw, value):
-        nonlocal current_vlan, membership, in_flags
+        nonlocal current_vlan, membership, in_flags, block, expected
         if value.startswith('VLAN Interface with name '):
+            close()
+            block, expected = True, None
+            counted.clear()
             current_vlan, membership, in_flags = None, None, False
             return []
         if 'Tagging:' in value:
@@ -181,6 +195,13 @@ def exos(text):
             if not match:
                 return None
             current_vlan = int(match[1])
+            return []
+        if value.startswith('Ports:'):
+            match = re.fullmatch(r'Ports:\s+(\d+)\.\s+\(Number of active ports=(\d+)\)', value)
+            if not match or expected is not None:
+                return None
+            expected = (int(match[1]), int(match[2]))
+            membership = None
             return []
         if value.startswith('Flags:'):
             membership, in_flags = None, True
@@ -197,6 +218,7 @@ def exos(text):
             membership, value = match[1], match[2]
         if membership:
             if current_vlan == 4095 and value in ('Mgmt-port on Mgmt is active', 'Mgmt-port on Mgmt is down'):
+                counted['Mgmt-port'] = value.endswith('active')
                 return []
             if not current_vlan or not 1 <= current_vlan <= 4094:
                 return None
@@ -215,6 +237,9 @@ def exos(text):
                     return None
                 for number in range(low, high + 1):
                     name = tables.port(prefix + str(number))
+                    if name in counted:
+                        return None
+                    counted[name] = '*' in match[1]
                     item = ports.setdefault(name, row(name, tagged=[]))
                     if '*' in match[1]:
                         item['oper_status'] = 'up'
@@ -227,6 +252,9 @@ def exos(text):
         return None
 
     _, unknown = tables.scan(text, handle)
+    close()
+    if incomplete:
+        unknown.append({'line': len(text.splitlines()), 'text': incomplete[0]})
     for item in ports.values():
         item['tagged_vlans'] = sorted(set(item['tagged_vlans']))
         item['mode'] = 'trunk' if item['tagged_vlans'] else 'access'
@@ -236,6 +264,8 @@ def exos(text):
 
 
 def parse(profile, query, text):
+    if profile in IOS_VOICE_PROFILES and query == SWITCHPORT:
+        return access_switchport(text)
     if profile in CAMPUS:
         return campus_interfaces(text) if query == 'interfaces' else trunks(text)
     if profile == 'juniper_junos_els':
@@ -245,7 +275,32 @@ def parse(profile, query, text):
     return [], []
 
 
-def read(auth, read_query):
+def access_switchport(text):
+    from . import tables
+
+    names = ('Name', 'Switchport', 'Operational Mode', 'Access Mode VLAN', 'Voice VLAN')
+    fields = {name: re.findall(rf'^[ \t]*{name}:[ \t]*(.*)$', text, re.M) for name in names}
+    if all(len(values) == 1 for values in fields.values()):
+        name, switchport, mode, access, voice = (fields[key][0].strip() for key in names)
+        access_id = _switchport_vlan_id(access)
+        voice_id = _switchport_vlan_id(voice)
+        if (switchport == 'Enabled' and mode in ('static access', 'down') and access_id is not None
+                and (voice == 'none' or voice_id is not None)):
+            try:
+                return [row(tables.port(name), 'access', access=access_id, tagged=[] if voice_id is None else [voice_id])], []
+            except ValueError:
+                pass
+    return [], [{'line': 1, 'text': 'Access switchport or voice VLAN not verified'}]
+
+
+def _switchport_vlan_id(value):
+    from . import tables
+
+    match = re.fullmatch(r'(\d+)(?:\s+\([^)]*\))?', value)
+    return tables.vlan(match[1]) if match else None
+
+
+def read(auth, read_query, interface=None):
     """Combine sources before filtering/paging; never enable an additional query."""
     from . import tables
     profile = auth.ssh_platform
@@ -274,6 +329,10 @@ def read(auth, read_query):
         else:
             result['warnings'].append('port_vlan_status_join_not_enabled')
             result['coverage']['complete'] = False
+    if profile in IOS_VOICE_PROFILES and interface is not None:
+        for item in result['records']:
+            if item['port'] == tables.port(interface) and item['mode'] == 'access':
+                _join_access_voice(auth, read_query, result, item, interface)
     result['coverage']['parsed_records'] = len(result['records'])
     result['coverage']['missing_fields'] = sorted(field for field in ('tagged_vlans', 'oper_status')
                                                  if any(item[field] is None for item in result['records']))
@@ -287,6 +346,27 @@ def read(auth, read_query):
                                       and not result['coverage']['missing_fields']
                                       and 'refusal_like_line_in_data' not in result['warnings'])
     return result
+
+
+def _join_access_voice(auth, read_query, result, item, interface):
+    # The status table alone cannot establish which VLANs the port tags.
+    item['tagged_vlans'] = None
+    if SWITCHPORT in auth.enabled_queries:
+        try:
+            detail = read_query(SWITCHPORT, 'port_vlan', {'interface': interface})
+        except ValueError:
+            # The table may list ports which the scoped catalogue query cannot address.
+            pass
+        else:
+            result['sources'].extend(detail['sources'])
+            rows = detail['records']
+            coverage = detail['coverage']
+            if (detail['status'] == 'ok' and not detail['unparsed'] and not coverage.get('warnings')
+                    and coverage['missing_fields'] == ['oper_status'] and len(rows) == 1
+                    and rows[0]['port'] == item['port'] and rows[0]['access_vlan'] == item['access_vlan']):
+                item['tagged_vlans'] = rows[0]['tagged_vlans']
+                return
+    result['warnings'].append('port_vlan_voice_unverified')
 
 
 def combine(result, other):
@@ -338,3 +418,41 @@ def membership(item, vlan_id):
     if vlan_id in item['tagged_vlans']:
         return {'carries_vlan': True, 'tagging': 'tagged'}
     return {'carries_vlan': False, 'tagging': None}
+
+
+def join_interfaces(auth, result, read_query):
+    """EXOS tagging comes from VLAN membership, never from a count of VLANs."""
+    if 'ports_description' in auth.enabled_queries:
+        descriptions = read_query('ports_description', 'interface')
+        named = {row['name']: row['description'] for row in descriptions['records']}
+        for row in result['records']:
+            if row['name'] in named:
+                row['description'] = named[row['name']]
+        # This auxiliary query intentionally supplies descriptions only.
+        descriptions['coverage']['missing_fields'] = []
+        descriptions['coverage']['complete'] = descriptions['status'] in ('ok', 'empty') and not descriptions['unparsed']
+        descriptions['warnings'] = [w for w in descriptions['warnings'] if w != 'fields_absent_in_catalogue_output']
+        combine(result, descriptions)
+    else:
+        result['warnings'].append('interface_description_join_not_enabled')
+    if 'vlan_detail' not in auth.enabled_queries:
+        for row in result['records']:
+            row['trunk'] = None
+        result['warnings'].append('interface_vlan_join_not_enabled')
+        result['coverage']['complete'] = False
+        return result
+    membership = read_query('vlan_detail', 'port_vlan')
+    members = {row['port']: row for row in membership['records']}
+    for row in result['records']:
+        item = members.get(row['name'])
+        row['trunk'] = bool(item['tagged_vlans']) if item else None
+        row['vlan_id'] = (item['native_vlan'] if item['mode'] == 'trunk' else item['access_vlan']) if item else None
+    combine(result, membership)
+    result['coverage']['parsed_records'] = len(result['records'])
+    result['coverage']['missing_fields'] = [field for field in result['coverage']['missing_fields']
+        if all(row.get(field) is None for row in result['records'])]
+    result['coverage']['complete'] = (result['status'] in ('ok', 'empty') and not result['unparsed']
+        and not result['coverage']['missing_fields'] and membership['coverage']['complete'])
+    if not result['coverage']['missing_fields']:
+        result['warnings'] = [w for w in result['warnings'] if w != 'fields_absent_in_catalogue_output']
+    return result

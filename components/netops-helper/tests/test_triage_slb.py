@@ -359,6 +359,16 @@ def test_synthetic_all_down_and_availability_are_reported_literally():
     assert result["findings"][0]["fact"] == "availability:UNAVAILABLE"
 
 
+def test_member_states_are_joined_by_pool_and_id():
+    # DERIVED: the measured vs_stat with DOWN states printing another pool that also has ids 1/2 (task 445-r3).
+    other = vs_stat(("DOWN", "DOWN")).replace("real-server-pool: POOL_APP", "real-server-pool: POOL_OLD")
+    result = run(Device(queries={"slb_vs_stat": other}))
+    assert [member["runtime"] for member in result["chain"]["members"]] == [None, None]
+    assert ids(result) == ["F-MISMATCH"]
+    assert result["findings"][0]["fact"] == "config member ids [1, 2], vs_stat member ids [], vs_stat pools ['POOL_OLD']"
+    assert result["next_steps"] == []
+
+
 def test_config_rules_disabled_vs_member_and_missing_health_check():
     result = run(Device(configs={"load-balance virtual-server " + VS: vs_config("disable"),
                                  "load-balance pool " + POOL: pool_config(("enable", "disable"), "")}))
@@ -440,7 +450,6 @@ def test_unenrolled_health_checks_are_not_read():
 
 
 @pytest.mark.parametrize("status,code,reason", [
-    ("Version: FortiADC-KVM v7.6.6,build0676,260522 (GA.M)\n", "config_platform_not_supported", "unsupported"),
     ("Version: FortiGate-VM64-KVM v7.6.7,build3704,release\n", "config_platform_not_supported", "unsupported"),
     ("not an identity\n", "product_identity", "unparsed"),
     ("Version: FortiADC-KVM v7.6.7,build0676,260522 (GA.M)\n"
@@ -933,14 +942,15 @@ def test_schedule_without_entries_and_content_routing_are_explicitly_missing(sch
     assert result["missing"] == [{"step": "schedule_pool", "reason": "empty",
                                   "detail": "schedule-list enable without schedule-pool-list"}]
     assert result["chain"]["schedule"] == [] and result["verdict"] == "incomplete"
-    # DERIVED: content-routing enabled in the real view; pool selection per request is not evaluated.
+    # DERIVED: content-routing enabled in the real view without a content-routing-list (G28 r2 ADC-C04: content
+    # routing is followed through its entries, tests/test_g28r2_adc.py; an empty list is reported as missing).
     schedule_wire.views["load-balance virtual-server " + SVS] = vs.replace(
         "set content-routing disable", "set content-routing enable")
     schedule_wire.calls.clear()
     result = run_schedule(schedule_wire)
-    assert result["missing"] == [{"step": "pool_config", "reason": "unsupported", "detail": (
-        "content-routing enable: the virtual server selects pools per request, which triage_slb does not evaluate")}]
-    assert "selection" not in result["chain"]["pool"] and "schedule" not in result["chain"]
+    assert result["missing"] == [{"step": "content_routing", "reason": "empty",
+                                  "detail": "content-routing enable without content-routing-list"}]
+    assert result["chain"]["pool"]["selection"] == "content_routing" and "schedule" not in result["chain"]
     assert not any("schedule" in call for call in schedule_wire.calls)
     assert result["verdict"] == "incomplete"
 

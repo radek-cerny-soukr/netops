@@ -11,7 +11,7 @@ import sys
 import time
 
 from .auth import TargetAuth
-from .locate import MAX_READS, MAX_SECONDS, MAX_TARGETS
+from .locate import MAX_READS, MAX_SECONDS, MAX_TARGETS, ruckus_reader, selector
 from .normalization import IDENTITY_PROFILES
 
 
@@ -31,7 +31,7 @@ def decode(targets, auth_context):
     if not isinstance(contexts, dict) or set(contexts) != set(targets):
         raise ValueError('authentication context does not match targets')
     auths = [TargetAuth.decode(t, contexts[t]) for t in targets]
-    if any(a.ssh_platform not in IDENTITY_PROFILES | {'fortinet'} for a in auths):
+    if any(a.ssh_platform not in IDENTITY_PROFILES | {'fortinet'} and not ruckus_reader(a) for a in auths):
         raise ValueError('locate_endpoint supports enrolled network OS targets only')
     return auths
 
@@ -149,8 +149,7 @@ def main():
     from .engine import _locate_endpoint_run
     request = json.loads(sys.stdin.buffer.readline(4_000_001))
     auths = decode(request['targets'], request['auth_context'])
-    from .tables import literal
-    kind, value = literal(request['endpoint'])
+    kind, value = selector(request['endpoint'])
     checkpoint = {'ok': False, 'endpoint': {kind: value}, 'vantage': [], 'findings': [], 'missing': [], 'reads': 0,
                   'coverage': {'complete': False, 'requested_targets': request['targets'],
                                'completed_targets': [], 'unfinished_targets': request['targets']},

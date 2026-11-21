@@ -1,0 +1,27 @@
+ipv6 access-list NETOPS-G64-V6
+host02(config-ipv6-acl)#
+10 permit icmp any any
+                         ^
+% Invalid input detected at '^' marker.
+
+host02(config-ipv6-acl)#
+permit icmp any any sequence 10
+host02(config-ipv6-acl)#
+sequence 20 permit tcp any any eq 22
+host02(config-ipv6-acl)#
+sequence 20 permit tcp any any eq 22
+% Duplicate entry exists at sequence 20
+host02(config-ipv6-acl)#
+permit tcp any any eq 22 sequence 30
+% Duplicate entry exists at sequence 20
+host02(config-ipv6-acl)#
+no sequence 20
+host02(config-ipv6-acl)#
+no sequence 30
+host02(config-ipv6-acl)#
+no sequence 10
+host02(config-ipv6-acl)#
+exit
+host02(config)#
+no ipv6 access-list NETOPS-G64-V6
+host02(config)#

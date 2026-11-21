@@ -67,9 +67,9 @@ def test_profile_is_measured_exact_and_opt_in():
         assert "Not measured: the safeguard firing a POST inverse" in profile.rollback_evidence
     for name in ("ALL", "HTTP", "HTTPS", "SSH", "DNS", "PING", "ALL_TCP", "ALL_UDP", "ALL_ICMP", "webproxy"):
         assert name in profile.protected_keys
+    # G00-1: other builds are untested, not refused
     for other in ("7.6.7 build3704", "7.6.9 build3800", "8.0.0 build0167", "8.0.1 build0185"):
-        with pytest.raises(Rejected):
-            profiles.find_profile("fortios", TABLE, other)
+        assert profiles.firmware_support(profiles.find_profile("fortios", TABLE, other), other)["status"] == "untested"
     assert TABLE in config.OPT_IN_TABLES
 
 

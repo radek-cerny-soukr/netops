@@ -95,7 +95,7 @@ def test_doctor_reports_every_check_without_touching_the_device(tmp_path):
     assert found["audit export"] == readiness.MISSING
     assert report["ready"] is False
     assert report["operations"]["firewall address"] == "create update delete"
-    assert report["operations"]["firewall addrgrp"] == "update"
+    assert report["operations"]["firewall addrgrp"] == "create update delete"
     assert report["operations"]["system dhcp server/reserved-address"] == "create update delete"
     assert device.applied_blocks == []
     assert journal_is_empty(runtime, tmp_path)

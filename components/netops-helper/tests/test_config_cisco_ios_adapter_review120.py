@@ -20,7 +20,7 @@ REQUIRED = ('account-rights-not-verified', 'formats-not-verified')
 def _refused(text):
     with pytest.raises(ValueError) as info:
         ad.verify_identity(text)
-    assert not isinstance(info.value, ad.UnsupportedIosFirmware)
+    assert type(info.value) is ValueError
     assert str(info.value) == BAD
     return info.value
 
@@ -52,9 +52,10 @@ def test_n3_lone_surrogate_constant_refusal_without_context():
     assert err.__context__ is None and err.__cause__ is None
 
 
-def test_real_iosv_admitted_exact_supported_honest_metadata():
+def test_real_iosv_tested_exact_record_honest_metadata():
     firmware, meta = ad.verify_identity(IOSV)
-    assert firmware == ad.SUPPORTED == ('IOSv', '15.9(3)M12', 'fc1')
+    assert firmware[:3] == ad.TESTED == ('IOSv', '15.9(3)M12', 'fc1')
+    assert firmware[3] == ad.IMAGE_FAMILY and ad.firmware_support(firmware)['status'] == 'tested'
     assert meta == {'config_scope': 'device-account-visible', 'configuration_complete': False,
                     'identity_scope_verified': False, 'visibility_limitations': list(REQUIRED)}
 

@@ -1,0 +1,2 @@
+traceroute to 127.0.0.1 (127.0.0.1), 30 hops max, 60 byte packets
+ 1  localhost.localdomain (127.0.0.1)  0.052 ms  0.017 ms  0.014 ms

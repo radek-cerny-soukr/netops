@@ -1,0 +1,5 @@
+
+
+
+Extended IP access list NETOPS-G64-REMARK
+    10 permit ip any any

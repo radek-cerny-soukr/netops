@@ -1,0 +1,4 @@
+Managed Switch : S108EPXXXXXXXXXX     0
+Port(2) Power:6.40W,    Power-Status: Delivering Power
+Defined Max Power: 30.0W, Priority: Low.
+Current: 120mA

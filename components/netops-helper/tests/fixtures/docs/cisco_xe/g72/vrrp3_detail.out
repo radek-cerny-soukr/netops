@@ -1,0 +1,11 @@
+GigabitEthernet2 - Group 1 - Address-Family IPv4
+  State is MASTER
+  State duration 37 mins 52.978 secs
+  Virtual IP address is 192.0.2.10
+  Advertisement interval is 1000 msec
+  Priority is 100
+  State change reason is VRRP_TRACK_UP
+  Track object 400 state UP decrement 10
+  Master Router is 192.0.2.1 (local), priority is 100
+  Master Advertisement interval is 1000 msec (expires in 607 msec)
+  Master Down interval is unknown

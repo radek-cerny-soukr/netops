@@ -1,0 +1,31 @@
+{
+  "platform": "exos",
+  "table": "ospf-area",
+  "versions": [
+    "33.6.1.14"
+  ],
+  "ops": [
+    "create",
+    "delete"
+  ],
+  "table_scoped_key": true,
+  "key_pattern": "^ospf(?:v3)?:(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$",
+  "protected_keys": [],
+  "attributes": {
+    "type": {
+      "type": "text",
+      "max_length": 6,
+      "pattern": "^normal$",
+      "default": "normal",
+      "update": false,
+      "unset": false,
+      "referenced_update": false,
+      "required_on_create": false
+    }
+  },
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "G46 X19. VR-Default normal areas. A non-backbone area can be deleted when it has no attached interfaces or settings. The inverse is the matching create or delete. See the G46 measurements on ExtremeXOS 33.6.1.14 (task netops-20261119-611)."
+}

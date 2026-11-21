@@ -7,6 +7,7 @@ from unittest import TestCase, mock
 
 from netops_helper import engine
 from netops_helper.auth import TargetAuth, EgressPolicy
+from test_config_block import HOST_KEY, HOST_KEY_PIN
 
 ADDRESS = "192.0.2.183"
 STATUS = ("Version: FortiGate-VM64-KVM v7.6.7,build3704,240101\n"
@@ -14,7 +15,7 @@ STATUS = ("Version: FortiGate-VM64-KVM v7.6.7,build3704,240101\n"
 
 def enrolled():
     return TargetAuth(alias="fixture", host="192.0.2.20", port=22, login="reader",
-                      secret="auth-canary-91", host_key_fingerprint="SHA256:" + "A" * 43,
+                      secret="auth-canary-91", host_key_fingerprint=HOST_KEY_PIN, host_key=HOST_KEY,
                       ssh_platform="fortinet", enabled_queries=("system_status",),
                       fortios_output_standard_verified=True,
                       read_inventory={"diagnostic_recipes": ("sniffer", "flow"),
@@ -73,17 +74,19 @@ class DiagnosticBlock(TestCase):
             stack.enter_context(mock.patch.object(engine, "_resolve_target_ipv4", return_value=("192.0.2.20",)))
             pin=stack.enter_context(mock.patch.object(engine, "host_key_line", return_value="pinned-host-key"))
             stack.enter_context(mock.patch.object(engine, "_paced_connection"))
-            session=stack.enter_context(mock.patch.object(engine.core_session, "Session"))
+            session=stack.enter_context(mock.patch.object(engine.core_session, "fortinet_session"))
             stack.enter_context(mock.patch.object(engine, "_FortiosDiagnosticShell", return_value=shell))
             result=(runner() if runner else engine.fortios_diagnostics(
                 auth or enrolled(), recipe, ADDRESS, "port2",
                 count=2, timeout=1, max_bytes=1000, **kwargs))
             pin.assert_called_once_with(auth or enrolled(), "192.0.2.20", "fortinet")
+            session.assert_called_once()
+            self.assertEqual(session.call_args.args[0].host_key, HOST_KEY)
             self.assertEqual(session.call_args.kwargs["capture_max_bytes"], 131072)
-            self.assertEqual(session.call_args.kwargs["timeout_seconds"], 30)
+            self.assertEqual(session.call_args.kwargs["connect_timeout_seconds"], 20)
             return result, audit.call_args_list
 
-    def test_measured_802_identity_and_neighbor_refusal_block(self):
+    def test_measured_802_identity_and_untested_neighbor_warnings(self):
         status = STATUS.replace("FortiGate-VM64-KVM v7.6.7,build3704",
                                 "FortiGate-VM64 v8.0.2,build0251")
         for recipe in ("sniffer", "flow"):
@@ -91,16 +94,27 @@ class DiagnosticBlock(TestCase):
                 result, audit = self.invoke(Shell(status), recipe=recipe)
                 self.assertEqual(tuple(result["identity"]),
                                  ("FortiGate-VM64", "8.0.2", "0251"))
+                self.assertEqual(result["firmware_support"]["status"], "tested")
+                self.assertNotIn("warnings", result)
                 self.assertEqual(result["cleanup"], "verified")
                 self.assertNotIn("auth-canary-91", json.dumps(result)+repr(audit))
-        for variant in (status.replace("build0251", "build0252"),
-                        status.replace("v8.0.2", "v8.0.3"),
-                        status.replace("FortiGate-VM64", "FortiGate-VM64-KVM")):
-            with self.subTest(status=variant[:60]):
+        for identity in (("FortiGate-VM64", "8.0.2", "0252"),
+                         ("FortiGate-VM64", "8.0.3", "0251"),
+                         ("FortiGate-VM64-KVM", "8.0.2", "0251")):
+            with self.subTest(identity=identity):
+                variant = status.replace("FortiGate-VM64 v8.0.2,build0251", "%s v%s,build%s" % identity)
                 shell = Shell(variant)
-                with self.assertRaises(ValueError):
-                    self.invoke(shell)
-                self.assertEqual(shell.commands, ["get system status"])
+                result, audit = self.invoke(shell)
+                self.assertEqual(tuple(result["identity"]), identity)
+                support = result["firmware_support"]
+                self.assertEqual(support["status"], "untested")
+                self.assertEqual(support["model"], identity[0])
+                self.assertEqual(support["device_version"], "%s build%s" % identity[1:])
+                self.assertTrue(support["message"])
+                self.assertEqual(result["warnings"], [{"code": "firmware_untested", "message": support["message"]}])
+                self.assertTrue(any(c.startswith("diagnose sniffer packet ") for c in shell.commands))
+                self.assertEqual(result["cleanup"], "verified")
+                self.assertNotIn("auth-canary-91", json.dumps(result)+repr(audit))
 
     def test_registry_free_capture_scope_and_output_block(self):
         shell=Shell()
@@ -125,14 +139,12 @@ class DiagnosticBlock(TestCase):
 
     def test_inventory_proxy_mcp_registry_free_block(self):
         import asyncio
-        from base64 import b64encode
         from types import SimpleNamespace
         from fastmcp import Client
-        from netops_core.hostkey import fingerprint_of
         from netops_helper import inventory, proxy, server
         entry = SimpleNamespace(
             credential="fixture-account", name="fixture", address="192.0.2.20", port=22,
-            host_key_fingerprint=fingerprint_of(b64encode(b"fixture-host-key").decode()),
+            host_key_fingerprint=HOST_KEY_PIN, host_key=HOST_KEY,
             legacy_ssh=None, helper={
                 "account_role": "read-only", "ssh_platform": "fortios",
                 "enabled_queries": ["system_status"], "fortios_output_standard_verified": True,
@@ -171,7 +183,8 @@ class DiagnosticBlock(TestCase):
                   STATUS+"Virtual domain configuration: disable\n",
                   STATUS.replace("Current virtual domain: root","Current virtual domain: VD1"),
                   STATUS.replace("Version:","Malformed:"),
-                  STATUS+STATUS, STATUS.replace("build3704","build9999"), "x"*65537,
+                  STATUS+STATUS, STATUS.replace("build3704", "build999"),
+                  STATUS.replace("FortiGate-VM64-KVM", "FortiADC-KVM"), "x"*65537,
                   STATUS.replace("root","root\x00")]
         for status in variants:
             shell=Shell(status)

@@ -1,0 +1,34 @@
+
+VLAN 1: show fdb vlan Default
+MAC                                      VLAN Name( Tag)  Age  Flags          Port / Virtual Port List
+------------------------------------------------------------------------------------------------------
+00:00:5e:00:53:05                          Default(0001) 0014  d m            11
+00:00:5e:00:53:0f                          Default(0001) 0208  d m            1
+00:00:5e:00:53:13                          Default(0001) 0016  d m            1
+00:00:5e:00:53:14                          Default(0001) 0013  d m            1
+00:00:5e:00:53:0d                          Default(0001) 0244  d m            1
+00:00:5e:00:53:0e                          Default(0001) 0046  d m            9
+00:00:5e:00:53:10                          Default(0001) 0093  d m            1
+00:00:5e:00:53:04                          Default(0001) 0105  d m            1
+00:00:5e:00:53:0c                          Default(0001) 0211  d m            1
+00:00:5e:00:53:09                          Default(0001) 0014  d m            1
+00:00:5e:00:53:01                          Default(0001) 0015  d m            1
+00:00:5e:00:53:0a                          Default(0001) 0025  d m            3
+00:00:5e:00:53:15                          Default(0001) 0158  d m            1
+00:00:5e:00:53:07                          Default(0001) 0053  d m            1
+00:00:5e:00:53:06                          Default(0001) 0265  d m            1
+00:00:5e:00:53:08                          Default(0001) 0014  d m            1
+00:00:5e:00:53:02                          Default(0001) 0075  d m            1
+00:00:5e:00:53:03                          Default(0001) 0015  d m            1
+00:00:5e:00:53:11                          Default(0001) 0015  d m            7
+00:00:5e:00:53:0b                          Default(0001) 0210  d m            1
+
+Flags : d - Dynamic, s - Static, p - Permanent, n - NetLogin, m - MAC, i - IP,
+        x - IPX, l - lockdown MAC, L - lockdown-timeout MAC, M- Mirror, B - Egress Blackhole,
+        b - Ingress Blackhole, v - MAC-Based VLAN, P - Private VLAN, T - VLAN translation,
+        D - drop packet, h - Hardware Aging (Age=0), o - IEEE 802.1ah Backbone MAC,
+        S - Software Controlled Deletion, r - MSRP,
+        X - VXLAN, E - EVPN
+
+Total: 32 Static: 0  Perm: 0  Dyn: 32  Dropped: 0  Locked: 0  Locked with Timeout: 0
+FDB Aging time: 300

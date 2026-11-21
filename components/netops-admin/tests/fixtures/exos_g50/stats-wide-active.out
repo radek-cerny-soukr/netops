@@ -1,0 +1,8 @@
+Port      Link                Tx Pkt              Tx Byte               Rx Pkt              Rx Byte               Rx Pkt               Rx Pkt               Tx Pkt               Tx Pkt
+          State                Count                Count                Count                Count                Bcast                Mcast                Bcast                Mcast
+========= ===== ==================== ==================== ==================== ==================== ==================== ==================== ==================== ====================
+3         A                   120841             11361337               166245             15584854                    0                    0                    0                    0
+========= ===== ==================== ==================== ==================== ==================== ==================== ==================== ==================== ====================
+
+          > in Port indicates Port Display Name truncated past 8 characters
+          Link State: A-Active, R-Ready, NP-Port Not Present, L-Loopback

@@ -1,0 +1,29 @@
+Packets dropped:
+    Total                      0
+
+Offer Delay:
+    DELAYED                    0
+    INPROGRESS                 0
+    TOTAL                      0
+
+Messages received:
+    BOOTREQUEST                0
+    DHCPDECLINE                0
+    DHCPDISCOVER               0
+    DHCPINFORM                 0
+    DHCPRELEASE                0
+    DHCPREQUEST                0
+    DHCPLEASEQUERY             0
+    DHCPBULKLEASEQUERY         0
+    DHCPACTIVELEASEQUERY       0
+
+Messages sent:
+    BOOTREPLY                  0
+    DHCPOFFER                  0
+    DHCPACK                    0
+    DHCPNAK                    0
+    DHCPFORCERENEW             0
+    DHCPLEASEUNASSIGNED        0
+    DHCPLEASEUNKNOWN           0
+    DHCPLEASEACTIVE            0
+    DHCPLEASEQUERYDONE         0

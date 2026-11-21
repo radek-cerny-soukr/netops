@@ -1,0 +1,8 @@
+Number of APs: 1
+
+Global AP User Name: user01
+Global AP Dot1x User Name: Not configured
+
+AP Name                           AP Model  Ethernet MAC    Radio MAC       State
+----------------------------------------------------------------------------------------
+3602a                             3502I     0000.5e00.5301  0000.5e00.5302  Registered

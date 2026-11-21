@@ -1,0 +1,4 @@
+#
+# Module ospfv3 configuration.
+#
+create ospfv3 area 0.0.0.15

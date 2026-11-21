@@ -1,0 +1,27 @@
+diagnose server-load-balance vs_stat vdom root vs LAB_VS_HTTPS
+vdom name is root
+	virtual-server: LAB_VS_HTTPS, availability:HEALTHY
+		APP Response: 0
+		Client RTT: 1
+		Concurrent Connections: 0
+		Inbound Throughput: 156
+		Outbound Throughput: 453
+		Requests: 1
+		Server RTT: 1
+		real-server-pool: POOL_APP
+		id:1, hc_state: UP, last-state-change-time: 2026-11-17 06:06:18
+			APP Response: 0
+			Concurrent Connections: 0
+			Inbound Throughput: 0
+			Outbound Throughput: 0
+			Requests: 0
+			Server RTT: 0
+		id:2, hc_state: UP, last-state-change-time: 2026-11-17 06:06:55
+			APP Response: 0
+			Concurrent Connections: 0
+			Inbound Throughput: 0
+			Outbound Throughput: 0
+			Requests: 0
+			Server RTT: 0
+
+FortiADC-KVM # 

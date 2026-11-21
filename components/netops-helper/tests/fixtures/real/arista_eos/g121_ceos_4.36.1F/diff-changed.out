@@ -1,0 +1,20 @@
+--- fixture-startup-config
++++ fixture-running-config
+@@ -97,8 +97,17 @@
+ fixture-opaque-statement
+ fixture-opaque-statement
+ !
++ipv6 access-list G121-VERIFY
++   10 permit ipv6 2001:db8:1::0/32 any
++!
++ip access-list G121-VERIFY
++   10 permit tcp 192.0.2.0/24 any eq https
++   20 deny ip any any log
++!
+ fixture-opaque-statement
+ !
++ip prefix-list G121-VERIFY seq 10 permit 198.51.100.0/24 le 32
++!
+ fixture-opaque-statement
+ !
+ fixture-opaque-statement

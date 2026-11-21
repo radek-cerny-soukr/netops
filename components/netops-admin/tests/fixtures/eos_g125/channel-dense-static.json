@@ -1,0 +1,71 @@
+{
+    "numberOfChannelsInUse": 1,
+    "numberOfAggregators": 2,
+    "portChannels": {
+        "Port-Channel104": {
+            "linkState": "up",
+            "protocol": "lacp",
+            "lacpMode": "active",
+            "ports": {
+                "Ethernet15": {
+                    "intf": "Ethernet15",
+                    "lagMember": true,
+                    "linkDown": false,
+                    "suspended": false,
+                    "lacpMisconfig": {
+                        "status": "bundled"
+                    },
+                    "lacpState": {
+                        "activity": true,
+                        "timeout": false,
+                        "aggregation": true,
+                        "synchronization": true,
+                        "collecting": true,
+                        "distributing": true,
+                        "defaulted": false,
+                        "expired": false
+                    },
+                    "staticLag": false,
+                    "exceedsMaxWeight": false
+                },
+                "Ethernet14": {
+                    "intf": "Ethernet14",
+                    "lagMember": true,
+                    "linkDown": false,
+                    "suspended": false,
+                    "lacpMisconfig": {
+                        "status": "bundled"
+                    },
+                    "lacpState": {
+                        "activity": true,
+                        "timeout": false,
+                        "aggregation": true,
+                        "synchronization": true,
+                        "collecting": true,
+                        "distributing": true,
+                        "defaulted": false,
+                        "expired": false
+                    },
+                    "staticLag": false,
+                    "exceedsMaxWeight": false
+                }
+            },
+            "inactive": false
+        },
+        "Port-Channel900": {
+            "linkState": "down",
+            "protocol": "static",
+            "ports": {
+                "Ethernet12": {
+                    "intf": "Ethernet12",
+                    "lagMember": false,
+                    "linkDown": true,
+                    "suspended": false,
+                    "staticLag": true,
+                    "exceedsMaxWeight": false
+                }
+            },
+            "inactive": false
+        }
+    }
+}

@@ -1,0 +1,20 @@
+{
+  "platform": "nxos",
+  "table": "startup-config",
+  "versions": [
+    "9.3(12)"
+  ],
+  "exact_versions": true,
+  "table_scoped_key": true,
+  "ops": [
+    "save"
+  ],
+  "key_pattern": "^startup-config$",
+  "protected_keys": [],
+  "attributes": {},
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "Saving replaces startup-config with running-config. Admin has no undo for this operation."
+}

@@ -1,0 +1,7 @@
++configure syslog add 192.0.2.25:514 vr VR-Mgmt local1
++disable log target syslog 192.0.2.25:514 vr VR-Mgmt local1
++configure log target syslog 192.0.2.25:514 vr VR-Mgmt local1 filter DefaultFilter severity Warning
++configure log target syslog 192.0.2.25:514 vr VR-Mgmt local1 match Any
++configure log target syslog 192.0.2.25:514 vr VR-Mgmt local1 format timestamp seconds date Mmm-dd event-name none priority host-name tag-name
++configure dns-client add name-server 192.0.2.26    vr VR-Default
++configure ntp server add 192.0.2.24    vr VR-Mgmt

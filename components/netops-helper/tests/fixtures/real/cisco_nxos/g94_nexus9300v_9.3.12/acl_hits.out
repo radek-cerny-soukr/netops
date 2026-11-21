@@ -1,0 +1,4 @@
+IP access list acl-2
+        statistics per-entry
+        10 permit ip 192.0.2.0/24 any [match=0]
+        20 permit ip any any [match=3651331]

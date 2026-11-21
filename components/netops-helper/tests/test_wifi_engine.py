@@ -2,10 +2,11 @@
 
 import dataclasses
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
-from conftest import EXEC_CLIENT, FORTIOS_STATUS, _target, _write_client
+from conftest import FORTIOS_STATUS, _target
 import netops_helper.engine as engine
 from netops_helper.auth import PolicyScopeError
 
@@ -37,13 +38,18 @@ def _clean_state(monkeypatch):
     engine._WTP_SEEN.clear()
 
 
-def fake_terminal(monkeypatch, outputs, sent):
+def fake_terminal(monkeypatch, outputs, sent, *, status=STATUS_80F):
     """A FortiOS read-only CLI: each command is answered with the next scripted output."""
     script = iter(outputs)
 
     class Terminal:
         def __init__(self, *args, **options):
-            self.buffer = [b"banner\r\n" + PROMPT]
+            self._last_prompt = PROMPT
+            self.buffer = []
+
+        def run(self, command, **kwargs):
+            assert command == "get system status"
+            return SimpleNamespace(rc=0, stdout=status.encode(), continuation=False)
 
         def expect(self, patterns, timeout):
             return 0, self.buffer.pop(0)
@@ -66,11 +72,7 @@ def fake_terminal(monkeypatch, outputs, sent):
             self.close()
             return False
 
-    monkeypatch.setattr(engine.core_session, "Session", Terminal)
-
-
-def identity_on_the_wire(wire, status=STATUS_80F):
-    _write_client(wire["binaries"], "ssh", EXEC_CLIENT.format(log=str(wire["log"]), output=status, code=0))
+    monkeypatch.setattr(engine.core_session, "fortinet_session", Terminal)
 
 
 def read(target, query, parameters=None):
@@ -78,7 +80,6 @@ def read(target, query, parameters=None):
 
 
 def test_events_run_as_one_session_with_exactly_the_four_commands(wire, monkeypatch):
-    identity_on_the_wire(wire)
     sent = []
     fake_terminal(monkeypatch, ["", "", "", fixture("log_display_wireless")], sent)
     answer = read(auth("wifi_events"), "wifi_events", {"lines": "20"})
@@ -95,7 +96,6 @@ def test_events_run_as_one_session_with_exactly_the_four_commands(wire, monkeypa
 
 
 def test_mac_literal_filters_the_redacted_text_and_never_reaches_the_device(wire, monkeypatch):
-    identity_on_the_wire(wire)
     sent = []
     fake_terminal(monkeypatch, ["", "", "", fixture("log_display_wireless")], sent)
     answer = read(auth("wifi_events"), "wifi_events", {"lines": "200", "mac_literal": CLIENT})
@@ -107,7 +107,6 @@ def test_mac_literal_filters_the_redacted_text_and_never_reaches_the_device(wire
 
 
 def test_a_filter_command_that_prints_is_a_device_refusal_and_stops_the_sequence(wire, monkeypatch):
-    identity_on_the_wire(wire)
     sent = []
     fake_terminal(monkeypatch, ["", "command parse error before 'wireless'\nCommand fail. Return code -61", "", ""], sent)
     answer = read(auth("wifi_events"), "wifi_events", {"lines": "5"})
@@ -118,7 +117,6 @@ def test_a_filter_command_that_prints_is_a_device_refusal_and_stops_the_sequence
 @pytest.mark.parametrize('step', [0, 1, 2, 3])
 @pytest.mark.parametrize('path', ['ssh', 'triage'])
 def test_sequence_keeps_refusal_detection_after_output(wire, monkeypatch, step, path):
-    identity_on_the_wire(wire)
     sent = []
     body = 'diagnostic preamble\ncommand parse error before \'wireless\'\nCommand fail. Return code -61\nSession ending'
     fake_terminal(monkeypatch, [''] * step + [body], sent)
@@ -133,7 +131,7 @@ def test_sequence_keeps_refusal_detection_after_output(wire, monkeypatch, step, 
 
 def test_the_engine_refuses_to_send_anything_but_the_reviewed_sequence(wire, monkeypatch):
     opened = []
-    monkeypatch.setattr(engine.core_session, "Session", lambda *a, **k: opened.append(1))
+    monkeypatch.setattr(engine.core_session, "fortinet_session", lambda *a, **k: opened.append(1))
     target = auth("wifi_events")
     for commands in (("execute reboot",), ("execute log display",),
                      ("execute log filter category event", "execute log filter field subtype wireless",
@@ -150,9 +148,9 @@ def test_the_engine_refuses_to_send_anything_but_the_reviewed_sequence(wire, mon
 
 
 def test_events_on_another_product_are_refused_before_any_command(wire, monkeypatch):
-    identity_on_the_wire(wire, "Version: FortiADC-KVM v7.6.7,build0676,260522 (GA.M)\n")
     sent = []
-    fake_terminal(monkeypatch, ["", "", "", "x"], sent)
+    fake_terminal(monkeypatch, ["", "", "", "x"], sent,
+                  status="Version: FortiADC-KVM v7.6.7,build0676,260522 (GA.M)\n")
     answer = read(auth("wifi_events"), "wifi_events", {"lines": "5"})
     assert answer["ok"] is False and answer["error_code"] == "product_identity" and sent == []
 
@@ -303,15 +301,14 @@ def test_wifi_triage_rejects_bad_selectors_before_any_device_contact(monkeypatch
         engine.triage_wifi(auth(*QUERIES), mac, ip)
 
 
-def test_a_session_failure_of_the_sequence_forgets_the_host_key_and_is_raised(wire, monkeypatch):
-    identity_on_the_wire(wire)
+def test_a_session_failure_of_the_sequence_does_not_touch_the_scan_cache(wire, monkeypatch):
     forgotten = []
     def fail(*args, **options):
         raise engine.core_session.SessionError('connection lost')
-    monkeypatch.setattr(engine.core_session, "Session", fail)
+    monkeypatch.setattr(engine.core_session, "fortinet_session", fail)
     monkeypatch.setattr(engine, "_forget_host_key_line", lambda address, port: forgotten.append((address, port)))
     with pytest.raises(engine.core_session.SessionError):
         engine._sequence_read(auth("wifi_events"), "fortinet", (
             "execute log filter category event", "execute log filter field subtype wireless",
             "execute log filter view-lines 5", "execute log display"))
-    assert len(forgotten) == 1
+    assert forgotten == []

@@ -27,8 +27,8 @@ def with_spaced_member(snapshot, members):
     return replace(text, GROUP, "        set member " + members)
 
 
-@pytest.mark.parametrize("members", ['"My Host" "grouped-host"', '"My Host"'])
-def test_group_member_with_whitespace_is_refused(fortios_snapshot, members):
+@pytest.mark.parametrize("members", ['"My\tHost" "grouped-host"', '"My\tHost"'])
+def test_group_member_with_tab_is_refused(fortios_snapshot, members):
     snapshot = with_spaced_member(fortios_snapshot, members)
     rejected(snapshot, "whitespace", table="firewall addrgrp", op="update", key="servers",
              changes={"member": ["lab-net"]})

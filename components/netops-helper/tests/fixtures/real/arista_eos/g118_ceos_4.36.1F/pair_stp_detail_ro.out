@@ -1,0 +1,42 @@
+ MST0 is executing the mstp Spanning Tree protocol
+  Bridge Identifier has priority 32768, sysid 0, address 0000.5e00.530a
+  Configured hello time 2.000, max age 20, forward delay 15, transmit hold-count 6
+  Current root has priority 4524, address 0000.5e00.530b
+  Root port is 100 (Port-Channel128), cost of root path is  7999 (Ext) 0 (Int)
+  Number of topology changes 3 last change occurred 25479 seconds ago
+          from Port-Channel128
+
+ Port 205 (Ethernet5) of MST0 is designated forwarding
+   Port path cost 20000, Port priority 128, Port Identifier 128.205.
+   Designated root has priority 4524, address 0000.5e00.530b
+   Designated bridge has priority 32768, address 0000.5e00.530a
+   Designated port id is 128.205, designated path cost 7999 (Ext) 0 (Int)
+   Timers: message age 1, forward delay 15, hold 20
+   Number of transitions to forwarding state: 1
+   Link type is point-to-point by default, Internal
+   BPDU: sent 12634, received 0, taggedErr 0, otherErr 0, rateLimiterCount 0
+   Rate-Limiter: enabled, Window: 10 sec, Max-BPDU: 400
+
+ Port 5 (PeerEthernet5) of MST0 is designated forwarding
+   Port path cost 20000, Port priority 128, Port Identifier 128.5.
+   Designated root has priority 4524, address 0000.5e00.530b
+   Designated bridge has priority 32768, address 0000.5e00.530a
+   Designated port id is 128.5, designated path cost 7999 (Ext) 0 (Int)
+   Timers: message age 1, forward delay 15, hold 20
+   Number of transitions to forwarding state: 1
+   Link type is point-to-point by default, Internal
+   BPDU: sent 12646, received 0, taggedErr 0, otherErr 0, rateLimiterCount 0
+   Rate-Limiter: enabled, Window: 0 sec, Max-BPDU: 0
+
+ Port 100 (Port-Channel128) of MST0 is root forwarding
+   Port path cost 7999, Port priority 128, Port Identifier 128.100.
+   Designated root has priority 4524, address 0000.5e00.530b
+   Designated bridge has priority 4524, address 0000.5e00.530c
+   Designated port id is 144.127, designated path cost 0 (Ext) 0 (Int)
+   Timers: message age 0, forward delay 15, hold 20
+   Number of transitions to forwarding state: 1
+   Link type is point-to-point by default, Boundary
+   BPDU: sent 3, received 12742, taggedErr 0, otherErr 0, rateLimiterCount 0
+   Rate-Limiter: enabled, Window: 10 sec, Max-BPDU: 400
+
+

@@ -1,0 +1,4 @@
+Policies at Policy Server:
+PolicyName                       ClientUsage     Client          BindCount
+--------------------------------------------------------------------------
+netops-g47-capture               1               acl             1

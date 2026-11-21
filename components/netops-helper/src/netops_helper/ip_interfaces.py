@@ -26,6 +26,8 @@ NAME = re.compile(r'[A-Za-z0-9_][A-Za-z0-9_.:/-]{0,63}')
 
 def name(value):
     """Canonical interface name: the shared port normalizer, else the safe name as printed (EXOS VLAN, FortiOS)."""
+    from . import tables as t
+
     try:
         return t.port(value)
     except ValueError:
@@ -36,6 +38,8 @@ def name(value):
 
 def address(row, ip, vrf=None):
     """A record for one IPv4 address; `ip` is "A.B.C.D" (no mask printed), "A.B.C.D/len" or "A.B.C.D mask"."""
+    from . import tables as t
+
     length = None
     if ' ' in ip or '/' in ip:
         found = ipaddress.IPv4Interface(ip.replace(' ', '/'))
@@ -48,6 +52,8 @@ def address(row, ip, vrf=None):
 
 def ios(table, text):
     """IOS / IOS XE `show ip interface brief`: Status is the administrative and link state, Protocol the line protocol."""
+    from . import tables as t
+
     def handle(raw, value):
         if re.fullmatch(r'Interface\s+IP-Address\s+OK\?\s+Method\s+Status\s+Protocol', value):
             return []
@@ -64,6 +70,8 @@ def ios(table, text):
 
 def nxos(table, text):
     """NX-OS `show ip interface brief`: one section per VRF, state as protocol-/link-/admin-."""
+    from . import tables as t
+
     state = {'vrf': None}
 
     def handle(raw, value):
@@ -82,6 +90,8 @@ def nxos(table, text):
 
 def eos(table, text):
     """EOS `show ip interface brief`: the address carries its prefix length."""
+    from . import tables as t
+
     def handle(raw, value):
         if value == 'Address' or re.fullmatch(r'Interface\s+IP Address\s+Status\s+Protocol\s+MTU(?:\s+Owner)?', value):
             return []
@@ -96,6 +106,8 @@ def eos(table, text):
 
 def exos(table, text):
     """EXOS `show ipconfig`: settings, the routed VLANs (flag E = enabled, U = up) and the flag legend."""
+    from . import tables as t
+
     def handle(raw, value):
         if (re.fullmatch(r'[A-Za-z][A-Za-z0-9()/-]*(?: [A-Za-z0-9()/-]+)* +: .*|IRDP:|Flags: .*|\(\w+\) .*', value)
                 or re.fullmatch(r'(?:Advertisement Address|Minimum Interval): .*', value)
@@ -116,7 +128,10 @@ JUNOS_ADDRESS = re.compile(r'([0-9a-fA-Fx:.]+(?:/\d+)?)?(?:\s*-->\s*\S+)?')
 
 def junos(table, text):
     """Junos `show interfaces terse`: the `inet` addresses of each logical interface, continuation lines included."""
+    from . import tables as t
+
     state = {'row': None, 'family': None}
+    family = 'inet6' if table == 'ip_interface_v6' else 'inet'
 
     def addresses(cell):
         if not cell:
@@ -124,7 +139,13 @@ def junos(table, text):
         m = JUNOS_ADDRESS.fullmatch(cell)
         if not m:
             raise ValueError('not an address')
-        return [address(state['row'], m[1])] if state['family'] == 'inet' and m[1] else []
+        if state['family'] != family or not m[1]:
+            return []
+        if family == 'inet':
+            return [address(state['row'], m[1])]
+        interface = ipaddress.IPv6Interface(m[1])
+        return [t.record(table, **state['row'], ip=str(interface.ip), address_family='ipv6',
+                         prefix_length=interface.network.prefixlen if '/' in m[1] else None)]
 
     def handle(raw, value):
         if re.match(r'Interface\s+Admin\s+Link\s+Proto\s+Local\s+Remote', value):
@@ -148,6 +169,8 @@ def junos(table, text):
 def fortinet(table, text):
     """FortiOS `get system interface`: one `== [ name ]` heading and one attribute line per interface.
     `status` is the configured (administrative) state; the output has no link state and no VLAN ID."""
+    from . import tables as t
+
     def handle(raw, value):
         if re.fullmatch(r'== \[ \S+ \]', value):
             return []
@@ -229,6 +252,8 @@ def join_queries(profile, enabled_queries):
 
 def join(profile, result, enabled_queries, read):
     """Complete addresses within this read, using only enrolled catalogue queries."""
+    from . import tables as t
+
     if profile not in JOINS or not result['records']:
         return result
     joins = [('links', 'interface', link_addresses), JOINS[profile]] if profile == 'linux' else [JOINS[profile]]
@@ -282,5 +307,97 @@ def join(profile, result, enabled_queries, read):
     return result
 
 
-# tables.py registers this module at its end; importing it last lets either module be imported first.
-from . import tables as t  # noqa: E402
+def ios_addresses(table, text):
+    """Addresses actually printed by IOS IPv4/IPv6 interface detail, including secondary/link-local."""
+    from . import tables as t
+
+    rows, unknown = [], []
+    current = None
+    for number, raw in enumerate(text.splitlines(), 1):
+        value = raw.strip()
+        if not value:
+            continue
+        header = re.fullmatch(r'(\S+) is (up|down|administratively down), line protocol is (up|down)', value)
+        if header:
+            current = {'interface': name(header[1]), 'admin_status': 'down' if header[2].startswith('admin') else 'up',
+                       'oper_status': header[3]}
+            continue
+        candidates = []
+        v4 = re.fullmatch(r'(?:Internet address is|Secondary address) (\S+)', value)
+        link = re.search(r'link-local address is ([0-9A-Fa-f:]+)', value)
+        v6 = re.fullmatch(r'([0-9A-Fa-f:]+), subnet is ([0-9A-Fa-f:]+/\d+)(?: \[\w+(?:/\w+)*\])?', value)
+        if v4:
+            candidates = [v4[1]]
+        elif link:
+            candidates = [link[1]]
+        elif v6:
+            candidates = [v6[1] + '/' + v6[2].rsplit('/', 1)[1]]
+        for candidate in candidates:
+            try:
+                if current is None:
+                    raise ValueError
+                ip = ipaddress.ip_interface(candidate)
+                svi = SVI.fullmatch(current['interface'])
+                # The link-local line supplies no prefix length; do not infer /64 or /128.
+                rows.append(t.record(TABLE, **current, ip=str(ip.ip),
+                                     prefix_length=ip.network.prefixlen if '/' in candidate else None,
+                                     vlan_id=int(svi[1]) if svi else None))
+            except ValueError:
+                unknown.append({'line': number, 'text': raw})
+        if not candidates:
+            metadata = re.match(r'(?:Broadcast address|Address determined|MTU is|Helper address|Directed broadcast|'
+                                r'Multicast reserved|Outgoing access|Inbound +access|Proxy ARP|Local Proxy ARP|'
+                                r'Security level|Split horizon|ICMP |IP |TCP/IP |RTP/IP |Router Discovery|'
+                                r'Policy routing|Network address|BGP Policy|Input features|IPv4 WCCP|'
+                                r'Outgoing Common access list|Inbound Common access list|'
+                                r'Associated unicast routing topologies:|Topology "base", operation state is (?:UP|DOWN)$|'
+                                r'Probe proxy name replies are disabled$|'
+                                r'IPv6 is disabled|No [Vv]irtual|Virtual link-local|Global unicast|'
+                                r'No global unicast|Joined group|ND |Hosts |Description:|Internet protocol processing disabled)', value)
+            group = False
+            try:
+                group = ipaddress.IPv6Address(value).is_multicast
+            except ValueError:
+                pass
+            if current is None or not (metadata or group):
+                unknown.append({'line': number, 'text': raw})
+    if current is not None and not rows and not unknown and not re.search(r'IPv6 is disabled|Internet protocol processing disabled', text):
+        unknown = [{'line': n, 'text': raw} for n, raw in enumerate(text.splitlines(), 1) if raw.strip()]
+    return rows, unknown
+
+
+def junos_ospfv3(table, text):
+    """Pair each router ID with its IPv6 Neighbor-address continuation."""
+    from . import tables as t
+
+    pending = None
+    rows, unknown = [], []
+    for number, raw in enumerate(text.splitlines(), 1):
+        value = raw.strip()
+        if not value or re.fullmatch(r'ID\s+Interface\s+State\s+Pri\s+Dead', value):
+            continue
+        evidence = {'line': number, 'text': raw}
+        row = re.fullmatch(
+            r'(\d+\.\d+\.\d+\.\d+)\s+(\S+)\s+(Down|Attempt|Init|2Way|ExStart|Exchange|Loading|Full)\s+\d+\s+\d+',
+            value,
+        )
+        if row:
+            if pending:
+                unknown.append(pending[1])
+            pending = (row, evidence)
+            continue
+        address = re.fullmatch(r'Neighbor-address\s+([a-fA-F0-9:.]+)', value)
+        if address and pending:
+            peer, previous = pending
+            try:
+                rows.append(t.record(table, neighbor_id=str(ipaddress.IPv4Address(peer[1])),
+                                     address=str(ipaddress.IPv6Address(address[1])), interface=name(peer[2]),
+                                     state=peer[3].lower()) | {'address_family': 'ipv6'})
+            except ValueError:
+                unknown.extend((previous, evidence))
+            pending = None
+            continue
+        unknown.append(evidence)
+    if pending:
+        unknown.append(pending[1])
+    return rows, unknown

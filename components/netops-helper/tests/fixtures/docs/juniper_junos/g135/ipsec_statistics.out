@@ -1,0 +1,17 @@
+Virtual-system: Root
+ESP Statistics:
+  Encrypted bytes:                0
+  Decrypted bytes:                0
+  Encrypted packets:              0
+  Decrypted packets:              0
+AH Statistics:
+  Input bytes:                    0
+  Output bytes:                   0
+  Input packets:                  0
+  Output packets:                 0
+Errors:
+  AH authentication failures: 0, Replay errors: 0
+  ESP authentication failures: 0, ESP decryption failures: 0
+  Bad headers: 0, Bad trailers: 0
+  Invalid SPI: 0, TS check fail: 0
+  Discarded: 0

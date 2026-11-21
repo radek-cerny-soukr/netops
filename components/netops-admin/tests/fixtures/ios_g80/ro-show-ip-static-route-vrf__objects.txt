@@ -1,0 +1,21 @@
+
+
+
+Codes: M - Manual static, A - AAA download, N - IP NAT, D - DHCP,
+       G - GPRS, V - Crypto VPN, C - CASA, P - Channel interface processor,
+       B - BootP, S - Service selection gateway
+       DN - Default Network, T - Tracking object
+       L - TL1, E - OER, I - iEdge
+       D1 - Dot1x Vlan Network, K - MWAM Route
+       PP - PPP default route, MR - MRIPv6, SS - SSLVPN
+       H - IPe Host, ID - IPe Domain Broadcast
+       U - User GPRS, TE - MPLS Traffic-eng, LI - LIIN
+       IR - ICMP Redirect, Vx - VXLAN static route
+       LT - Cellular LTE, Ev - L2EVPN static route
+Codes in []: A - active, N - non-active, B - BFD-tracked, D - Not Tracked, P - permanent, -T Default Track
+
+
+Codes in (): UP - up, DN - Down, AD-DN - Admin-Down, DL - Deleted
+Static local RIB for netops-g80 
+
+M  198.51.100.160/27 [1/0] via 198.51.100.66 [A]

@@ -1,0 +1,5 @@
+route-map pbr-sample, permit, sequence 10
+Policy routing matches: 84 packets
+route-map pbr-sample, permit, sequence 20
+Policy routing matches: 94 packets
+Default routing: 233 packets

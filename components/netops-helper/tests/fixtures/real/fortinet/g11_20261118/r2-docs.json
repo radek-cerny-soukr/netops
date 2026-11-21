@@ -1,0 +1,7 @@
+{
+  "rib_inactive": "Routing table for VRF=0\nS     > 0.0.0.0/0 [10/0] via 203.0.113.254, port1 inactive, [10/0]\n     *>           [10/0] via 192.0.2.254, port2, [20/0]\n",
+  "rib_inactive_without_selected": "S       0.0.0.0/0 [10/0] via 192.0.2.1, wan1 inactive\n",
+  "ipv6_recursive_rib": "IPv6 Routing Table\nB    *> 2001:db8:1::/64 [200/0] via 2001:db8::2 (recursive via fe80::2, agg1), 00:01:25, [1024/0]\n",
+  "ipv6_recursive_table": "IPv6 Routing Table\nB       2001:db8:1::/64 [200/0] via 2001:db8::2 (recursive via fe80::2, agg1), 00:01:25, [1024/0]\n",
+  "ospf_neighbors": "OSPF process 0, VRF 0:\nNeighbor ID     Pri   State           Dead Time   Address         Interface\n198.51.100.1          1   Full/DR         00:00:38    192.0.2.1       wan1\n198.51.100.1          1   Full/DR         00:00:38    192.0.2.2       wan2\n"
+}

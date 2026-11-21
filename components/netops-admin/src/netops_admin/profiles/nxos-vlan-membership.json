@@ -22,11 +22,41 @@
       "referenced_update": true,
       "required_on_create": false,
       "undo_to_default": true
+    },
+    "mode": {
+      "type": "text",
+      "pattern": "^(access|trunk)$",
+      "max_length": 6,
+      "default": "access",
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "required_on_create": false
+    },
+    "native-vlan": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 4094,
+      "default": "1",
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "required_on_create": false
+    },
+    "allowed-vlans": {
+      "type": "text",
+      "pattern": "^(all|none|[0-9,-]+)$",
+      "max_length": 1024,
+      "default": "all",
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "required_on_create": false
     }
   },
   "fixed": {},
   "volatile": [],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "Measured on a Nexus 9000v (N9K-C9300v, virtual) with NX-OS 9.3(12) (GNS3 lab, tasks netops-provoz-20261116-314 and 317, ref/mereni-c6) and repeated end to end through Admin in task netops-20261116-318; a physical Nexus 9000 is not verified. NX-OS 9.3(12) has neither a commit timer nor an EEM timer event; the safeguard is a one-time job of feature scheduler (a precondition the administrator of the switch enables once; Admin never enables or disables it): Admin creates checkpoint netops-<id>, the job netops-<id> with 'rollback running-config checkpoint netops-<id> atomic' and the schedule netops-<id> with 'time start +M', then deletes and creates the checkpoint again so that it holds the job and the schedule, and copies the running configuration to bootflash:netops-<id>-pred.cfg; only then the change runs line by line through 'configure terminal' (configure session offers neither description, shutdown nor switchport under an interface). The schedule has a granularity of one minute: M = ceil(safeguard_seconds/60)+1 and the real delay is in (M-1, M] minutes. When the job runs, NX-OS rolls the WHOLE running configuration back to the checkpoint, so a change of someone else made in the window is returned too. Admin removes only objects whose creating line its own session saw accepted (noted line by line in the journal, the name read free right before), and an installation that did not finish is removed at once, or by admin recover after an interruption of Admin, the pending schedule first, so a job that its checkpoint does not hold yet does not run when the removal succeeds before the minute of the job. When that job already ran (it then blocks the scheduler with 'schedule in progress'), the removal fails or an object is not proven own, the operation ends unknown with a manual procedure (admin status, safeguard.manual_cleanup); the last resort, 'no feature scheduler', is a decision of the switch administrator, never sent by Admin. Admin never reads the device clock: the protection is counted on its monotonic clock from before the installation (M-1 minutes less 2 %, never more than the lead the device shows), the change is written only while enough is left and every line only while 15 s are left; waiting and recover read the scheduler state. Confirmation deletes the schedule, then the job (after a run the job first, repeated while the switch answers 'schedule in progress'), the checkpoint and the file; copy running-config startup-config runs only after it. An unverified change is returned at once by 'configure replace bootflash:netops-<id>-pred.cfg' (measured Success, the access VLAN included) while at least 60 s of the protection are left, and again after the job ran when the object is still not in its state before; configure replace with commit-timeout is not used, because its automatic return left a changed access VLAN in place. The write account (network-admin) reads show running-config; the check account (network-operator, which may not read show running-config or show scheduler) reads show interface N status, show interface description and show interface N switchport. Prechecks refuse unsaved changes (show running-config diff), an open configuration session, a running rollback and any leftover netops- checkpoint, job, schedule or file. Access VLAN of an access switchport only: 'switchport access vlan N' / 'no switchport access vlan' (VLAN 1); NX-OS accepts a VLAN that does not exist without a warning and leaves the port inactive, so the VLAN must be in the running configuration and in show vlan id N; VLAN 3968-4094 are reserved; a trunk (also by show interface trunk), a routed port or a port-channel member is refused."
+  "rollback_evidence": "Measured on a Nexus 9000v (N9K-C9300v, virtual) with NX-OS 9.3(12) (GNS3 lab, tasks netops-provoz-20261116-314 and 317, ref/mereni-c6) and repeated end to end through Admin in task netops-20261116-318; a physical Nexus 9000 is not verified. NX-OS 9.3(12) has neither a commit timer nor an EEM timer event; the safeguard is a one-time job of feature scheduler (a precondition the administrator of the switch enables once; Admin never enables or disables it): Admin creates checkpoint netops-<id>, the job netops-<id> with 'rollback running-config checkpoint netops-<id> atomic' and the schedule netops-<id> with 'time start +M', then deletes and creates the checkpoint again so that it holds the job and the schedule, and copies the running configuration to bootflash:netops-<id>-pred.cfg; only then the change runs line by line through 'configure terminal' (configure session offers neither description, shutdown nor switchport under an interface). The schedule has a granularity of one minute: M = ceil(safeguard_seconds/60)+1 and the real delay is in (M-1, M] minutes. When the job runs, NX-OS rolls the WHOLE running configuration back to the checkpoint, so a change of someone else made in the window is returned too. Admin removes only objects whose creating line its own session saw accepted (noted line by line in the journal, the name read free right before), and an installation that did not finish is removed at once, or by admin recover after an interruption of Admin, the pending schedule first, so a job that its checkpoint does not hold yet does not run when the removal succeeds before the minute of the job. When that job already ran (it then blocks the scheduler with 'schedule in progress'), the removal fails or an object is not proven own, the operation ends unknown with a manual procedure (admin status, safeguard.manual_cleanup); the last resort, 'no feature scheduler', is a decision of the switch administrator, never sent by Admin. Admin never reads the device clock: the protection is counted on its monotonic clock from before the installation (M-1 minutes less 2 %, never more than the lead the device shows), the change is written only while enough is left and every line only while 15 s are left; waiting and recover read the scheduler state. Confirmation deletes the schedule, then the job (after a run the job first, repeated while the switch answers 'schedule in progress'), the checkpoint and the file; copy running-config startup-config runs only after it. An unverified change is returned at once by 'configure replace bootflash:netops-<id>-pred.cfg' (measured Success, the access VLAN included) while at least 60 s of the protection are left, and again after the job ran when the object is still not in its state before; configure replace with commit-timeout is not used, because its automatic return left a changed access VLAN in place. The write account (network-admin) reads show running-config; the check account (network-operator, which may not read show running-config or show scheduler) reads show interface N status, show interface description and show interface N switchport. Prechecks refuse unsaved changes (show running-config diff), an open configuration session, a running rollback and any leftover netops- checkpoint, job, schedule or file. Configure access VLAN, access/trunk mode, the complete allowed VLAN set (all, none or VLANs and ranges) and the native VLAN. An occupied client access port or a trunk configuration change requires endpoint_impact naming the port and a confirmed preview. Connected trunks, protected VLANs and ports, aggregation members and ports with infrastructure neighbors are refused."
 }

@@ -1,0 +1,4 @@
+Captured read-only from VM220 FortiADC-KVM 7.6.7 build0676 via VM201, 2026-11-17. Source: task-evidence/g33/r2/{status,disk,ntp-discovery}.txt. Command echo, prompt and blank boundary lines removed; status.out hostname/serial anonymized on PC-Radek using tests/support/anonymize_fixture.py --check. NTP disabled; enabled/authenticated configuration is not live-qualified.
+ntp-runtime.out: exact body of diagnose system ntp, first observed via targeted diagnose system ntp ? + Enter (task-evidence/g33/r2/ntp-final-help.txt), confirmed independently in ntp-runtime.out. Runtime sync=no, no server rows or offset. Positive sync marker test is explicitly synthetic.
+
+Integration 461 (2026-11-17): this note was provenance.txt; the fixture files were renamed from `*.txt` to `*.out` (repository convention; contents unchanged). The task-evidence paths above refer to the G33 branch.

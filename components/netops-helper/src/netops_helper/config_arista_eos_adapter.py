@@ -1,32 +1,39 @@
 """Arista EOS identity/profile adapter for the public ``config_read`` (tasks 143 and 153).
 
-Same shape as the Cisco IOS XE and IOS adapters.  Only one evidenced
-combination is admitted: model ``cEOSLab`` with EOS ``4.36.1F``
-(``tests/fixtures/real/arista_eos/ceos_4.36.1F/version.txt``).  The model is read only from the
+Same shape as the Cisco IOS XE and IOS adapters.  The tested
+combination is model ``cEOSLab`` with EOS ``4.36.1F``
+(``tests/fixtures/real/arista_eos/ceos_4.36.1F/version.txt``); another model or release is read too and
+reported as ``firmware_support`` ``untested`` with a warning (G00, decision of 2026-11-17).  The model is read only from the
 ``Arista <model>`` line and the release only from the ``Software image version:`` line of ``show
 version``, each of which must occur exactly once; never from image file names, serial numbers or host
 names.  The build suffix of the image version (e.g. ``-48405728.4361F (engineering build)``) is not
 dropped: the whole image version text is the third element of the firmware record (``build``).  The
-running configuration goes through the indentation-based ``config_indented.EosStreamRedactor`` (task
-147: three-space indentation allowlist, every other line one ``EOS_MARKER``, final ``end`` required;
-task 153 replaces the IOS line consumer of task 143, which hid almost every EOS statement).
-Supported identity does not verify account rights, the full-config format or complete redaction.
+configuration goes through the EOS indentation-based redactor. Live comparison captures omit
+the verified command-specific header before comparing the redacted configuration bodies.
+A tested identity does not verify account rights, the full-config format or complete redaction.
 """
 
 import hashlib
 import json
 import re
 
+from netops_core import tested
+
 from .config_indented import EOS_MARKER
 
 PLATFORM = 'arista_eos'
 COMMAND = 'show running-config'
+STARTUP_COMMAND = 'show startup-config'
+DIFF_COMMAND = 'show running-config diffs'
+LIVE_DIFF = ('startup', 'running')
 IDENTITY_COMMANDS = ('show version',)
-SUPPORTED = ('cEOSLab', '4.36.1F')
+# The identity config_read was tested on (G00: a list of tested identities, not a gate).
+TESTED = ('cEOSLab', '4.36.1F')
+TESTED_NAME = 'Arista EOS'
 IDENTITY_MAX_BYTES = 65536
 
-POLICY_DESCRIPTOR = (PLATFORM, 'config_indented.EosStreamRedactor', 'eos-indent-allowlist-1', EOS_MARKER,
-                     COMMAND, IDENTITY_COMMANDS, SUPPORTED)
+POLICY_DESCRIPTOR = (PLATFORM, 'config_indented.EosStreamRedactor', 'eos-indent-allowlist-2', EOS_MARKER,
+                     COMMAND, IDENTITY_COMMANDS, TESTED)
 PROFILE = PLATFORM + '-full-1:' + hashlib.sha256(
     json.dumps(POLICY_DESCRIPTOR, separators=(',', ':')).encode('ascii')).hexdigest()
 
@@ -37,10 +44,7 @@ _MODEL = re.compile(r'Arista ([A-Za-z0-9][A-Za-z0-9_.+-]{0,63})')
 # Release (major.minor.patch[.n] + train letter), optional build suffix and optional build note.
 _IMAGE = re.compile(r'Software image version: (([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}(?:\.[0-9]{1,3})?[A-Z]{1,2})'
                     r'(?:-[A-Za-z0-9.]{1,64})?(?: \([A-Za-z][A-Za-z ]{0,31}\))?)')
-
-
-class UnsupportedEosFirmware(ValueError):
-    """The live identity is consistent but is not the single admitted model and release."""
+_DIFF_HUNK = re.compile(r'@@ -[0-9]{1,10}(?:,([0-9]{1,10}))? \+[0-9]{1,10}(?:,([0-9]{1,10}))? @@(?: .*)?')
 
 
 def read_command(section, include_all, include_defaults, redaction='full', view='running'):
@@ -50,6 +54,35 @@ def read_command(section, include_all, include_defaults, redaction='full', view=
         raise ValueError('config_platform_not_supported: arista_eos supports only redaction full, '
                          'section all with include_all true and include_defaults false')
     return COMMAND
+
+
+def native_diff_status(output):
+    """Return the presence of changes from the measured EOS unified diff, without disclosing it."""
+    if not output.strip():
+        return False
+    if _CONTROL.search(output) or re.search(r'--\s*More\s*--', output, re.I):
+        return None
+    lines = output.splitlines()
+    if (not output.endswith('\n') or len(lines) < 4 or not lines[0].startswith('--- ') or
+            not lines[1].startswith('+++ ')):
+        return None
+    before = after = 0
+    hunk = changed = False
+    for line in lines[2:]:
+        if match := _DIFF_HUNK.fullmatch(line):
+            if before or after:
+                return None
+            before, after = (int(value) if value is not None else 1 for value in match.groups())
+            hunk = True
+        elif hunk and line[:1] in (' ', '+', '-'):
+            before -= line[0] != '+'
+            after -= line[0] != '-'
+            changed |= line[0] != ' '
+            if before < 0 or after < 0:
+                return None
+        elif not hunk or line != r'\ No newline at end of file':
+            return None
+    return True if changed and before == after == 0 else None
 
 
 def _utf8_size(text):
@@ -86,24 +119,30 @@ def version_identity(version):
     return model, image.group(2), image.group(1)
 
 
-def firmware_admitted(firmware):
-    """True only for a firmware record of the single admitted model and release (any build note)."""
-    if type(firmware) is not tuple or len(firmware) != 3 or firmware[:2] != SUPPORTED or type(firmware[2]) is not str:
+def firmware_record(firmware):
+    """True for a firmware record as verify_identity returns it (model, release, image version text); a
+    stored snapshot is read back with it.  The release must be the one the image version text names."""
+    if (type(firmware) is not tuple or len(firmware) != 3 or not all(type(item) is str and item for item in firmware)
+            or _MODEL.fullmatch('Arista ' + firmware[0]) is None):
         return False
     match = _IMAGE.fullmatch('Software image version: ' + firmware[2])
-    return match is not None and match.group(2) == SUPPORTED[1]
+    return match is not None and match.group(2) == firmware[1]
 
 
 def verify_identity(version):
     """Firmware record (model, release, image version text) and honest visibility metadata.
 
-    ValueError: inconclusive or contradictory identity; UnsupportedEosFirmware: a consistent identity
-    outside the single admitted model and release.
+    ValueError: inconclusive or contradictory identity.  A consistent identity of another model or release
+    is returned as well; firmware_support() tells whether it is the tested one (any build note of the
+    tested release counts as tested, as before).
     """
-    model, release, image = version_identity(version)
-    if (model, release) != SUPPORTED:
-        raise UnsupportedEosFirmware('configuration firmware-not-supported')
-    return (model, release, image), metadata()
+    return version_identity(version), metadata()
+
+
+def firmware_support(firmware):
+    """The firmware_support structure (netops_core.tested) of a firmware record against the tested identity."""
+    model, release, _ = firmware
+    return tested.support(TESTED_NAME, release, [TESTED], model=model, function='config_read')
 
 
 def metadata():

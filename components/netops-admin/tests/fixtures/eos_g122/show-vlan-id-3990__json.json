@@ -1,0 +1,17 @@
+{
+    "vlans": {
+        "3990": {
+            "name": "g122-data",
+            "dynamic": false,
+            "status": "active",
+            "interfaces": {
+                "Ethernet12": {
+                    "privatePromoted": false,
+                    "blocked": null,
+                    "egressOnly": false
+                }
+            }
+        }
+    },
+    "sourceDetail": ""
+}

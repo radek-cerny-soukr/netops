@@ -1,0 +1,16 @@
+{
+    "serials": {},
+    "vtys": {
+        "8581": {
+            "username": "netops-admin",
+            "role": "network-admin",
+            "terminal": "ssh",
+            "state": "established",
+            "sessionStartTime": 1795020158,
+            "authMethod": "local",
+            "remoteAddress": "192.0.2.36",
+            "service": "sshd"
+        }
+    },
+    "nonInteractives": {}
+}

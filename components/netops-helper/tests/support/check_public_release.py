@@ -122,7 +122,6 @@ def _diagnostic_vdom_allowed(tree: ast.AST) -> bool:
                        'mode == "disable" and domains != ["root"]'):
         if len(raising_guard(identity, expression)) != 1:
             return False
-    measured = raising_guard(run, "identity not in IDENTITIES")
     unscoped = raising_guard(run, 'vdom is None and mode != "disable"')
     vdom_foreign = raising_guard(run, "vdom is not None and vdom != domain")
     read = ast.dump(ast.parse('owner = interfaces.entries[interface].value("vdom")').body[0])
@@ -148,9 +147,11 @@ def _diagnostic_vdom_allowed(tree: ast.AST) -> bool:
     enter = functions.get("enter_vdom")
     marker = enter is not None and any(isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
                                        and n.func.id == "context_index" for n in ast.walk(enter))
-    return (len(measured) == len(unscoped) == len(vdom_foreign) == len(reported) == len(unknown) == len(foreign) == len(status) == 1
+    # G00 (2026-11-17): the tested identities are not a gate any more (firmware_support reports them), so the
+    # status read is followed directly by the VDOM guards.
+    return (len(unscoped) == len(vdom_foreign) == len(reported) == len(unknown) == len(foreign) == len(status) == 1
             and len(contexts) == len(entered) == 1 and marker
-            and status[0].lineno < measured[0].lineno < unscoped[0].lineno < vdom_foreign[0].lineno
+            and status[0].lineno < unscoped[0].lineno < vdom_foreign[0].lineno
             < contexts[0].lineno < reported[0].lineno < unknown[0].lineno < foreign[0].lineno)
 
 
@@ -207,6 +208,96 @@ def _catalog_code_text(source: str, tree: ast.Module) -> str:
             token = token._replace(string=re.sub(r"[^\r\n]", " ", token.string))
         tokens.append(token)
     return tokenize.untokenize(tokens).lower()
+
+
+def _nxos_session_summary_nodes(tree: ast.Module, relative: str) -> list[ast.Constant]:
+    """Exact NX-M008 literals in the NX-OS catalogue and its platform guard only."""
+    command = "show configuration session summary"
+    if relative == "src/netops_helper/query_catalog/cisco.py":
+        for assignment in tree.body:
+            if (isinstance(assignment, ast.AnnAssign)
+                    and isinstance(assignment.target, ast.Name)
+                    and assignment.target.id == "NXOS_QUERIES"
+                    and isinstance(assignment.value, ast.Dict)):
+                return [value.args[0]
+                        for key, value in zip(assignment.value.keys, assignment.value.values)
+                        if isinstance(key, ast.Constant) and key.value == "configuration_sessions"
+                        and isinstance(value, ast.Call) and isinstance(value.func, ast.Name)
+                        and value.func.id == "Query" and value.args
+                        and isinstance(value.args[0], ast.Constant) and value.args[0].value == command]
+    if relative == "src/netops_helper/read_policy.py":
+        expected = ast.parse(
+            'platform == "cisco_nxos" and inspected == "show configuration session summary"',
+            mode="eval",
+        ).body
+        return [node.test.values[1].comparators[0]
+                for function in tree.body
+                if isinstance(function, ast.FunctionDef) and function.name == "_validate_query_command"
+                for node in function.body
+                if isinstance(node, ast.If) and ast.dump(node.test) == ast.dump(expected)
+                and len(node.body) == 1 and isinstance(node.body[0], ast.Return)
+                and node.body[0].value is None and not node.orelse]
+    return []
+
+
+def _junos_filter_binding_nodes(tree: ast.Module, relative: str) -> list[ast.Constant]:
+    """Recognize the sole reviewed Junos configuration leaf template."""
+    if relative != "src/netops_helper/query_catalog/junos.py":
+        return []
+    command = "show configuration interfaces {interface} family inet filter | no-more"
+    return [node.value for node in tree.body
+            if isinstance(node, ast.Assign) and len(node.targets) == 1
+            and isinstance(node.targets[0], ast.Name) and node.targets[0].id == "FILTER_BINDING_COMMAND"
+            and isinstance(node.value, ast.Constant) and node.value.value == command]
+
+
+def _junos_management_nodes(tree: ast.Module, relative: str) -> list[ast.Constant]:
+    """Recognize the five reviewed management leaves in the fixed Junos map."""
+    if relative != "src/netops_helper/query_catalog/junos.py":
+        return []
+    assignments = [node for node in tree.body if isinstance(node, ast.Assign) and any(
+        isinstance(target, ast.Name) and target.id == "CONFIG_COMMANDS" for target in node.targets
+    )]
+    if len(assignments) != 1 or len(assignments[0].targets) != 1:
+        return []
+    mapping = assignments[0].value
+    paths = {"dns_resolvers": "name-server", "syslog_status": "syslog", "authentication_order": "authentication-order",
+             "radius_servers": "radius-server", "tacacs_servers": "tacplus-server"}
+    if not isinstance(mapping, ast.Dict) or len(mapping.keys) != len(paths):
+        return []
+    if any(not isinstance(key, ast.Constant) or not isinstance(key.value, str)
+           or not isinstance(value, ast.Constant) or not isinstance(value.value, str)
+           for key, value in zip(mapping.keys, mapping.values)):
+        return []
+    commands = {key.value: value.value for key, value in zip(mapping.keys, mapping.values)}
+    expected = {name: f"show configuration system {path} | display xml | no-more" for name, path in paths.items()}
+    return list(mapping.values) if commands == expected else []
+
+
+def _startup_diff_nodes(tree: ast.Module, relative: str) -> list[ast.Constant]:
+    diffs = {
+        "src/netops_helper/config_arista_eos_adapter.py": "show running-config diffs",
+        "src/netops_helper/config_cisco_nxos_adapter.py": "show running-config diff",
+        "src/netops_helper/config_cisco_ios_adapter.py":
+            "show archive config differences nvram:startup-config system:running-config",
+        "src/netops_helper/config_cisco_xe_adapter.py":
+            "show archive config differences nvram:startup-config system:running-config",
+    }
+    if relative not in diffs:
+        return []
+    commands = {
+        "STARTUP_COMMAND": "show startup-config",
+        "DIFF_COMMAND": diffs[relative],
+    }
+    nodes = {}
+    for statement in tree.body:
+        if (isinstance(statement, ast.Assign) and len(statement.targets) == 1
+                and isinstance(statement.targets[0], ast.Name) and statement.targets[0].id in commands):
+            name = statement.targets[0].id
+            if name in nodes or not isinstance(statement.value, ast.Constant) or statement.value.value != commands[name]:
+                return []
+            nodes[name] = statement.value
+    return list(nodes.values()) if nodes.keys() == commands.keys() else []
 
 
 def _phase1_surface_errors(root: Path) -> list[str]:
@@ -365,6 +456,7 @@ def _phase1_surface_errors(root: Path) -> list[str]:
     forbidden_catalog_patterns = (
         "show running-config",
         "show startup-config",
+        "show archive config differences",
         "show full-configuration",
         "show configuration",
         "backup configuration",
@@ -391,8 +483,14 @@ def _phase1_surface_errors(root: Path) -> list[str]:
         ("src/netops_helper/config_indented.py", "show running-config"): 1,
         ("src/netops_helper/config_cisco_ios_adapter.py", "show running-config"): 1,
         ("src/netops_helper/config_exos_adapter.py", "show configuration"): 1,
+        # G136: Junos display-set capture, the ACCESS-DENIED visibility probe and compare rollback <n>
+        ("src/netops_helper/config_junos_adapter.py", "show configuration"): 3,
         ("src/netops_helper/config_fortiadc.py", "show full-configuration"): 2,
         ("src/netops_helper/config_fortios.py", "show full-configuration"): 1,
+        # G110 (RP08): the one Unleashed `show config` template and its exact read-policy admission; the engine
+        # passes only the allowlisted sections with secrets redacted (tests/test_g110_ruckus.py).
+        ("src/netops_helper/query_catalog/ruckus.py", "show configuration"): 1,
+        ("src/netops_helper/read_policy.py", "show configuration"): 1,
     }
     for source_path in source_paths:
         relative = source_path.relative_to(root).as_posix()
@@ -408,8 +506,35 @@ def _phase1_surface_errors(root: Path) -> list[str]:
             interface_token='show full-configuration system interface "'
             if catalog_text.count("show full-configuration")==1:
                 catalog_text=catalog_text.replace(interface_token,"[verified interface owner]"+chr(34),1)
+        # Like the bounded snapshot exceptions above, mask only the reviewed
+        # literal at its verified AST location, never a prefix or a source-wide count.
+        tree = source_trees[source_path]
+        legacy_nodes = _nxos_session_summary_nodes(tree, relative) + _junos_filter_binding_nodes(tree, relative)
+        bounded_nodes = ((legacy_nodes if len(legacy_nodes) == 1 else []) + _junos_management_nodes(tree, relative)
+                         + _startup_diff_nodes(tree, relative))
+        lines = catalog_text.splitlines(keepends=True)
+        for node in sorted(bounded_nodes, key=lambda item: (item.lineno, item.col_offset), reverse=True):
+            if node.lineno != node.end_lineno:
+                continue
+            line = lines[node.lineno - 1]
+            start = len(line.encode("utf-8")[:node.col_offset].decode("utf-8"))
+            end = len(line.encode("utf-8")[:node.end_col_offset].decode("utf-8"))
+            lines[node.lineno - 1] = line[:start] + " " * (end - start) + line[end:]
+        catalog_text = "".join(lines)
+        if relative == "src/netops_helper/adc_monitoring.py":
+            # G33: one fixed NTP section read; no general configuration export.
+            exports = [node.value for node in ast.walk(source_trees[source_path])
+                       if isinstance(node, ast.Constant) and isinstance(node.value, str)
+                       and "show full-configuration" in node.value.lower()]
+            if exports == ["show full-configuration system time ntp"]:
+                catalog_text = catalog_text.replace("show full-configuration system time ntp",
+                                                    "[bounded NTP configuration]", 1)
         for pattern in forbidden_catalog_patterns:
             count = catalog_text.count(pattern)
+            if pattern == "show configuration":
+                # Abbreviated configuration display is excluded as in read_policy.
+                count += sum(match.group() != pattern for match in
+                             re.finditer(r"\bshow conf[a-z]*\b", catalog_text))
             if count and count != config_read_allowances.get((relative, pattern)):
                 errors.append(
                     "phase-1 source contains configuration export pattern: "

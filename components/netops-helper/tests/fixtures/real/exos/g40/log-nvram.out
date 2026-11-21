@@ -1,0 +1,4 @@
+11/20/2026 08:43:03.59 <Warn:HAL.Card.Warning> Function pointer is not initialized. Caller: 0x564f87e006ec Parm1: 0x1 Parm2: 0x8b469fe4
+11/20/2026 08:42:08.51 <Warn:HAL.Card.Warning> Function pointer is not initialized. Caller: 0x564f87e006ec Parm1: 0x1 Parm2: 0x8b469fe4
+
+A total of 2 log messages were displayed.

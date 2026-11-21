@@ -1,0 +1,6 @@
+diagnose server-load-balance persistence list
+client-ip/port virtual-server-ip/port local-ip/port real-server-ip/port protocol service expire virtual-server-name real-server-name
+203.0.113.100 0 203.0.113.10 443 0.0.0.0 0 203.0.113.254 80 6 https 300 LAB_VS_HTTPS RS_A
+203.0.113.100 0 203.0.113.10 443 0.0.0.0 0 203.0.113.254 80 6 https 300 LAB_VS_HTTPS RS_A
+
+FortiADC-KVM # 

@@ -1,0 +1,60 @@
+{
+  "platform": "exos",
+  "table": "port-link",
+  "versions": [
+    "33.6.1.14",
+    "33.7.1.6"
+  ],
+  "ops": [
+    "update"
+  ],
+  "table_scoped_key": true,
+  "key_pattern": "^[1-9][0-9]*(?::[1-9][0-9]*)?$",
+  "protected_keys": [],
+  "attributes": {
+    "autonegotiation": {
+      "type": "text",
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "required_on_create": false,
+      "pattern": "^(enabled|disabled)$",
+      "max_length": 32,
+      "default": "enabled"
+    },
+    "speed": {
+      "type": "text",
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "required_on_create": false,
+      "pattern": "^(10|100|1000|2500|5000|10000|25000|40000|50000|100000)$",
+      "max_length": 32
+    },
+    "duplex": {
+      "type": "text",
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "required_on_create": false,
+      "pattern": "^(half|full)$",
+      "max_length": 32
+    },
+    "jumbo-frame": {
+      "type": "text",
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "required_on_create": false,
+      "pattern": "^(enabled|disabled)$",
+      "max_length": 32,
+      "default": "disabled"
+    }
+  },
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "Read the configured AutoNeg, Speed and Duplex columns and per-port Jumbo setting. Undo restores the prior configured values.",
+  "implicit_keys": true
+}

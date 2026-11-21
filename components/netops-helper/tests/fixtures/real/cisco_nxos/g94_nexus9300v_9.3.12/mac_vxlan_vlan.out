@@ -1,0 +1,6 @@
+   VLAN     MAC Address      Type      age     Secure NTFY Ports
+---------+-----------------+--------+---------+------+----+------------------
+*   10     0000.5e00.530a   dynamic  0         F      F    Eth1/54
+C   10     0000.5e00.530b   dynamic  0         F      F    nve1(192.0.2.33)
+G   10     0000.5e00.530c   static   -         F      F    sup-eth1(R)
+G   10     0000.5e00.530d   static   -         F      F    vPC Peer-Link(R)

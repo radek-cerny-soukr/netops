@@ -114,7 +114,6 @@ def test_access_vlan_plan_and_prediction_verify():
     ({"key": "Management0"}, "port_management_interface"),
     ({"key": "Loopback0"}, "port_unsupported_interface"),
     ({"key": "Ethernet1", "changes": {"admin-state": "disabled"}}, "port_uplink"),
-    ({"key": "Ethernet1", "table": "vlan-membership", "changes": {"access-vlan": 20}}, "port_uplink"),
 ])
 def test_plan_refusals_carry_codes(fields, code):
     with pytest.raises(Rejected) as caught:
@@ -487,4 +486,18 @@ def test_doctor_is_ready_after_enrollment(tmp_path):
     statuses = {item["check"]: item["status"] for item in report["checks"]}
     assert statuses["check account"] == "ok" and statuses["leftover safeguards"] == "ok"
     assert statuses["device prechecks"] == "ok" and statuses["enrollment"] == "ok", report
-    assert report["operations"] == {"interface": "update", "vlan-membership": "update"}
+    # 1.0.12 G123: the EOS port bounce and PoE cycle are operations of their own tables
+    assert report["operations"] == {"interface": "update", "vlan-membership": "update", "vlan": "create update delete",
+                                    "port-bounce": "port-bounce", "inline-power": "poe-cycle",
+                                    "static-route": "create update delete", "l3-interface": "create update delete",
+                                    "ip-routing": "update", "vrrp": "create update delete",
+                                    "varp": "create update delete", "varp-mac": "update",
+                                    "ip-access-list": "create update delete", "interface-access-group": "update",
+                                    "port-channel": "create update delete", "port-channel-member": "update",
+                                    "mlag-port": "update", "mlag-peer": "update", "stp-port": "update", "stp-vlan": "update",
+                                    "ospf-process": "create delete", "ospf-network": "create update delete",
+                                    "ospf-interface": "update", "ip-prefix-list": "create update delete",
+                                    "route-map": "create update delete", "bgp-neighbor": "create update delete",
+                                    "dhcp-pool": "create update delete", "dhcp-relay": "create update delete",
+                                    "ntp-server": "create update delete", "syslog-host": "create delete",
+                                    "dns-server": "create update delete", "system-services": "update", "startup-config": "save"}

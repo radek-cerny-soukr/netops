@@ -22,11 +22,76 @@
       "referenced_update": true,
       "required_on_create": false,
       "undo_to_default": true
+    },
+    "mode": {
+      "type": "text",
+      "pattern": "^(access|trunk|trunk phone)$",
+      "default": "access",
+      "max_length": 16,
+      "update": true,
+      "unset": false,
+      "referenced_update": true,
+      "required_on_create": false,
+      "undo_to_default": true
+    },
+    "allowed-vlans": {
+      "type": "text",
+      "pattern": "^(all|none|[0-9,-]+)$",
+      "default": "all",
+      "max_length": 1024,
+      "update": true,
+      "unset": false,
+      "referenced_update": true,
+      "required_on_create": false,
+      "undo_to_default": true
+    },
+    "native-vlan": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 4094,
+      "default": "1",
+      "update": true,
+      "unset": false,
+      "referenced_update": true,
+      "required_on_create": false,
+      "undo_to_default": true
+    },
+    "voice-vlan": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 4094,
+      "default": null,
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "required_on_create": false
+    },
+    "dot1x": {
+      "type": "text",
+      "pattern": "^(enabled|disabled)$",
+      "default": "disabled",
+      "max_length": 8,
+      "update": true,
+      "unset": false,
+      "referenced_update": true,
+      "required_on_create": false,
+      "undo_to_default": true
+    },
+    "mab": {
+      "type": "text",
+      "pattern": "^(enabled|disabled)$",
+      "default": "disabled",
+      "max_length": 8,
+      "update": true,
+      "unset": false,
+      "referenced_update": true,
+      "required_on_create": false,
+      "undo_to_default": true
     }
   },
   "fixed": {},
   "volatile": [],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "Measured on cEOSLab 4.36.1F-48405728.4361F (GNS3 lab, task netops-provoz-20261116-301, ref/c7-mereni) and repeated end to end through Admin in task netops-20261116-304. Safeguard first: Admin commits an empty configuration session netops-<id> with 'commit timer HH:MM:SS' before the change, so its checkpoint is the configuration before the change; the change then runs line by line through 'configure terminal' (EOS accepts it while the timer is pending, and refuses every other commit timer and the commit of any other session). Confirmation is 'configure session netops-<id> commit' and 'no configure session netops-<id>'; write memory runs only after it, because write memory during the pending timer saves the unconfirmed state. An expired timer returns the WHOLE running configuration to the checkpoint of the session, so a change of someone else made in the timer window is reverted too; the session then disappears and only the log proves the revert (CONFIG_SESSION_COMMIT_TIMER_TIMEDOUT and CONFIG_SESSION_COMMIT_REVERTED within 1 s of the expiry). EOS creates a missing VLAN or interface without an error; Admin refuses both before any write. The timer state after a reload of the switch is not measured. The write account must log in with privilege 15 (aaa authorization exec default local); the check account (privilege 1) reads show interfaces N status, description and switchport. Access VLAN of a static access port only: 'switchport access vlan N' / 'no switchport access vlan' (VLAN 1); the VLAN must exist (show vlan id N), a trunk, a routed port or a port-channel member is refused."
+  "rollback_evidence": "Measured on cEOSLab 4.36.1F-48405728.4361F (GNS3 lab, task netops-provoz-20261116-301, ref/c7-mereni) and repeated end to end through Admin in task netops-20261116-304. Safeguard first: Admin commits an empty configuration session netops-<id> with 'commit timer HH:MM:SS' before the change, so its checkpoint is the configuration before the change; the change then runs line by line through 'configure terminal' (EOS accepts it while the timer is pending, and refuses every other commit timer and the commit of any other session). Confirmation is 'configure session netops-<id> commit' and 'no configure session netops-<id>'; write memory runs only after it, because write memory during the pending timer saves the unconfirmed state. An expired timer returns the WHOLE running configuration to the checkpoint of the session, so a change of someone else made in the timer window is reverted too; the session then disappears and only the log proves the revert (CONFIG_SESSION_COMMIT_TIMER_TIMEDOUT and CONFIG_SESSION_COMMIT_REVERTED within 1 s of the expiry). EOS creates a missing VLAN or interface without an error; Admin refuses both before any write. The timer state after a reload of the switch is not measured. The write account must log in with privilege 15 (aaa authorization exec default local); the check account (privilege 1) reads show interfaces N status, description and switchport. Access VLAN of a static access port only: 'switchport access vlan N' / 'no switchport access vlan' (VLAN 1); the VLAN must exist (show vlan id N), a trunk, a routed port or a port-channel member is refused. 1.0.12 G122 (E04/E46, measured on cEOSLab 4.36.1F, task-evidence/g122): mode access/trunk/trunk phone ('switchport mode ...'), allowed VLANs of a trunk as a canonical full set ('switchport trunk allowed vlan LIST', 'no switchport trunk allowed vlan' for all; the caller adds or removes a VLAN in the desired set, only newly added VLANs must exist), native VLAN ('switchport trunk native vlan N'), voice VLAN as the EOS phone VLAN ('switchport phone vlan N'; EOS has no 'switchport voice vlan' and uses the phone VLAN only in trunk phone mode, so Admin requires that mode), 802.1X ('dot1x pae authenticator' with 'dot1x port-control auto') and MAB ('dot1x mac based authentication', only with 802.1X). A mode change or a change of a trunk needs endpoint_impact naming the port; a port with an LLDP neighbor or learned MAC addresses also needs it. The check account reads show interfaces N switchport and show dot1x interface N. The timed safeguard returns all of these lines. LLDP-MED network policy for phones is not offered: cEOSLab 4.36.1F lists no voice application."
 }

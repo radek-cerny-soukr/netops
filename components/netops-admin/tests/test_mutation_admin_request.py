@@ -4,7 +4,6 @@ import pytest
 from conftest import request_bytes
 
 from netops_admin.errors import Rejected
-from netops_admin.profiles import OPS
 from netops_admin.request import MAX_CHANGES, MAX_REQUEST_BYTES, REQUEST_ID, Request, parse_request
 from netops_admin.schema_request import Transaction
 
@@ -87,8 +86,7 @@ def test_a_table_of_sixty_five_characters_is_refused_naming_the_limit():
 
 
 def test_an_unknown_op_is_refused_listing_the_ops():
-    assert refusal(request_bytes(op="replace")) == ["op must be one of %s" % ", ".join(OPS)]
-    assert refusal(request_bytes(op="replace")) == ["op must be one of create, update, delete"]
+    assert refusal(request_bytes(op="replace")) == ["op must be one of create, update, delete, move, clear, save"]
 
 
 def test_changes_that_are_not_an_object_are_refused_by_name():

@@ -1,0 +1,16 @@
+
+Routing instance: default-switch
+VLAN Name: g137-data                      State: Active
+Tag: 3901                               
+Internal index: 5, Generation Index: 4, Origin: Static
+Mac aging: Enabled
+MAC aging time: 300 seconds
+Layer 3 interface: irb.3901
+Mac-IP-Snooping Enabled : No
+Activate-On-Local-Ports Enabled : No
+VXLAN Enabled : No  
+Interfaces:
+    ge-0/0/2.0,untagged,access
+    ge-0/0/7.0,untagged,access
+Number of interfaces: Tagged 0    , Untagged 2    
+Total MAC count: 0 

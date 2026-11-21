@@ -1,7 +1,8 @@
-"""Task 140: the public config_read path for the single admitted Cisco IOS XE profile.
+"""Task 140: the public config_read path for the Cisco IOS XE profile.
 
-Only ``cisco_xe`` / IOL-XE ``Version 17.18.2`` ``RELEASE SOFTWARE (fc3)`` / ``X86_64BI_LINUX-ADVENTERPRISEK9-M``
-is admitted (``config_cisco_xe_adapter``), the same pattern as the accepted ``cisco_ios`` path (task 128).
+``cisco_xe`` / IOL-XE ``Version 17.18.2`` ``RELEASE SOFTWARE (fc3)`` / ``X86_64BI_LINUX-ADVENTERPRISEK9-M``
+is the tested identity (``config_cisco_xe_adapter``), the same pattern as the accepted ``cisco_ios`` path
+(task 128); since G00 another identity is read too, with ``firmware_support`` and a warning.
 The positive reads run through the real root ``netops.worker.HelperBridge.call`` -> ``Proxy.request`` ->
 FastMCP ``server.config_read`` (``_paged_auth``) -> ``TargetAuth.decode`` -> ``engine.config_read`` ->
 ``read_from_device`` -> ``_exec_read`` -> the real unchanged ``config_cisco_ios.StreamRedactor`` /
@@ -309,6 +310,8 @@ def test_fresh_public_read_pages_and_continues_without_more_ssh(env):
     assert first['include_defaults'] is False
     assert first['redaction_profile'] == adapter.PROFILE
     assert first['firmware'] == {'model': 'Linux', 'version': '17.18.2', 'build': 'fc3'}
+    # The tested identity (G00): the reply is as before, without firmware_support or warnings.
+    assert 'firmware_support' not in first and 'warnings' not in first
     assert first['capture_complete'] is True and first['configuration_complete'] is False
     assert first['identity_scope_verified'] is False and first['config_scope'] == 'device-account-visible'
     assert first['visibility_limitations'] == ['account-rights-not-verified', 'formats-not-verified',
@@ -332,7 +335,7 @@ def test_fresh_public_read_pages_and_continues_without_more_ssh(env):
 
     stored = configuration._SNAPSHOTS[first['snapshot_id']]
     assert stored.text.sha256 == sha(text) and stored.text.page(0, stored.text.total)[0] == text
-    assert stored.profile == adapter.PROFILE and stored.firmware == adapter.SUPPORTED
+    assert stored.profile == adapter.PROFILE and stored.firmware == adapter.TESTED + (adapter.IMAGE_FAMILY, 'IOSXE')
     assert stored.scope[1:3] == ('cisco_xe', 'running') and len(stored.hidden) == 0
     # The caller credential became a marker, not a raw value or <REDACTED>.
     assert ' description owner' not in text and '<REDACTED' not in text
@@ -458,18 +461,42 @@ def test_engine_refuses_options_access_and_platform_before_ssh(env):
 
 # ------------------------------------------------------------ identity gates the configuration command
 
+@pytest.mark.parametrize('version, firmware, shown', [
+    (VERSION.replace('Version 17.18.2,', 'Version 17.18.1,'), {'model': 'Linux', 'version': '17.18.1', 'build': 'fc3'},
+     '17.18.1 fc3 (X86_64BI_LINUX-ADVENTERPRISEK9-M) [IOSXE] on Linux is not among'),
+    (VERSION.replace('(fc3)', '(fc4)'), {'model': 'Linux', 'version': '17.18.2', 'build': 'fc4'},
+     '17.18.2 fc4 (X86_64BI_LINUX-ADVENTERPRISEK9-M) [IOSXE] on Linux is not among'),
+], ids=['derived-other-release', 'derived-other-build'])
+def test_untested_identity_is_read_with_a_warning_through_the_public_chain(env, version, firmware, shown):
+    """G00: an untested identity is read through worker, proxy and engine; same redaction, plus a warning."""
+    wire = _rewire(env, Wire(version=version))
+    first = _page(_call(env, 'config_read', _b(limit=200)))
+    assert wire.commands() == ['show version', 'show running-config']
+    assert first['firmware'] == firmware
+    support = first['firmware_support']
+    assert support['status'] == 'untested' and support['platform'] == 'Cisco IOS XE'
+    assert support['model'] == firmware['model']
+    assert support['tested_versions'] == ['Linux 17.18.2 fc3 (X86_64BI_LINUX-ADVENTERPRISEK9-M) [IOSXE]']
+    assert support['message'].startswith('Cisco IOS XE ' + shown)
+    assert first['warnings'] == [{'code': 'firmware_untested', 'message': support['message']}]
+    assert first['redaction_profile'] == adapter.PROFILE
+    assert {key: first[key] for key in summary(B_SECRET)} == summary(B_SECRET)
+    pages, text = _pages(env, first, _b(), 200)
+    assert text == expected(B_SECRET) and len(wire.calls) == 2
+    for page in pages:
+        assert page['firmware_support'] == support and page['warnings'] == first['warnings']
+        _assert_clean(page)
+
+
 @pytest.mark.parametrize('version, message', [
-    (VERSION_IOS, 'firmware-not-supported for cisco_xe'),
-    (VERSION.replace('Version 17.18.2,', 'Version 17.18.1,'), 'firmware-not-supported for cisco_xe'),
-    (VERSION.replace('(fc3)', '(fc4)'), 'firmware-not-supported for cisco_xe'),
     (VERSION + HEADER.replace('17.18.2', '17.18.1') + '\n', 'identity-unverifiable'),
     (VERSION + VERSION, 'identity-unverifiable'),
     (VERSION.replace('Linux Unix (i686)', 'Solaris Unix (i686)'), 'identity-unverifiable'),
     (VERSION.replace('Linux Unix (i686) processor', 'Linux Unix (i686) cpu'), 'identity-unverifiable'),
     ('', 'identity-unverifiable'),
-], ids=['real-classic-ios', 'derived-other-release', 'derived-other-build', 'two-different-headers',
-        'repeated-hardware', 'model-mismatch', 'malformed-hardware-line', 'empty'])
-def test_unsupported_or_unverifiable_identity_never_runs_the_config_command(env, version, message):
+    (VERSION_IOS, 'identity-unverifiable'),
+], ids=['two-different-headers', 'repeated-hardware', 'model-mismatch', 'malformed-hardware-line', 'empty', 'classic-ios'])
+def test_unverifiable_identity_never_runs_the_config_command(env, version, message):
     auth = _engine_auth(env)
     wire = _rewire(env, Wire(version=version))
     with pytest.raises(ValueError, match=message) as raised:
@@ -541,14 +568,20 @@ def test_cached_snapshot_keeps_profile_and_platform_binding(env):
         configuration._SNAPSHOTS[identity] = replace(stored, profile=profile)
         with pytest.raises(ValueError, match='invalid configuration profile|capture options mismatch'):
             _read(auth, snapshot_id=identity)
-    for firmware in (('Linux', '17.18.1', 'fc3'), config_cisco_ios_adapter.SUPPORTED):
+    # G00: a stored untested record pages with its warning; a record of another shape is refused.
+    configuration._SNAPSHOTS[identity] = replace(stored, firmware=('Linux', '17.18.1', 'fc3', adapter.IMAGE_FAMILY,
+                                                                   'IOSXE'))
+    assert _read(auth, snapshot_id=identity)['warnings'][0]['code'] == 'firmware_untested'
+    for firmware in (('Linux', '17.18.1', 'fc3'), adapter.TESTED, config_cisco_ios_adapter.TESTED,
+                     config_cisco_ios_adapter.TESTED + (config_cisco_ios_adapter.IMAGE_FAMILY,)):
         configuration._SNAPSHOTS[identity] = replace(stored, firmware=firmware)
         with pytest.raises(ValueError, match='policy mismatch'):
             _read(auth, snapshot_id=identity)
     # An IOS snapshot (IOS platform scope and IOS profile) is never paged as IOS XE.
     configuration._SNAPSHOTS[identity] = replace(stored, scope=(stored.scope[0], 'cisco_ios', *stored.scope[2:]),
                                                  profile=config_cisco_ios_adapter.PROFILE,
-                                                 firmware=config_cisco_ios_adapter.SUPPORTED)
+                                                 firmware=config_cisco_ios_adapter.TESTED +
+                                                 (config_cisco_ios_adapter.IMAGE_FAMILY,))
     with pytest.raises(ValueError, match='scope mismatch'):
         _read(auth, snapshot_id=identity)
     configuration._SNAPSHOTS[identity] = stored

@@ -1,0 +1,3 @@
+no channel-group
+Command Rejected: Et0/2 is not part of any channel-group
+host11(config-if)#

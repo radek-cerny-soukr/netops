@@ -1,0 +1,470 @@
+{
+  "http_method": "GET",
+  "results": [
+    {
+      "policyid": 10,
+      "uuid": "00000000-0000-4000-8000-000000000001",
+      "creation_time": 1794843952,
+      "active_sessions": 55,
+      "bytes": 885682515,
+      "packets": 1137503,
+      "software_bytes": 149084906,
+      "software_packets": 190278,
+      "asic_bytes": 0,
+      "asic_packets": 0,
+      "nturbo_bytes": 736597609,
+      "nturbo_packets": 947225,
+      "hit_count": 4561,
+      "last_used": 1794910850,
+      "first_used": 1794905917,
+      "session_last_used": 1794910849,
+      "session_first_used": 1794905920,
+      "session_count": 14,
+      "1_week_ipv4": {
+        "hit_count": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          4561
+        ],
+        "bytes": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          885682515
+        ],
+        "packets": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1137503
+        ],
+        "software_bytes": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          149084906
+        ],
+        "software_packets": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          190278
+        ],
+        "asic_bytes": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "asic_packets": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "nturbo_bytes": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          736597609
+        ],
+        "nturbo_packets": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          947225
+        ]
+      }
+    },
+    {
+      "policyid": 1,
+      "uuid": "00000000-0000-4000-8000-000000000002",
+      "creation_time": 1794160509,
+      "active_sessions": 0,
+      "bytes": 0,
+      "packets": 0,
+      "software_bytes": 0,
+      "software_packets": 0,
+      "asic_bytes": 0,
+      "asic_packets": 0,
+      "nturbo_bytes": 0,
+      "nturbo_packets": 0,
+      "hit_count": 0
+    },
+    {
+      "policyid": 6,
+      "uuid": "00000000-0000-4000-8000-000000000003",
+      "creation_time": 1794160509,
+      "active_sessions": 0,
+      "bytes": 147588450,
+      "packets": 376765,
+      "software_bytes": 147588450,
+      "software_packets": 376765,
+      "asic_bytes": 0,
+      "asic_packets": 0,
+      "nturbo_bytes": 0,
+      "nturbo_packets": 0,
+      "hit_count": 1875,
+      "last_used": 1794695452,
+      "first_used": 1794678160,
+      "session_last_used": 1794695452,
+      "session_first_used": 1794678160,
+      "session_count": 0,
+      "1_week_ipv4": {
+        "hit_count": [
+          0,
+          0,
+          0,
+          0,
+          1875,
+          0,
+          0,
+          0
+        ],
+        "bytes": [
+          0,
+          0,
+          0,
+          0,
+          147588450,
+          0,
+          0,
+          0
+        ],
+        "packets": [
+          0,
+          0,
+          0,
+          0,
+          376765,
+          0,
+          0,
+          0
+        ],
+        "software_bytes": [
+          0,
+          0,
+          0,
+          0,
+          147588450,
+          0,
+          0,
+          0
+        ],
+        "software_packets": [
+          0,
+          0,
+          0,
+          0,
+          376765,
+          0,
+          0,
+          0
+        ],
+        "asic_bytes": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "asic_packets": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "nturbo_bytes": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "nturbo_packets": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "policyid": 3,
+      "uuid": "00000000-0000-4000-8000-000000000004",
+      "creation_time": 1794160509,
+      "active_sessions": 7,
+      "bytes": 28381119178,
+      "packets": 31307410,
+      "software_bytes": 350152191,
+      "software_packets": 582153,
+      "asic_bytes": 27729564865,
+      "asic_packets": 30419181,
+      "nturbo_bytes": 301402122,
+      "nturbo_packets": 306076,
+      "hit_count": 67259,
+      "last_used": 1794910649,
+      "first_used": 1794161063,
+      "session_last_used": 1794910507,
+      "session_first_used": 1794161063,
+      "session_count": 37,
+      "1_week_ipv4": {
+        "hit_count": [
+          12586,
+          4574,
+          10536,
+          10395,
+          1978,
+          2680,
+          8551,
+          4874
+        ],
+        "bytes": [
+          7781876015,
+          5797633472,
+          1286868995,
+          617626972,
+          27523473,
+          204773550,
+          1989562473,
+          262625940
+        ],
+        "packets": [
+          9377494,
+          5624519,
+          2420900,
+          1683843,
+          58830,
+          245785,
+          2659295,
+          293797
+        ],
+        "software_bytes": [
+          17027252,
+          4939165,
+          29400705,
+          9613017,
+          11718309,
+          146038323,
+          10275749,
+          16454834
+        ],
+        "software_packets": [
+          50096,
+          21883,
+          58683,
+          39961,
+          32509,
+          162472,
+          38418,
+          40972
+        ],
+        "asic_bytes": [
+          7764848763,
+          5792694307,
+          1257468290,
+          608013955,
+          15805164,
+          58735227,
+          1923575122,
+          480586
+        ],
+        "asic_packets": [
+          9327398,
+          5602636,
+          2362217,
+          1643882,
+          26321,
+          83313,
+          2563188,
+          4438
+        ],
+        "nturbo_bytes": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          55711602,
+          245690520
+        ],
+        "nturbo_packets": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          57689,
+          248387
+        ]
+      }
+    },
+    {
+      "policyid": 0,
+      "active_sessions": 0,
+      "bytes": 64410,
+      "packets": 673,
+      "software_bytes": 64410,
+      "software_packets": 673,
+      "asic_bytes": 0,
+      "asic_packets": 0,
+      "nturbo_bytes": 0,
+      "nturbo_packets": 0,
+      "hit_count": 752,
+      "last_used": 1794743426,
+      "first_used": 1794160711,
+      "1_week_ipv4": {
+        "hit_count": [
+          9,
+          4,
+          2,
+          0,
+          107,
+          336,
+          0,
+          0
+        ],
+        "bytes": [
+          503,
+          160,
+          166,
+          0,
+          11584,
+          31408,
+          0,
+          0
+        ],
+        "packets": [
+          9,
+          4,
+          2,
+          0,
+          104,
+          301,
+          0,
+          0
+        ],
+        "software_bytes": [
+          503,
+          160,
+          166,
+          0,
+          11584,
+          31408,
+          0,
+          0
+        ],
+        "software_packets": [
+          9,
+          4,
+          2,
+          0,
+          104,
+          301,
+          0,
+          0
+        ],
+        "asic_bytes": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "asic_packets": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "nturbo_bytes": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "nturbo_packets": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      }
+    }
+  ],
+  "vdom": "root",
+  "path": "firewall",
+  "name": "policy",
+  "status": "success",
+  "serial": "SSS00SSS00000001",
+  "version": "v8.0.2",
+  "build": 251
+}

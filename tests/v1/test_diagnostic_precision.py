@@ -80,6 +80,15 @@ class DiagnosticPrecision(unittest.TestCase):
         document["config"]["limits"] = {"changes_per_day": CANARY}
         self.exact("admin", document, "config.limits.changes_per_day", "must be an integer in the documented range")
 
+    def test_public_host_key_diagnostic_names_only_the_field_and_remedy(self):
+        reason = "must be an OpenSSH public host key matching host_key_fingerprint"
+        document = self.auditor()
+        document["inventory"]["devices"][0]["host_key"] = CANARY
+        self.exact("auditor", document, "inventory.devices[0].host_key", reason)
+        document = self.admin()
+        document["config"]["devices"]["example-device"]["host_key"] = CANARY
+        self.exact("admin", document, "config.devices[].host_key", reason)
+
     def test_enum_guidance_lists_trusted_choices_without_the_value(self):
         from netops_core import platforms, legacy_ssh
         cases = [
@@ -149,7 +158,7 @@ class DiagnosticPrecision(unittest.TestCase):
                 for role in ("gateway", "auditor"):
                     (state / role).mkdir(mode=0o700)
                 write_private(state / "gateway/config.json", json.dumps({
-                    "version": 1, "product_version": "1.0.11", "audit": {"mode": "local"}}).encode())
+                    "version": 1, "product_version": "1.0.12", "audit": {"mode": "local"}}).encode())
                 with patch.object(operator, "STATE", state), patch.dict(UIDS, {"auditor": uid}), \
                         patch.object(operator, "demote"), patch.object(operator, "role_environment"), \
                         patch.object(operator.os, "geteuid", side_effect=itertools.chain([0], itertools.repeat(uid))), \

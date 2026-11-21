@@ -1,0 +1,3 @@
+
+system current running vlan reservation: 3968-4095
+

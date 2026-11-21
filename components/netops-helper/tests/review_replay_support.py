@@ -4,7 +4,7 @@ from pathlib import Path
 
 from netops_helper import engine, endpoint_worker, proxy as p
 import test_proxy_contracts as c
-from conftest import KNOWN_HOSTS_LINE
+from conftest import HOST_KEY_BLOB, HOST_KEY_PIN, KNOWN_HOSTS_LINE
 from support.virtual_clock import Clock, install, worker_source
 
 
@@ -13,7 +13,10 @@ def device(alias, profile, queries, **inventory):
     section.update(ssh_platform={'fortinet': 'fortios', 'extreme_exos': 'exos'}.get(profile, profile), device_types=['switch', 'router'] if profile != 'fortinet' else ['firewall'],
                    enabled_queries=queries)
     section['read_inventory'].update(inventory)
-    return {**c._device(section, 'fortios' if profile == 'fortinet' else profile), 'name': alias}
+    configured = {**c._device(section, 'fortios' if profile == 'fortinet' else profile), 'name': alias}
+    if profile == 'fortinet':
+        configured.update(host_key='ssh-ed25519 ' + HOST_KEY_BLOB, host_key_fingerprint=HOST_KEY_PIN)
+    return configured
 
 
 def configure(tmp_path, monkeypatch, devices, outputs, *, virtual=False, late=False,
@@ -34,6 +37,7 @@ def configure(tmp_path, monkeypatch, devices, outputs, *, virtual=False, late=Fa
         install(monkeypatch, clock)
     code = '''
 import json, threading, time
+from contextlib import nullcontext
 from pathlib import Path
 from types import SimpleNamespace
 from netops_helper import engine, locate
@@ -78,8 +82,16 @@ def transport(address, port, login, credential, hostkey, command, **kwargs):
         raise TimeoutError('fixture capture reached the shared deadline')
     if text is None:
         raise TimeoutError('fixture SSH timeout')
-    return SimpleNamespace(rc=0, stdout=text.encode())
+    return engine.core_ssh.Result(0, text.encode(), '', '', '')
 engine.core_ssh.run_command = transport
+
+def fortinet_session(device, credential, **kwargs):
+    def run(command, **options):
+        result = transport(device.address, device.port, credential.login, credential, None, command)
+        return engine.core_session.FortinetResult(result.rc, result.stdout, result.said,
+                                                  result.started_at, result.finished_at)
+    return nullcontext(SimpleNamespace(run=run))
+engine.core_session.fortinet_session = fortinet_session
 ''' % ({item['address']: outputs[item['name']] for item in devices}, str(wire), KNOWN_HOSTS_LINE,
        str(tmp_path / 'lanes'), worker_source(clock) if virtual else '', capture_seconds, virtual, late, late, virtual, virtual, virtual)
     bootstrap = endpoint_worker.command()

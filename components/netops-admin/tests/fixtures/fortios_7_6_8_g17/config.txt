@@ -1,0 +1,32 @@
+config switch-controller managed-switch
+    edit "S000SSSS00000001"
+        config ports
+            edit "port1"
+            next
+            edit "port2"
+                set lldp-profile "default"
+                set description "port-desc-01"
+            next
+            edit "port3"
+                set lldp-profile "default"
+                set description "port-desc-02"
+            next
+            edit "port4"
+                set lldp-profile "default"
+                set description "port-desc-02"
+            next
+            edit "port5"
+            next
+            edit "port6"
+            next
+            edit "port7"
+            next
+            edit "port8"
+            next
+            edit "port9"
+            next
+            edit "port10"
+            next
+        end
+    next
+end

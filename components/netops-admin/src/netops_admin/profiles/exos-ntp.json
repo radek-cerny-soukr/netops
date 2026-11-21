@@ -1,0 +1,33 @@
+{
+  "platform": "exos",
+  "table": "ntp",
+  "versions": [
+    "33.6.1.14",
+    "33.7.1.6"
+  ],
+  "ops": [
+    "update"
+  ],
+  "table_scoped_key": true,
+  "key_pattern": "^[A-Za-z][A-Za-z0-9_-]{0,31}$",
+  "protected_keys": [],
+  "attributes": {
+    "admin-state": {
+      "type": "text",
+      "pattern": "^(?:enabled|disabled)$",
+      "max_length": 8,
+      "required_on_create": false,
+      "update": true,
+      "unset": false,
+      "referenced_update": true,
+      "default": "disabled",
+      "undo_to_default": true
+    }
+  },
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "Per-VR NTP enable/disable. Active SNTP must be disabled separately to avoid interference. Readback uses the check account. Changes are applied to running configuration.",
+  "implicit_keys": true
+}

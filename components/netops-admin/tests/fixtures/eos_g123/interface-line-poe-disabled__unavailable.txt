@@ -1,0 +1,6 @@
+configure terminal
+host01(config)#interface Ethernet12
+host01(config-if-Et12)#poe disabled
+% Unavailable command (not supported on this hardware platform)
+host01(config-if-Et12)#end
+host01#

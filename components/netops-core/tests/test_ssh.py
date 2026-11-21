@@ -613,3 +613,17 @@ def test_the_result_carries_what_the_device_wrote_on_stderr():
 
 def test_a_result_built_without_stderr_carries_none():
     assert Result(rc=0, stdout=b"", said="", started_at="a", finished_at="b").stderr == b""
+
+
+
+def test_suppress_login_banner_leaves_remote_stderr_available():
+    stderr = b"% Authorization failed\n"
+    default = FakeRun(stderr=stderr)
+    silenced = FakeRun(stderr=stderr)
+
+    default_result = call(default)
+    silenced_result = call(silenced, suppress_login_banner=True)
+
+    assert "LogLevel=ERROR" not in default.argv()
+    assert silenced.argv()[1:3] == ["-o", "LogLevel=ERROR"]
+    assert default_result.stderr == silenced_result.stderr == stderr

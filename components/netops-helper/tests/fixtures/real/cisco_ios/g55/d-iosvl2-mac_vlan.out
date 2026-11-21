@@ -1,0 +1,13 @@
+          Mac Address Table
+-------------------------------------------
+
+Vlan    Mac Address       Type        Ports
+----    -----------       --------    -----
+  10    0000.5e00.5304    DYNAMIC     Gi0/3
+  10    0000.5e00.5305    DYNAMIC     Gi0/2
+  10    0000.5e00.5306    DYNAMIC     Gi0/2
+  10    0000.5e00.5307    DYNAMIC     Gi0/1
+  10    0000.5e00.5308    DYNAMIC     Gi0/2
+  10    0000.5e00.5309    DYNAMIC     Gi0/2
+  10    0000.5e00.5303    DYNAMIC     Gi0/2
+Total Mac Addresses for this criterion: 7

@@ -1,0 +1,2 @@
+dhcp server
+   subnet 192.0.2.0/24

@@ -92,7 +92,8 @@ class _Session:
         device.sessions += 1
         self.device = device
         self.prompt = device.login
-        self.pending = [("\r\n" + device.login).encode()]
+        self._last_prompt = device.login.encode()
+        self.pending = []
 
     def __enter__(self):
         return self
@@ -123,6 +124,7 @@ class _Session:
         else:
             text, following = self.device.answers[key]
         self.prompt = following
+        self._last_prompt = following.encode()
         self.pending.append((command + "\r\n" + text.replace("\n", "\r\n") + "\r\n\r\n" + following).encode())
 
 
@@ -133,7 +135,7 @@ def device(wire, monkeypatch):
     def install(*names, status=ROOT_STATUS, override=None):
         replay = Device(*names, override=override)
         state["status"] = status
-        monkeypatch.setattr(engine.core_session, "Session", replay.session)
+        monkeypatch.setattr(engine.core_session, "fortinet_session", replay.session)
         monkeypatch.setattr(engine, "host_key_line", lambda *args, **kwargs: KNOWN_HOSTS_LINE)
         return replay
 
@@ -382,7 +384,7 @@ def test_a_no_vdom_device_keeps_the_plain_read_and_is_labelled_root(wire, monkey
         return 0, DISABLE_STATUS if command == "get system status" else answer("512-A-root-arp", "get system arp")
 
     monkeypatch.setattr(engine, "read_from_device", exec_read)
-    monkeypatch.setattr(engine.core_session, "Session", lambda *a, **k: pytest.fail("no interactive session"))
+    monkeypatch.setattr(engine.core_session, "fortinet_session", lambda *a, **k: pytest.fail("no interactive session"))
     result = engine.ssh_read(fortigate("arp_table", vdoms=()), "fortinet", "arp_table", None, 0, 16000)
     assert result["ok"] is True and (result["vdom_mode"], result["vdom"]) == ("disable", "root")
     assert "vdom_index" not in result and "data_scope" not in result
@@ -781,7 +783,7 @@ def test_no_vdom_triage_health_keeps_the_plain_reads_without_config_global(wire,
         return 0, values[COMMANDS[command]]
 
     monkeypatch.setattr(engine, "read_from_device", exec_read)
-    monkeypatch.setattr(engine.core_session, "Session", lambda *a, **k: pytest.fail("no interactive session"))
+    monkeypatch.setattr(engine.core_session, "fortinet_session", lambda *a, **k: pytest.fail("no interactive session"))
     result = engine.triage_health(fortigate(*COMMANDS.values(), vdoms=()))
     assert (result["vdom_mode"], result["vdom"]) == ("disable", "root") and "data_scopes" not in result
     assert "config global" not in sent and sent[0] == "get system status"
@@ -808,10 +810,12 @@ def test_triage_vpn_reports_a_vd1_tunnel_only_from_reads_in_that_vdom():
     texts = {"system_status": VD1_STATUS, "ipsec_summary": summary,
              "routing_table": answer("527-A-vd1-rt", "get router info routing-table all"),
              "ike_errors": "no ike errors\n"}
-    result = triage_vpn.run(lambda query: _answer(texts[query], VD1), _clock(), "netops-172-p1")
+    # G14 detail reads: DERIVED minimal answers (no IKE SA, header only), not a VDOM measurement
+    texts.update(ike_gateway_detail="", ipsec_tunnel_detail="list ipsec tunnel by names in vd 1\n")
+    result = triage_vpn.run(lambda query, parameters=None: _answer(texts[query], VD1), _clock(), "netops-172-p1")
     assert (result["vdom_mode"], result["vdom"], result["current_vdom"]) == ("multiple", VD1, VD1)
     assert result["chain"]["tunnel"]["instances"][0]["name"] == "netops-172-p1"
-    unlabelled = triage_vpn.run(lambda query: _answer(texts[query]), _clock(), "netops-172-p1")
+    unlabelled = triage_vpn.run(lambda query, parameters=None: _answer(texts[query]), _clock(), "netops-172-p1")
     assert unlabelled["verdict"] == "incomplete" and unlabelled["chain"]["tunnel"]["instances"] is None
     assert {"step": "ipsec_summary", "reason": "vdom_unverified"} in unlabelled["missing"]
 
@@ -819,7 +823,7 @@ def test_triage_vpn_reports_a_vd1_tunnel_only_from_reads_in_that_vdom():
 def test_a_missing_tunnel_names_the_vdom_it_was_looked_for_in():
     texts = {"system_status": VD1_STATUS, "ipsec_summary": answer("525-A-vd1-ipsec", "get vpn ipsec tunnel summary"),
              "routing_table": "Routing table for VRF=0\n", "ike_errors": ""}
-    result = triage_vpn.run(lambda query: _answer(texts[query], VD1), _clock(), "other-tunnel")
+    result = triage_vpn.run(lambda query, parameters=None: _answer(texts[query], VD1), _clock(), "other-tunnel")
     (finding,) = [item for item in result["findings"] if item["id"] == "F-VPN-NOT-FOUND"]
     assert finding["fact"] == "tunnel not in get vpn ipsec tunnel summary in VDOM " + VD1
 
@@ -864,7 +868,7 @@ def test_engine_triage_vpn_reads_every_step_inside_the_enrolled_vdom(device):
     assert result["chain"]["tunnel"]["instances"][0]["name"] == "netops-172-p1"
     # `diagnose vpn ike errors` was not recorded: the replay refuses it, so the verdict stays incomplete.
     assert result["verdict"] == "incomplete" and {"step": "ike_errors", "reason": "device_cli_error"} in result["missing"]
-    assert replay.sent.count("edit " + VD1) == replay.sessions == 3
+    assert replay.sent.count("edit " + VD1) == 3 and replay.sessions == 1
     assert device.state["exec"] == ["get system status"]
 
 

@@ -1,0 +1,56 @@
+ip access-list extended NETOPS-G64-V4
+host01(config-ext-nacl)#
+10 permit icmp any any
+host01(config-ext-nacl)#
+20 deny ip host 198.51.100.9 any
+host01(config-ext-nacl)#
+30 permit tcp 198.51.100.0 0.0.0.255 any eq 22
+host01(config-ext-nacl)#
+40 permit tcp any any eq www
+host01(config-ext-nacl)#
+50 permit udp any host 198.51.100.1 eq snmp
+host01(config-ext-nacl)#
+100 permit ip any any
+host01(config-ext-nacl)#
+exit
+host01(config)#
+ip access-list extended NETOPS-G64-EMPTY4
+host01(config-ext-nacl)#
+exit
+host01(config)#
+ipv6 access-list NETOPS-G64-V6
+host01(config-ipv6-acl)#
+permit icmp any any sequence 10
+host01(config-ipv6-acl)#
+deny ipv6 host 2001:db8:1::9  any sequence 20
+host01(config-ipv6-acl)#
+sequence 25 deny tcp any any eq telnet
+host01(config-ipv6-acl)#
+sequence 30 permit tcp 2001:db8:1::0/64 any eq 22
+host01(config-ipv6-acl)#
+sequence 40 permit tcp any any eq www
+host01(config-ipv6-acl)#
+sequence 100 permit ipv6 any any
+host01(config-ipv6-acl)#
+exit
+host01(config)#
+ipv6 access-list NETOPS-G64-EMPTY6
+host01(config-ipv6-acl)#
+exit
+host01(config)#
+ip access-list extended NETOPS-G64-REMARK
+host01(config-ext-nacl)#
+remark g64 remark test
+host01(config-ext-nacl)#
+permit ip any any
+host01(config-ext-nacl)#
+exit
+host01(config)#
+ip access-list extended NETOPS-G64-OPTS
+host01(config-ext-nacl)#
+permit tcp any any range 80 90
+host01(config-ext-nacl)#
+permit ip any any log
+host01(config-ext-nacl)#
+exit
+host01(config)#

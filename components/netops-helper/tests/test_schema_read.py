@@ -168,7 +168,7 @@ def test_engine_refuses_before_snapshot_and_paginates_without_another_connection
     with tempfile.TemporaryDirectory() as temporary:
         path,_=registry(Path(temporary));calls=[];events=[]
         text='config firewall address\n edit "one"\n set comment "'+"x"*3000+'"\n next\nend\n'
-        def read(target,platform,command):
+        def read(target,platform,command,**kwargs):
             calls.append(command)
             return 0,"Version: FortiGate-VM64-KVM v8.0.0,build0167,release\nCurrent virtual domain: root\n" if command=="get system status" else text
         with patch.dict(os.environ,{"NETOPS_SCHEMA_REGISTRY":str(path)}),patch.object(engine,"read_from_device",read),patch.object(engine,"record",lambda *a,**kw:events.append(kw)):
@@ -225,11 +225,19 @@ def test_schema_read_through_exec_preserves_password_and_quoted_labels(tmp_path,
               ' set password ENC synthetic-ciphertext\r\n'
               ' set description "token=abc"\r\n next\r\nend\r\n')
 
-    def command(auth, address, known_hosts, credential, command, platform):
-        calls.append(command)
-        return SimpleNamespace(rc=0, stdout=(status if command == "get system status" else config).encode())
+    from contextlib import nullcontext
+    from netops_core.session import FortinetResult
 
-    monkeypatch.setattr(engine, "_exec_command", command)
+    def command(command, stdout_consumer=None, **limits):
+        calls.append(command)
+        text = (status if command == "get system status" else config).replace("\r\n", "\n").encode()
+        if stdout_consumer is not None:
+            stdout_consumer(text)
+            text = b""
+        return FortinetResult(0, text, "", "t0", "t1")
+
+    monkeypatch.setattr(engine.core_session, "fortinet_session",
+                        lambda *a, **k: nullcontext(SimpleNamespace(run=command)))
     snapshots = []
     snapshot = reader.snapshot
 
@@ -269,7 +277,7 @@ def test_engine_report_pages_form_a_structurally_redacted_json_document():
         path,_=registry(Path(temporary))
         with patch.dict(os.environ,{"NETOPS_SCHEMA_REGISTRY":str(path)}),patch.object(engine,"record",lambda *a,**kw:None):
             for body,count in ((SECRET_DENSE,12),(large,300)):
-                with patch.object(engine,"read_from_device",lambda target,platform,command:(0,status if command=="get system status" else body)):
+                with patch.object(engine,"read_from_device",lambda target,platform,command,**kwargs:(0,status if command=="get system status" else body)):
                     for view in ("get","show"):
                         expected=reader.snapshot(reader.binding(auth(),path),body,"firewall address",view,None,[],auth().secrets,current_vdom="root")
                         encoded=engine._redact_schema_report(expected,auth()).encode()
@@ -364,7 +372,7 @@ def test_schema_rejects_cli_failure_anywhere_in_control_output(tmp_path, monkeyp
     monkeypatch.setattr(engine, 'record', lambda *a, **kw: None)
     calls = []
     status = 'Version: FortiGate-VM64-KVM v8.0.0,build0167,release\nCurrent virtual domain: root\n'
-    def read(target, platform, command):
+    def read(target, platform, command, **kwargs):
         calls.append(command)
         body = status if command == 'get system status' else 'config firewall address\nend\n'
         if (command == 'get system status') == (phase == 'identity'):

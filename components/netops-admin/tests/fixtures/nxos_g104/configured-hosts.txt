@@ -1,0 +1,8 @@
+DNS lookup enabled
+Vrf Name: default Default domain is g104.example
+Name/address lookup uses domain service
+Name servers are 255.255.255.255
+
+Vrf                  Use-vrf              Token                Config
+default              management           name-server(s)      198.51.100.30       
+Host 		Address

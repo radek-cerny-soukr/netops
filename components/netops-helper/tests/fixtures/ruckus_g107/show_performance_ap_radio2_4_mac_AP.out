@@ -1,0 +1,21 @@
+show performance ap-radio2-4 mac 00:00:5e:00:53:02
+
+AP performance:
+
+    1:
+
+      Radio b/g/n:
+
+      MAC Address= 00:00:5e:00:53:02
+
+      Estimated Capacity= 23870
+
+      Downlink= 0
+
+      Uplink= 0
+
+      RF pollution= 132
+
+      Authorized clients= 10
+
+      Other APs= 4

@@ -1,0 +1,31 @@
+{
+  "platform": "ios",
+  "table": "ip-access-list",
+  "versions": [
+    "15.9(3)M12"
+  ],
+  "exact_versions": true,
+  "ops": [
+    "create",
+    "update",
+    "delete"
+  ],
+  "table_scoped_key": true,
+  "key_pattern": "^(?:ipv4|ipv6):[A-Za-z][A-Za-z0-9_.-]{0,63}$",
+  "protected_keys": [],
+  "attributes": {
+    "rules": {
+      "type": "text",
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "required_on_create": false,
+      "max_length": 8192
+    }
+  },
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "G64 (IOS-M028, IOS-M029), measured on IOSv 15.9(3)M12 (router, GNS3 d-iosv), task netops-20261119-590 (task-evidence/g64). The Admin snapshot carries the ACL listings (show ip access-lists, show ipv6 access-list) as comments because IOS 15.9 omits the rule sequence numbers in the running configuration; the configuration block must agree with the listing rule for rule. The safeguard is the revert timer of the interface profile. The key is ipv4:<name> or ipv6:<name> (a named extended ACL; standard, numbered and ACLs with remarks, log, port ranges or other options are outside the profile and refused). Rules are comma separated, explicitly sequenced permit or deny entries for ip/ipv6, tcp, udp or icmp: 'SEQ permit|deny PROTOCOL SOURCE DESTINATION [eq PORT]' with any, host ADDRESS or a network in prefix form (IPv4 is written to the device with a wildcard mask); TCP and UDP accept one destination eq port. IPv4 lines: 'ip access-list extended NAME', 'SEQ permit|deny ...', 'no SEQ'; IPv6 lines: 'ipv6 access-list NAME', 'sequence SEQ permit|deny ...' ('SEQ permit' is refused by the IPv6 ACL mode), 'no sequence SEQ'. Update sends only the rules that change (undo restores the exact sequence numbers and order); an ACL attached to an interface or used elsewhere (VTY access-class, route-map, NAT, QoS) can only be updated to another nonempty rule list, with endpoint_impact naming the key when the attachment is on an up interface or the name is used elsewhere; an ACL on the management path must keep SSH permitted. The check account reads show ip access-lists NAME / show ipv6 access-list NAME (an empty IPv6 ACL and a missing one both list nothing; the write account's running configuration tells them apart)."
+}

@@ -1,0 +1,40 @@
+{
+  "platform": "exos",
+  "table": "sharing",
+  "versions": [
+    "33.6.1.14",
+    "33.7.1.6"
+  ],
+  "ops": [
+    "create",
+    "update",
+    "delete"
+  ],
+  "table_scoped_key": true,
+  "key_pattern": "^[1-9][0-9]*(?::[1-9][0-9]*)?$",
+  "protected_keys": [],
+  "attributes": {
+    "members": {
+      "type": "name-list",
+      "update": true,
+      "unset": false,
+      "referenced_update": true,
+      "required_on_create": true
+    },
+    "algorithm": {
+      "type": "text",
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "required_on_create": false,
+      "pattern": "^(L2|L3_L4)$",
+      "max_length": 32,
+      "default": "L2"
+    }
+  },
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "The logical port stays in the LACP group. The scope includes every member before and after. Undo restores the previous group and membership."
+}

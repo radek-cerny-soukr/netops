@@ -1,0 +1,3 @@
+channel-group 42 mode active
+Creating a port-channel interface Port-channel 42
+host08(config-if)#

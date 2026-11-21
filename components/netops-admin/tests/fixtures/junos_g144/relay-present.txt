@@ -1,0 +1,3 @@
+set forwarding-options dhcp-relay server-group NETOPS-G144-SG 198.51.100.250
+set forwarding-options dhcp-relay group NETOPS-G144-RG active-server-group NETOPS-G144-SG
+set forwarding-options dhcp-relay group NETOPS-G144-RG interface irb.3922

@@ -188,7 +188,7 @@ class FortiADCRequestTest(unittest.TestCase):
                     self.assertIsNone(request(20 + index, recipe, "vs1" if recipe.endswith("_list") else ""))
                     self.assertEqual(emitted[-1]["error"]["code"], -32009)
                     self.assertEqual(emitted[-1]["error"]["data"]["field"], field)
-        for index, recipe in enumerate(("system_event_logs", "waf_attack_logs"), 30):
+        for index, recipe in enumerate(("system_event_logs", "admin_event_logs"), 30):
             with self.subTest(recipe=recipe, address="vs1"):
                 gateway._target.return_value = (entry, sect, {})
                 self.assertIsNone(request(index, recipe, "vs1", validate=False))

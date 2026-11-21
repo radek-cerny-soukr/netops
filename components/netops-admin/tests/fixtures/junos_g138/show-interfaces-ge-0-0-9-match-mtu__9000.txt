@@ -1,0 +1,2 @@
+Physical interface: ge-0/0/9, Enabled, Physical link is Down
+  Link-level type: Ethernet, MTU: 9000, LAN-PHY mode, Speed: 1000mbps, BPDU Error: None, Loop Detect PDU Error: None, Ethernet-Switching Error: None, Remote Bounce: None, MAC-REWRITE Error: None, Loopback: Disabled, Source filtering: Disabled, Flow control: Enabled, Auto-negotiation: Enabled, Remote fault: Online, Media type: Fiber

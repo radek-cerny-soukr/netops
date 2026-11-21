@@ -1,0 +1,2 @@
+# Module vlan configuration.
+configure ports 10 auto off speed 100 duplex full

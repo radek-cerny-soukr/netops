@@ -1,0 +1,30 @@
+{
+  "platform": "nxos",
+  "table": "vpc-port",
+  "versions": [
+    "9.3(12)"
+  ],
+  "exact_versions": true,
+  "ops": [
+    "update"
+  ],
+  "table_scoped_key": true,
+  "key_pattern": "^port-channel[1-9][0-9]{0,3}$",
+  "protected_keys": [],
+  "attributes": {
+    "vpc-id": {
+      "type": "integer",
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "minimum": 1,
+      "maximum": 4096,
+      "required_on_create": false
+    }
+  },
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "Assigns or removes the local vPC number of an idle Layer 2 port-channel. Apply separately on each peer. Running configuration and show vpc are checked."
+}

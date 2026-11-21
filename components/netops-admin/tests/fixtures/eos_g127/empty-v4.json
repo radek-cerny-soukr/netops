@@ -1,0 +1,20 @@
+{
+  "aclList": [
+    {
+      "type": "Ip4Acl",
+      "name": "netops-g127-empty4",
+      "readonly": false,
+      "standard": false,
+      "countersEnabled": false,
+      "dynamic": false,
+      "sequenceLength": 0,
+      "configuredIngressIntfs": [],
+      "configuredEgressIntfs": [],
+      "activeIngressIntfs": [],
+      "activeEgressIntfs": [],
+      "notFullySupportedByHardware": false,
+      "sequence": []
+    }
+  ],
+  "phoneAclBypass": false
+}

@@ -1,0 +1,1 @@
+set interfaces ge-0/0/8 ether-options 802.3ad ae40

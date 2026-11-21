@@ -73,6 +73,12 @@ def _pagination_refusal(error):
     return None if exact is None else _pagination_refused(exact)
 
 _CONFIGURATION_FAILURES = {
+    'configuration object not visible in show; retry with include_defaults=true': (
+        'object-not-visible', 'The requested object was not visible in the configuration view',
+        'Retry with include_defaults=true to include built-in objects.'),
+    'configuration stream-incomplete; output withheld': (
+        'stream-incomplete', 'The configuration output ended before its completion could be verified',
+        'Retry the capture and check the device connection if the problem persists.'),
     'configuration redaction-unverifiable; output withheld': (
         'redaction-unverifiable', 'Configuration redaction could not be verified; output withheld',
         'The configuration syntax could not be safely redacted; no snapshot or partial output was published.'),

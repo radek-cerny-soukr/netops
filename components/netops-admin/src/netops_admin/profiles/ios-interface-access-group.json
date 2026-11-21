@@ -1,0 +1,30 @@
+{
+  "platform": "ios",
+  "table": "interface-access-group",
+  "versions": [
+    "15.9(3)M12"
+  ],
+  "exact_versions": true,
+  "ops": [
+    "update"
+  ],
+  "table_scoped_key": true,
+  "key_pattern": "^(?:(?:Ethernet|FastEthernet|GigabitEthernet|TwoGigabitEthernet|FiveGigabitEthernet|TenGigabitEthernet|TwentyFiveGigE|FortyGigabitEthernet|HundredGigE)[0-9]{1,2}(?:/[0-9]{1,3}){1,2}(?:\\.[0-9]{1,10})?|Vlan[1-9][0-9]{0,3}):(?:ipv4|ipv6):(?:in|out)$",
+  "protected_keys": [],
+  "attributes": {
+    "acl": {
+      "type": "text",
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "required_on_create": false,
+      "max_length": 64,
+      "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$"
+    }
+  },
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "G64 (IOS-M028, IOS-M029), measured on IOSv 15.9(3)M12 (router, GNS3 d-iosv), task netops-20261119-590 (task-evidence/g64). The Admin snapshot carries the ACL listings (show ip access-lists, show ipv6 access-list) as comments because IOS 15.9 omits the rule sequence numbers in the running configuration; the configuration block must agree with the listing rule for rule. The safeguard is the revert timer of the interface profile. The key is <interface>:ipv4|ipv6:in|out; update acl with the name of an existing nonempty extended ACL of the same family, or null to remove the attachment. Lines: 'interface IF', 'ip access-group NAME in|out' or 'ipv6 traffic-filter NAME in|out' (IOS replaces the ACL of the direction, so there is no unfiltered interval), 'no ip access-group NAME in|out' / 'no ipv6 traffic-filter NAME in|out'. IOS accepts an attachment of an ACL that does not exist (then nothing is filtered), so Admin refuses it. The interface must be a routed Ethernet port, a subinterface or an SVI with an address of the family; a switchport, a port-channel member or a management VRF is refused (management path: the inbound ACL must permit SSH from every client of the open sessions, IPv6 on a management interface is refused). An up interface needs endpoint_impact naming the key. An outbound ACL does not filter traffic that the router itself originates. The check account reads show ip interface IF / show ipv6 interface IF (Inbound / Outgoing access list)."
+}

@@ -7,6 +7,11 @@ from netops_helper.query_catalog import READ_QUERIES
 from support.classification_fixtures import PROFILES, PAGER_CORRECTIONS, real_captures
 
 ROOT = Path(__file__).parent / 'fixtures'
+JUNOS_OSPF_ABSENCE = {
+    'real/juniper_junos_els/vjunosswitch_26.2R1.7/ospfv3_neighbors.txt',
+    'real/juniper_junos_els/vjunosswitch_26.2R1.7/ospfv3_neighbors_interface.txt',
+}
+JUNOS_PROFILES = {'juniper_junos', 'juniper_junos_els'}
 
 
 def test_all_captures_against_historical_classifier():
@@ -36,16 +41,20 @@ def test_all_captures_against_historical_classifier():
                     for index, rc in enumerate((0, 1, 250)):
                         old = group['status'][index]
                         current = n.output_status(output, rc=rc, profile=profile, command=sent)
-                        if current != old:
-                            differences.append((name, profile, rc, old, current))
-                            # N2 is explicitly retained by TASK: these two historical
-                            # false pager truncations cannot also equal 1fad86c.
-                            assert name in PAGER_CORRECTIONS and old == 'truncated'
+                        if name in JUNOS_OSPF_ABSENCE and profile in JUNOS_PROFILES and rc == 0:
+                            assert (old, current) == ('ok', 'not_applicable'), (name, profile)
+                        elif current != old:
+                            # N2 retains the correction for two false pager truncations.
+                            assert name in PAGER_CORRECTIONS and old == 'truncated', (name, profile, rc)
                             expected = 'ok' if rc == 0 or profile == 'extreme_exos' and rc == 250 else 'transport_error'
                             assert current == expected
+                        if current != old:
+                            differences.append((name, profile, rc, old, current))
                 assert bool(profile and engine._control_refused(profile, output)) == group['cli_refused']
         assert seen == set(PROFILES)
-    assert len(differences) == 2 * len(PROFILES) * 3 * 3
+    pager_differences = len(PAGER_CORRECTIONS) * len(PROFILES) * 3 * 3
+    ospf_differences = len(JUNOS_OSPF_ABSENCE) * len(JUNOS_PROFILES) * 3
+    assert len(differences) == pager_differences + ospf_differences
     print('classifier_matrix captures=%d profiles=%d rc=0,1,250 command_variants=3 raw_differences=%d refusal_differences=0' %
           (len(captures), len(PROFILES), len(differences) // 3))
 

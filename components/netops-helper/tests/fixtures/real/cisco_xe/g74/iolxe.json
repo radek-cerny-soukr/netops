@@ -1,0 +1,139 @@
+{
+  "device": "iolxe",
+  "port": 2257,
+  "profile": "cisco_xe",
+  "captures": [
+    {
+      "command": "show version",
+      "role": "RO",
+      "rc": 0,
+      "stdout": "\n\n\nCisco IOS Software [IOSXE], Linux Software (X86_64BI_LINUX-ADVENTERPRISEK9-M), Version 17.18.2, RELEASE SOFTWARE (fc3)\nTechnical Support: http://www.cisco.com/techsupport\nCopyright (c) 1986-2025 by Cisco Systems, Inc.\nCompiled Fri 19-Dec-25 03:28 by mcpre\n\nROM: Bootstrap program is Linux\n\nhost01  uptime is 1 week, 2 days, 18 hours, 3 minutes\nSystem returned to ROM by unknown reload cause - suspect boot_data[BOOT_COUNT] 0x9, BOOT_COUNT 0, BOOTDATA 19\nSystem image file is \"unix:/images/Cisco-IOL-XE-17.18.02.bin\"\nLast reload reason: Unknown reason\n\n\n\nThis product contains cryptographic features and is subject to United\nStates and local country laws governing import, export, transfer and\nuse. Delivery of Cisco cryptographic products does not imply\nthird-party authority to import, export, distribute or use encryption.\nImporters, exporters, distributors and users are responsible for\ncompliance with U.S. and local country laws. By using this product you\nagree to comply with applicable laws and regulations. If you are unable\nto comply with U.S. and local laws, return this product immediately.\n\nA summary of U.S. laws governing Cisco cryptographic products may be found at:\nhttp://www.cisco.com/wwl/export/crypto/tool/stqrg.html\n\nIf you require further assistance please contact us by sending email to\nexport@cisco.com.\n\nLinux Unix (i686) processor with 536518K bytes of memory.\nProcessor board ID 0000001\n8 Ethernet interfaces\n8 Serial interfaces\n128K bytes of NVRAM.\n\nConfiguration register is 0x0\n"
+    },
+    {
+      "command": "show privilege",
+      "role": "RO",
+      "rc": 0,
+      "stdout": "\n\n\nCurrent privilege level is 1"
+    },
+    {
+      "command": "show aaa servers",
+      "role": "RO",
+      "rc": 0,
+      "stdout": "\n\n"
+    },
+    {
+      "command": "show radius statistics",
+      "role": "RO",
+      "rc": 0,
+      "stdout": "\n\n                                  Auth.      Acct.       Both\n         Maximum inQ length:         NA         NA          0\n       Maximum waitQ length:         NA         NA          0\n       Maximum doneQ length:         NA         NA          0\n       Total responses seen:          0          0          0\n     Packets with responses:          0          0          0\n  Packets without responses:          0          0          0\n  Access Rejects           :          0\n  Access Accepts           :          0\n Average response delay(ms):          0          0          0\n Maximum response delay(ms):          0          0          0\n  Number of Radius timeouts:          0          0          0\n      Radius Timers Started:          0          0          0\n      Radius Timers Created:          0          0          0\nRadius Timers Create Failed:          0          0          0\n      Radius Timers Stopped:          0          0          0\n  Radius Timers Stop Failed:          0          0          0\n  Radius Timers Outstanding:          0          0          0\n        Radius Timers Added:          0          0          0\n   Radius Timers Add Failed:          0          0          0\n    Radius Timers Jitterred:          0          0          0\nRadius Timers Jitter Failed:          0          0          0\n       Duplicate ID detects:          0          0          0\n Buffer Allocation Failures:          0          0          0\nMaximum Buffer Size (bytes):          0          0          0\nMalformed Responses        :          0          0          0\nBad Authenticators         :          0          0          0\nUnknown Responses          :          0          0          0\n Source Port Range: (2 ports only)\n 1645 - 1646\n Last used Source Port/Identifier:\n 1645/0\n 1646/0\n\n  Elapsed time since counters last cleared: 1w2d18h3m\nRadius Latency Distribution:\n<= 2ms :          0          0\n3-5ms  :          0          0\n5-10ms :          0          0\n10-20ms:          0          0\n20-50ms:          0          0\n50-100m:          0          0\n>100ms :          0          0\n\nCurrent inQ length  : 0\nCurrent doneQ length: 0\n"
+    },
+    {
+      "command": "show tacacs",
+      "role": "RO",
+      "rc": 0,
+      "stdout": "\n\n"
+    },
+    {
+      "command": "show snmp",
+      "role": "RO",
+      "rc": 0,
+      "stdout": "\n\n\n%SNMP agent not enabled"
+    },
+    {
+      "command": "show snmp engineID",
+      "role": "RO",
+      "rc": 0,
+      "stdout": "\n\n\nLine has invalid autocommand \"show snmp engineID\""
+    },
+    {
+      "command": "show hosts",
+      "role": "RO",
+      "rc": 0,
+      "stdout": "\n\n\nDefault domain is host02\nName servers are 255.255.255.255\nNAME  TTL  CLASS   TYPE      DATA/ADDRESS\n-----------------------------------------\n"
+    },
+    {
+      "command": "show users",
+      "role": "RO",
+      "rc": 0,
+      "stdout": "\n\n\n    Line       User       Host(s)              Idle       Location\n   0 con 0                idle                    1d23h   \n*  2 vty 0     user01     idle                 00:00:00 192.0.2.66\n\n  Interface    User               Mode         Idle     Peer Address\n"
+    },
+    {
+      "command": "show ssh",
+      "role": "RO",
+      "rc": 0,
+      "stdout": "\n\n\nConnection Version Mode  Encryption  Hmac\t\t\t   State\t        Username\n0          2.0     IN   chacha20-polhmac-sha2-256-etm@openssh.com Session started       user01\n0          2.0     OUT  chacha20-polhmac-sha2-256-etm@openssh.com Session started       user01"
+    },
+    {
+      "command": "show line",
+      "role": "RO",
+      "rc": 0,
+      "stdout": "\n\n\n   Tty Typ     Tx/Rx    A Modem  Roty AccO AccI   Uses   Noise  Overruns   Int\n*     0 CTY              -    -      -    -    -      0       0     0/0       -\n      1 AUX   9600/9600  -    -      -    -    -      0       0     0/0       -\n*     2 VTY              -    -      -    -    -   4716       0     0/0       -\n      3 VTY              -    -      -    -    -    745       0     0/0       -\n      4 VTY              -    -      -    -    -    271       0     0/0       -\n      5 VTY              -    -      -    -    -     20       0     0/0       -\n      6 VTY              -    -      -    -    -      5       0     0/0       -\n"
+    },
+    {
+      "command": "show version",
+      "role": "ADMIN",
+      "rc": 0,
+      "stdout": "\n\n\nCisco IOS Software [IOSXE], Linux Software (X86_64BI_LINUX-ADVENTERPRISEK9-M), Version 17.18.2, RELEASE SOFTWARE (fc3)\nTechnical Support: http://www.cisco.com/techsupport\nCopyright (c) 1986-2025 by Cisco Systems, Inc.\nCompiled Fri 19-Dec-25 03:28 by mcpre\n\nROM: Bootstrap program is Linux\n\nhost01  uptime is 1 week, 2 days, 18 hours, 3 minutes\nSystem returned to ROM by unknown reload cause - suspect boot_data[BOOT_COUNT] 0x9, BOOT_COUNT 0, BOOTDATA 19\nSystem image file is \"unix:/images/Cisco-IOL-XE-17.18.02.bin\"\nLast reload reason: Unknown reason\n\n\n\nThis product contains cryptographic features and is subject to United\nStates and local country laws governing import, export, transfer and\nuse. Delivery of Cisco cryptographic products does not imply\nthird-party authority to import, export, distribute or use encryption.\nImporters, exporters, distributors and users are responsible for\ncompliance with U.S. and local country laws. By using this product you\nagree to comply with applicable laws and regulations. If you are unable\nto comply with U.S. and local laws, return this product immediately.\n\nA summary of U.S. laws governing Cisco cryptographic products may be found at:\nhttp://www.cisco.com/wwl/export/crypto/tool/stqrg.html\n\nIf you require further assistance please contact us by sending email to\nexport@cisco.com.\n\nLinux Unix (i686) processor with 536518K bytes of memory.\nProcessor board ID 0000001\n8 Ethernet interfaces\n8 Serial interfaces\n128K bytes of NVRAM.\n\nConfiguration register is 0x0\n"
+    },
+    {
+      "command": "show privilege",
+      "role": "ADMIN",
+      "rc": 0,
+      "stdout": "\n\n\nCurrent privilege level is 15"
+    },
+    {
+      "command": "show aaa servers",
+      "role": "ADMIN",
+      "rc": 0,
+      "stdout": "\n\n"
+    },
+    {
+      "command": "show radius statistics",
+      "role": "ADMIN",
+      "rc": 0,
+      "stdout": "\n\n                                  Auth.      Acct.       Both\n         Maximum inQ length:         NA         NA          0\n       Maximum waitQ length:         NA         NA          0\n       Maximum doneQ length:         NA         NA          0\n       Total responses seen:          0          0          0\n     Packets with responses:          0          0          0\n  Packets without responses:          0          0          0\n  Access Rejects           :          0\n  Access Accepts           :          0\n Average response delay(ms):          0          0          0\n Maximum response delay(ms):          0          0          0\n  Number of Radius timeouts:          0          0          0\n      Radius Timers Started:          0          0          0\n      Radius Timers Created:          0          0          0\nRadius Timers Create Failed:          0          0          0\n      Radius Timers Stopped:          0          0          0\n  Radius Timers Stop Failed:          0          0          0\n  Radius Timers Outstanding:          0          0          0\n        Radius Timers Added:          0          0          0\n   Radius Timers Add Failed:          0          0          0\n    Radius Timers Jitterred:          0          0          0\nRadius Timers Jitter Failed:          0          0          0\n       Duplicate ID detects:          0          0          0\n Buffer Allocation Failures:          0          0          0\nMaximum Buffer Size (bytes):          0          0          0\nMalformed Responses        :          0          0          0\nBad Authenticators         :          0          0          0\nUnknown Responses          :          0          0          0\n Source Port Range: (2 ports only)\n 1645 - 1646\n Last used Source Port/Identifier:\n 1645/0\n 1646/0\n\n  Elapsed time since counters last cleared: 1w2d18h3m\nRadius Latency Distribution:\n<= 2ms :          0          0\n3-5ms  :          0          0\n5-10ms :          0          0\n10-20ms:          0          0\n20-50ms:          0          0\n50-100m:          0          0\n>100ms :          0          0\n\nCurrent inQ length  : 0\nCurrent doneQ length: 0\n"
+    },
+    {
+      "command": "show tacacs",
+      "role": "ADMIN",
+      "rc": 0,
+      "stdout": "\n\n"
+    },
+    {
+      "command": "show snmp",
+      "role": "ADMIN",
+      "rc": 0,
+      "stdout": "\n\n\n%SNMP agent not enabled"
+    },
+    {
+      "command": "show snmp engineID",
+      "role": "ADMIN",
+      "rc": 0,
+      "stdout": "\n\n\n%SNMP agent not enabled"
+    },
+    {
+      "command": "show hosts",
+      "role": "ADMIN",
+      "rc": 0,
+      "stdout": "\n\n\nDefault domain is host02\nName servers are 255.255.255.255\nNAME  TTL  CLASS   TYPE      DATA/ADDRESS\n-----------------------------------------\n"
+    },
+    {
+      "command": "show users",
+      "role": "ADMIN",
+      "rc": 0,
+      "stdout": "\n\n\n    Line       User       Host(s)              Idle       Location\n   0 con 0                idle                    1d23h   \n*  2 vty 0     user02     idle                 00:00:00 192.0.2.66\n\n  Interface    User               Mode         Idle     Peer Address\n"
+    },
+    {
+      "command": "show ssh",
+      "role": "ADMIN",
+      "rc": 0,
+      "stdout": "\n\n\nConnection Version Mode  Encryption  Hmac\t\t\t   State\t        Username\n0          2.0     IN   chacha20-polhmac-sha2-256-etm@openssh.com Session started       user03\n0          2.0     OUT  chacha20-polhmac-sha2-256-etm@openssh.com Session started       user03"
+    },
+    {
+      "command": "show line",
+      "role": "ADMIN",
+      "rc": 0,
+      "stdout": "\n\n\n   Tty Typ     Tx/Rx    A Modem  Roty AccO AccI   Uses   Noise  Overruns   Int\n*     0 CTY              -    -      -    -    -      0       0     0/0       -\n      1 AUX   9600/9600  -    -      -    -    -      0       0     0/0       -\n*     2 VTY              -    -      -    -    -   4727       0     0/0       -\n      3 VTY              -    -      -    -    -    745       0     0/0       -\n      4 VTY              -    -      -    -    -    271       0     0/0       -\n      5 VTY              -    -      -    -    -     20       0     0/0       -\n      6 VTY              -    -      -    -    -      5       0     0/0       -\n"
+    }
+  ]
+}

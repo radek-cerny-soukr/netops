@@ -1,0 +1,12 @@
+{
+    "vrfs": {
+        "default": {
+            "routes": {
+                "192.0.2.0/24": {
+                    "routeAction": "forward",
+                    "vias": [{"interface": "Management0"}]
+                }
+            }
+        }
+    }
+}

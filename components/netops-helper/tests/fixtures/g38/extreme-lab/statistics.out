@@ -1,0 +1,8 @@
+Port      Link       Tx Pkt     Tx Byte      Rx Pkt     Rx Byte      Rx Pkt      Rx Pkt      Tx Pkt      Tx Pkt
+          State       Count       Count       Count       Count       Bcast       Mcast       Bcast       Mcast
+========= ===== =========== =========== =========== =========== =========== =========== =========== ===========
+1         A       307522331 >9999999999   478969649 >9999999999     2402166    15858230       21446     1438262
+========= ===== =========== =========== =========== =========== =========== =========== =========== ===========
+          > in Port indicates Port Display Name truncated past 8 characters
+          > in Count indicates value exceeds column width. Use 'wide' option or '0' to clear.
+          Link State: A-Active, R-Ready, NP-Port Not Present, L-Loopback

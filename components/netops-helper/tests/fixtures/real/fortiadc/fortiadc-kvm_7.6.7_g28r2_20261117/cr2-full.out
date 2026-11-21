@@ -1,0 +1,24 @@
+show full-configuration load-balance content-routing NETOPS_TEST_CR2
+config load-balance content-routing
+  edit "NETOPS_TEST_CR2"
+    set type l7-content-routing
+    set persistence-inherit enable
+    set method-inherit enable
+    unset connection-pool
+    set connection-pool-inherit enable
+    set schedule-list disable
+    set load-balance-pool POOL_APP
+    config  match-condition
+      edit 1
+        set object http-request-url
+        set type string
+        set content /
+        set reverse disable
+        set ignore-case enable
+      next
+    end
+    set comments "G28 r2 test catch-all, delete after task"
+  next
+end
+
+FortiADC-KVM # 

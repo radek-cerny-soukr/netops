@@ -1,0 +1,23 @@
+{
+    "activeState": false,
+    "alwaysOn": false,
+    "option82": false,
+    "option82SubOpts": {
+        "circuitIdOpt": false,
+        "remoteIdOpt": false,
+        "vendorSpecificSubOpt": false
+    },
+    "crossVrfServerIdPreserve": false,
+    "linkLayerAddrOpt": false,
+    "remoteIdEncodingFormat": "%m:%i",
+    "allSubnets": false,
+    "allSubnetsV6": false,
+    "tunnelReqDisable": false,
+    "tunnelRepEncapped": false,
+    "mlagPeerLinkReqDisable": false,
+    "reqFloodSuppressionVlanConfig": [],
+    "reqFloodSuppressionVlanOperational": [],
+    "dhcpReqFloodRestrictDisabledDueToSnooping": false,
+    "configuredInterfaces": {},
+    "vssControlDisable": false
+}

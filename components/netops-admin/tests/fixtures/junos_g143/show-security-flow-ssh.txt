@@ -1,0 +1,4 @@
+Session ID: 256, Policy name: self-traffic/4, Timeout: 1794, Session State: Valid
+  In: 198.51.100.73/33170 --> 192.0.2.60/22;tcp, Conn Tag: 0x0, If: ge-0/0/6.0, Pkts: 3, Bytes: 351,
+  Out: 192.0.2.60/22 --> 198.51.100.73/33170;tcp, Conn Tag: 0x0, If: .local..0, Pkts: 1, Bytes: 44,
+Total sessions: 1

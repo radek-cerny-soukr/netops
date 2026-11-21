@@ -1,0 +1,31 @@
+Ethernet14:
+   Trust Mode: COS
+   Default COS: 0
+   Default DSCP: 0
+
+   Port shaping rate: disabled
+
+  Tx     Bandwidth          Shape Rate         Priority 
+ Queue                       (units)         
+ -------------------------------------------------------
+  UC7      - / -          -            ( - )   SP / SP  
+  UC6      - / -          -            ( - )   SP / SP  
+  MC3      - / -          -            ( - )   SP / SP  
+  UC5      - / -          -            ( - )   SP / SP  
+  UC4      - / -          -            ( - )   SP / SP  
+  MC2      - / -          -            ( - )   SP / SP  
+  UC3      - / -          -            ( - )   SP / SP  
+  UC2      - / -          -            ( - )   SP / SP  
+  MC1      - / -          -            ( - )   SP / SP  
+  UC1      - / -          -            ( - )   SP / SP  
+  UC0      - / -          -            ( - )   SP / SP  
+  MC0      - / -          -            ( - )   SP / SP  
+
+Note: Values are displayed as Operational/Configured
+
+Legend:
+RR -> Round Robin
+SP -> Strict Priority
+ - -> Not Applicable / Not Configured
+ % -> Percentage of reference
+

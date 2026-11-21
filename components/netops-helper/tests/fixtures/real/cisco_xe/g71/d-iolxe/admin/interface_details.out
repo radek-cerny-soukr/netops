@@ -1,0 +1,26 @@
+Ethernet0/1 is up, line protocol is up
+  Hardware is AmdP2, address is 0000.5e00.530d (bia 0000.5e00.530d)
+  MTU 1500 bytes, BW 10000 Kbit/sec, DLY 1000 usec,
+     reliability 255/255, txload 1/255, rxload 1/255
+  Encapsulation 802.1Q Virtual LAN, Vlan ID  1., loopback not set
+  Keepalive set (10 sec)
+  ARP type: ARPA, ARP Timeout 04:00:00
+  Last input 00:00:00, output 00:00:00, output hang never
+  Last clearing of "show interface" counters never
+  Input queue: 0/75/0/0 (size/max/drops/flushes); Total output drops: 0
+  Queueing strategy: fifo
+  Output queue: 0/40 (size/max)
+  5 minute input rate 4000 bits/sec, 6 packets/sec
+  5 minute output rate 2000 bits/sec, 4 packets/sec
+     2381654 packets input, 206098984 bytes, 0 no buffer
+     Received 1888594 broadcasts (0 IP multicasts)
+     0 runts, 0 giants, 0 throttles
+     0 input errors, 0 CRC, 0 frame, 0 overrun, 0 ignored
+     0 input packets with dribble condition detected
+     731529 packets output, 66129150 bytes, 0 underruns
+     Output 150212 broadcasts (0 IP multicasts)
+     0 output errors, 0 collisions, 4 interface resets
+0 unknown protocol drops
+     0 babbles, 0 late collision, 0 deferred
+     0 lost carrier, 0 no carrier
+     0 output buffer failures, 0 output buffers swapped out

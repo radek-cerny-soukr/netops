@@ -1,0 +1,10 @@
+
+!Command: show running-config interface Vlan3910
+!Running configuration last done at: Thu Nov 19 17:33:49 2026
+!Time: Thu Nov 19 17:34:26 2026
+
+version 9.3(12) Bios:version
+
+interface Vlan3910
+  no shutdown
+

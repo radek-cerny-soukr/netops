@@ -1,0 +1,42 @@
+{
+  "platform": "eos",
+  "table": "static-route",
+  "versions": [
+    "4.36.1F"
+  ],
+  "exact_versions": true,
+  "ops": [
+    "create",
+    "update",
+    "delete"
+  ],
+  "table_scoped_key": true,
+  "key_pattern": "^(?:vrf:[A-Za-z][A-Za-z0-9_-]{0,31}:)?(?:[0-9]{1,3}(?:\\.[0-9]{1,3}){3}/[0-9]{1,2}|[0-9a-f:]{2,39}/[0-9]{1,3})$",
+  "protected_keys": [],
+  "attributes": {
+    "next-hop": {
+      "type": "text",
+      "update": true,
+      "unset": false,
+      "referenced_update": true,
+      "required_on_create": true,
+      "max_length": 39,
+      "pattern": "^[0-9A-Fa-f:.]+$"
+    },
+    "distance": {
+      "type": "integer",
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "required_on_create": false,
+      "default": "1",
+      "minimum": 1,
+      "maximum": 255
+    }
+  },
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "G124 on cEOSLab 4.36.1F. EOS configuration session timer and verified running-config readback apply. The key is the canonical destination prefix, optionally preceded by vrf:<name>:. A route has one IP next hop in the same family. The scoped configured route readback includes unresolved routes. Management paths and existing routes with additional paths or options are protected."
+}

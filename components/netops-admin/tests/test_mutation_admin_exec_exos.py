@@ -89,7 +89,7 @@ def test_prechecks_name_the_running_and_configured_firmware_and_foreign_unsaved_
                     prefix=b"* x440.1 # ")
     spec = object()
     reasons = exec_exos.prechecks(switch, SimpleNamespace(firmware="33.7.1.6"), "", spec)
-    assert reasons == ["the switch runs 33.6.1.14, not the configured 33.7.1.6",
+    assert reasons == ["the switch runs 33.6.1.14, not the configured 33.7.1.6; update firmware in the Admin configuration",
                        "the switch has unsaved configuration changes of someone else"]
     assert switch.prefix_specs == [spec]
 

@@ -7,7 +7,17 @@ import re
 from string import Formatter
 from typing import Mapping
 
+from .fortiadc_diagnostics import RECIPES as FORTIADC_LOG_RECIPES
 from .query_catalog import READ_QUERIES
+from .query_catalog.arista import LOG_WINDOW_QUERIES as EOS_LOG_WINDOW_QUERIES
+from .query_catalog.arista import LOGGING_STATUS_COMMAND as EOS_LOGGING_STATUS_COMMAND
+from .query_catalog.cisco import (IOS_XE_PROBE_QUERIES, NXOS_G93_QUERIES, NXOS_LOG_HISTORY, XE_LOG_COMMAND,
+                                 XE_LOG_HISTORY, nxos_log_window, xe_log_window)
+from .query_catalog.extreme import (
+    LOG_HISTORY as EXOS_LOG_HISTORY, LOG_HISTORY_COMMAND as EXOS_LOG_HISTORY_COMMAND,
+    LOG_SEVERITIES as EXOS_LOG_SEVERITIES, LOG_SOURCES as EXOS_LOG_SOURCES,
+)
+from .query_catalog.junos import CONFIG_COMMANDS, FILTER_BINDING_COMMAND, LOG_HISTORY_COMMAND, LOG_HISTORY_QUERY, log_time, log_window
 from .query_catalog.model import DEVICE_TYPES, LITERAL, Query, SequenceQuery, Slot
 from .normalization import normalize_mac
 
@@ -108,41 +118,39 @@ def _canonical_cisco_ethernet(value: str) -> str | None:
     return f"Ethernet{slot}/{port}"
 
 
-def _canonical_cisco_ios_interface(value: str, physical_only: bool) -> str | None:
+def _canonical_cisco_ios_interface(value: str, physical_only: bool, *, allow_vlan: bool = True,
+                                   port_channel_max: int = 48) -> str | None:
     if value.casefold() in _CISCO_IOS_RESERVED:
         return None
     ethernet = _canonical_cisco_ethernet(value)
     if ethernet is not None:
         return ethernet
     match = re.fullmatch(
-        r"(GigabitEthernet|Gi)([0-9]+)/([0-9]+)(?:/([0-9]+))?",
+        r"(FastEthernet|Fa|GigabitEthernet|Gi|TenGigabitEthernet|Te)([0-9]+)/([0-9]+)(?:/([0-9]+))?",
         value,
     )
     if match:
+        prefix = {"Fa": "FastEthernet", "Gi": "GigabitEthernet", "Te": "TenGigabitEthernet"}.get(match[1], match[1])
+        # IOS names use slot/port or stack-or-slot/module/port.
         first = _canonical_decimal(match[2], 0, 8)
-        second = _canonical_decimal(match[3], 0, 99)
-        third = (
-            None
-            if match[4] is None
-            else _canonical_decimal(match[4], 1, 99)
-        )
-        if third is None and match[4] is None:
-            if first == 0 and second is not None and second >= 1:
-                return f"GigabitEthernet0/{second}"
-        elif (
-            first is not None
-            and 1 <= first <= 8
-            and second == 0
-            and third is not None
-        ):
-            return f"GigabitEthernet{first}/0/{third}"
+        if match[4] is None:
+            port = _canonical_decimal(match[3], 0, 99)
+            if first is not None and port is not None:
+                return f"{prefix}{first}/{port}"
+            return None
+        module = _canonical_decimal(match[3], 0, 8)
+        port = _canonical_decimal(match[4], 0, 99)
+        if first is not None and module is not None and port is not None:
+            return f"{prefix}{first}/{module}/{port}"
         return None
     if physical_only:
         return None
     match = re.fullmatch(r"(Port-channel|Po)([0-9]+)", value)
     if match:
-        number = _canonical_decimal(match[2], 1, 48)
+        number = _canonical_decimal(match[2], 1, port_channel_max)
         return None if number is None else f"Port-channel{number}"
+    if not allow_vlan:
+        return None
     match = re.fullmatch(r"(Vlan|Vl)([0-9]+)", value)
     if match:
         number = _canonical_decimal(match[2], 1, 4094)
@@ -212,6 +220,8 @@ def _canonical_cisco_xe_physical(value: str) -> str | None:
 def _canonical_cisco_xe_interface(
     value: str,
     physical_only: bool,
+    *,
+    switchport_only: bool = False,
 ) -> str | None:
     if value.casefold() in _CISCO_IOS_RESERVED:
         return None
@@ -222,6 +232,8 @@ def _canonical_cisco_xe_interface(
     if match:
         number = _canonical_decimal(match[2], 1, 128)
         return None if number is None else f"Port-channel{number}"
+    if switchport_only:
+        return None
     match = re.fullmatch(r"(Vlan|Vl)([0-9]+)", value)
     if match:
         number = _canonical_decimal(match[2], 1, 4094)
@@ -236,6 +248,8 @@ def _canonical_cisco_xe_interface(
 def _canonical_cisco_nxos_interface(
     value: str,
     errors_only: bool,
+    *,
+    allow_ethernet_subinterface: bool = False,
 ) -> str | None:
     if value.casefold() in _CISCO_NXOS_RESERVED:
         return None
@@ -260,7 +274,7 @@ def _canonical_cisco_nxos_interface(
             return None
         if match[4] is not None and subinterface is None:
             return None
-        if errors_only and subinterface is not None:
+        if errors_only and subinterface is not None and not allow_ethernet_subinterface:
             return None
         rendered = "Ethernet" + "/".join(
             str(component) for component in components
@@ -322,9 +336,13 @@ _VENDOR_INTERFACE_CANONICALIZERS = {
     "cisco_ios_physical_interface": lambda value: _canonical_cisco_ios_interface(
         value, True,
     ),
+    "cisco_ios_switchport": lambda value: _canonical_cisco_ios_interface(
+        value, False, allow_vlan=False, port_channel_max=64,
+    ),
     "cisco_xe_interface": lambda value: _canonical_cisco_xe_interface(
         value, False,
     ),
+    "cisco_xe_switchport": lambda value: _canonical_cisco_xe_interface(value, False, switchport_only=True),
     "cisco_xe_physical_interface": lambda value: _canonical_cisco_xe_interface(
         value, True,
     ),
@@ -332,27 +350,61 @@ _VENDOR_INTERFACE_CANONICALIZERS = {
         value, False,
     ),
     "cisco_nxos_errors_interface": lambda value: _canonical_cisco_nxos_interface(
+        value, True, allow_ethernet_subinterface=True,
+    ),
+    "cisco_nxos_non_subinterface": lambda value: _canonical_cisco_nxos_interface(
         value, True,
     ),
+    "cisco_nxos_ethernet": lambda value: _canonical_cisco_nxos_interface(value, True)
+    if value.startswith("Ethernet") else None,
+    "cisco_nxos_port_channel": lambda value: _canonical_cisco_nxos_interface(value, False)
+    if re.fullmatch(r"Port-channel[0-9]{1,4}", value) else None,
 }
+
+
+# The short and the full IOS name of one port are the same enrolled port (G53 r3): both sides are
+# canonicalized by the slot's own validator; other kinds keep the exact comparison.
+_CANONICAL_MEMBERSHIP_KINDS = frozenset({"cisco_ios_interface", "cisco_ios_physical_interface", "cisco_ios_switchport", "cisco_xe_switchport"})
+
+
+def enrolled_interface(value: object, kind: str, listed: object) -> bool:
+    if value in listed:
+        return True
+    if kind not in _CANONICAL_MEMBERSHIP_KINDS or not isinstance(value, str):
+        return False
+    canonicalize = _VENDOR_INTERFACE_CANONICALIZERS[kind]
+    canonical = canonicalize(value)
+    return canonical is not None and any(
+        isinstance(item, str) and canonicalize(item) == canonical for item in listed
+    )
+
 
 SAFE_FORTIADC_OBJECT = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,34}")
 _TOKEN_PATTERNS: Mapping[str, re.Pattern[str]] = {
+    "acl_policy": re.compile(r"[A-Za-z0-9_][A-Za-z0-9_.-]{0,63}"),
+    "nxos_acl_name": re.compile(r"[A-Za-z0-9_][A-Za-z0-9_.-]{0,63}"),
     "interface": SAFE_INTERFACE,
     "service": SAFE_SERVICE,
     "switch": SAFE_SWITCH,
     "vlan_name": re.compile(r"[A-Za-z][A-Za-z0-9_-]{0,31}"),
+    "junos_vlan_name": re.compile(r"[A-Za-z][A-Za-z0-9_-]{0,31}"),
+    "c9800_ap_name": re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,63}"),
     "certificate_name": re.compile(r"[A-Za-z][A-Za-z0-9_.-]{0,78}"),
     "fortios_address_object": re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,78}"),
     "fortios_station_mac": re.compile(r"[0-9A-Fa-f]{2}(?::[0-9A-Fa-f]{2}){5}"),
     "fortios_wtp_id": re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,34}"),
+    "ruckus_wlan_name": re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,31}"),
     "wifi_mac_literal": re.compile(r"[0-9a-f]{2}(?::[0-9a-f]{2}){5}"),
     "flow_port": re.compile(r"(?:0|[1-9][0-9]{0,4})"),
     "ip_protocol": re.compile(r"(?:0|[1-9][0-9]{0,2})"),
     "fortios_policy_type": re.compile(r"(?:policy|proxy)"),
     "fortios_nat_pool": re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,78}"),
+    "fortios_extender_serial": re.compile(r"FX[A-Z0-9]{12,14}"),
+    # Same form as the triage_vpn tunnel argument (FortiOS phase-1 names have at most 35 characters).
+    "fortios_ipsec_tunnel": re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,34}"),
     "managed_switch_serial": re.compile(r"S[A-Z0-9]{11,15}"),
     "managed_switch_port": re.compile(r"port[1-9][0-9]{0,2}"),
+    "fortiadc_member_id": re.compile(r"[1-9][0-9]{0,9}"),
     "fortiadc_vdom": SAFE_FORTIADC_OBJECT,
     "fortiadc_virtual_server": SAFE_FORTIADC_OBJECT,
     "managed_switch_trunk": re.compile(r"[A-Za-z0-9_][A-Za-z0-9_-]{0,34}"),
@@ -370,33 +422,48 @@ _TOKEN_PATTERNS: Mapping[str, re.Pattern[str]] = {
     "junos_interface": re.compile(_JUNOS_INTERFACE),
     "junos_physical_interface": re.compile(_JUNOS_LINE),
     "junos_logical_interface": re.compile(_JUNOS_LOGICAL),
+    "junos_filter_interface": re.compile(_JUNOS_LOGICAL),
+    "junos_firewall_filter": re.compile(r"[A-Za-z0-9_][A-Za-z0-9_.:/-]{0,63}"),
+    "junos_security_zone": re.compile(r"[A-Za-z0-9_][A-Za-z0-9_-]{0,62}"),
     "junos_lacp_interface": re.compile(_JUNOS_LACP),
 }
 
 _KIND_INVENTORY = {
-    "vlan_id": None, "mac_literal": None, "ip_literal": None,
-    "vrf": "vrfs", "vr": "virtual_routers", "routing_instance": "routing_instances",
+    "acl_policy": None, "nxos_acl_name": None, "diagnostic_dns_name": None,
+    "eos_dns_name": "diagnostic_names", "junos_dns_name": "diagnostic_names",
+    "junos_log_time": LITERAL, "junos_log_severity": LITERAL,
+    "vlan_id": None, "vpc_id": None, "etherchannel_group_id": None, "mac_literal": None, "ip_literal": None,
+    "ipv4_neighbor": None, "ipv6_neighbor": None,
+    "route_map": "route_maps", "vrf": "vrfs", "vr": "virtual_routers", "routing_instance": "routing_instances",
     "interface": "interfaces",
     "service": "services",
     "switch": "switches",
     "vlan_name": "vlans",
+    "junos_vlan_name": "vlans",
     "managed_switch_serial": "managed_switches",
     "managed_switch_port": "managed_switch_ports",
     "managed_switch_trunk": "managed_switch_trunks",
+    "c9800_ap_name": None,
     "certificate_name": "certificates",
     "fortios_address_object": "firewall_addresses",
     "fortios_station_mac": "wireless_clients",
     "fortios_wtp_id": "wtp_ids",
+    "ruckus_wlan_name": "wlan_names",
     "wifi_log_lines": LITERAL,
+    "eos_log_minutes": None, "nxos_log_count": None, "log_severity": None, "log_date": None, "log_time": None,
+    "exos_log_source": None, "exos_log_severity": None,
     "wifi_mac_literal": LITERAL,
     "flow_port": "flow_ports",
     "ip_protocol": "ip_protocols",
     "fortios_policy_type": "policy_types",
     "fortios_nat_pool": "nat_pools",
+    "fortios_extender_serial": LITERAL,
     "fortios_sdwan_health_check": "sdwan_health_checks",
     "fortios_link_monitor": "link_monitors",
+    "fortios_ipsec_tunnel": "ipsec_tunnels",
     "fortios_sdwan_member": "sdwan_members",
     "fortios_sdwan_rule": "sdwan_rules",
+    "fortiadc_member_id": None,
     "fortiadc_vdom": "adc_vdoms",
     "fortiadc_virtual_server": "adc_virtual_servers",
     "address": "addresses",
@@ -404,16 +471,21 @@ _KIND_INVENTORY = {
     "ipv6_address": "addresses",
     "ipv4_lookup": "addresses",
     "ipv6_lookup": "addresses",
-    "lookup_prefix": "lookup_prefixes",
+    "lookup_prefix": "lookup_prefixes", "ipv4_prefix": "lookup_prefixes",
     **{
         kind: "interfaces"
         for kind in _TOKEN_PATTERNS
-        if kind.startswith(("extreme_", "eos_", "junos_"))
+        if kind.startswith(("extreme_", "eos_")) or kind in {
+            "junos_interface", "junos_physical_interface", "junos_logical_interface",
+            "junos_filter_interface", "junos_lacp_interface",
+        }
     },
+    "junos_firewall_filter": "firewall_filters",
+    "junos_security_zone": "security_zones",
     **{kind: "interfaces" for kind in _VENDOR_INTERFACE_CANONICALIZERS},
 }
 _INVENTORY_KINDS = {
-    "vrfs": "vrf", "virtual_routers": "vr", "routing_instances": "routing_instance",
+    "route_maps": "route_map", "vrfs": "vrf", "virtual_routers": "vr", "routing_instances": "routing_instance",
     "interfaces": "interface",
     "services": "service",
     "addresses": "address",
@@ -427,12 +499,16 @@ _INVENTORY_KINDS = {
     "firewall_addresses": "fortios_address_object",
     "wireless_clients": "fortios_station_mac",
     "wtp_ids": "fortios_wtp_id",
+    "wlan_names": "ruckus_wlan_name",
     "flow_ports": "flow_port",
+    "firewall_filters": "junos_firewall_filter",
+    "security_zones": "junos_security_zone",
     "ip_protocols": "ip_protocol",
     "policy_types": "fortios_policy_type",
     "nat_pools": "fortios_nat_pool",
     "sdwan_health_checks": "fortios_sdwan_health_check",
     "link_monitors": "fortios_link_monitor",
+    "ipsec_tunnels": "fortios_ipsec_tunnel",
     "sdwan_members": "fortios_sdwan_member",
     "sdwan_rules": "fortios_sdwan_rule",
     "schema_paths": "fortios_config_path",
@@ -479,6 +555,7 @@ _LINUX_COMMANDS = frozenset({
     "bridge fdb show",
 })
 _FORTINET_COMMANDS = frozenset({
+    "get extender modem-status {serial}",
     'diagnose switch-controller switch-info port-stats {managed_switch} {port}',
     'diagnose switch-controller switch-info port-stats {managed_switch}',
     'show switch-controller managed-switch {managed_switch}',
@@ -494,6 +571,7 @@ _FORTINET_COMMANDS = frozenset({
     "execute ping-options view-settings",
     "execute traceroute-options view-settings",
     "diagnose debug info",
+    "diagnose user device list",
     "diagnose sys session filter",
     "get vpn certificate local details {certificate}",
     "diagnose firewall fqdn get-ip {name}",
@@ -526,6 +604,9 @@ _FORTINET_COMMANDS = frozenset({
     "diagnose sys service-communication",
     "diagnose hardware sysinfo memory",
     "diagnose hardware deviceinfo disk",
+    "execute sensor detail",
+    "diagnose debug crashlog read",
+    "diagnose debug config-error-log read",
     "get system interface physical",
     "get system interface",
     "diagnose netlink aggregate name {aggregate} show",
@@ -544,6 +625,9 @@ _FORTINET_COMMANDS = frozenset({
     "diagnose sys sdwan intf-sla-log {interface}",
     "diagnose sys sdwan sla-log {health_check} {member}",
     "diagnose sys link-monitor status {monitor}",
+    # G14: name-scoped IPsec detail; key material is withheld after the read (sanitize.redact_fortios_ipsec_keys).
+    "diagnose vpn ike gateway list name {tunnel}",
+    "diagnose vpn tunnel list name {tunnel}",
     "diagnose sys sdwan member {member}",
     "diagnose sys sdwan service4 {rule}",
     "diagnose sys sdwan service6 {rule}",
@@ -555,6 +639,7 @@ _FORTINET_COMMANDS = frozenset({
     "diagnose vpn ipsec status",
     "diagnose vpn tunnel stat",
     "execute dhcp lease-list {interface}",
+    "execute dhcp lease-list",
     "diagnose wireless-controller wlac -c sta",
     "diagnose wireless-controller wlac -d sta {mac}",
     "diagnose wireless-controller wlac -c wtp",
@@ -588,6 +673,19 @@ _FORTINET_COMMANDS = frozenset({
 
     "get router info bgp summary",
     "get router info6 bgp summary",
+    # G11 (1.0.12): measured on FortiGate-60F 7.6.8 and FortiGate-80F 8.0.2 (read-only accounts).
+    "get router info6 routing-table",
+    "get router info routing-table database",
+    "get router info6 routing-table database",
+    "get router info bgp neighbors {peer}",
+    "get router info bgp neighbors",
+    "get router info6 bgp neighbors {peer6}",
+    "get router info6 bgp neighbors",
+    "diagnose netlink interface list",
+    "diagnose netlink device list",
+    "diagnose netlink interface packet-rate",
+    "get system stp list",
+    "show system virtual-switch",
     "get router info ospf status",
     "get router info6 ospf status",
     "get router info ospf neighbor all",
@@ -605,11 +703,17 @@ _FORTINET_COMMANDS = frozenset({
     "diagnose ips anomaly status",
     "diagnose antivirus outbreak-prevention statistics list",
 })
+_FORTIADC_INTERFACE_SUMMARY = ("get system interface", "diagnose hardware get deviceinfo nic-detail")
 _FORTIADC_COMMANDS = frozenset({
+    "get system certificate local",
+    "execute ha force failover-standby status",
     "get system status",
     "get system performance",
     "diagnose system vm",
     "diagnose netlink interface list {interface}",
+    "diagnose netlink interface list",
+    "get system interface",
+    "diagnose hardware get deviceinfo nic-detail",
     "diagnose netlink device",
     "get router info routing-table all",
     "diagnose netlink neighbor list",
@@ -617,6 +721,8 @@ _FORTIADC_COMMANDS = frozenset({
     "diagnose server-load-balance slb_load",
     "get security waf-signature-status",
     "diagnose server-load-balance vs_stat vdom {vdom} vs {virtual_server}",
+    "diagnose server-load-balance vs_stat vdom {vdom}",
+    "diagnose server-load-balance vs_stat vdom {vdom} vs {virtual_server} rs {real_server}",
     "diagnose hardware get sysinfo cpu",
     "diagnose server-load-balance session list",
     "diagnose server-load-balance persistence list",
@@ -678,27 +784,36 @@ _FORBIDDEN_SHOW_SECOND = re.compile(
     r"log(?:ging|s)?|debug(?:ging)?|support|capture|bash|shell)",
     re.IGNORECASE,
 )
-# Logs are a forbidden show family everywhere except these fixed Switch Engine
-# templates: no slot, no filter and no time window reach the device; the
-# in-memory buffer is bounded by the switch and paged by the caller.
+# EXOS permits only these reviewed show log templates, with typed source and time/severity slots.
 _EXOS_LOG_COMMANDS = frozenset({
     "show log messages memory-buffer",
     "show log messages memory-buffer severity warning",
     "show log configuration",
+    EXOS_LOG_HISTORY_COMMAND,
 })
-# IOS/IOS XE print the whole in-memory buffer (its size is a device setting); EOS, NX-OS and Junos take
-# the line count as part of the fixed template. None accepts a slot, filter or time window.
+# IOS and IOS XE display the device buffer. NX-OS accepts a bounded count.
+# Client-side NX-OS filters do not change the CLI template.
 _NETWORK_LOG_COMMANDS = {
     "cisco_ios": frozenset({"show logging"}),
     "cisco_xe": frozenset({"show logging"}),
-    "cisco_nxos": frozenset({"show logging last 200"}),
-    "arista_eos": frozenset({"show logging 200"}),
+    "cisco_nxos": frozenset({"show logging last 200", "show logging last {count}", "show logging info"}),
+    "arista_eos": frozenset({
+        "show logging 200",
+        # G120: only typed slots (bounded minutes, calendar date/time, severity keyword) reach the device.
+        "show logging last {minutes} minutes threshold {severity}",
+        "show logging time-range {begin_date} {begin_time} {end_date} {end_time} threshold {severity}",
+    }),
 }
 # Junos has no line-count argument: the fixed `last 200` pipe is part of the template, in front of the paging suffix.
 _JUNOS_LOG_COMMANDS = frozenset({
     "show log messages | last 200",
     "show log interactive-commands | last 200",
 })
+_JUNOS_VLAN_KEYWORDS = frozenset({
+    "all", "brief", "detail", "extensive", "instance", "interface", "logical-system",
+    "object-summary", "operational", "satellite", "vlan-groups",
+})
+_JUNOS_FILTER_KEYWORDS = ("regex", "version")
 _JUNOS_PLATFORMS = frozenset({"juniper_junos", "juniper_junos_els"})
 _JUNOS_SUFFIX = " | no-more"
 _QUERY_NAME = re.compile(r"[a-z][a-z0-9_]{0,63}")
@@ -799,19 +914,23 @@ def enrolled_lookup(value: object, version: int, inventory: Mapping[str, tuple[s
 def _validate_slot(value: str, kind: str, *, lookup_only: bool = False) -> str:
     if not isinstance(value, str):
         raise ValueError(f"invalid typed {kind} value")
-    if kind == "lookup_prefix":
-        canonical_prefix(value)
+    if kind in {"lookup_prefix", "ipv4_prefix"}:
+        canonical_prefix(value, 4 if kind == "ipv4_prefix" else None)
         return value
     if kind in LOOKUP_KINDS:
         if "/" in value:
             canonical_prefix(value, LOOKUP_KINDS[kind])
             return value
         return _canonical_address(value, "ipv4_address" if kind == "ipv4_lookup" else "ipv6_address")
-    if kind in {"vlan_id", "mac_literal", "ip_literal", "vrf", "vr", "routing_instance"}:
+    if kind == "etherchannel_group_id":
+        if len(value) <= 3 and _canonical_decimal(value, 1, 128) is not None:
+            return value
+        raise ValueError("invalid typed etherchannel_group_id value")
+    if kind in {"vlan_id", "vpc_id", "mac_literal", "ip_literal", "vrf", "vr", "routing_instance", "route_map"}:
         if not value or len(value) > 128 or not value.isascii() or re.search(r"[\s|;\"'`$&<>\\]", value):
             raise ValueError(f"invalid typed {kind} value")
-        if kind == "vlan_id":
-            if _canonical_decimal(value, 1, 4094) is not None:
+        if kind in ("vlan_id", "vpc_id"):
+            if _canonical_decimal(value, 1, 4094 if kind == "vlan_id" else 4096) is not None:
                 return value
         elif kind == "mac_literal":
             return normalize_mac(value)
@@ -836,6 +955,10 @@ def _validate_slot(value: str, kind: str, *, lookup_only: bool = False) -> str:
         if len(value) <= len(str(maximum)) and _canonical_decimal(value, 1, maximum) is not None:
             return value
         raise ValueError(f"invalid typed {kind} value")
+    if kind in LOG_WINDOW_KINDS:
+        if _valid_log_window_value(value, kind):
+            return value
+        raise ValueError(f"invalid typed {kind} value")
     if kind == "wifi_log_lines":
         if len(value) <= 3 and _canonical_decimal(value, 1, 200) is not None:
             return value
@@ -858,8 +981,10 @@ def _validate_slot(value: str, kind: str, *, lookup_only: bool = False) -> str:
             return value
         raise ValueError("invalid FortiADC virtual server name")
     if kind == "fortios_diagnostic_recipe":
-        if value in {"ping", "traceroute", "sniffer", "sessions", "flow", "nslookup", "http_probe", "health_check_verify",
-                     "logs", "system_event_logs", "waf_attack_logs", "session_list", "persistence_list"}:
+        if value in FORTIADC_LOG_RECIPES or value in {
+            "ping", "traceroute", "sniffer", "sessions", "flow", "nslookup", "http_probe", "health_check_verify",
+            "logs", "session_list", "persistence_list", "disk_usage", "ntp_status", "packet_capture",
+        }:
             return value
         raise ValueError("invalid diagnostic recipe")
     if kind == "diagnostic_http_url":
@@ -878,14 +1003,23 @@ def _validate_slot(value: str, kind: str, *, lookup_only: bool = False) -> str:
         if SAFE_FORTIADC_OBJECT.fullmatch(value):
             return value
         raise ValueError("invalid FortiADC health check name")
-    if kind == "diagnostic_dns_name":
-        if re.fullmatch(r"(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?", value):
+    if kind in {"diagnostic_dns_name", "eos_dns_name", "junos_dns_name"}:
+        if len(value) <= 253 and re.fullmatch(r"(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?", value):
             return value
         raise ValueError("invalid diagnostic DNS name")
+    if kind == "junos_log_time":
+        log_time(value)
+        return value
+    if kind == "junos_log_severity":
+        if re.fullmatch(r"[0-7]", value):
+            return value
+        raise ValueError("log severity must be one digit from 0 to 7")
     if kind == "fortios_config_path":
         if len(value) <= 128 and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.+-]*(?: [A-Za-z0-9][A-Za-z0-9_.+-]*){0,31}",value):
             return value
         raise ValueError("invalid measured configuration path")
+    if kind in {"ipv4_neighbor", "ipv6_neighbor"}:
+        return _canonical_address(value, kind.replace("neighbor", "address"))
     if kind in {"address", "ipv4_address", "ipv6_address"}:
         return _canonical_address(value, kind)
     canonicalizer = _VENDOR_INTERFACE_CANONICALIZERS.get(kind)
@@ -896,6 +1030,19 @@ def _validate_slot(value: str, kind: str, *, lookup_only: bool = False) -> str:
         raise ValueError(f"invalid typed {kind} value")
     if kind == "certificate_name" and value.casefold() in {"all", "any", "none", "detail", "details"}:
         raise ValueError("reserved certificate selector")
+    if kind == "acl_policy" and value.casefold() in {"all", "any", "none", "detail", "dynamic", "profile", "rule"}:
+        raise ValueError("reserved policy selector")
+    if kind == "nxos_acl_name" and value and any(
+        keyword.startswith(value.casefold()) for keyword in
+        ("all", "brief", "capture", "expanded", "private", "stats-detail", "summary")
+    ):
+        raise ValueError("reserved NX-OS ACL selector")
+    if kind == "ruckus_wlan_name" and value.casefold() == "all":
+        raise ValueError("reserved WLAN selector")
+    if kind == "junos_vlan_name" and any(word.startswith(value.casefold()) for word in _JUNOS_VLAN_KEYWORDS):
+        raise ValueError("reserved Junos VLAN selector")
+    if kind == "junos_firewall_filter" and any(word.startswith(value.casefold()) for word in _JUNOS_FILTER_KEYWORDS):
+        raise ValueError("reserved Junos firewall filter selector")
     if kind == "vlan_name" and value.casefold() in {
         "all", "any", "none", "detail", "ipv4", "ipv6", "tag", "ports",
         "virtual-router", "statistics",
@@ -931,14 +1078,16 @@ def validate_query_inventory(
     normalized = normalize_platform(platform)
     recipe_allowlists = {
         "fortinet": {"ping", "traceroute", "sniffer", "sessions", "flow", "logs"},
-        "fortiadc": {"ping", "traceroute", "nslookup", "http_probe", "health_check_verify",
-                     "system_event_logs", "waf_attack_logs", "session_list", "persistence_list"},
+        "fortiadc": FORTIADC_LOG_RECIPES.keys() | {"ping", "traceroute", "nslookup", "http_probe",
+                     "health_check_verify", "session_list", "persistence_list", "disk_usage", "ntp_status",
+                     "packet_capture"},
     }
     allowed_recipes = recipe_allowlists.get(normalized, set())
     if not set(inventory.get("diagnostic_recipes", ())) <= allowed_recipes:
         raise ValueError("enrolled diagnostic recipe does not exist on this platform")
-    if inventory.get("diagnostic_names") and normalized != "fortiadc":
-        raise ValueError("enrolled diagnostic DNS names exist only on FortiADC")
+    dns_platforms = _JUNOS_PLATFORMS | {"fortiadc", "fortinet", "arista_eos", "extreme_exos"}
+    if inventory.get("diagnostic_names") and normalized not in dns_platforms:
+        raise ValueError("enrolled diagnostic DNS names exist only on FortiADC, FortiOS, EOS, EXOS and Junos")
     if (inventory.get("diagnostic_http_endpoints") or inventory.get("adc_health_checks")) and normalized != "fortiadc":
         raise ValueError("enrolled diagnostic HTTP endpoints and health checks exist only on FortiADC")
     if inventory.get("diagnostic_virtual_servers") and normalized != "fortiadc":
@@ -952,6 +1101,8 @@ def validate_query_inventory(
     if not interface_kinds:
         return
     for value in inventory.get("interfaces", ()):
+        if normalized == "fortinet" and value == "any" and "sniffer" in inventory.get("diagnostic_recipes", ()):
+            continue  # the FortiOS sniffer interface any, enrolled like an interface (G10 FP-06, task 471-r3)
         for kind in interface_kinds:
             try:
                 _validate_slot(value, kind)
@@ -972,8 +1123,13 @@ def _validate_query_command(platform: str, command: object) -> None:
     if any(ord(character) < 32 or ord(character) == 127 for character in command):
         raise RuntimeError("query command contains a control character")
 
+    if platform == "arista_eos" and command == EOS_LOGGING_STATUS_COMMAND:
+        # Fixed, slotless EOS CLI filter over operational logging headers.
+        return
     inspected = command
     if platform in _JUNOS_PLATFORMS:
+        if command in (FILTER_BINDING_COMMAND, LOG_HISTORY_COMMAND, *CONFIG_COMMANDS.values()):
+            return
         if command.count(_JUNOS_SUFFIX) != 1 or not command.endswith(_JUNOS_SUFFIX):
             raise RuntimeError("Junos query must have one fixed paging suffix")
         inspected = command.removesuffix(_JUNOS_SUFFIX)
@@ -1002,12 +1158,81 @@ def _validate_query_command(platform: str, command: object) -> None:
             raise RuntimeError("FortiADC query is outside the reviewed templates")
         return
 
+    if platform == "extreme_exos" and inspected == "nslookup {name}":
+        return
+    if platform == "extreme_exos" and inspected in {
+        "ping count 5 vr {vr} {address}",
+        "ping count 5 vr {vr} {address} from {source}",
+        "traceroute vr {vr} {address}",
+        "traceroute vr {vr} {address} from {source}",
+    }:
+        return
+    # Fixed EOS probes use typed, enrolled parameters and a bounded ping count.
+    if platform == "arista_eos" and inspected in {
+        "ping vrf {vrf} {address} source {source} repeat 5",
+        "ping {name} repeat 1",
+        "traceroute vrf {vrf} {address}",
+        "traceroute vrf {vrf} {address} source {source}",
+    }:
+        return
+    if platform in {"cisco_ios", "cisco_xe"} and inspected in {
+        'ping {address} repeat 5 timeout 1',
+        'ping {address} source {source} repeat 5 timeout 1',
+        'ping vrf {vrf} {address} repeat 5 timeout 1',
+        'ping vrf {vrf} {address} source {source} repeat 5 timeout 1',
+        'ping ipv6 {address} repeat 5 timeout 1',
+        'ping ipv6 {address} source {source} repeat 5 timeout 1',
+        'traceroute {address} numeric timeout 1 probe 1 ttl 1 5',
+        'traceroute {address} source {source} numeric timeout 1 probe 1 ttl 1 5',
+        'traceroute vrf {vrf} {address} numeric timeout 1 probe 1 ttl 1 5',
+        'traceroute vrf {vrf} {address} source {source} numeric timeout 1 probe 1 ttl 1 5',
+    }:
+        return
+    if platform == "cisco_xe" and inspected in {
+        "ping vrf {vrf} ipv6 {address} repeat 5 timeout 1",
+        "ping vrf {vrf} ipv6 {address} source {source} repeat 5 timeout 1",
+        "traceroute ipv6 {address} numeric timeout 1 probe 1 ttl 1 5",
+        "traceroute ipv6 {address} source {source} numeric timeout 1 probe 1 ttl 1 5",
+        "traceroute vrf {vrf} ipv6 {address} numeric timeout 1 probe 1 ttl 1 5",
+        "traceroute vrf {vrf} ipv6 {address} source {source} numeric timeout 1 probe 1 ttl 1 5",
+    }:
+        return
+    # G91: exact NX-OS probes; no arbitrary CLI suffix or packet count.
+    if platform == "cisco_nxos" and inspected in {
+        "ping {address} vrf {vrf} count 5",
+        "ping {address} vrf {vrf} source {source} count 5",
+        "traceroute {address} vrf {vrf}",
+        "traceroute {address} source {source} vrf {vrf}",
+        "ping6 {address} vrf {vrf} count 5",
+        "ping6 {address} vrf {vrf} source {source} count 5",
+        "traceroute6 {address} vrf {vrf}",
+        "traceroute6 {address} source {source} vrf {vrf}",
+    }:
+        return
+    # Fixed Junos probes (G132): typed enrolled IPv4/instance slots, bounded count, hops and wait.
+    if platform in _JUNOS_PLATFORMS and inspected in {
+        "ping {address} count 5 source {source}",
+        "ping {address} count 5 source {source} routing-instance {instance}",
+        "traceroute {address} no-resolve ttl 30 wait 1",
+        "traceroute {address} no-resolve routing-instance {instance} ttl 30 wait 1",
+    }:
+        return
+    # G108 (R02): the Unleashed CLI ping is bounded by the device (three echo requests); one enrolled IPv4 slot.
+    if platform == "ruckus_unleashed" and inspected == "ping {address}":
+        return
+    # G110 (RP08): the one configuration display admitted anywhere. Its text never leaves the engine unfiltered:
+    # `ruckus_config_allowlist` passes a fixed list of sections and redacts secret labels (tests/test_g110_ruckus.py).
+    if platform == "ruckus_unleashed" and inspected == "show config":
+        return
     words = inspected.split(" ")
     if len(words) < 2 or words[0] != "show":
         raise RuntimeError("network query must use the exact show prefix")
     if platform == "extreme_exos" and inspected in _EXOS_LOG_COMMANDS:
         return
     if inspected in _NETWORK_LOG_COMMANDS.get(platform, ()):
+        return
+    # Only session metadata: no configuration text, selectors, suffixes or abbreviations.
+    if platform == "cisco_nxos" and inspected == "show configuration session summary":
         return
     if _FORBIDDEN_SHOW_SECOND.fullmatch(words[1]) or (
         len(words) >= 3
@@ -1016,8 +1241,11 @@ def _validate_query_command(platform: str, command: object) -> None:
         raise RuntimeError("network query uses a forbidden show family")
 
 
-def _validate_query_sequence(query: SequenceQuery) -> None:
-    if tuple(query.commands) not in _FORTINET_SEQUENCES:
+def _validate_query_sequence(platform: str, query: SequenceQuery) -> None:
+    if platform == "fortiadc":
+        if query.commands != _FORTIADC_INTERFACE_SUMMARY or query.slots:
+            raise RuntimeError("FortiADC command sequence is outside the reviewed shape")
+    elif query.commands not in _FORTINET_SEQUENCES:
         raise RuntimeError("Fortinet command sequence is outside the reviewed shapes")
     if query.command != "; ".join(query.commands):
         raise RuntimeError("sequence display form must be the joined commands")
@@ -1044,8 +1272,10 @@ def _validate_query_catalogs(
                 raise RuntimeError("query description must be non-empty and canonical")
             if type(query.high_volume) is not bool:
                 raise RuntimeError("query high_volume must be a boolean")
-            if type(query.pty) is not bool or (query.pty and platform not in ("fortiadc", "fortinet")):
-                raise RuntimeError("query pty is reserved for FortiADC and FortiOS")
+            prompt_allowed = (platform in {"fortiadc", "fortinet", "cisco_ios"}
+                              or platform == "cisco_xe" and query == IOS_XE_PROBE_QUERIES.get(name))
+            if type(query.pty) is not bool or (query.pty and not prompt_allowed):
+                raise RuntimeError("query pty is reserved for reviewed prompt-read platforms")
             if type(query.empty_allowed) is not bool:
                 raise RuntimeError("query empty_allowed must be a boolean")
             if query.group is not None and query.group not in DEVICE_TYPES:
@@ -1055,8 +1285,25 @@ def _validate_query_catalogs(
             if not isinstance(query.optional_slots, frozenset) or not query.optional_slots <= set(query.slots):
                 raise RuntimeError("query optional parameters must be declared parameters")
             sequence = isinstance(query, SequenceQuery)
-            if sequence and (platform != "fortinet" or query.pty):
-                raise RuntimeError("command sequences are reserved for FortiOS exec queries")
+            if sequence and (platform not in {"fortinet", "fortiadc"} or query.pty):
+                raise RuntimeError("command sequences are reserved for reviewed Fortinet queries")
+            filter_only = query.filter_slots
+            # The Junos messages history is filtered locally by its required interval slots as well.
+            junos_history = not sequence and platform in _JUNOS_PLATFORMS and query.command == LOG_HISTORY_COMMAND
+            xe_history = (not sequence and platform in {"cisco_ios", "cisco_xe"} and name == XE_LOG_HISTORY
+                          and query.command == XE_LOG_COMMAND)
+            nxos_history = (not sequence and platform == "cisco_nxos" and name == NXOS_LOG_HISTORY
+                            and query == NXOS_G93_QUERIES[NXOS_LOG_HISTORY])
+            if not (junos_history or xe_history) and not filter_only <= query.optional_slots:
+                raise RuntimeError("output filter parameters must be optional")
+            if not sequence and filter_only and not (
+                platform == "arista_eos" and name in EOS_LOG_WINDOW_QUERIES and filter_only == {"interface"}
+                and query.slots["interface"] == Slot("interfaces", "eos_interface")
+            ) and not (
+                platform == "extreme_exos" and name == EXOS_LOG_HISTORY and filter_only == {"interface"}
+                and query.slots["interface"] == Slot("interfaces", "extreme_physical_port")
+            ) and not (junos_history or xe_history or nxos_history):
+                raise RuntimeError("single-command output filters are reserved for reviewed log queries")
             for slot_name, slot in query.slots.items():
                 if (
                     not isinstance(slot_name, str)
@@ -1070,15 +1317,14 @@ def _validate_query_catalogs(
                     raise RuntimeError("query declares an invalid typed parameter")
 
             if sequence:
-                _validate_query_sequence(query)
+                _validate_query_sequence(platform, query)
             else:
                 _validate_query_command(platform, query.command)
-                if query.optional_slots:
-                    for slot_name in query.optional_slots:
-                        tail = " {" + slot_name + "}"
-                        if not query.command.endswith(tail) or query.command.count("{" + slot_name + "}") != 1:
-                            raise RuntimeError("optional parameter must be the trailing template field")
-                        _validate_query_command(platform, query.command.removesuffix(tail))
+                for slot_name in query.optional_slots - filter_only:
+                    tail = " {" + slot_name + "}"
+                    if not query.command.endswith(tail) or query.command.count("{" + slot_name + "}") != 1:
+                        raise RuntimeError("optional parameter must be the trailing template field")
+                    _validate_query_command(platform, query.command.removesuffix(tail))
             fields: list[str] = []
             templates = query.commands if sequence else (query.command,)
             try:
@@ -1096,20 +1342,51 @@ def _validate_query_catalogs(
                     fields.append(field)
             except ValueError as exc:
                 raise RuntimeError("query template is invalid") from exc
-            filter_only = query.filter_slots if sequence else frozenset()
             if (
                 len(fields) != len(set(fields))
                 or set(fields) | filter_only != set(query.slots)
                 or set(fields) & filter_only
             ):
                 raise RuntimeError("query template and slot declaration differ")
-            if sequence and not filter_only <= query.optional_slots:
-                raise RuntimeError("output filter parameters must be optional")
 
 
 if set(READ_QUERIES) != _EXPECTED_PLATFORMS:
     raise RuntimeError("canonical query platforms do not match the reviewed set")
 _validate_query_catalogs(READ_QUERIES)
+
+
+LOG_SEVERITIES = ("emergencies", "alerts", "critical", "errors", "warnings", "notifications", "informational",
+                  "debugging")
+LOG_WINDOW_KINDS = frozenset({
+    "eos_log_minutes", "nxos_log_count", "log_severity", "log_date", "log_time", "exos_log_source", "exos_log_severity",
+})
+
+
+def _valid_log_window_value(value: str, kind: str) -> bool:
+    """Validate typed log source, severity, minutes, date or time selectors."""
+    if kind in {"eos_log_minutes", "nxos_log_count"}:
+        limit = 1000 if kind == "nxos_log_count" else 9999
+        return len(value) <= 4 and _canonical_decimal(value, 1, limit) is not None
+    if kind == "log_severity":
+        return value in LOG_SEVERITIES
+    if kind == "exos_log_severity":
+        return value in EXOS_LOG_SEVERITIES
+    if kind == "exos_log_source":
+        return value in EXOS_LOG_SOURCES
+    pattern = r"20[0-9]{2}-[01][0-9]-[0-3][0-9]" if kind == "log_date" else r"[0-2][0-9]:[0-5][0-9]:[0-5][0-9]"
+    if not re.fullmatch(pattern, value):
+        return False
+    from datetime import datetime
+    try:
+        datetime.strptime(value, "%Y-%m-%d" if kind == "log_date" else "%H:%M:%S")
+    except ValueError:
+        return False
+    return True
+
+
+def check_log_range(parameters: Mapping[str, str]) -> None:
+    if (parameters["begin_date"], parameters["begin_time"]) > (parameters["end_date"], parameters["end_time"]):
+        raise ValueError("log time range must not end before it begins")
 
 
 def render_read_query(
@@ -1138,8 +1415,24 @@ def render_read_query(
     if isinstance(query, SequenceQuery):
         raise ValueError("query is a command sequence; use render_read_sequence")
     rendered = _render_slots(query, parameters, inventory)
+    if normalized in {"cisco_ios", "cisco_xe"} and query_name in {"mac_table_address", "c9800_client_detail"}:
+        # Catalyst IOS and IOS XE use the H.H.H form for MAC lookups.
+        compact = rendered["mac"].replace(":", "")
+        rendered["mac"] = ".".join(compact[start:start + 4] for start in (0, 4, 8))
+    if (normalized, query_name) in {("arista_eos", "log_messages_range"), ("extreme_exos", EXOS_LOG_HISTORY)}:
+        check_log_range(rendered)
+    if normalized == "cisco_nxos" and query_name == NXOS_LOG_HISTORY:
+        nxos_log_window(rendered)
+    if normalized == "extreme_exos" and query_name == EXOS_LOG_HISTORY:
+        for name in ("begin_date", "end_date"):
+            year, month, day = rendered[name].split("-")
+            rendered[name] = f"{month}/{day}/{year}"
+    if normalized in _JUNOS_PLATFORMS and query_name == LOG_HISTORY_QUERY:
+        log_window(rendered)
+    if normalized in {"cisco_ios", "cisco_xe"} and query_name == XE_LOG_HISTORY:
+        xe_log_window(rendered)
     command = query.command
-    for name in query.optional_slots:
+    for name in query.optional_slots - query.filter_slots:
         if name not in rendered:
             command = command.removesuffix(" {" + name + "}")
     return normalized, command.format_map(rendered)
@@ -1166,9 +1459,10 @@ def _render_slots(
                 raise ValueError(f"{name} is not enrolled in target inventory") from None
             rendered[name] = str(network.network_address)
             continue
-        if slot.inventory not in (None, LITERAL) and supplied_value not in inventory.get(slot.inventory, ()):
+        if slot.inventory not in (None, LITERAL) and not enrolled_interface(
+                supplied_value, slot.kind, inventory.get(slot.inventory, ())):
             raise ValueError(f"{name} is not enrolled in target inventory")
-        rendered[name] = value
+        rendered[name] = value.replace(".", " unit ", 1) if slot.kind == "junos_filter_interface" else value
     return rendered
 
 
@@ -1193,7 +1487,11 @@ def render_read_sequence(
         raise ValueError(f"unknown read sequence for platform: {normalized}")
     rendered = _render_slots(query, parameters, inventory)
     commands = tuple(command.format_map(rendered) for command in query.commands)
-    require_fortinet_sequence(commands)
+    if normalized == "fortiadc":
+        if commands != _FORTIADC_INTERFACE_SUMMARY:
+            raise ValueError("FortiADC command sequence is outside the reviewed shape")
+    else:
+        require_fortinet_sequence(commands)
     return normalized, commands, {name: rendered[name] for name in query.filter_slots if name in rendered}
 
 

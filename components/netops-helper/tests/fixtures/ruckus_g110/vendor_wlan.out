@@ -1,0 +1,9 @@
+show wlan all
+WLAN Service:
+  ID:
+    1:
+      NAME = wlan-sample
+      SSID = wlan-sample
+      Tunnel Mode = Disabled
+      DHCP relay = Disabled
+      L2/MAC = No ACLS

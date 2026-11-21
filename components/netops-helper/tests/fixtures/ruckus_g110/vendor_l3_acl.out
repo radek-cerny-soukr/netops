@@ -1,0 +1,20 @@
+show l3acl all
+L3/L4/IP ACL:
+  ID:
+    3:
+      Name= acl-sample
+      Description= sample policy
+      Default Action if no rule is matched= Deny all by default
+      Rules:
+        Order= 1
+        Description=
+        Type= Allow
+        Destination Address= Any
+        Destination Port= 53
+        Protocol= Any
+        Order= 2
+        Description=
+        Type= Allow
+        Destination Address= Any
+        Destination Port= 67
+        Protocol= Any

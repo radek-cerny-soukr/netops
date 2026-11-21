@@ -1,0 +1,147 @@
+{
+  "device": "iosv",
+  "port": 2251,
+  "profile": "cisco_ios",
+  "captures": [
+    {
+      "command": "show version",
+      "role": "RO",
+      "rc": 0,
+      "stdout": "\n\nCisco IOS Software, IOSv Software (VIOS-ADVENTERPRISEK9-M), Version 15.9(3)M12, RELEASE SOFTWARE (fc1)\nTechnical Support: http://www.cisco.com/techsupport\nCopyright (c) 1986-2025 by Cisco Systems, Inc.\nCompiled Fri 19-Sep-25 07:49 by mcpre\n\n\nROM: Bootstrap program is IOSv\n\nhost01 uptime is 1 week, 1 day, 8 hours, 2 minutes\nSystem returned to ROM by reload\nSystem image file is \"flash0:/vios-adventerprisek9-m\"\nLast reload reason: Unknown reason\n\n\n\nThis product contains cryptographic features and is subject to United\nStates and local country laws governing import, export, transfer and\nuse. Delivery of Cisco cryptographic products does not imply\nthird-party authority to import, export, distribute or use encryption.\nImporters, exporters, distributors and users are responsible for\ncompliance with U.S. and local country laws. By using this product you\nagree to comply with applicable laws and regulations. If you are unable\nto comply with U.S. and local laws, return this product immediately.\n\nA summary of U.S. laws governing Cisco cryptographic products may be found at:\nhttp://www.cisco.com/wwl/export/crypto/tool/stqrg.html\n\nIf you require further assistance please contact us by sending email to\nexport@cisco.com.\n\nCisco IOSv (revision 1.0) with  with 460021K/62464K bytes of memory.\nProcessor board ID 0SSSSSSSSS0SS0SSS1SSS\n4 Gigabit Ethernet interfaces\nDRAM configuration is 72 bits wide with parity disabled.\n256K bytes of non-volatile configuration memory.\n2097152K bytes of ATA System CompactFlash 0 (Read/Write)\n0K bytes of ATA CompactFlash 1 (Read/Write)\n0K bytes of ATA CompactFlash 2 (Read/Write)\n0K bytes of ATA CompactFlash 3 (Read/Write)\n\n\n\nConfiguration register is 0x0\n",
+      "error": ""
+    },
+    {
+      "command": "show aaa servers",
+      "role": "RO",
+      "rc": 0,
+      "stdout": "\n\n",
+      "error": ""
+    },
+    {
+      "command": "show radius statistics",
+      "role": "RO",
+      "rc": 0,
+      "stdout": "\n\n                                  Auth.      Acct.       Both\n         Maximum inQ length:         NA         NA          0\n       Maximum waitQ length:         NA         NA          0\n       Maximum doneQ length:         NA         NA          0\n       Total responses seen:          0          0          0\n     Packets with responses:          0          0          0\n  Packets without responses:          0          0          0\n  Access Rejects           :          0\n Average response delay(ms):          0          0          0\n Maximum response delay(ms):          0          0          0\n  Number of Radius timeouts:          0          0          0\n       Duplicate ID detects:          0          0          0\n Buffer Allocation Failures:          0          0          0\nMaximum Buffer Size (bytes):          0          0          0\nMalformed Responses        :          0          0          0\nBad Authenticators         :          0          0          0\nUnknown Responses          :          0          0          0\n Source Port Range: (2 ports only)\n 1645 - 1646\n Last used Source Port/Identifier:\n 1645/0\n 1646/0\n\n  Elapsed time since counters last cleared: 1w1d8h2m\nRadius Latency Distribution:\n<= 2ms :          0          0\n3-5ms  :          0          0\n5-10ms :          0          0\n10-20ms:          0          0\n20-50ms:          0          0\n50-100m:          0          0\n>100ms :          0          0\n\nCurrent inQ length  : 0\nCurrent doneQ length: 0\n",
+      "error": ""
+    },
+    {
+      "command": "show tacacs",
+      "role": "RO",
+      "rc": 0,
+      "stdout": "\n\n",
+      "error": ""
+    },
+    {
+      "command": "show snmp",
+      "role": "RO",
+      "rc": 0,
+      "stdout": "\n\n\n%SNMP agent not enabled",
+      "error": ""
+    },
+    {
+      "command": "show snmp engineID",
+      "role": "RO",
+      "rc": 0,
+      "stdout": "\n\n\nLine has invalid autocommand \"show snmp engineID\"",
+      "error": ""
+    },
+    {
+      "command": "show hosts",
+      "role": "RO",
+      "rc": 0,
+      "stdout": "\n\n\nDefault domain is host01\nName/address lookup uses static mappings\n\nCodes: UN - unknown, EX - expired, OK - OK, ?? - revalidate\n       temp - temporary, perm - permanent\n       NA - Not Applicable None - Not defined\n\nHost                      Port  Flags      Age Type   Address(es)",
+      "error": ""
+    },
+    {
+      "command": "show users",
+      "role": "RO",
+      "rc": 0,
+      "stdout": "\n\n\n    Line       User       Host(s)              Idle       Location\n*578 vty 0     user01     idle                 00:00:00 192.0.2.66\n\n  Interface    User               Mode         Idle     Peer Address\n",
+      "error": ""
+    },
+    {
+      "command": "show ssh",
+      "role": "RO",
+      "rc": 0,
+      "stdout": "\n\n\nConnection Version Mode  Encryption  Hmac\t   State\t        Username\n0          2.0     IN   aes128-ctr  hmac-sha2-256 Session started       user01\n0          2.0     OUT  aes128-ctr  hmac-sha2-256 Session started       user01",
+      "error": ""
+    },
+    {
+      "command": "show line",
+      "role": "RO",
+      "rc": 0,
+      "stdout": "\n\n\n   Tty Typ     Tx/Rx    A Modem  Roty AccO AccI   Uses   Noise  Overruns   Int\n      0 CTY              -    -      -    -    -      0       0     0/0       -\n      1 AUX   9600/9600  -    -      -    -    -      0       0     0/0       -\n*   578 VTY              -    -      -    -    -   1691       0     0/0       -\n    579 VTY              -    -      -    -    -    211       0     0/0       -\n    580 VTY              -    -      -    -    -     12       0     0/0       -\n    581 VTY              -    -      -    -    -      6       0     0/0       -\n    582 VTY              -    -      -    -    -      6       0     0/0       -\n    583 VTY              -    -      -    -    -      0       0     0/0       -\n    584 VTY              -    -      -    -    -      0       0     0/0       -\n    585 VTY              -    -      -    -    -      0       0     0/0       -\n    586 VTY              -    -      -    -    -      0       0     0/0       -\n    587 VTY              -    -      -    -    -      0       0     0/0       -\n    588 VTY              -    -      -    -    -      0       0     0/0       -\n    589 VTY              -    -      -    -    -      0       0     0/0       -\n    590 VTY              -    -      -    -    -      0       0     0/0       -\n    591 VTY              -    -      -    -    -      0       0     0/0       -\n    592 VTY              -    -      -    -    -      0       0     0/0       -\n    593 VTY              -    -      -    -    -      0       0     0/0       -\n\nLine(s) not in async mode -or- with no hardware support: \n2-577\n ",
+      "error": ""
+    },
+    {
+      "command": "show version",
+      "role": "ADMIN",
+      "rc": 0,
+      "stdout": "\n\nCisco IOS Software, IOSv Software (VIOS-ADVENTERPRISEK9-M), Version 15.9(3)M12, RELEASE SOFTWARE (fc1)\nTechnical Support: http://www.cisco.com/techsupport\nCopyright (c) 1986-2025 by Cisco Systems, Inc.\nCompiled Fri 19-Sep-25 07:49 by mcpre\n\n\nROM: Bootstrap program is IOSv\n\nhost01 uptime is 1 week, 1 day, 8 hours, 2 minutes\nSystem returned to ROM by reload\nSystem image file is \"flash0:/vios-adventerprisek9-m\"\nLast reload reason: Unknown reason\n\n\n\nThis product contains cryptographic features and is subject to United\nStates and local country laws governing import, export, transfer and\nuse. Delivery of Cisco cryptographic products does not imply\nthird-party authority to import, export, distribute or use encryption.\nImporters, exporters, distributors and users are responsible for\ncompliance with U.S. and local country laws. By using this product you\nagree to comply with applicable laws and regulations. If you are unable\nto comply with U.S. and local laws, return this product immediately.\n\nA summary of U.S. laws governing Cisco cryptographic products may be found at:\nhttp://www.cisco.com/wwl/export/crypto/tool/stqrg.html\n\nIf you require further assistance please contact us by sending email to\nexport@cisco.com.\n\nCisco IOSv (revision 1.0) with  with 460021K/62464K bytes of memory.\nProcessor board ID 0SSSSSSSSS0SS0SSS1SSS\n4 Gigabit Ethernet interfaces\nDRAM configuration is 72 bits wide with parity disabled.\n256K bytes of non-volatile configuration memory.\n2097152K bytes of ATA System CompactFlash 0 (Read/Write)\n0K bytes of ATA CompactFlash 1 (Read/Write)\n0K bytes of ATA CompactFlash 2 (Read/Write)\n0K bytes of ATA CompactFlash 3 (Read/Write)\n\n\n\nConfiguration register is 0x0\n",
+      "error": ""
+    },
+    {
+      "command": "show aaa servers",
+      "role": "ADMIN",
+      "rc": 0,
+      "stdout": "\n\n",
+      "error": ""
+    },
+    {
+      "command": "show radius statistics",
+      "role": "ADMIN",
+      "rc": 0,
+      "stdout": "\n\n                                  Auth.      Acct.       Both\n         Maximum inQ length:         NA         NA          0\n       Maximum waitQ length:         NA         NA          0\n       Maximum doneQ length:         NA         NA          0\n       Total responses seen:          0          0          0\n     Packets with responses:          0          0          0\n  Packets without responses:          0          0          0\n  Access Rejects           :          0\n Average response delay(ms):          0          0          0\n Maximum response delay(ms):          0          0          0\n  Number of Radius timeouts:          0          0          0\n       Duplicate ID detects:          0          0          0\n Buffer Allocation Failures:          0          0          0\nMaximum Buffer Size (bytes):          0          0          0\nMalformed Responses        :          0          0          0\nBad Authenticators         :          0          0          0\nUnknown Responses          :          0          0          0\n Source Port Range: (2 ports only)\n 1645 - 1646\n Last used Source Port/Identifier:\n 1645/0\n 1646/0\n\n  Elapsed time since counters last cleared: 1w1d8h2m\nRadius Latency Distribution:\n<= 2ms :          0          0\n3-5ms  :          0          0\n5-10ms :          0          0\n10-20ms:          0          0\n20-50ms:          0          0\n50-100m:          0          0\n>100ms :          0          0\n\nCurrent inQ length  : 0\nCurrent doneQ length: 0\n",
+      "error": ""
+    },
+    {
+      "command": "show tacacs",
+      "role": "ADMIN",
+      "rc": 0,
+      "stdout": "\n\n",
+      "error": ""
+    },
+    {
+      "command": "show snmp",
+      "role": "ADMIN",
+      "rc": 0,
+      "stdout": "\n\n\n%SNMP agent not enabled",
+      "error": ""
+    },
+    {
+      "command": "show snmp engineID",
+      "role": "ADMIN",
+      "rc": 0,
+      "stdout": "\n\n\n%SNMP agent not enabled",
+      "error": ""
+    },
+    {
+      "command": "show hosts",
+      "role": "ADMIN",
+      "rc": 0,
+      "stdout": "\n\n\nDefault domain is host01\nName/address lookup uses static mappings\n\nCodes: UN - unknown, EX - expired, OK - OK, ?? - revalidate\n       temp - temporary, perm - permanent\n       NA - Not Applicable None - Not defined\n\nHost                      Port  Flags      Age Type   Address(es)",
+      "error": ""
+    },
+    {
+      "command": "show users",
+      "role": "ADMIN",
+      "rc": 0,
+      "stdout": "\n\n\n    Line       User       Host(s)              Idle       Location\n*578 vty 0     user01     idle                 00:00:00 192.0.2.66\n\n  Interface    User               Mode         Idle     Peer Address\n",
+      "error": ""
+    },
+    {
+      "command": "show ssh",
+      "role": "ADMIN",
+      "rc": 0,
+      "stdout": "\n\n\nConnection Version Mode  Encryption  Hmac\t   State\t        Username\n0          2.0     IN   aes128-ctr  hmac-sha2-256 Session started       user02\n0          2.0     OUT  aes128-ctr  hmac-sha2-256 Session started       user02",
+      "error": ""
+    },
+    {
+      "command": "show line",
+      "role": "ADMIN",
+      "rc": 0,
+      "stdout": "\n\n\n   Tty Typ     Tx/Rx    A Modem  Roty AccO AccI   Uses   Noise  Overruns   Int\n      0 CTY              -    -      -    -    -      0       0     0/0       -\n      1 AUX   9600/9600  -    -      -    -    -      0       0     0/0       -\n*   578 VTY              -    -      -    -    -   1701       0     0/0       -\n    579 VTY              -    -      -    -    -    211       0     0/0       -\n    580 VTY              -    -      -    -    -     12       0     0/0       -\n    581 VTY              -    -      -    -    -      6       0     0/0       -\n    582 VTY              -    -      -    -    -      6       0     0/0       -\n    583 VTY              -    -      -    -    -      0       0     0/0       -\n    584 VTY              -    -      -    -    -      0       0     0/0       -\n    585 VTY              -    -      -    -    -      0       0     0/0       -\n    586 VTY              -    -      -    -    -      0       0     0/0       -\n    587 VTY              -    -      -    -    -      0       0     0/0       -\n    588 VTY              -    -      -    -    -      0       0     0/0       -\n    589 VTY              -    -      -    -    -      0       0     0/0       -\n    590 VTY              -    -      -    -    -      0       0     0/0       -\n    591 VTY              -    -      -    -    -      0       0     0/0       -\n    592 VTY              -    -      -    -    -      0       0     0/0       -\n    593 VTY              -    -      -    -    -      0       0     0/0       -\n\nLine(s) not in async mode -or- with no hardware support: \n2-577\n ",
+      "error": ""
+    }
+  ]
+}

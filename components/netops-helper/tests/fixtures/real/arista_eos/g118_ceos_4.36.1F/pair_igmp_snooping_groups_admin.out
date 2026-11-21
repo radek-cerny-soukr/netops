@@ -1,0 +1,6 @@
+IGMP Snooping Group Membership
+EX : Filter mode Exclude
+IN : Filter mode Include
+IR : Ingress Replication
+VLAN  Group            Members
+----  ---------------  ----------------------------------------

@@ -85,6 +85,7 @@ class FakeNxos:
         self.on_fire = None
         self.clock_refused = False
         self.line_guard = None
+        self.line_sent = None
         self.line_answered = None
         self.last_answers = ()
         self.line_seconds = 0
@@ -131,6 +132,19 @@ class FakeNxos:
         return "\n".join(lines) + "\n"
 
     snapshot = running
+
+    def query_interactive(self, command, spec):
+        assert command == "show users"
+        return self.query(command)
+
+    def with_interactive_reader(self, spec, callback):
+        def read(command):
+            if command == "show sockets connection tcp foreign 192.0.2.36":
+                path = FIXTURES.parent / "nxos_g102" / "ssh-sockets-management.txt"
+                return path.read_text().replace("198.51.100.60", "192.0.2.36")
+            return self.query(command)
+
+        return callback(read)
 
     def _block(self, header):
         start = self.body.index(header)
@@ -227,6 +241,8 @@ class FakeNxos:
                                   % number, accepted)
             if self.on_line is not None:
                 self.on_line(self, step)
+            if self.line_sent is not None:
+                self.line_sent(number)
             answer = self._line(step, mode)
             answers.append("%s\n%s" % (step, answer))
             if self.line_seconds:
@@ -447,6 +463,8 @@ class FakeNxos:
                            for port in self.lldp_extra)
             total = 1 + len(self.lldp_extra)
             return text.replace("Total entries displayed: 1", rows + "Total entries displayed: %d" % total)
+        if command == "show cdp neighbors":
+            return (FIXTURES.parent / "nxos_g100" / "d-nxos__cdp.txt").read_text(encoding="utf-8")
         match = re.fullmatch(r"show mac address-table interface (\S+)", command)
         if match:
             count = self.learned_macs.get(match.group(1), 0)

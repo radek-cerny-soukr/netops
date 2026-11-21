@@ -1,0 +1,7 @@
+diagnose server-load-balance persistence filter show
+filter flag:1010
+source ip range: 192.0.2.100 - 192.0.2.100
+source port range: any
+dest ip range: any
+dest port range: any
+virtual server: LAB_VS_SMTP

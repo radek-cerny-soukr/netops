@@ -1,0 +1,13 @@
+
+
+
+Routing entry for 192.0.2.0/24
+  Known via "bgp 65001", distance 20, metric 0
+  Tag 65007, type external
+  Last update from 198.51.100.7 2d15h ago
+  Routing Descriptor Blocks:
+  * 198.51.100.7, from 198.51.100.7, 2d15h ago
+      Route metric is 0, traffic share count is 1
+      AS Hops 1
+      Route tag 65007
+      MPLS label: none

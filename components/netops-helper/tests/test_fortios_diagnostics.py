@@ -103,7 +103,8 @@ class Library:
 
 @pytest.mark.parametrize("kwargs", [
     {"recipe":"reset"},{"address":"192.0.2.183;reboot"},{"address":"224.0.0.1"},
-    {"address":"0.0.0.0"},{"address":"255.255.255.255"},{"address":"::1"},
+    {"address":"0.0.0.0"},{"address":"255.255.255.255"},{"recipe":"sniffer","address":"::1"},
+    {"address":"ff02::1"},{"address":"::"},
     {"interface":"any"},{"interface":"port2\nend"},{"interface":"port2;reset"},
     {"count":0},{"count":9},{"count":True},{"timeout":0},{"timeout":11},
     {"timeout":1.5},{"max_bytes":999},{"max_bytes":16001},
@@ -243,20 +244,65 @@ def test_existing_debug_is_not_disabled():
                    for command in shell.commands)
 
 
-def test_unmeasured_identity_never_sets_options():
+def test_untested_identity_runs_and_reports_firmware_support():
+    # G00 (2026-11-17): a build outside the tested identities is not refused; the run reports it as untested.
     shell = Shell("ping")
-    original = shell.command
-    shell.command = lambda command, timeout=10: original(command, timeout).replace("build3704", "build9999")
-    with pytest.raises(ValueError):
-        d.run(shell,"ping",IP,INTERFACE,2,1)
-    assert shell.commands == ["get system status"]
+    before = dict(shell.options)
+    shell.status_line = shell.status_line.replace("build3704", "build9999")
+    support = []
+    result, timed_out, identity, domain = d.run(shell, "ping", IP, INTERFACE, 2, 1, support=support)
+    assert result == "untrusted device output" and identity == ("FortiGate-VM64-KVM", "7.6.7", "9999")
+    assert shell.options == before and "execute ping " + IP in shell.commands
+    assert support[0]["status"] == "untested" and support[0]["device_version"] == "7.6.7 build9999"
+    assert support[0]["model"] == "FortiGate-VM64-KVM"
+    assert "FortiGate-VM64-KVM 7.6.7 build3704" in support[0]["tested_versions"]
+    assert support[0]["message"].startswith("FortiOS 7.6.7 build9999 on FortiGate-VM64-KVM is not among the versions "
+                                            "fortios_diagnostics ping was tested on (")
 
+    # The tuple was tested on other identities only: it runs, and a FortiOS 7.x takes the 7.6.8 range form (T3).
     tuple_shell = Shell("sessions")
-    with pytest.raises(ValueError, match="TCP or UDP diagnostic tuples are not qualified"):
-        d.run(tuple_shell,"sessions",IP,INTERFACE,2,1,
-              source_address="192.0.2.184",source_port=49152,
-              destination_port=443,protocol=6)
-    assert tuple_shell.commands == ["get system status"]
+    support = []
+    d.run(tuple_shell, "sessions", IP, INTERFACE, 2, 1, source_address="192.0.2.184", source_port=49152,
+          destination_port=443, protocol=6, support=support)
+    assert support[0]["status"] == "untested"
+    assert "with a TCP or UDP tuple" in support[0]["message"]
+    assert "diagnose sys session filter src 192.0.2.184 192.0.2.184" in tuple_shell.commands
+    assert "diagnose sys session filter dport 443 443" in tuple_shell.commands
+    assert tuple_shell.filter_values == {field: "any" for field in d.SESSION_FIELDS}
+
+
+@pytest.mark.parametrize("status_line,repeated", [
+    ("Version: FortiGate-60F v7.6.8,build3744,240101", True),
+    ("Version: FortiGate-60F v7.6.9,build3800,260101", True),
+    ("Version: FortiGate-80F v7.4.9,build2850,250101", True),
+    ("Version: FortiGate-80F v8.0.2,build0251,260928 (GA.F)", False),
+    ("Version: FortiGate-80F v8.0.3,build0300,270101", False),
+    ("Version: FortiGate-60F v8.2.0,build0400,270101", False),
+])
+def test_filter_range_variant_follows_the_major_version(status_line, repeated):
+    shell = Shell("sessions")
+    shell.status_line = status_line
+    support = []
+    d.run(shell, "sessions", IP, INTERFACE, 2, 1, source_address="192.0.2.184", source_port=49152,
+          destination_port=443, protocol=6, support=support)
+    command = "diagnose sys session filter dst " + IP + (" " + IP if repeated else "")
+    assert command in shell.commands
+    tested = status_line in ("Version: FortiGate-60F v7.6.8,build3744,240101",
+                             "Version: FortiGate-80F v8.0.2,build0251,260928 (GA.F)")
+    assert support[0]["status"] == ("tested" if tested else "untested")
+    assert (support[0]["message"] is None) is tested
+
+
+def test_tested_identity_reports_tested_firmware_support():
+    for line, recipe, kwargs in (
+            ("Version: FortiGate-VM64-KVM v7.6.7,build3704,240101", "ping", {}),
+            ("Version: FortiGate-80F v8.0.2,build0251,260928 (GA.F)", "sessions",
+             {"source_address": "192.0.2.184", "source_port": 49152, "destination_port": 443, "protocol": 6})):
+        shell = Shell(recipe)
+        shell.status_line = line
+        support = []
+        d.run(shell, recipe, IP, INTERFACE, 2, 1, support=support, **kwargs)
+        assert support[0]["status"] == "tested" and support[0]["message"] is None
 
 
 def test_missing_live_interface_never_sets_options():
@@ -503,23 +549,35 @@ def test_flow_runs_when_console_timestamp_is_not_enabled(timestamp):
     "Version: FortiGate-VM64-KVM v7.6.7,build3704,240101",
     "Version: FortiGate-VM64-KVM v8.0.0,build0167,250101",
 ])
-def test_flow_with_unmeasured_console_timestamp_is_refused_before_any_change(adc_engine, monkeypatch, status_line):
+def test_flow_with_untested_console_timestamp_runs_with_a_warning(adc_engine, monkeypatch, status_line):
+    # G00: timestamped trace lines were tested on three identities; elsewhere flow runs and warns.
     from netops_helper import engine
     use, _ = adc_engine
-    shell = Shell("flow")
+    shell = TimestampFlowShell("flow")
     shell.status_line = status_line
     shell.timestamp = "enable"
+    shell.trace = TS_TRACE_VM64_802
     monkeypatch.setattr(engine, "_FortiosDiagnosticShell", lambda session: shell)
-    with pytest.raises(d.OptionRefused) as refused:
-        use(FlowSession()).fortios_diagnostics(FlowAuth(), "flow", IP, INTERFACE, 8, 1, 16000)
-    assert str(refused.value) == (
-        "FortiOS reports 'console timestamp: enable' in 'diagnose debug info', and the shape of timestamped flow "
-        "trace lines is not measured for this hardware and build; flow was not run and nothing was changed. Run "
-        "'diagnose debug console timestamp disable' if that console setting is not needed, or run the trace on the "
-        "device.")
-    assert shell.commands[-1] == "diagnose debug info"
-    assert not any(command.startswith(("diagnose debug flow", "diagnose debug enable", "diagnose debug disable"))
-                   for command in shell.commands)
+    result = use(FlowSession()).fortios_diagnostics(FlowAuth(), "flow", IP, INTERFACE, 8, 1, 16000)
+    assert result["ok"] is True and result["cleanup"] == "verified" and result["trace_state"] == "captured"
+    assert result["firmware_support"]["status"] == "untested"
+    assert "with console timestamps" in result["firmware_support"]["message"]
+    assert result["warnings"] == [{"code": "firmware_untested", "message": result["firmware_support"]["message"]}]
+    _cleaned_up(shell)
+    assert not any(command.startswith("diagnose debug console") for command in shell.commands)
+
+
+def test_flow_on_a_tested_identity_has_no_warning(adc_engine, monkeypatch):
+    from netops_helper import engine
+    use, _ = adc_engine
+    shell = TimestampFlowShell("flow")
+    shell.status_line = "Version: FortiGate-80F v8.0.2,build0251,260928 (GA.F)"
+    shell.timestamp = "enable"
+    shell.trace = TS_TRACE_VM64_802
+    monkeypatch.setattr(engine, "_FortiosDiagnosticShell", lambda session: shell)
+    result = use(FlowSession()).fortios_diagnostics(FlowAuth(), "flow", IP, INTERFACE, 8, 1, 16000)
+    assert result["ok"] is True and result["firmware_support"]["status"] == "tested"
+    assert result["firmware_support"]["message"] is None and "warnings" not in result
 
 
 def test_diagnostic_audit_fields_are_accepted_by_core(tmp_path):
@@ -642,8 +700,8 @@ def load_gate():
 @pytest.mark.parametrize("old,new", [
     ("diagnostics.authorize(auth, recipe, address, interface, vdom, source_address=source_address)",
      "diagnostics.authorize(auth, recipe, address, interface, None, source_address=source_address)"),
-    ("diagnostics.run(\n                        shell, recipe, address, interface, count, timeout, vdom, reconnect=reconnect,\n                        source_address=source_address, source_port=source_port,\n                        destination_port=destination_port, protocol=protocol, window=window)",
-     "diagnostics.run(\n                        shell, recipe, address, interface, count, timeout, None, reconnect=reconnect,\n                        source_address=source_address, source_port=source_port,\n                        destination_port=destination_port, protocol=protocol, window=window)"),
+    ("diagnostics.run(\n                    shell, recipe, address, interface, count, timeout, vdom,\n                    source_address=source_address, source_port=source_port,\n                    destination_port=destination_port, protocol=protocol, window=window, support=support,\n                    close_with_operation=True, reconnect=lambda: reader.cleanup_shell(\"fortinet\"), **g10)",
+     "diagnostics.run(\n                    shell, recipe, address, interface, count, timeout, None,\n                    source_address=source_address, source_port=source_port,\n                    destination_port=destination_port, protocol=protocol, window=window, support=support,\n                    close_with_operation=True, reconnect=lambda: reader.cleanup_shell(\"fortinet\"), **g10)"),
     ("@_audit_device_call\ndef fortios_diagnostics", "def fortios_diagnostics"),
     ("    diagnostics.adc_authorize(auth, recipe, address, health_check)\n", ""),
     ("diagnostics.adc_run(shell, recipe, address, timeout, count, health_check)", "diagnostics.adc_run(shell, recipe, address, 60, count, health_check)"),
@@ -666,7 +724,6 @@ def test_release_gate_rejects_diagnostic_boundary_mutations(old,new):
     ('vdom is not None and vdom != domain', 'False'),
     ('identity, domain, mode = status_identity(shell.command("get system status"))',
      'identity, domain, mode = (("FortiGate-VM64-KVM", "7.6.7", "3704"), "root", "disable")'),
-    ('    if identity not in IDENTITIES:', '    if False:'),
 ])
 def test_release_gate_rejects_unverified_vdom_mutations(old,new):
     import ast
@@ -904,7 +961,8 @@ def test_inventory_refuses_recipes_the_platform_lacks(platform, recipes, accepte
             validate_query_inventory(platform, (), {"diagnostic_recipes": recipes})
 
 
-@pytest.mark.parametrize("platform,accepted", [("fortiadc", True), ("fortios", False)])
+# G09 (FP-04): FortiOS ping and traceroute take an enrolled DNS name too.
+@pytest.mark.parametrize("platform,accepted", [("fortiadc", True), ("fortios", True), ("cisco_ios", False)])
 def test_inventory_refuses_dns_names_outside_fortiadc(platform, accepted):
     from netops_helper.read_policy import validate_query_inventory
     inventory = {"diagnostic_recipes": ("ping",), "diagnostic_names": (ADC_NAME,)}
@@ -934,6 +992,7 @@ class AdcSession:
     def __init__(self, version="v7.6.7,build0676", tail=""):
         self.queue = [b"login\r\n" + ADC_PROMPT]
         self.version, self.tail, self.pending = version, tail, b""
+        self.product = "FortiADC-KVM"
         self.sent = []
         self.interrupted = threading.Event()
     def __enter__(self):
@@ -950,7 +1009,7 @@ class AdcSession:
     def send(self, command):
         self.sent.append(command)
         if command == "get system status":
-            self.queue.append(("get system status\r\nVersion: FortiADC-KVM " + self.version + ",260522 (GA.M)\r\n").encode() + ADC_PROMPT)
+            self.queue.append(("get system status\r\nVersion: " + self.product + " " + self.version + ",260522 (GA.M)\r\n").encode() + ADC_PROMPT)
         else:
             self.pending = (command + "\r\ntraceroute to " + IP + " (" + IP + "), 30 hops max, 46 byte packets\r\n"
                             " 1  *  *  *\r\n^C\r\n" + self.tail).encode()
@@ -974,7 +1033,7 @@ def adc_engine(tmp_path, monkeypatch):
     monkeypatch.setattr(engine, "DeviceCredential", lambda auth: None)
     opened = []
     def use(session):
-        monkeypatch.setattr(engine.core_session, "Session", lambda *args, **kwargs: opened.append(args) or session)
+        monkeypatch.setattr(engine.core_session, "fortinet_session", lambda *args, **kwargs: opened.append(args) or session)
         return engine
     use.opened = opened
     return use, tmp_path/"audit.jsonl"
@@ -1065,10 +1124,31 @@ def test_adc_log_session_failure_is_withheld_and_closed(adc_engine):
     assert len(use.opened) == 1
 
 
-def test_adc_unmeasured_firmware_is_not_supported(adc_engine):
+def test_adc_untested_firmware_runs_with_a_warning(adc_engine):
+    # G00 (2026-11-17): another FortiADC build runs the recipe and reports firmware_support "untested".
     use, _ = adc_engine
     session = AdcSession(version="v7.6.8,build0700")
-    with pytest.raises(d.UnsupportedPlatform, match="config_platform_not_supported"):
+    result = use(session).fortios_diagnostics(AdcAuth(), "traceroute", IP, "", 3, 1, 16000)
+    assert result["ok"] is True and session.sent[0] == "get system status" and len(session.sent) > 1
+    support = result["firmware_support"]
+    assert (support["status"], support["platform"], support["device_version"]) == ("untested", "FortiADC",
+                                                                                   "7.6.8 build0700")
+    assert support["tested_versions"] == ["FortiADC-KVM 7.6.7 build0676"]
+    assert "fortios_diagnostics traceroute for FortiADC was tested on" in support["message"]
+    assert result["warnings"] == [{"code": "firmware_untested", "message": support["message"]}]
+
+
+def test_adc_tested_firmware_has_no_warning(adc_engine):
+    use, _ = adc_engine
+    result = use(AdcSession()).fortios_diagnostics(AdcAuth(), "traceroute", IP, "", 3, 1, 16000)
+    assert result["firmware_support"]["status"] == "tested" and "warnings" not in result
+
+
+def test_adc_other_product_is_still_refused(adc_engine):
+    use, _ = adc_engine
+    session = AdcSession(version="v7.6.7,build0676")
+    session.product = "FortiGate-VM64"
+    with pytest.raises(ValueError, match="bounded FortiADC diagnostic failed"):
         use(session).fortios_diagnostics(AdcAuth(), "traceroute", IP, "", 3, 1, 16000)
     assert session.sent == ["get system status"]
 
@@ -1292,7 +1372,7 @@ def test_engine_sessions_output_is_projected(monkeypatch):
     monkeypatch.setattr(engine, "_paced_connection", lambda *a: nullcontext())
     monkeypatch.setattr(engine, "DeviceCredential", lambda auth: None)
     monkeypatch.setattr(engine, "_FortiosDiagnosticShell", lambda session: session)
-    monkeypatch.setattr(engine.core_session, "Session", lambda *a, **k: nullcontext(SimpleNamespace(close=lambda: None)))
+    monkeypatch.setattr(engine.core_session, "fortinet_session", lambda *a, **k: nullcontext(SimpleNamespace(close=lambda: None)))
     auth = SimpleNamespace(alias="fgt", secrets=(), host_key_fingerprint="pin", port=22, login="ro", legacy_ssh=False,
                            ssh_platform="fortinet")
     result = engine.fortios_diagnostics.__wrapped__(auth, "sessions", IP, INTERFACE, 1, 5, 16000)
@@ -1576,11 +1656,17 @@ def test_fortiadc_state_list_selects_enrolled_virtual_server_and_restores_empty_
     assert result["header_only"] and result["returned_records"] == 0 and result["virtual_server"] == ADC_VS
     assert shell.commands == adc_state_sequence(family)
     assert not any(command.endswith((" session clear", " persistence clear")) for command in shell.commands)
-    rows = ADCStateShell(family, rows=("row 1", "row 2"))
+    # G28 r2 (ADC-C08): rows are parsed; the shape of the measured rows (16 words per session, 13 per persistence).
+    shaped = {"session": "192.0.2.1 %d 192.0.2.10 80 192.0.2.2 2 192.0.2.11 80 6 http ESTABLISHED 0 0 100 " + ADC_VS + " RS_A",
+              "persistence": "192.0.2.1 %d 192.0.2.10 80 0.0.0.0 0 192.0.2.11 80 6 http 300 " + ADC_VS + " RS_A"}[family]
+    rows = ADCStateShell(family, rows=(shaped % 1, shaped % 2))
     listed = adc.run_state_list(rows, recipe, ADC_VS, 1, 10)
     assert listed["ok"] and not listed["header_only"] and listed["count_truncated"]
     assert listed["loaded_records"] == 2 and listed["returned_records"] == 1
-    assert listed["output"] == adc.LIST_HEADERS[family] + "\nrow 1"
+    assert listed["output"] == adc.LIST_HEADERS[family] + "\n" + shaped % 1
+    assert [row["client_port"] for row in listed["records"]] == [1] and listed["records"][0]["real_server"] == "RS_A"
+    unparsed = adc.run_state_list(ADCStateShell(family, rows=("row 1",)), recipe, ADC_VS, 3, 10)
+    assert not unparsed["ok"] and unparsed["unrecognized_body"] and unparsed["records"] == []
     unknown = adc.run_state_list(ADCStateShell(family, header="other header"), recipe, ADC_VS, 3, 10)
     assert not unknown["ok"] and unknown["state"] == "incomplete" and unknown["unrecognized_body"]
     assert unknown["cleanup"] == "verified"

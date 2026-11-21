@@ -1,0 +1,6 @@
+Port:	13
+	Type:		NONE
+	Admin state:	Enabled with  10G full-duplex
+	Link State:	Ready
+	Jumbo:		Disabled
+	Static MAC-based VLANs:       	Disabled

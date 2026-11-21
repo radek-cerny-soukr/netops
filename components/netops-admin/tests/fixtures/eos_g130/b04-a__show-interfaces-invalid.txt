@@ -1,0 +1,3 @@
+
+> show interfaces Ethernet99
+% Invalid input at line 1

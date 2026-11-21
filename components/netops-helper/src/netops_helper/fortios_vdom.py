@@ -61,6 +61,9 @@ DATA_SCOPES = {
         "performance", "conserve_state", "cpu_cores", "hardware_memory", "disk_status", "system_top",
         "ha_status", "ha_checksum", "ha_nonsync_checksum", "ha_sync_statistics", "ha_history",
         "ntp_status", "autoupdate_status", "autoupdate_versions", "fortiguard_communication",
+        "hardware_sensors", "crash_log", "config_error_log",
+        # G11: `diagnose netlink interface list` lists every kernel interface; its VDOM scope was not measured.
+        "interface_list", "local_stp_ports", "local_switch_vlans",
     ), "device"),
 }
 # The global system state reads of triage_health. Measured (task 197, `35-diag-ctx-cliconfig`): inside

@@ -1,0 +1,8 @@
+{
+    "interfaces": {
+        "Vlan200": {
+            "name": "Vlan200",
+            "lineProtocolStatus": "up"
+        }
+    }
+}

@@ -1,0 +1,47 @@
+Vdom: root
+
+S000SSSS00000001:
+
+Switch Trunk Information, primary-Channel
+
+
+  Trunk Name:  00005E005301-0
+  Mode:  lacp-active (auto-isl)
+  Port Selection Algorithm: src-dst-ip
+  Trunk MAC: 00:00:5E:00:53:02
+  Trunk ID:  0
+
+  Active Port  Up  Time
+  ___________  _________________________
+
+  port1        5 days,3 hours,44 mins,4 secs
+
+  Non-Active Port  Status
+  _______________  ____________________
+
+
+LACP flags: (A|P)(S|F)(A|I)(I|O)(E|D)(E|D)
+(A|P) - LACP mode is Active or Passive
+(S|F) - LACP speed is Slow or Fast
+(A|I) - Aggregatable or Individual
+(I|O) - Port In sync or Out of sync
+(E|D) - Frame collection is Enabled or Disabled
+(E|D) - Frame distribution is Enabled or Disabled
+
+status: up
+ports: 1
+LACP mode: active
+LACP speed: slow
+aggregator ID: 1
+actor key: 17
+actor MAC address: 00:00:5e:00:53:02
+partner key: 17
+partner MAC address: 00:00:5e:00:53:01
+
+slave: port1
+  status: up
+  link failure count: 12
+  permanent MAC addr: 00:00:5e:00:53:02
+  actor state: ASAIEE
+  partner state: ASAIEE
+  aggregator ID: 1

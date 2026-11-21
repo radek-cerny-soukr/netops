@@ -8,27 +8,33 @@ from pathlib import Path
 from netops_admin.errors import Rejected, shown
 from netops_admin.jsontext import loads
 from netops_auditor.management import load_policy
+from netops_core.hostkey import HostKeyError, checked_public_key
 from netops_core.inputs import InputError, read_regular
 
 CONFIG_VERSION = 1
 CONFIG_MAX_BYTES = 1024 * 1024
 SAFEGUARD_MAX_SECONDS = 900
 CONFIG_FIELDS = frozenset(("version", "state_dir", "audit_file", "export_status_file", "export_status_require_audit_file",
-                           "notify", "limits", "devices"))
+                           "notify", "limits", "devices", "mcp_undo"))
 DEVICE_FIELDS = frozenset((
     "platform", "address", "port", "host_key_fingerprint", "vault", "credential", "firmware",
     "safeguard_seconds", "confirm_margin_seconds", "protected", "legacy_ssh", "accounts", "check_credential",
-    "check_address", "audit_policy", "schema", "opt_in",
+    "check_address", "audit_policy", "schema", "opt_in", "wlans", "host_key",
+    "fortiadc_https_port", "fortiadc_https_sha256",
 ))
-OPT_IN_TABLES = ("firewall policy", "firewall service custom")
-ADMIN_PLATFORMS = ("fortios", "exos", "eos", "ios", "iosxe", "fortiadc", "nxos", "junos")
+# system interface and router static (1.0.12 G19) change the network path: opt-in and protected system interface
+IPSEC_TABLES = ("vpn ipsec phase2-interface", "ipsec-tunnel")
+NAT_TABLES = ("firewall vip", "firewall ippool")
+PATH_TABLES = ("firewall policy", "system interface", "router static", *IPSEC_TABLES, *NAT_TABLES)
+OPT_IN_TABLES = (*PATH_TABLES, "firewall service custom")
+ADMIN_PLATFORMS = ("fortios", "exos", "eos", "ios", "iosxe", "fortiadc", "nxos", "junos", "ruckus")
 # platforms whose device entry must list the expected local accounts (the snapshot shows them)
 ACCOUNT_LIST_PLATFORMS = ("exos", "eos", "ios", "iosxe", "nxos", "junos")
 # platforms whose snapshot does not name the full firmware: the device entry states it and the prechecks compare it
 # with the live show version (Junos names it in the "set version" line of its snapshot)
 FIRMWARE_PLATFORMS = ("exos", "ios", "iosxe")
 PLATFORM_NAMES = {"exos": "ExtremeXOS", "eos": "EOS", "ios": "Cisco IOS", "iosxe": "Cisco IOS XE", "nxos": "NX-OS",
-                  "junos": "Junos"}
+                  "junos": "Junos", "ruckus": "Ruckus Unleashed"}
 # Junos commits the change with "commit confirmed 10" (the timer of the safeguard restarts with every commit
 # confirmed, so the change commit carries the same minutes); a commit took up to 150 s on the measured vJunos, so the
 # confirmation needs a margin that covers one commit with a reserve (exec_junos.py)
@@ -43,6 +49,7 @@ DEFAULT_LIMITS = {
 LIMIT_FIELDS = frozenset(DEFAULT_LIMITS)
 NOTIFY_TIMEOUT_SECONDS = (1, 60)
 DEVICE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
+WLAN_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,31}$")
 PIN = re.compile(r"^SHA256:[A-Za-z0-9+/]{43}$")
 
 
@@ -66,6 +73,11 @@ class Device:
     audit_policy: dict | None = None
     schema: dict | None = None
     opt_in: tuple = ()
+    # Ruckus Unleashed: the WLANs Admin may write; every other WLAN is refused (1.0.12 G111)
+    wlans: tuple = ()
+    host_key: str | None = None
+    fortiadc_https_port: int = 443
+    fortiadc_https_sha256: str | None = None
 
 
 @dataclass(frozen=True)
@@ -85,6 +97,9 @@ class Config:
     limits: dict
     devices: dict
     export_status_require_audit_file: bool = False
+    # 1.0.12 G07 r2, decision of the administrator 2026-11-18: the MCP tools admin_undo, admin_unblock_preview and
+    # admin_unblock are off unless the configuration opts in; the operator commands do not depend on it
+    mcp_undo: bool = False
 
 
 def summary(config) -> dict:
@@ -116,9 +131,15 @@ def _device(name, data) -> Device:
              "device %s has unknown fields" % name, field='config.devices[]', code='unknown-fields')
     for field in ("platform", "address", "host_key_fingerprint", "vault", "credential", "check_credential"):
         _require(field in data, "device %s needs %s" % (name, field), field="config.devices[]." + field, code='required')
-    _require(data["platform"] in ADMIN_PLATFORMS, "device %s platform must be fortios, exos, eos, ios, iosxe, fortiadc, nxos or junos" % name, field='config.devices[].platform', code='admin-platform')
+    _require(data["platform"] in ADMIN_PLATFORMS, "device %s platform must be fortios, exos, eos, ios, iosxe, fortiadc, nxos, junos or ruckus" % name, field='config.devices[].platform', code='admin-platform')
     _require(PIN.fullmatch(str(data["host_key_fingerprint"])) is not None,
              "device %s host_key_fingerprint must be an OpenSSH SHA256 pin" % name, field='config.devices[].host_key_fingerprint', code='ssh-pin')
+    public_key = data.get("host_key")
+    if "host_key" in data:
+        try:
+            public_key = checked_public_key(public_key, data["host_key_fingerprint"])
+        except HostKeyError as exc:
+            _require(False, "device %s: %s" % (name, exc), field="config.devices[].host_key", code="ssh-public-key")
     protected = data.get("protected", {})
     _require(isinstance(protected, dict) and all(
         isinstance(table, str) and isinstance(names, list) and all(isinstance(item, str) for item in names)
@@ -131,9 +152,11 @@ def _device(name, data) -> Device:
     for table in opt_in:
         _require(data["platform"] == "fortios", "device %s: %s is a FortiOS table" % (name, table),
                  field='config.devices[].opt_in', code='opt-in')
-    _require("firewall policy" not in opt_in or protected.get("system interface"),
-             "device %s: firewall policy changes need protected system interface" % name,
-             field='config.devices[].protected', code='required')
+    for table in PATH_TABLES:
+        _require(table not in opt_in or protected.get("system interface") or
+                 (table in (*IPSEC_TABLES, *NAT_TABLES) and protected.get("interface")),
+                 "device %s: %s changes need protected system interface" % (name, table),
+                 field='config.devices[].protected', code='required')
     firmware = data.get("firmware")
     _require(firmware is None or isinstance(firmware, str), "device %s firmware must be a string" % name, field='config.devices[].firmware', code='text')
     _require(data["platform"] not in FIRMWARE_PLATFORMS or firmware, "device %s: %s needs the firmware stated" % (name, PLATFORM_NAMES.get(data["platform"])), field='config.devices[].firmware', code='required')
@@ -147,7 +170,15 @@ def _device(name, data) -> Device:
     _require(check_address is None or (isinstance(check_address, str) and check_address
                                         and check_address != data["address"]),
              "device %s check_address must be another address than address" % name, field='config.devices[].check_address', code='different-address')
-    _require(data["check_credential"] != data["credential"],
+    wlans = data.get("wlans", [])
+    _require(isinstance(wlans, list) and all(isinstance(item, str) and WLAN_NAME.fullmatch(item) for item in wlans)
+             and len({item.casefold() for item in wlans}) == len(wlans),
+             "device %s wlans must list distinct WLAN names" % name, field='config.devices[].wlans', code='distinct-wlans')
+    _require(data["platform"] == "ruckus" or not wlans, "device %s: wlans is a Ruckus Unleashed field" % name,
+             field='config.devices[].wlans', code='wlans')
+    _require(data["platform"] != "ruckus" or wlans, "device %s: Ruckus Unleashed needs the WLANs Admin may write (wlans)" % name,
+             field='config.devices[].wlans', code='required')
+    _require(data["platform"] == "ruckus" or data["check_credential"] != data["credential"],
              "device %s: the check credential must be another account than the write credential" % name, field='config.devices[].check_credential', code='different-credential')
     safeguard = _integer(data.get("safeguard_seconds", 180), "safeguard_seconds", 60, SAFEGUARD_MAX_SECONDS, field="config.devices[].safeguard_seconds")
     margin = _integer(data.get("confirm_margin_seconds", 45), "confirm_margin_seconds", 15, safeguard - 15, field="config.devices[].confirm_margin_seconds")
@@ -179,6 +210,12 @@ def _device(name, data) -> Device:
         _require(isinstance(domains,list) and 1 <= len(domains) <= 64
                  and all(isinstance(x,str) and x and x.isprintable() and len(x.encode()) <= 128 and "%%" not in x for x in domains)
                  and len(set(domains)) == len(domains), "schema VDOM inventory is invalid", field='config.devices[].schema.vdoms', code='vdoms')
+    adc_pin = data.get("fortiadc_https_sha256")
+    _require(("fortiadc_https_port" not in data and "fortiadc_https_sha256" not in data) or
+             (data["platform"] == "fortiadc" and isinstance(adc_pin, str)
+              and re.fullmatch(r"[a-f0-9]{64}", adc_pin) is not None),
+             "FortiADC certificate management requires a lowercase SHA-256 HTTPS certificate pin",
+             field="config.devices[].fortiadc_https_sha256", code="digest")
     return Device(
         name=name, platform=data["platform"], address=str(data["address"]),
         port=_integer(data.get("port", 22), "port", 1, 65535, field="config.devices[].port"),
@@ -187,7 +224,10 @@ def _device(name, data) -> Device:
         confirm_margin_seconds=margin, protected={table: list(names) for table, names in protected.items()},
         legacy_ssh=legacy, accounts=tuple(accounts), check_credential=str(data["check_credential"]),
         check_address=check_address, audit_policy=policy, schema=schema_binding,
-        opt_in=tuple(opt_in),
+        opt_in=tuple(opt_in), wlans=tuple(wlans), host_key=public_key,
+        fortiadc_https_sha256=adc_pin,
+        fortiadc_https_port=_integer(data.get("fortiadc_https_port", 443), "fortiadc_https_port", 1, 65535,
+                                    field="config.devices[].fortiadc_https_port"),
     )
 
 
@@ -230,6 +270,8 @@ def load_config(path) -> Config:
     export_status = data.get("export_status_file")
     require_audit_file = data.get("export_status_require_audit_file", False)
     _require(isinstance(require_audit_file, bool), "export_status_require_audit_file must be true or false", field='config.export_status_require_audit_file', code='boolean')
+    mcp_undo = data.get("mcp_undo", False)
+    _require(isinstance(mcp_undo, bool), "mcp_undo must be true or false", field='config.mcp_undo', code='boolean')
     return Config(
         state_dir=_absolute(data.get("state_dir"), "state_dir"),
         audit_file=_absolute(data.get("audit_file"), "audit_file"),
@@ -237,4 +279,5 @@ def load_config(path) -> Config:
         notify=notify, limits=limits,
         devices={name: _device(name, value) for name, value in devices.items()},
         export_status_require_audit_file=require_audit_file,
+        mcp_undo=mcp_undo,
     )

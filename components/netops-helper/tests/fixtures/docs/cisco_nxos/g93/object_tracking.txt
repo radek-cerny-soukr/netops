@@ -1,0 +1,6 @@
+Track 1
+ Interface loopback1 Line Protocol
+ Line Protocol is DOWN
+ 1 changes, last change 09:53:03
+ Tracked by:
+  VRRPV3 Vlan20 1

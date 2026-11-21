@@ -1,0 +1,5 @@
+Static-route for VRF "g102"(3)
+IPv4 Unicast Static Routes:
+ 198.51.100.0/24, configured nh: 192.0.2.250/32
+    (not installed in urib)
+    rnh(installed in urib)

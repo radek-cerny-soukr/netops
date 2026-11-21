@@ -1,0 +1,8 @@
+Building configuration...
+
+Current configuration : 63 bytes
+!
+interface Ethernet0/1
+ switchport mode access
+ shutdown
+end

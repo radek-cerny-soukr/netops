@@ -1,0 +1,225 @@
+{
+  "platform/info": {
+    "payload": {
+      "firmwareVersion": "FortiADC-KVM v7.6.7,build0676,260522 (GA.M)"
+    }
+  },
+  "system_certificate_local": {
+    "payload": [
+      {
+        "mkey": "Factory",
+        "status": "OK",
+        "issuer": "/C=US/ST=California/L=Sunnyvale/O=Fortinet/OU=Certificate Authority/CN=fortinet-subca2001/emailAddress=support@fortinet.com",
+        "subject": "/C=US/ST=California/L=Sunnyvale/O=Fortinet/OU=FortiADC/CN=FortiADCVM/emailAddress=support@fortinet.com",
+        "validfrom": "2019-02-27 15:50:09 PST",
+        "validto": "2056-01-18 19:14:07 PST",
+        "extension": []
+      },
+      {
+        "mkey": "Fortiadc_ssl",
+        "status": "OK",
+        "issuer": "/CN=FDVMELTM26000872/O=Fortinet Ltd./OU=FortiADC/L=Sunnyvale/ST=California/C=US/emailAddress=support@fortinet.com",
+        "subject": "/CN=FDVMELTM26000872/O=Fortinet Ltd./OU=FortiADC/L=Sunnyvale/ST=California/C=US/emailAddress=support@fortinet.com",
+        "validfrom": "2026-11-18 01:24:07 PST",
+        "validto": "2036-11-15 01:24:07 PST",
+        "extension": []
+      },
+      {
+        "mkey": "SSLPROXY_LOCAL_CA",
+        "status": "OK",
+        "issuer": "/C=US/ST=California/L=Sunnyvale/O=Fortinet/OU=FortiADC/CN=Forward_Proxy_Template_CA/emailAddress=support@fortinet.com",
+        "subject": "/C=US/ST=California/L=Sunnyvale/O=Fortinet/OU=FortiADC/CN=Forward_Proxy_Template_CA/emailAddress=support@fortinet.com",
+        "validfrom": "2016-12-05 14:19:08 PST",
+        "validto": "2036-11-30 14:19:08 PST",
+        "extension": []
+      },
+      {
+        "mkey": "HTTP2_RSA_2048",
+        "status": "OK",
+        "issuer": "/C=US/ST=California/L=Sunnyvale/O=Fortinet/OU=FortiADC/CN=HTTP2_RSA_2048/emailAddress=support@fortinet.com",
+        "subject": "/C=US/ST=California/L=Sunnyvale/O=Fortinet/OU=FortiADC/CN=HTTP2_RSA_2048/emailAddress=support@fortinet.com",
+        "validfrom": "2017-03-14 12:14:27 PDT",
+        "validto": "2027-03-12 11:14:27 PST",
+        "extension": []
+      },
+      {
+        "mkey": "host01",
+        "status": "OK",
+        "issuer": "/CN=netops-tlsca-ca",
+        "subject": "/CN=host03",
+        "validfrom": "2026-11-01 05:00:31 PST",
+        "validto": "2029-02-03 05:00:31 PST",
+        "extension": [
+          {
+            "name": "X509v3 Subject Alternative Name",
+            "content": "DNS:host03, IP Address:192.0.2.46"
+          }
+        ]
+      }
+    ]
+  },
+  "system_certificate_intermediate_ca": {
+    "payload": []
+  },
+  "system_certificate_ca": {
+    "payload": [
+      {
+        "mkey": "Fortinet_CA",
+        "status": "OK",
+        "issuer": "/C=US/ST=California/L=Sunnyvale/O=Fortinet/OU=Certificate Authority/CN=fortinet-ca2/emailAddress=support@fortinet.com",
+        "subject": "/C=US/ST=California/L=Sunnyvale/O=Fortinet/OU=Certificate Authority/CN=fortinet-ca2/emailAddress=support@fortinet.com",
+        "validfrom": "2016-06-06 13:27:39 PDT",
+        "validto": "2056-05-27 13:27:39 PDT",
+        "extension": []
+      }
+    ]
+  },
+  "system_certificate_local_cert_group": {
+    "payload": [
+      {
+        "mkey": "LOCAL_CERT_GROUP",
+        "member_count": 1
+      },
+      {
+        "mkey": "HTTP2_CERT_GROUP",
+        "member_count": 1
+      },
+      {
+        "mkey": "host02",
+        "member_count": 1
+      }
+    ]
+  },
+  "system_certificate_local_cert_group_child_group_member:LOCAL_CERT_GROUP": {
+    "payload": [
+      {
+        "mkey": "1",
+        "local_cert": "Factory",
+        "extra_local_cert": "",
+        "intermediate_cag": "",
+        "extra_intermediate_cag": ""
+      }
+    ]
+  },
+  "system_certificate_local_cert_group_child_group_member:HTTP2_CERT_GROUP": {
+    "payload": [
+      {
+        "mkey": "1",
+        "local_cert": "HTTP2_RSA_2048",
+        "extra_local_cert": "",
+        "intermediate_cag": "",
+        "extra_intermediate_cag": ""
+      }
+    ]
+  },
+  "system_certificate_local_cert_group_child_group_member:host02": {
+    "payload": [
+      {
+        "mkey": "1",
+        "local_cert": "host01",
+        "extra_local_cert": "",
+        "intermediate_cag": "",
+        "extra_intermediate_cag": ""
+      }
+    ]
+  },
+  "system_certificate_intermediate_ca_group": {
+    "payload": []
+  },
+  "system_certificate_certificate_verify": {
+    "payload": []
+  },
+  "load_balance_client_ssl_profile": {
+    "payload": [
+      {
+        "mkey": "LB_CLIENT_SSL_PROF_DEFAULT",
+        "local_certificate_group": "LOCAL_CERT_GROUP",
+        "forward_proxy_local_signing_ca": "",
+        "forward_proxy_intermediate_ca_group": "",
+        "backend_certificate_verify": "",
+        "client_certificate_verify": ""
+      },
+      {
+        "mkey": "LB_CLIENT_SSL_PROF_MODERN",
+        "local_certificate_group": "LOCAL_CERT_GROUP",
+        "forward_proxy_local_signing_ca": "",
+        "forward_proxy_intermediate_ca_group": "",
+        "backend_certificate_verify": "",
+        "client_certificate_verify": ""
+      },
+      {
+        "mkey": "LB_CLIENT_SSL_PROF_FORWARD_PROXY",
+        "local_certificate_group": "",
+        "forward_proxy_local_signing_ca": "SSLPROXY_LOCAL_CA",
+        "forward_proxy_intermediate_ca_group": "",
+        "backend_certificate_verify": "",
+        "client_certificate_verify": ""
+      },
+      {
+        "mkey": "LB_CLIENT_SSL_PROF_HTTP2",
+        "local_certificate_group": "HTTP2_CERT_GROUP",
+        "forward_proxy_local_signing_ca": "",
+        "forward_proxy_intermediate_ca_group": "",
+        "backend_certificate_verify": "",
+        "client_certificate_verify": ""
+      },
+      {
+        "mkey": "host04",
+        "local_certificate_group": "host02",
+        "forward_proxy_local_signing_ca": "",
+        "forward_proxy_intermediate_ca_group": "",
+        "backend_certificate_verify": "",
+        "client_certificate_verify": ""
+      }
+    ]
+  },
+  "load_balance_real_server_ssl_profile": {
+    "payload": [
+      {
+        "mkey": "NONE",
+        "local_cert": "",
+        "cert_verify": ""
+      },
+      {
+        "mkey": "LB_RS_SSL_PROF_LOW_SSLV3",
+        "local_cert": "",
+        "cert_verify": ""
+      },
+      {
+        "mkey": "LB_RS_SSL_PROF_MEDIUM",
+        "local_cert": "",
+        "cert_verify": ""
+      },
+      {
+        "mkey": "LB_RS_SSL_PROF_HIGH",
+        "local_cert": "",
+        "cert_verify": ""
+      },
+      {
+        "mkey": "LB_RS_SSL_PROF_ECDSA",
+        "local_cert": "",
+        "cert_verify": ""
+      },
+      {
+        "mkey": "LB_RS_SSL_PROF_ECDSA_SSLV3",
+        "local_cert": "",
+        "cert_verify": ""
+      },
+      {
+        "mkey": "LB_RS_SSL_PROF_ECDSA_TLS12",
+        "local_cert": "",
+        "cert_verify": ""
+      },
+      {
+        "mkey": "LB_RS_SSL_PROF_ENULL",
+        "local_cert": "",
+        "cert_verify": ""
+      },
+      {
+        "mkey": "LB_RS_SSL_PROF_DEFAULT",
+        "local_cert": "",
+        "cert_verify": ""
+      }
+    ]
+  }
+}

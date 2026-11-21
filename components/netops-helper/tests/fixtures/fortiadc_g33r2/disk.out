@@ -1,0 +1,22 @@
+Filesystem                Size      Used Available Use% Mounted on
+/dev/root               674.7M    525.5M    135.2M  80% /
+none                         0         0         0   0% /proc
+none                         0         0         0   0% /sys
+none                         0         0         0   0% /sys/kernel/debug
+none                    256.0M    104.3M    151.7M  41% /tmp
+none                         0         0         0   0% /dev/pts
+none                    384.0M    261.8M    122.2M  68% /dev/shm
+none                    256.0M         0    256.0M   0% /tmp2
+none                    512.0M     25.3M    486.7M   5% /tmp3
+none                    128.0M     17.4M    110.6M  14% /tmp_hc_root
+none                    480.0M     30.5M    449.5M   6% /tmp_av
+cgroup                    3.8G         0      3.8G   0% /sys/fs/cgroup
+cgroup                       0         0         0   0% /sys/fs/cgroup/memory
+/dev/vda1               659.5M    155.9M    469.5M  25% /data
+/dev/vdb1                29.4G    664.3M     27.2G   2% /var/log
+/dev/vda3               368.3M     80.4M    268.3M  23% /home
+/dev/ram2              1000.0K     14.0K    986.0K   1% /ram_cookieid
+/dev/vdb1                29.4G    664.3M     27.2G   2% /var/log
+/dev/vda3               368.3M     80.4M    268.3M  23% /home
+none                    512.0M         0    512.0M   0% /var/ps_cache
+none                         0         0         0   0% /proc

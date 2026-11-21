@@ -140,8 +140,8 @@ def test_access_vlan_plan_returns_to_vlan_1_by_name():
     ("iosv", {"key": "Loopback0"}, "port_unsupported_interface"),
     ("iosvl2", {"key": "Vlan99"}, "port_unsupported_interface"),
     ("iosvl2", {"key": "GigabitEthernet0/1", "changes": {"admin-state": "disabled"}}, "port_uplink"),
-    ("iosvl2", {"key": "GigabitEthernet0/2", "table": "vlan-membership", "changes": {"access-vlan": 20}},
-     "port_uplink"),
+    # G60: a vlan-membership change of a trunk is planned; the live prechecks require endpoint_impact
+    # (test_ios_g60.py::test_trunk_membership_without_impact_is_refused_before_any_write)
     ("iosv", {"key": "GigabitEthernet0/0", "changes": {"admin-state": "disabled"}}, "port_ip_address"),
     ("iosv", {"key": "GigabitEthernet0/1", "changes": {"admin-state": "disabled"}}, "port_ip_address"),
     ("iolxe", {"key": "Ethernet0/1", "changes": {"admin-state": "disabled"}}, "port_ip_address"),
@@ -359,10 +359,8 @@ def test_access_vlan_on_a_router_is_refused_before_any_write(tmp_path, node):
     with pytest.raises(Rejected) as caught:
         execute.apply(make_runtime(tmp_path, device), "lab-ios",
                       request(device, table="vlan-membership", changes={"access-vlan": 10}))
-    if node == "iosv":
-        assert "is not measured on firmware '15.9(3)M12'" in caught.value.reasons[0]
-    else:
-        assert caught.value.reason_codes == ["port_routed"]
+    # G00-1: the IOSv firmware is untested for vlan-membership, but that is no refusal; the router image is
+    assert caught.value.reason_codes == ["port_routed"]
     assert device.applied_blocks == []
 
 
@@ -938,6 +936,116 @@ def test_enrollment_self_test_changes_the_description_and_is_reverted(tmp_path, 
     assert device.interface(device.port) == FakeIos(node).interface(device.port) and device.timer is None
 
 
+@pytest.mark.parametrize("scenario", ("immediate", "foreign", "enroll", "ipv4-acl", "ipv6-acl", "intact", "unproven"))
+def test_classic_ios_exec_banner_loss_blocks_without_writing(tmp_path, scenario):
+    from fake_ios_acl import fixture as acl_fixture
+
+    from netops_admin import enrollment, ios_acl, mcp_server
+
+    class BannerLoss(FakeIos):
+        checkpoint = None
+
+        def _archive(self):
+            self.checkpoint = self.lines.copy()
+            return super()._archive()
+
+        def _drop_banner(self):
+            if scenario == "intact":
+                return
+            start = self.lines.index("banner exec ^C")
+            end = next(i for i in range(start + 1, len(self.lines)) if self.lines[i].endswith("^C"))
+            del self.lines[start:end + 1]
+            if scenario == "foreign":
+                self.lines.insert(-1, "no ip source-route")
+
+        def _fire(self):
+            timer = self.timer
+            super()._fire()
+            if timer is not None and self.timer is None:
+                self._drop_banner()
+
+        def _exec(self, words, mode):
+            if words[:2] == ["configure", "replace"]:
+                self.lines = self.checkpoint.copy()
+                return "Rollback Done"
+            timer = self.timer
+            answer = super()._exec(words, mode)
+            if words == ["configure", "revert", "now"] and timer is not None and self.timer is None:
+                self._drop_banner()
+            return answer
+
+        def query(self, command):
+            if self.archives and command == "more " + self.archives[-1]:
+                return "\n".join(self.checkpoint[3:]) + "\n"
+            return super().query(command)
+
+        def snapshot(self):
+            text = super().snapshot()
+            if scenario == "ipv4-acl":
+                return ios_acl.with_listing(text, ipv4_listing, "")
+            if scenario == "ipv6-acl":
+                return ios_acl.with_listing(text, "", ipv6_listing)
+            return text
+
+    device = BannerLoss("iosvl2")
+    if scenario in ("ipv4-acl", "ipv6-acl"):
+        # Adapt the measured G64 IOSv ACL blocks, with unchanged sequences, to the C45 IOSvL2 baseline.
+        measured = acl_fixture("iosv", "admin-show-running-config__acls.txt").splitlines()
+        if scenario == "ipv4-acl":
+            acl = "ip access-list extended NETOPS-G64-V4"
+            ipv4_listing = acl_fixture("iosv", "admin-show-ip-access-lists__acls.txt")
+        else:
+            acl = "ipv6 access-list NETOPS-G64-V6"
+            ipv6_listing = acl_fixture("iosv", "admin-show-ipv6-access-list__acls.txt")
+        start = measured.index(acl)
+        end = next(i for i in range(start + 1, len(measured)) if not measured[i].startswith(" "))
+        device.lines[-1:-1] = measured[start:end] + ["!"]
+        device.saved = device.lines.copy()
+    before = device.lines.copy()
+    runtime = make_runtime(tmp_path, device)
+    if scenario in ("immediate", "foreign"):
+        def lose_check_account(fake, block):
+            if block[:1] == ["configure terminal"]:
+                fake.check_unreadable = True
+
+        device.on_apply = lose_check_account
+        record = execute.apply(runtime, "lab-ios", request(device))
+        expected_after_probe = REVERT_NOW
+    else:
+        runtime.notifier = lambda record: "sent"
+        runtime.store.clear_enrollment("lab-ios")
+        device.log_lost = scenario == "unproven"
+        record = enrollment.run(runtime, "lab-ios", device.port)
+        expected_after_probe = []
+
+    assert device.timer is None
+    if scenario == "intact":
+        assert record["result"] == "reverted" and record["reason"] == "enrollment self-test"
+        assert record.get("enrollment") == "valid" and runtime.store.blocked("lab-ios") is None
+        assert device.lines == before and device.saves == 1
+        assert device.applied_blocks[2:] == [["write memory"]]
+        return
+
+    assert (device.applied_blocks[2:], record["result"], record.get("reason_codes")) == (
+        [expected_after_probe] if expected_after_probe else [],
+        "reverted" if scenario == "unproven" else "unknown",
+        None if scenario == "unproven" else ["exec_banner_lost"],
+    )
+    assert device.saves == 0 and device.saved == before and "banner exec ^C" not in device.lines
+    assert not any(line.startswith("configure replace ") for line in device.sent_lines)
+    assert device.interface(device.port) == FakeIos("iosvl2").interface(device.port)
+    assert runtime.store.blocked("lab-ios")["change_id"] == record["change_id"]
+    assert runtime.store.enrollment("lab-ios") is None or scenario in ("immediate", "foreign")
+    if scenario == "foreign":
+        assert "no ip source-route" in device.lines
+    if scenario == "unproven":
+        assert record["reason"] == "foreign change"
+    else:
+        assert "Restore the banner manually" in record["reason"]
+        assert runtime.store.operation(record["change_id"])["reason_codes"] == ["exec_banner_lost"]
+        assert mcp_server.summary(record)["reason_codes"] == ["exec_banner_lost"]
+
+
 @pytest.mark.parametrize("node", ALL)
 def test_doctor_is_ready_after_enrollment(tmp_path, node):
     from netops_admin import readiness
@@ -948,8 +1056,38 @@ def test_doctor_is_ready_after_enrollment(tmp_path, node):
     assert statuses["check account"] == "ok" and statuses["leftover safeguards"] == "ok", report
     assert statuses["device prechecks"] == "ok" and statuses["enrollment"] == "ok", report
     expected = {"interface": "update", "vlan-membership": "update"}
+    expected["vlan"] = "create update delete"
+    # 1.0.12 G62: static routes and L3 interfaces of IOS (measured on IOSv 15.9(3)M12 and IOSvL2 15.2)
+    expected["static-route"] = expected["l3-interface"] = "create update delete"
+    # 1.0.12 G61: the port bounce and the PoE tables (measured on IOSvL2 15.2 and IOL-L2 XE 17.18.2)
+    expected.update({"port-bounce": "port-bounce", "poe-cycle": "poe-cycle", "inline-power": "update"})
+    for table in ("poe-cycle", "inline-power"):
+        expected[table] += " (untested on %s)" % device.firmware
     if node == "iosv":
-        expected["vlan-membership"] = "not measured on this firmware"
+        expected["vlan-membership"] = "update (untested on 15.9(3)M12)"
+        expected["vlan"] = "create update delete (untested on 15.9(3)M12)"
+        expected["port-bounce"] += " (untested on 15.9(3)M12)"
+    if node in ("iosv", "iosvl2"):
+        # 1.0.12 G63: EtherChannel/LACP membership of IOS 15.2 (measured on IOSvL2 15.2(20200924:215240))
+        expected["etherchannel-member"] = ("create update delete (untested on 15.9(3)M12)" if node == "iosv"
+                                           else "create update delete")
+    # DHCP was measured on IOSv (G65) and IOL XE (G83).
+    dhcp_suffix = " (untested on 15.2(20200924:215240))" if node == "iosvl2" else ""
+    expected["dhcp-pool"] = expected["dhcp-reservation"] = "create update delete" + dhcp_suffix
+    expected["dhcp-exclusion"] = expected["dhcp-relay"] = "create delete" + dhcp_suffix
+    # 1.0.12 G64: ACL rules and attachments (measured on IOSv 15.9(3)M12 and IOL XE 17.18.2)
+    expected["ip-access-list"], expected["interface-access-group"] = "create update delete", "update"
+    if node == "iosvl2":
+        expected["ip-access-list"] += " (untested on 15.2(20200924:215240))"
+        expected["interface-access-group"] += " (untested on 15.2(20200924:215240))"
+    if device.platform == "iosxe":
+        expected["vlan"] = "create update delete"
+        expected["static-route"] = expected["l3-interface"] = "create update delete"
+        expected["etherchannel-member"] = "create update delete"
+    services = {"ntp-server": "create delete", "syslog-host": "create delete",
+                "static-host": "create update delete", "system-services": "update", "startup-config": "save"}
+    suffix = " (untested on 15.2(20200924:215240))" if node == "iosvl2" else ""
+    expected.update({table: ops + suffix for table, ops in services.items()})
     assert report["operations"] == expected
 
 

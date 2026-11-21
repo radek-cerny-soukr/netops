@@ -1,9 +1,11 @@
 from __future__ import annotations
 
-from netops_admin import audit_gate, engine, enrollment, execute, prediction, privileges
+from netops_admin import audit_gate, engine, enrollment, execute, fortiadc, fortios, prediction, privileges
+from netops_admin.access import operation
 from netops_admin.config import summary as configuration_summary
 from netops_admin.errors import Rejected, StateUnreadable, shown
-from netops_admin.profiles import find_profile, load_profiles
+from netops_admin.profiles import firmware_support, load_profiles
+from netops_core import tested
 
 OK = "ok"
 MISSING = "missing"
@@ -17,7 +19,9 @@ IDENTITY_PROBES = {"fortios": ("firewall address", "all"), "exos": ("vlan", "Def
                    "nxos": ("interface", "Ethernet1/1"),
                    "ios": ("interface", "description table"), "iosxe": ("interface", "description table"),
                    "junos": ("interface", "ge-0/0/0"),
-                   "fortiadc": ("system status", "hostname")}
+                   "fortiadc": ("system status", "hostname"),
+                   # Unleashed has no built-in WLAN: "*" asks only that the check account reads the WLAN listing
+                   "ruckus": ("wlan", "*")}
 RIGHTS_CHECKS = {"fortios": (lambda access, firmware: privileges.fortios_write(access, firmware), privileges.fortios_check),
                  "fortiadc": (lambda access, firmware: privileges.fortiadc_write(access), privileges.fortiadc_check)}
 
@@ -112,18 +116,35 @@ def _device_state(report, blocked, undelivered, running):
         report.add("device state", OK)
 
 
+def _profiles(platform):
+    return [(table, profile) for (profile_platform, table), profile in sorted(load_profiles().items())
+            if profile_platform == platform]
+
+
 def _operations(platform, firmware) -> dict:
+    # A6 (G00): a firmware outside the tested versions of a profile does not make its operations unavailable;
+    # they are listed with "(untested on FIRMWARE)" and firmware_support of the report names the tested versions.
+    # Only the technical limit T1 (no REST inverse for the FortiOS webhook safeguard) is shown as refused.
     tables = {}
-    for (profile_platform, table), profile in sorted(load_profiles().items()):
-        if profile_platform != platform:
-            continue
-        try:
-            find_profile(platform, table, firmware)
-        except Rejected:
-            tables[table] = "not measured on this firmware"
+    for table, profile in _profiles(platform):
+        operations = profile.action or " ".join(profile.ops)
+        if platform == "fortios" and fortios.webhook_refusal(profile, firmware) is not None:
+            tables[table] = "refused on %s: the webhook safeguard has no REST inverse for this table (%s)" % (
+                firmware, fortios.NO_REST_INVERSE)
+        elif not tested.is_tested(firmware_support(profile, firmware)):
+            tables[table] = "%s (untested on %s)" % (operations, firmware)
         else:
-            tables[table] = profile.action or " ".join(profile.ops)
+            tables[table] = operations
+        if platform == "exos" and table == "inline-power":
+            tables["poe-cycle"] = tables[table].replace(operations, "poe-cycle", 1)
     return tables
+
+
+def _firmware_support(platform, firmware) -> dict:
+    support = {table: firmware_support(profile, firmware) for table, profile in _profiles(platform)}
+    if platform == "exos":
+        support["poe-cycle"] = support["inline-power"]
+    return support
 
 
 def doctor(runtime, device_name: str, *, local=False) -> dict:
@@ -150,6 +171,7 @@ def _doctor(runtime, device_name: str, *, local=False) -> dict:
         firmware,operations=schema_runtime.doctor(runtime,device,report)
         result=_result(report,device,firmware)
         result["operations"]=operations
+        result["firmware_support"]={}  # schema workflow: the library is bound to its exact build (kept, G00 §1.5)
         return result
     preflight = getattr(adapter, "safeguard_preflight", None)
     rights = RIGHTS if device.platform in RIGHTS_CHECKS else ()
@@ -160,6 +182,11 @@ def _doctor(runtime, device_name: str, *, local=False) -> dict:
     if not reached:
         report.skip(*remote)
         return _result(report, device, None)
+    with operation(access):
+        return _remote_checks(runtime, device, report, adapter, access, remote, rights, preflight)
+
+
+def _remote_checks(runtime, device, report, adapter, access, remote, rights, preflight):
     reached, text = report.attempt(remote[0], access.snapshot)
     if not reached:
         report.skip(*remote[1:])
@@ -185,7 +212,8 @@ def _doctor(runtime, device_name: str, *, local=False) -> dict:
         report.rights(RIGHTS[0], lambda: write_rights(access, firmware))
         report.rights(RIGHTS[1], lambda: check_rights(access))
     report.attempt("leftover safeguards", lambda: _no_leftovers(adapter, access))
-    report.attempt("device prechecks", lambda: _prechecks(adapter, access, device, text))
+    report.attempt("device prechecks", lambda: _prechecks(adapter, access, device, text),
+                   str if device.platform == "fortiadc" else None)
     if preflight is not None:
         if firmware:
             report.attempt("webhook safeguard", lambda: preflight(access, device, text, firmware), str)
@@ -232,18 +260,28 @@ def _no_leftovers(adapter, access):
 
 
 def _prechecks(adapter, access, device, text):
+    if device.platform == "fortiadc":
+        role = fortiadc.require_ha_write(access)
+        return "standalone" if role == "standalone" else "primary with a synchronized secondary"
     reasons = adapter.prechecks(access, device, text, adapter.prompt_spec(adapter.hostname(access, text)))
     if reasons:
         raise Rejected(reasons)
 
 
 def _result(report, device, firmware) -> dict:
+    operations = {} if firmware is None else _operations(device.platform, firmware)
+    versions = {} if firmware is None else _firmware_support(device.platform, firmware)
+    if device.platform == "fortiadc" and not getattr(device, "fortiadc_https_sha256", None):
+        from netops_admin.fortiadc import CERT_MEMBER
+        operations.pop(CERT_MEMBER, None)
+        versions.pop(CERT_MEMBER, None)
     return {
         "device": device.name,
         "platform": device.platform,
         "firmware": firmware,
         "ready": all(item["status"] in ADVISORY for item in report.checks),
         "checks": report.checks,
-        "operations": {} if firmware is None else _operations(device.platform, firmware),
+        "operations": operations,
+        "firmware_support": versions,
         "protected": {table: len(names) for table, names in sorted(device.protected.items())},
     }

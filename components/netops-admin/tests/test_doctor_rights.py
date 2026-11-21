@@ -367,12 +367,17 @@ def test_adc_refused_read_cannot_be_verified(tmp_path):
 def test_own_query_reads_with_the_account_it_names(monkeypatch):
     calls = []
 
-    def run_command(address, port, login, credential, host_key_line, command, **options):
-        calls.append((address, credential.login, command))
-        return SimpleNamespace(rc=1, stdout=b"Unknown action 0\n", stderr=b"")
+    from contextlib import nullcontext
 
-    monkeypatch.setattr(access.ssh, "run_command", run_command)
-    monkeypatch.setattr(access.hostkey, "scan", lambda address, *a, **k: "%s ssh-rsa AAAA" % address)
+    def open_session(device, credential, *, address, **_options):
+        return nullcontext(SimpleNamespace(address=address, login=credential.login, context=None))
+
+    def dialog(shell, command, *_args, **_options):
+        calls.append((shell.address, shell.login, command))
+        return SimpleNamespace(rc=1, stdout=b"Unknown action 0\n", continuation=False, context=None)
+
+    monkeypatch.setattr(access.session, "fortinet_session", open_session)
+    monkeypatch.setattr(access.fortinet_cli, "dialog", dialog)
     handle = access.DeviceAccess.__new__(access.DeviceAccess)
     handle.device = SimpleNamespace(address="192.0.2.1", check_address="198.51.100.1", port=22,
                                     host_key_fingerprint="SHA256:x", legacy_ssh=None, platform="fortios")

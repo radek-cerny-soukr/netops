@@ -1,0 +1,29 @@
+
+
+
+IPv6 Routing Table - default - 7 entries
+Codes: C - Connected, L - Local, S - Static, U - Per-user Static route
+       B - BGP, R - RIP, H - NHRP, HG - NHRP registered
+       Hg - NHRP registration summary, HE - NHRP External, I1 - ISIS L1
+       I2 - ISIS L2, IA - ISIS interarea, IS - ISIS summary, D - EIGRP
+       EX - EIGRP external, ND - ND Default, NDp - ND Prefix, DCE - Destination
+       NDr - Redirect, RL - RPL, O - OSPF Intra, OI - OSPF Inter
+       OE1 - OSPF ext 1, OE2 - OSPF ext 2, ON1 - OSPF NSSA ext 1
+       ON2 - OSPF NSSA ext 2, la - LISP alt, lr - LISP site-registrations
+       ld - LISP dyn-eid, lA - LISP away, le - LISP extranet-policy
+       lp - LISP publications, ls - LISP destinations-summary, a - Application
+       m - OMP
+C   2001:db8:1::0/64 [0/0]
+     via Ethernet0/1.10, directly connected
+L   2001:db8:1::7/128 [0/0]
+     via Ethernet0/1.10, receive
+O   2001:db8:3::1/128 [110/10]
+     via fe80::13, Ethernet0/1.10
+LC  2001:db8:3::7/128 [0/0]
+     via Loopback0, receive
+S   2001:db8:4::0/64 [1/0]
+     via Null0, directly connected
+B   2001:db8:5::0/64 [20/0], tag 65001
+     via fe80::13, Ethernet0/1.10
+L   FF00::/8 [0/0]
+     via Null0, receive

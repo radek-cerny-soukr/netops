@@ -1,0 +1,26 @@
+{
+  "platform": "fortiadc",
+  "table": "system certificate local_cert_group/group_member",
+  "versions": ["7.6.7 build0676"],
+  "exact_versions": true,
+  "table_scoped_key": true,
+  "ops": ["update"],
+  "key_pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,34}:[1-9][0-9]{0,8}$",
+  "protected_keys": ["LOCAL_CERT_GROUP:1", "HTTP2_CERT_GROUP:1"],
+  "attributes": {
+    "local-cert": {
+      "type": "text",
+      "required_on_create": false,
+      "update": true,
+      "unset": false,
+      "referenced_update": true,
+      "max_length": 35,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,34}$"
+    }
+  },
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "Admin reads the certificate reference through the check account and restores its previous value through the inverse CLI commands."
+}

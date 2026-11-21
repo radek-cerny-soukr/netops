@@ -1,0 +1,11 @@
+Port 269 (GigabitEthernet3/13) of VLAN0002 is forwarding 
+ Port path cost 4, Port priority 128, Port Identifier 128.269.
+ Designated root has priority 32770, address 0002.172c.f400
+ Designated bridge has priority 32770, address 0002.172c.f400
+ Designated port id is 128.269, designated path cost 0
+ Timers: message age 0, forward delay 0, hold 0
+ Number of transitions to forwarding state: 1
+ Link type is point-to-point by default
+ Loop guard is enabled by default on the port
+ The port is in the portfast edge trunk mode
+ BPDU: sent 2183, received 0 

@@ -1,0 +1,18 @@
+
+
+Building configuration...
+Current configuration : 5761 bytes
+version 15.9
+hostname host01
+interface Loopback0
+interface Loopback52
+interface Loopback53
+interface GigabitEthernet0/0
+interface GigabitEthernet0/1
+interface GigabitEthernet0/1.10
+interface GigabitEthernet0/1.20
+interface GigabitEthernet0/2
+interface GigabitEthernet0/3
+ shutdown
+interface GigabitEthernet0/3.3954
+end

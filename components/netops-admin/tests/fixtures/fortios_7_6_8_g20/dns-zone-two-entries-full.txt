@@ -1,0 +1,36 @@
+config system dns-database
+    edit "netops-g20.test"
+        set status enable
+        set domain "netops-g20.test"
+        set type primary
+        set view shadow
+        set ttl 86400
+        set authoritative enable
+        unset forwarder
+        set forwarder6 ::
+        set source-ip 0.0.0.0
+        set source-ip6 ::
+        set source-ip-interface ''
+        config dns-entry
+            edit 1
+                set status enable
+                set type A
+                set ttl 0
+                set hostname "g20-a"
+                set ip 198.51.100.77
+            next
+            edit 2
+                set status enable
+                set type PTR
+                set ttl 300
+                set hostname "g20-a.netops-g20.test"
+                set ip 198.51.100.77
+            next
+        end
+        set interface-select-method auto
+        set vrf-select 0
+        unset allow-transfer
+        set primary-name "dns"
+        set contact "host"
+    next
+end

@@ -1,0 +1,2 @@
+MAC Address       Address         Interface                TTE    Flags
+00:00:5e:00:53:01 192.0.2.102     irb.20 [ge-0/0/1.0]       46    none

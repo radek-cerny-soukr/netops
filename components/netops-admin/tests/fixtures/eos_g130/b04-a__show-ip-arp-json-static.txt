@@ -1,0 +1,13 @@
+{
+    "ipV4Neighbors": [
+        {
+            "address": "198.51.100.250",
+            "hwAddress": "0000.5e00.5304",
+            "interface": "Vlan3931, not learned"
+        }
+    ],
+    "totalEntries": 1,
+    "staticEntries": 1,
+    "dynamicEntries": 0,
+    "notLearnedEntries": 1
+}

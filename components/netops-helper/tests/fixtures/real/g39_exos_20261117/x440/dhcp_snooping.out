@@ -1,0 +1,13 @@
+
+Trusted Ports: None
+Trusted DHCP Servers: None
+Bindings Restoration     : Disabled
+Bindings Filename        :
+Bindings File Location   :
+	 Primary Server  : None
+	 Secondary Server: None
+Bindings Write Interval  : 30 minutes
+
+------------------------------------
+Port		Violation-action
+------------------------------------

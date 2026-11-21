@@ -1,0 +1,16 @@
+
+Vlan900 is administratively down, line protocol is down
+  IPv6 is tentative, link-local address is fe80::13                 [TEN]
+  No Virtual link-local address(es):
+  Description: netops-g62 svi
+  Global unicast address(es):
+    2001:db8:c::1, subnet is 2001:db8:c::0/64 [TEN]
+  Joined group address(es):
+    FF02::1
+  MTU is 1500 bytes
+  ICMP error messages limited to one every 100 milliseconds
+  ICMP redirects are enabled
+  ICMP unreachables are sent
+  ND DAD is enabled, number of DAD attempts: 1
+  ND reachable time is 30000 milliseconds (using 30000)
+  ND NS retransmit interval is 1000 milliseconds

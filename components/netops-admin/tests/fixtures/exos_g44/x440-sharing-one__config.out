@@ -1,0 +1,2 @@
+# Module vlan configuration.
+enable sharing 10 grouping 10 algorithm address-based L2 lacp

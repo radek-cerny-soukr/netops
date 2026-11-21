@@ -1,0 +1,30 @@
+{
+  "platform": "exos",
+  "table": "ospf",
+  "versions": [
+    "33.6.1.14"
+  ],
+  "ops": [
+    "update"
+  ],
+  "table_scoped_key": true,
+  "key_pattern": "^ospf(?:v3)?$",
+  "protected_keys": [],
+  "attributes": {
+    "admin-state": {
+      "type": "text",
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "required_on_create": false,
+      "max_length": 8,
+      "pattern": "^(enabled|disabled)$",
+      "default": "disabled"
+    }
+  },
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "G46 X19. Toggle OSPF or OSPFv3 in VR-Default after validating the scope of every affected VLAN. See the G46 measurements on ExtremeXOS 33.6.1.14 (task netops-20261119-611)."
+}

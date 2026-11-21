@@ -1,0 +1,47 @@
+{
+  "platform": "eos",
+  "table": "mlag-peer",
+  "versions": [
+    "4.36.1F"
+  ],
+  "exact_versions": true,
+  "ops": [
+    "update"
+  ],
+  "table_scoped_key": true,
+  "key_pattern": "^global$",
+  "protected_keys": [],
+  "attributes": {
+    "local-interface": {
+      "type": "text",
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "required_on_create": false,
+      "pattern": "^Vlan[1-9][0-9]{0,3}$",
+      "max_length": 8
+    },
+    "peer-address": {
+      "type": "ipv4-address",
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "required_on_create": false
+    },
+    "peer-link": {
+      "type": "text",
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "required_on_create": false,
+      "pattern": "^Port-Channel[1-9][0-9]{0,5}$",
+      "max_length": 18
+    }
+  },
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "G125: changes selected parameters of an inactive MLAG domain. Domain ID, heartbeat and other peer configuration are preserved. The EOS session timer and scoped peer readback apply.",
+  "implicit_keys": true
+}

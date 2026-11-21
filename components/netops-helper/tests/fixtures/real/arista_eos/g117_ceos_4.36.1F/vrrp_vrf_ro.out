@@ -1,0 +1,3 @@
+
+> show vrrp vrf default
+% Invalid input (privileged mode required) at line 1

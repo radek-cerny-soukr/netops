@@ -1,0 +1,83 @@
+{
+    "interface-information" : [
+    {
+        "attributes" : {"xmlns" : "http://xml.juniper.net/junos/26.2R0/junos-interface",
+                        "junos:style" : "terse"
+                       },
+        "logical-interface" : [
+        {
+            "name" : [
+            {
+                "data" : "irb.3920"
+            }
+            ],
+            "admin-status" : [
+            {
+                "data" : "up"
+            }
+            ],
+            "oper-status" : [
+            {
+                "data" : "down"
+            }
+            ],
+            "filter-information" : [
+            {
+            }
+            ],
+            "address-family" : [
+            {
+                "address-family-name" : [
+                {
+                    "data" : "inet"
+                }
+                ],
+                "interface-address" : [
+                {
+                    "ifa-local" : [
+                    {
+                        "data" : "198.51.100.1/24",
+                        "attributes" : {"junos:emit" : "emit"}
+                    }
+                    ]
+                }
+                ]
+            },
+            {
+                "address-family-name" : [
+                {
+                    "data" : "inet6"
+                }
+                ],
+                "interface-address" : [
+                {
+                    "ifa-local" : [
+                    {
+                        "data" : "2001:db8:1::1/64",
+                        "attributes" : {"junos:emit" : "emit"}
+                    }
+                    ]
+                },
+                {
+                    "ifa-local" : [
+                    {
+                        "data" : "fe80::10/64",
+                        "attributes" : {"junos:emit" : "emit"}
+                    }
+                    ]
+                }
+                ]
+            },
+            {
+                "address-family-name" : [
+                {
+                    "data" : "multiservice"
+                }
+                ]
+            }
+            ]
+        }
+        ]
+    }
+    ]
+}

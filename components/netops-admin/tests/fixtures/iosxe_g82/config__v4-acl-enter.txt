@@ -1,0 +1,2 @@
+ip access-list extended NETOPS-G82-V4
+host01(config-ext-nacl)#

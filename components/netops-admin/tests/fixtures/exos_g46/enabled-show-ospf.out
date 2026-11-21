@@ -1,0 +1,33 @@
+
+OSPF                : Enabled          MPLS LSP as Next-Hop: No
+RouterId            : 198.51.100.1     RouterId Selection  : Automatic
+InstanceId          : 0
+ASBR                : No               ABR                 : No
+ExtLSA              : 0                ExtLSAChecksum      : 0x0
+OriginateNewLSA     : 0                ReceivedNewLSA      : 0
+SpfHoldTime         : 3                Lsa Batch Interval  : 30s
+CapabilityOpaqueLSA : Enabled
+10M Cost            : 10               100M Cost           : 5
+1000M Cost (1G)     : 4                2500M Cost (2.5G)   : 3
+5000M Cost (5G)     : 3                10000M Cost (10G)   : 2
+25000M Cost (25G)   : 2                40000M Cost (40G)   : 2
+50000M Cost (50G)   : 2                100000M Cost (100G) : 1
+Router Alert        : Disabled         Import Policy File  :
+ASExternal LSALimit : Disabled         Timeout (Count)     : Disabled (0)
+Originate Default   : Disabled
+SNMP Traps          : Disabled
+VXLAN Extensions    : Disabled
+Redistribute:
+Protocol              Status   cost  Type Tag        Policy
+direct                Disabled 0     0    0          None
+static                Disabled 0     0    0          None
+rip                   Disabled 0     0    0          None
+e-bgp                 Disabled 0     0    0          None
+i-bgp                 Disabled 0     0    0          None
+isis-level-1          Disabled 0     0    0          None
+isis-level-2          Disabled 0     0    0          None
+isis-level-1-external Disabled 0     0    0          None
+isis-level-2-external Disabled 0     0    0          None
+host-mobility         Disabled 0     0    0          None
+direct-inter-vr       Disabled 0     0    0          None
+# of Inter-VR Exports: 0

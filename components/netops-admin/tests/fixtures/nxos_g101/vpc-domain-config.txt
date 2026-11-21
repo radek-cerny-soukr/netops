@@ -1,0 +1,17 @@
+
+!Command: show running-config vpc
+!Running configuration last done at: Wed Nov 18 11:50:29 2026
+!Time: Thu Nov 19 16:41:28 2026
+
+version 9.3(12) Bios:version
+feature vpc
+
+vpc domain 128
+  role priority 10
+  peer-keepalive destination 192.0.2.62   source 192.0.2.61
+
+interface port-channel128
+  vpc 128
+
+interface port-channel200
+  vpc peer-link

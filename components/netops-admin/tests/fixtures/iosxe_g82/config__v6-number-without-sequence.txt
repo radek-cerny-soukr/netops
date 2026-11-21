@@ -1,0 +1,5 @@
+20 permit tcp any any
+                         ^
+% Invalid input detected at '^' marker.
+
+host01(config-ipv6-acl)#

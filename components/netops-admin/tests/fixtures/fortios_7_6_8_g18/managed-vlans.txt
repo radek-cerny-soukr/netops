@@ -1,0 +1,58 @@
+config switch-controller managed-switch
+    edit "S000SSSS00000001"
+        set fsw-wan1-peer "fortilink"
+        set fsw-wan1-admin enable
+        config ports
+            edit "port1"
+                set vlan "_default"
+                set allowed-vlans "quarantine"
+                set untagged-vlans "quarantine"
+            next
+            edit "port2"
+                set vlan "_default"
+                set allowed-vlans "quarantine"
+                set untagged-vlans "quarantine"
+            next
+            edit "port3"
+                set vlan "host01"
+                set allowed-vlans "quarantine"
+                set untagged-vlans "quarantine"
+            next
+            edit "port4"
+                set vlan "host01"
+                set allowed-vlans "quarantine"
+                set untagged-vlans "quarantine"
+            next
+            edit "port5"
+                set vlan "_default"
+                set allowed-vlans "quarantine"
+                set untagged-vlans "quarantine"
+            next
+            edit "port6"
+                set vlan "_default"
+                set allowed-vlans "quarantine"
+                set untagged-vlans "quarantine"
+            next
+            edit "port7"
+                set vlan "_default"
+                set allowed-vlans "quarantine"
+                set untagged-vlans "quarantine"
+            next
+            edit "port8"
+                set vlan "_default"
+                set allowed-vlans "quarantine"
+                set untagged-vlans "quarantine"
+            next
+            edit "port9"
+                set vlan "_default"
+                set allowed-vlans "quarantine"
+                set untagged-vlans "quarantine"
+            next
+            edit "port10"
+                set vlan "_default"
+                set allowed-vlans "quarantine"
+                set untagged-vlans "quarantine"
+            next
+        end
+    next
+end

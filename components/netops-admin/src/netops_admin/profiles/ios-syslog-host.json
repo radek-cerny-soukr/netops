@@ -1,0 +1,21 @@
+{
+  "platform": "ios",
+  "table": "syslog-host",
+  "versions": [
+    "15.9(3)M12"
+  ],
+  "exact_versions": true,
+  "ops": [
+    "create",
+    "delete"
+  ],
+  "table_scoped_key": true,
+  "key_pattern": "^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$",
+  "protected_keys": [],
+  "attributes": {},
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "IOS timed configuration safeguard, full running-config verification and a scoped inverse. The privilege-15 account rereads service configuration. The privilege-1 account cannot read it."
+}

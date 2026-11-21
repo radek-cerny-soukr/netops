@@ -1,0 +1,22 @@
+{
+  "firewall_filters_ro": {
+    "file": "firewall_refused.out",
+    "rc": 0,
+    "account": "read-only"
+  },
+  "firewall_filter_ro": {
+    "file": "firewall_refused.out",
+    "rc": 0,
+    "account": "read-only"
+  },
+  "interface_firewall_filter_ro": {
+    "file": "bindings_refused.out",
+    "rc": 0,
+    "account": "read-only"
+  },
+  "interface_firewall_filter_admin": {
+    "file": "bindings_empty.out",
+    "rc": 0,
+    "account": "configuration"
+  }
+}

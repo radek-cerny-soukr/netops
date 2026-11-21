@@ -1,0 +1,3 @@
+config system time ntp
+  set ntpsync disable
+end

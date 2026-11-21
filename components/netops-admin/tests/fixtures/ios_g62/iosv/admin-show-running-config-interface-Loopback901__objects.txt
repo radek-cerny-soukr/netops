@@ -1,0 +1,13 @@
+
+
+
+Building configuration...
+
+Current configuration : 156 bytes
+!
+interface Loopback901
+ description netops-g62 vrf
+ vrf forwarding blue
+ ip address 198.51.100.17 255.255.255.240
+ ipv6 address 2001:db8:3::1/64
+end

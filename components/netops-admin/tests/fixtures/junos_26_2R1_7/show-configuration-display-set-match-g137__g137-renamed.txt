@@ -1,0 +1,17 @@
+set groups g137-grp interfaces ge-0/0/7 unit 0 family ethernet-switching interface-mode access
+set groups g137-grp interfaces ge-0/0/7 unit 0 family ethernet-switching vlan members g137-data2
+set groups g137-grpw interfaces "<ge-0/0/[89]>" unit 0 family ethernet-switching vlan members g137-trunk2
+set apply-groups g137-grp
+set interfaces interface-range g137-rng member ge-0/0/9
+set interfaces interface-range g137-rng unit 0 family ethernet-switching interface-mode access
+set interfaces interface-range g137-rng unit 0 family ethernet-switching vlan members g137-voice
+set interfaces ge-0/0/2 description "Kancelář 2.patro – učebna Žďár nad Sázavou, zásuvka 12/3 (VoIP + PC); správce: Ředitelství & IT; pozn.: přepojeno 2026-11-18, kabel č. 47, patch A-12 → sw ge-0/0/2; kontakt: helpdesk / tel. 1234; ověřeno G137 Ťuk ďábel ÚŮ"
+set interfaces ge-0/0/2 unit 0 family ethernet-switching vlan members g137-trunk2
+set interfaces ge-0/0/2 unit 0 family ethernet-switching vlan members g137-data2
+set interfaces ge-0/0/8 apply-groups g137-grpw
+set interfaces irb unit 3901 description g137-irb
+set vlans g137-data2 description "Data VLAN – Brno, kancelář 2.patro (test G137)"
+set vlans g137-data2 vlan-id 3901
+set vlans g137-data2 l3-interface irb.3901
+set vlans g137-trunk2 vlan-id 3903
+set vlans g137-voice vlan-id 3902

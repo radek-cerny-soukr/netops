@@ -17,10 +17,23 @@ MAX_REAL_SERVERS = 4
 # A virtual server with schedule-list enable: at most this many schedule-pool entries are read (one
 # config_read each) and at most as many distinct schedule groups; further entries are missing as truncated.
 MAX_SCHEDULE_ENTRIES = 4
+# A virtual server with content-routing enable: at most this many content-routing entries are read (one config_read
+# each); further entries are missing as truncated (G28 ADC-C04).
+MAX_CONTENT_ROUTES = 4
 RATE_COST = 21
-# Worst cases of the two read plans; both must fit the reserved RATE_COST.
+# Worst cases of the three read plans; all must fit the reserved RATE_COST. With content routing the single
+# candidate pool and its health checks are read, the real-server addresses are not (they would exceed the plan).
 STATIC_PLAN = 1 + 1 + 1 + MAX_HEALTH_CHECKS + 2 + 2 + 1 + 3 + 1 + 1 + MAX_REAL_SERVERS
 SCHEDULE_PLAN = 1 + 1 + 2 * MAX_SCHEDULE_ENTRIES + 2 + 2 + 1 + 3 + 1 + 1
+CONTENT_ROUTING_PLAN = 1 + 1 + MAX_CONTENT_ROUTES + 1 + MAX_HEALTH_CHECKS + 2 + 2 + 1 + 3 + 1 + 1
+# Measured on FortiADC-KVM 7.6.7 build 0676 (VM220, 2026-11-17, task 445-r2: show full-configuration load-balance
+# content-routing, CLI help of config match-condition).
+CONTENT_ROUTING_TYPES = frozenset(("l4-content-routing", "l7-content-routing"))
+CONTENT_ROUTING_FIELDS = frozenset(("type", "persistence-inherit", "method-inherit", "connection-pool",
+                                    "connection-pool-inherit", "schedule-list", "schedule-pool-list",
+                                    "load-balance-pool", "load-balance-persistence", "load-balance-method",
+                                    "packet-forwarding-method", "ippool-list", "comments"))
+MATCH_CONDITION_FIELDS = frozenset(("object", "type", "content", "reverse", "ignore-case"))
 # Measured on FortiADC-KVM 7.6.7 build 0676 (CLI help of config schedule-member and show full-configuration).
 SCHEDULE_TYPES = frozenset(("daily-recurring", "hourly-recurring", "monthly-recurring", "one-time", "weekly-recurring"))
 SCHEDULE_MEMBER_FIELDS = frozenset(("type", "startdate", "enddate", "starttime-of-startdate", "endtime-of-enddate",
@@ -142,7 +155,36 @@ def virtual_server_config(text: str, name: str) -> dict[str, Any]:
         "schedule_list": _one(fields, "schedule-list"),
         "schedule_pool_list": list(fields.get("schedule-pool-list", [])),
         "content_routing": _one(fields, "content-routing"),
+        # Literal and ordered like schedule-pool-list; the device evaluates the entries in this order.
+        "content_routing_list": list(fields.get("content-routing-list", [])),
+        "persistence": _one(fields, "load-balance-persistence"),
     }
+
+
+def content_routing_config(text: str, name: str) -> dict[str, Any]:
+    """One `load-balance content-routing` entry: type, the pool it names and its match conditions, as configured.
+
+    Which entry matches a request is not computed: that depends on the request and is not in the device output.
+    """
+    parsed = parse_config_object(text, "load-balance content-routing", name, table="match-condition")
+    fields = parsed["fields"]
+    if (not set(fields) <= CONTENT_ROUTING_FIELDS or any(table != "match-condition" for table in parsed["tables"])
+            or _one(fields, "type") not in CONTENT_ROUTING_TYPES):
+        raise TriageParseError("content-routing entry has an unknown shape")
+    conditions = []
+    for member in parsed["members"]:
+        condition = member["fields"]
+        if not member["id"].isdigit() or not set(condition) <= MATCH_CONDITION_FIELDS:
+            raise TriageParseError("content-routing match condition has an unknown shape")
+        conditions.append({"id": int(member["id"]),
+                           **{key.replace("-", "_"): " ".join(value) for key, value in sorted(condition.items())}})
+    schedule = _one(fields, "schedule-list")
+    pool = _one(fields, "load-balance-pool")
+    if pool is None and schedule != "enable":
+        raise TriageParseError("content-routing entry names no pool")
+    return {"type": _one(fields, "type"), "pool": pool, "schedule_list": schedule,
+            "persistence_inherit": _one(fields, "persistence-inherit"),
+            "method_inherit": _one(fields, "method-inherit"), "conditions": conditions}
 
 
 def schedule_pool_config(text: str, name: str) -> dict[str, Any]:
@@ -267,6 +309,44 @@ def parse_vs_stat(text: str, virtual_server: str, vdom: str) -> dict[str, Any]:
     return result
 
 
+def parse_vs_overview(text: str, vdom: str) -> list[dict[str, Any]]:
+    """Parse the native VDOM-wide vs_stat read; never infer a missing counter as zero."""
+    lines = _lines(text)
+    header = _VDOM.fullmatch(lines[0])
+    if not header or header.group(1) != vdom:
+        raise TriageParseError("vs_stat vdom header has an unknown shape")
+    blocks = []
+    current = None
+    names = set()
+    for line in lines[1:]:
+        found = _VS_STAT.fullmatch(line)
+        if found:
+            name = found.group(1)
+            if name in names:
+                raise TriageParseError("vs_stat repeats a virtual server")
+            names.add(name)
+            current = [name, []]
+            blocks.append(current)
+        if current is None:
+            raise TriageParseError("vs_stat line precedes its virtual server")
+        current[1].append(line)
+    if not blocks:
+        raise TriageParseError("vs_stat virtual servers are missing")
+    result = []
+    expected = {"APP Response", "Client RTT", "Concurrent Connections", "Inbound Throughput",
+                "Outbound Throughput", "Requests", "Server RTT"}
+    for name, block in blocks:
+        parsed = parse_vs_stat("\n".join([lines[0], *block]), name, vdom)
+        if not expected <= parsed["counters"].keys():
+            raise TriageParseError("vs_stat counters are incomplete")
+        for pool in parsed["pools"]:
+            for member in pool["members"]:
+                if not (expected - {"Client RTT"}) <= member["counters"].keys():
+                    raise TriageParseError("vs_stat member counters are incomplete")
+        result.append({"virtual_server": name, **parsed})
+    return result
+
+
 def parse_slb_load(text: str, virtual_server: str) -> dict[str, Any]:
     lines = _lines(text)
     if not _VDOM.fullmatch(lines[0]):
@@ -349,6 +429,21 @@ def parse_key_values(text: str) -> dict[str, str]:
     return values
 
 
+def pool_runtime_members(runtime_pools: list[dict[str, Any]] | None,
+                         pool_name: str | None) -> dict[int, dict[str, Any]] | None:
+    """Runtime members of one pool, joined by pool name AND member id; None when the output does not print the pool.
+
+    A member id belongs to its pool (two pools commonly both have ids 1 and 2). With content routing vs_stat prints
+    the hidden stored pool, not necessarily the candidate (task 445-r3): its members never stand for the candidate's.
+    """
+    if runtime_pools is None or pool_name is None:
+        return None
+    named = [item for item in runtime_pools if item["name"] == pool_name]
+    if not named:
+        return None
+    return {member["id"]: member for item in named for member in item["members"]}
+
+
 def _finding(rule: str, layer: str, obj: str, fact: str, sources: list[dict[str, Any]]) -> dict[str, Any]:
     return {"id": rule, "layer": layer, "object": obj, "fact": fact, "sources": sources}
 
@@ -370,11 +465,14 @@ def evaluate(chain: dict[str, Any], sources: dict[str, dict[str, Any]], target: 
     runtime_pools = vs_runtime["pools"] if vs_runtime else None
     if pool.get("selection") == "schedule":
         _schedule_findings(chain, sources, findings, hypotheses, runtime_pools)
-    runtime_members: dict[int, dict[str, Any]] = {}
-    if runtime_pools is not None:
-        for item in runtime_pools:
-            for member in item["members"]:
-                runtime_members[member["id"]] = member
+    elif pool.get("selection") == "content_routing":
+        _content_routing_findings(chain, sources, findings, runtime_pools)
+    pool_members = pool_runtime_members(runtime_pools, pool.get("name"))
+    runtime_members: dict[int, dict[str, Any]] = pool_members or {}
+    # Runtime health of the pool is known when vs_stat prints that pool; an empty vs_stat (`no rs for this vs`) still
+    # counts for a configured load-balance-pool, never for a content-routing candidate (the device prints no candidate).
+    runtime_known = pool_members is not None or (
+        runtime_pools == [] and pool.get("selection") != "content_routing")
     if config_members is not None:
         enabled = [m for m in config_members if m["status"] == "enable"]
         for member in config_members:
@@ -386,7 +484,7 @@ def evaluate(chain: dict[str, Any], sources: dict[str, dict[str, Any]], target: 
                                      [sources["pool_config"]]))
         if runtime_pools is not None:
             down = []
-            for member in enabled:
+            for member in enabled if runtime_known else ():
                 state = runtime_members.get(member["id"])
                 if state is not None and state["hc_state"] != "UP":
                     down.append(member)
@@ -410,13 +508,13 @@ def evaluate(chain: dict[str, Any], sources: dict[str, dict[str, Any]], target: 
                     steps.append({"tool": "fortios_diagnostics",
                                   "arguments": {"target": target, "recipe": "ping", "interface": "", "address": address},
                                   "why": "reachability of real-server %s" % member["real_server"]})
-            if enabled and not any(runtime_members.get(m["id"], {}).get("hc_state") == "UP" for m in enabled):
+            if not enabled:
+                findings.append(_finding("F-POOL-ALL-DOWN", "config", pool["name"], "pool has no enabled member",
+                                         [sources["pool_config"]]))
+            elif runtime_known and not any(runtime_members.get(m["id"], {}).get("hc_state") == "UP" for m in enabled):
                 findings.append(_finding("F-POOL-ALL-DOWN", "runtime", pool["name"],
                                          "no enabled member reports hc_state UP",
                                          [sources["pool_config"], sources["slb_vs_stat"]]))
-            elif not enabled:
-                findings.append(_finding("F-POOL-ALL-DOWN", "config", pool["name"], "pool has no enabled member",
-                                         [sources["pool_config"]]))
             if down:
                 hypotheses.append({"text": "backend service or health check path fails for %d member(s)" % len(down),
                                    "based_on": ["F-MEMBER-DOWN"]})
@@ -430,7 +528,7 @@ def evaluate(chain: dict[str, Any], sources: dict[str, dict[str, Any]], target: 
                     [sources["pool_config"], sources["slb_vs_stat"]]))
     load = chain.get("load")
     if load is not None and config_members is not None:
-        loaded = {m["id"] for item in load["pools"] for m in item["members"]}
+        loaded = {m["id"] for item in load["pools"] if item["name"] == pool["name"] for m in item["members"]}
         configured = {m["id"] for m in config_members}
         if not load["present"] or loaded != configured:
             findings.append(_finding("F-MISMATCH", "runtime", name,
@@ -495,6 +593,33 @@ def _schedule_findings(chain: dict[str, Any], sources: dict[str, dict[str, Any]]
         hypotheses.append({"text": "no schedule window may be active at the device time; compare the schedule "
                                    "group members with the device clock",
                            "based_on": ["F-VS-AVAIL", "F-POOL-BY-SCHEDULE"]})
+
+
+def _content_routing_findings(chain: dict[str, Any], sources: dict[str, dict[str, Any]], findings: list,
+                              runtime_pools: list[dict[str, Any]] | None) -> None:
+    """Pool selection per request by content routing: name the entries and their candidate pools.
+
+    Measured on FortiADC-KVM 7.6.7 build 0676 (VM220, 2026-11-17, task 445-r2): the CLI configuration of such a virtual
+    server shows no load-balance-pool, yet vs_stat and slb_load print the pool stored before content-routing was
+    enabled (there the same pool as both entries named), so `reported_by_vs_stat` is not evidence of the pool in use.
+    """
+    name, pool = chain["virtual_server"], chain["pool"]
+    entries = (chain["vs"].get("config") or {}).get("content_routing_list") or []
+    candidates = [ref["name"] for ref in pool.get("references", ()) if ref["relation"] == "configured_candidate"]
+    read = [source for item in chain.get("content_routing", ()) for source in item["sources"][1:]]
+    findings.append(_finding(
+        "F-POOL-BY-CONTENT", "config", name,
+        "content-routing enable, content-routing-list %s, candidate pools %s; the request decides the entry, the "
+        "device output does not name the pool of a request" % (" ".join(entries) or "-", " ".join(candidates) or "-"),
+        [sources["vs_config"], *read]))
+    if runtime_pools is not None and pool.get("candidates_complete"):
+        for item in runtime_pools:
+            if item["name"] not in candidates:
+                findings.append(_finding(
+                    "F-POOL-NOT-CANDIDATE", "runtime", item["name"],
+                    "vs_stat real-server-pool %s is not named by a content-routing entry; the virtual server "
+                    "configuration shows no load-balance-pool for it" % item["name"],
+                    [sources["slb_vs_stat"], sources["vs_config"], *read]))
 
 
 def verdict(findings: list[dict[str, Any]], missing: list[dict[str, Any]], executed: set[str],

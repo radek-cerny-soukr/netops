@@ -1,0 +1,14 @@
+*** Startup-config
+--- Running-config
+***************
+*** 208,216 ****
+  [redacted]
+  [redacted]
+  [redacted]
+  [redacted]
+  
+- logging server 198.51.100.20 5 use-vrf management
+  
+  
+  
+--- 207,214 ----

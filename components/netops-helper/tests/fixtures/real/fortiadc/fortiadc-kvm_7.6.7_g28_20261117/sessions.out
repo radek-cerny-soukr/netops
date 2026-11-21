@@ -1,0 +1,3 @@
+FortiADC-KVM # client-ip/port virtual-server-ip/port local-ip/port real-server-ip/port protocol service state in-bytes out-bytes expire virtual-server-name real-server-name
+
+FortiADC-KVM # 

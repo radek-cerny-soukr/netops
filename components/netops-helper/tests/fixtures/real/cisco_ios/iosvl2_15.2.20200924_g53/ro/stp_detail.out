@@ -1,0 +1,138 @@
+
+
+ VLAN0001 is executing the ieee compatible Spanning Tree protocol
+  Bridge Identifier has priority 32768, sysid 1, address 0000.5e00.5301
+  Configured hello time 2, max age 20, forward delay 15
+  We are the root of the spanning tree
+  Topology change flag not set, detected flag not set
+  Number of topology changes 3 last change occurred 08:00:30 ago
+          from GigabitEthernet1/0
+  Times:  hold 1, topology change 35, notification 2
+          hello 2, max age 20, forward delay 15 
+  Timers: hello 0, topology change 0, notification 0, aging 300
+
+ Port 6 (GigabitEthernet1/1) of VLAN0001 is designated forwarding 
+   Port path cost 4, Port priority 128, Port Identifier 128.6.
+   Designated root has priority 32769, address 0000.5e00.5301
+   Designated bridge has priority 32769, address 0000.5e00.5301
+   Designated port id is 128.6, designated path cost 0
+   Timers: message age 0, forward delay 0, hold 0
+   Number of transitions to forwarding state: 1
+   Link type is point-to-point by default
+   BPDU: sent 80407, received 0
+
+ Port 7 (GigabitEthernet1/2) of VLAN0001 is designated forwarding 
+   Port path cost 4, Port priority 128, Port Identifier 128.7.
+   Designated root has priority 32769, address 0000.5e00.5301
+   Designated bridge has priority 32769, address 0000.5e00.5301
+   Designated port id is 128.7, designated path cost 0
+   Timers: message age 0, forward delay 0, hold 0
+   Number of transitions to forwarding state: 1
+   Link type is point-to-point by default
+   BPDU: sent 80407, received 0
+
+ Port 8 (GigabitEthernet1/3) of VLAN0001 is designated forwarding 
+   Port path cost 4, Port priority 128, Port Identifier 128.8.
+   Designated root has priority 32769, address 0000.5e00.5301
+   Designated bridge has priority 32769, address 0000.5e00.5301
+   Designated port id is 128.8, designated path cost 0
+   Timers: message age 0, forward delay 0, hold 0
+   Number of transitions to forwarding state: 1
+   Link type is point-to-point by default
+   BPDU: sent 80407, received 0
+
+
+ VLAN0010 is executing the ieee compatible Spanning Tree protocol
+  Bridge Identifier has priority 32768, sysid 10, address 0000.5e00.5301
+  Configured hello time 2, max age 20, forward delay 15
+  We are the root of the spanning tree
+  Topology change flag not set, detected flag not set
+  Number of topology changes 3 last change occurred 1d19h ago
+          from GigabitEthernet1/0
+  Times:  hold 1, topology change 35, notification 2
+          hello 2, max age 20, forward delay 15 
+  Timers: hello 0, topology change 0, notification 0, aging 300
+
+ Port 2 (GigabitEthernet0/1) of VLAN0010 is designated forwarding 
+   Port path cost 4, Port priority 128, Port Identifier 128.2.
+   Designated root has priority 32778, address 0000.5e00.5301
+   Designated bridge has priority 32778, address 0000.5e00.5301
+   Designated port id is 128.2, designated path cost 0
+   Timers: message age 0, forward delay 0, hold 0
+   Number of transitions to forwarding state: 1
+   Link type is point-to-point by default
+   BPDU: sent 80406, received 0
+
+ Port 3 (GigabitEthernet0/2) of VLAN0010 is designated forwarding 
+   Port path cost 4, Port priority 128, Port Identifier 128.3.
+   Designated root has priority 32778, address 0000.5e00.5301
+   Designated bridge has priority 32778, address 0000.5e00.5301
+   Designated port id is 128.3, designated path cost 0
+   Timers: message age 0, forward delay 0, hold 0
+   Number of transitions to forwarding state: 1
+   Link type is point-to-point by default
+   BPDU: sent 80410, received 7
+
+ Port 4 (GigabitEthernet0/3) of VLAN0010 is designated forwarding 
+   Port path cost 4, Port priority 128, Port Identifier 128.4.
+   Designated root has priority 32778, address 0000.5e00.5301
+   Designated bridge has priority 32778, address 0000.5e00.5301
+   Designated port id is 128.4, designated path cost 0
+   Timers: message age 0, forward delay 0, hold 0
+   Number of transitions to forwarding state: 1
+   Link type is point-to-point by default
+   BPDU: sent 80406, received 0
+
+
+ VLAN0020 is executing the ieee compatible Spanning Tree protocol
+  Bridge Identifier has priority 32768, sysid 20, address 0000.5e00.5301
+  Configured hello time 2, max age 20, forward delay 15
+  We are the root of the spanning tree
+  Topology change flag not set, detected flag not set
+  Number of topology changes 1 last change occurred 1d20h ago
+          from GigabitEthernet0/1
+  Times:  hold 1, topology change 35, notification 2
+          hello 2, max age 20, forward delay 15 
+  Timers: hello 0, topology change 0, notification 0, aging 300
+
+ Port 2 (GigabitEthernet0/1) of VLAN0020 is designated forwarding 
+   Port path cost 4, Port priority 128, Port Identifier 128.2.
+   Designated root has priority 32788, address 0000.5e00.5301
+   Designated bridge has priority 32788, address 0000.5e00.5301
+   Designated port id is 128.2, designated path cost 0
+   Timers: message age 0, forward delay 0, hold 0
+   Number of transitions to forwarding state: 1
+   Link type is point-to-point by default
+   BPDU: sent 80406, received 0
+
+ Port 3 (GigabitEthernet0/2) of VLAN0020 is designated forwarding 
+   Port path cost 4, Port priority 128, Port Identifier 128.3.
+   Designated root has priority 32788, address 0000.5e00.5301
+   Designated bridge has priority 32788, address 0000.5e00.5301
+   Designated port id is 128.3, designated path cost 0
+   Timers: message age 0, forward delay 0, hold 0
+   Number of transitions to forwarding state: 1
+   Link type is point-to-point by default
+   BPDU: sent 80409, received 6
+
+
+ VLAN0099 is executing the ieee compatible Spanning Tree protocol
+  Bridge Identifier has priority 32768, sysid 99, address 0000.5e00.5301
+  Configured hello time 2, max age 20, forward delay 15
+  Current root has priority 32768, address 0000.5e00.5302
+  Root port is 1 (GigabitEthernet0/0), cost of root path is 4
+  Topology change flag not set, detected flag not set
+  Number of topology changes 0 last change occurred 1d20h ago
+  Times:  hold 1, topology change 22, notification 2
+          hello 2, max age 20, forward delay 2 
+  Timers: hello 0, topology change 0, notification 0, aging 300
+
+ Port 1 (GigabitEthernet0/0) of VLAN0099 is root forwarding 
+   Port path cost 4, Port priority 128, Port Identifier 128.1.
+   Designated root has priority 32768, address 0000.5e00.5302
+   Designated bridge has priority 32768, address 0000.5e00.5302
+   Designated port id is 128.1, designated path cost 0
+   Timers: message age 2, forward delay 0, hold 0
+   Number of transitions to forwarding state: 1
+   Link type is point-to-point by default
+   BPDU: sent 0, received 82885

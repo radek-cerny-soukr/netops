@@ -1,0 +1,11 @@
+# Cisco documentation excerpts for configured or physical devices
+
+These trimmed CLI examples are derived from Cisco documentation. Addresses are replaced with documentation addresses. They cover formats absent from the read-only virtual lab.
+
+- `environment.txt` combines the fan and power rows from the [Nexus 9508 show environment example](https://developer.cisco.com/docs/nx-api-cli-reference-for-the-cisco-nexus-9000-series-platform/environment-commands/) with one temperature row from the [Nexus 9000 9.3(x) temperature example](https://developer.cisco.com/docs/cisco-nexus-9000-series-nx-api-cli-reference/latest/environment-commands/).
+- `ntp_associations.txt` uses the selected and unreachable peers from [Configure NTP on Nexus](https://www.cisco.com/c/en/us/support/docs/switches/nexus-9000-series-switches/221746-configure-network-time-protocol-on-nexus.html).
+- `hsrp_detail.txt` uses one group from the [Nexus 9000 9.3(x) HSRP detail example](https://developer.cisco.com/docs/cisco-nexus-9000-series-nx-api-cli-reference/latest/hsrp-commands/).
+- `vrrp_detail.txt` uses the [Nexus 6000 VRRPv2 detail example](https://www.cisco.com/c/en/us/td/docs/switches/datacenter/nexus6000/sw/command/reference/unicast/7x/n6k-ucast-cmd/n6k-vrrp_cmds_show.html). The command is also specified by the [Nexus 9000 NX-OS 9.3(x) command reference](https://www.cisco.com/c/en/us/td/docs/switches/datacenter/nexus9000/sw/93x/command/reference/show/b_N9K_Show_Commands_93x/b_N9K_Show_Commands_93x_chapter_010101.html).
+- `vrrpv3_detail.txt` uses one group and transition rows from the [Nexus 9000 9.3(x) VRRPv3 detail example](https://developer.cisco.com/docs/cisco-nexus-9000-series-nx-api-cli-reference/latest/vrrpv3-commands/).
+- `object_tracking.txt` uses the `show track` example in the [Cisco Nexus OpenConfig VRRP guide](https://developer.cisco.com/docs/cisco-nexus-openconfig-yang-release-10-6-x-/oc-vrrp/), marked as introduced in 9.3(5).
+- `logging_info.txt` is the destination subsection shown by the [Cisco Nexus secure syslog troubleshooting guide](https://www.cisco.com/c/en/us/support/docs/switches/nexus-9000-series-switches/226394-troubleshoot-secure-syslog-on-nexus.html) with the server name replaced. The NX-OS 9.3(x) command reference identifies this same table in `show logging info`.

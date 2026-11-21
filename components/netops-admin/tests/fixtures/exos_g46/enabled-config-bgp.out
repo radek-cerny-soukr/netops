@@ -1,0 +1,5 @@
+#
+# Module bgp configuration.
+#
+create bgp neighbor 198.51.100.2 remote-AS-number 65146
+enable bgp neighbor 198.51.100.2

@@ -1,0 +1,19 @@
+{
+    "interfaceStatuses": {
+        "Ethernet12": {
+            "description": "",
+            "linkStatus": "disabled",
+            "duplex": "duplexFull",
+            "bandwidth": 1000000000,
+            "autoNegotigateActive": false,
+            "autoNegotiateActive": false,
+            "interfaceType": "EbraTestPhyPort",
+            "vlanInformation": {
+                "vlanExplanation": "in Po900",
+                "interfaceForwardingModel": "dataLink"
+            },
+            "lineProtocolStatus": "down",
+            "interfaceDamped": false
+        }
+    }
+}

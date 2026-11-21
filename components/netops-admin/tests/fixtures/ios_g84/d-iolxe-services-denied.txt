@@ -1,0 +1,1 @@
+Line has invalid autocommand "show running-config | include ^hostname |^end$"

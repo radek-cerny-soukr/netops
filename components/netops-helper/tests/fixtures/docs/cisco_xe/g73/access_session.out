@@ -1,0 +1,14 @@
+Interface:  TenGigabitEthernet1/0/23
+           MAC Address:  0000.5e00.5301
+          IPv4 Address:  192.0.2.1
+                Status:  Authorized
+                Domain:  DATA
+        Current Policy:  MAB
+
+Server Policies:
+      URL Redirect ACL: web_acl
+          URL Redirect: <REDACTED>
+
+Method status list:
+       Method           State
+          mab           Authc Success

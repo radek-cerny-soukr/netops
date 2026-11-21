@@ -943,6 +943,8 @@ def test_vendor_lldp_commands_use_supported_local_read_queries() -> None:
 
 
 def test_phase1_catalog_has_no_configuration_export() -> None:
+    from netops_helper.query_catalog.junos import CONFIG_COMMANDS
+
     forbidden = (
         "running-config",
         "startup-config",
@@ -951,8 +953,20 @@ def test_phase1_catalog_has_no_configuration_export() -> None:
         "backup configuration",
         "execute backup",
     )
-    for queries in READ_QUERIES.values():
+    for platform, queries in READ_QUERIES.items():
         for name, query in queries.items():
+            if platform == "cisco_nxos" and name == "configuration_sessions":
+                assert query.command == "show configuration session summary" and not query.slots
+                continue
+            if platform in {"juniper_junos", "juniper_junos_els"} and name == "interface_firewall_filter":
+                assert query.command == "show configuration interfaces {interface} family inet filter | no-more"
+                assert [(key, slot.inventory, slot.kind) for key, slot in query.slots.items()] == [
+                    ("interface", "interfaces", "junos_filter_interface")
+                ]
+                continue
+            if platform in {"juniper_junos", "juniper_junos_els"} and name in CONFIG_COMMANDS:
+                assert query.command == CONFIG_COMMANDS[name] and not query.slots
+                continue
             inspected = f"{name} {query.command}".lower()
             assert not any(marker in inspected for marker in forbidden), inspected
 
@@ -1188,7 +1202,7 @@ def test_phase1_server_and_engine_expose_no_generic_body_reads() -> None:
         )
     }
     assert registered_tools == {
-        "switch_read", "locate_endpoint",
+        "switch_read", "locate_endpoint", "vpc_compare", "triage_port", "triage_nxos_path",
         "helper_status",
         "read_query_catalog",
         "dns_probe",
@@ -1209,7 +1223,7 @@ def test_phase1_server_and_engine_expose_no_generic_body_reads() -> None:
         "triage_vpn",
         "wifi_triage",
         "wifi_clients", "wifi_aps_live", "wifi_rogue",
-        "triage_flow",
+        "triage_flow", "fortiswitch_overview", "firewall_policy_hits",
     }
 
     server_engine_imports = {

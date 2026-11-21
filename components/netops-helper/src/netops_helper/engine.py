@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
-from contextlib import contextmanager
+from datetime import datetime, timedelta, timezone
+from contextlib import ExitStack, contextmanager
 from contextvars import ContextVar
+from dataclasses import replace
 from functools import cache, wraps
 import inspect
 import ftplib
@@ -29,6 +30,7 @@ import threading
 import ssl
 import time
 from collections.abc import Iterable
+from types import SimpleNamespace
 from typing import Any
 
 from icmplib import ping
@@ -41,22 +43,44 @@ from netops_core import sftp as core_sftp
 from netops_core import ssh as core_ssh
 from netops_core.inputs import InputError, read_regular
 
-from . import progress
+from . import junos_poe
+from . import fortiadc_diagnostics, progress
 from .audit import AuditPostOperationError, AuditPreflightError, record
 from .auth import (
     LEGACY_SSH_PROFILES, AuthenticationContextError, EgressScopeError,
     LegacySshProfileRequired, PolicyScopeError, TargetAuth,
 )
 from .inventory import unique_object
+from .query_catalog.arista import LOG_WINDOW_QUERIES as EOS_LOG_WINDOW_QUERIES
+from .query_catalog.cisco import IOS_G55_QUERIES, IOS_G57_QUERIES, IOS_MANAGEMENT_QUERIES, IOS_XE_G73_QUERIES, IOS_XE_PORT_QUERIES, IOS_XE_PROBE_QUERIES, XE_LOG_HISTORY
+from .query_catalog.cisco import NXOS_G93_QUERIES, NXOS_G95_QUERIES, NXOS_G97_QUERIES, NXOS_LOG_HISTORY
+from .query_catalog.extreme import LOG_HISTORY as EXOS_LOG_HISTORY
+from .query_catalog.junos import (
+    CONFIG_COMMANDS as JUNOS_CONFIG_COMMANDS, CONFIG_READ_QUERIES as JUNOS_CONFIG_READS,
+    FILTER_BINDING_QUERY, G134_QUERIES, G135_QUERIES, LOG_HISTORY_COMMAND, LOG_HISTORY_QUERY,
+    PROFILES as JUNOS_PROFILES, TESTED_G134, TRACEROUTE_MAX_HOPS,
+)
 from .read_policy import (
     READ_QUERIES, is_read_sequence, normalize_platform, render_read_query, render_read_sequence,
     require_fortinet_sequence,
 )
 from . import fortios_vdom
 from . import normalization
-from .sanitize import digest_text, redact
+from .sanitize import (
+    FORTIOS_IPSEC_KEY_QUERIES, digest_text, eos_management_status, nxos_management_output, redact,
+    redact_cisco_sa_keys, redact_exos_log_commands, redact_fortios_ipsec_keys, redact_ios_log_commands, redact_ios_management,
+    redact_nxos_snmp_communities, strip_terminal_controls,
+)
 from . import wifi_parse
-from .switch_dhcp import DHCP_BINDINGS_QUERY, summarize as dhcp_bindings_summarize
+from .switch_dhcp import (DHCP_BINDINGS_QUERY, FORTIOS_LEASES_QUERY, eos_relay_counters, fortios_leases as fortios_leases_summarize,
+                          summarize as dhcp_bindings_summarize)
+from .fortigate_tables import USER_DEVICES_QUERY, user_devices as user_devices_summarize, \
+    INTERFACE_LIST_QUERY, interface_list as interface_list_summarize
+from .triage_routing import BGP_NEIGHBOR_QUERIES, ROUTE_DATABASE_QUERIES, \
+    bgp_neighbors as bgp_neighbors_summarize, route_database as route_database_summarize
+from . import triage_health as health_rules
+from .triage_health import CRASH_LOG_QUERY, SENSORS_QUERY, crash_log as crash_log_summarize, \
+    hardware_sensors as hardware_sensors_summarize
 from .switch_mclag import MCLAG_QUERIES, not_supported as mclag_not_supported, summarize as mclag_summarize
 from .switch_mlag_eos import payload as mlag_eos_payload
 from .switch_mlag_exos import payload as mlag_exos_payload
@@ -135,24 +159,31 @@ if (
 ):
     raise RuntimeError("SSH transport mapping is incomplete or invalid")
 _SSH_READ_TIMEOUT_SECONDS = 60.0
+# Three 1 s probes per hop, plus time for SSH and command startup.
+_JUNOS_TRACEROUTE_TIMEOUT_SECONDS = 150.0
 _SSH_LOGIN_TIMEOUT_SECONDS = 20.0
 _HOST_KEY_SCAN_TIMEOUT_SECONDS = 10.0
 _HOST_KEY_PROBE_TIMEOUT_SECONDS = 5.0
 _SSH_CACHE_TTL_SECONDS = 120.0
 _SSH_CACHE_MAX_ENTRIES = 8
 _SSH_CAPTURE_MAX_BYTES = 2_000_000
+_EXOS_BLANK_STATUS_250_QUERIES = frozenset({"bfd_sessions", "ospf_lsdb", "ospf_neighbors"})
 # Log message queries: fixed line limit applied to the redacted output before it is stored or paged.
 # EXOS lists the newest message first; IOS, IOS XE, NX-OS, EOS and Junos print the oldest first, so the limit keeps the trailing lines.
 _EXOS_LOG_QUERIES = frozenset({"log_messages", "log_warnings"})
 _OLDEST_FIRST_LOG_PROFILES = frozenset({"cisco_ios", "cisco_xe", "cisco_nxos", "arista_eos", "juniper_junos", "juniper_junos_els"})
-_OLDEST_FIRST_LOG_QUERIES = frozenset({"log_messages", "log_interactive_commands"})
+# G120: the EOS time-window and time-range reads are capped the same way (oldest first).
+_OLDEST_FIRST_LOG_QUERIES = frozenset({"log_messages", "log_interactive_commands"}) | EOS_LOG_WINDOW_QUERIES
 # Junos `| last 200 | no-more` prints the pager mark of the `last` stage in front of the final line, e.g. "---(more 100%)---  <line>".
 _JUNOS_LAST_PAGER_MARK = re.compile(r"(?m)^[ \t]*---\(more 100%\)---[ \t]*\r?\n(?:[ \t]*\r?\n)?|---\(more 100%\)---[ \t]*")
 _LOG_MAX_LINES = 200
 _LOG_MESSAGE_START = re.compile(r"\d\d/\d\d/\d{4} \d\d:\d\d:\d\d")
-# Entry: expiry, rc, redacted text, the secret set it was redacted with, identity response, log line limit.
+# Entry: expiry, rc, redacted text, the secret set it was redacted with, identity response, log line limit,
+# response labels (VDOM or Junos snapshot labels), EOS log metadata (capture status before filtering/capping and
+# unreadable lines removed by filtering).
 _SSH_PAGE_CACHE: dict[
-    tuple[Any, ...], tuple[float, int | None, str, frozenset[str], dict | None, dict | None]
+    tuple[Any, ...], tuple[float, int | None, str, frozenset[str], dict | None, dict | None,
+                           dict | None, tuple[str, int] | None]
 ] = {}
 _SSH_CACHE_LOCK = threading.Lock()
 
@@ -307,14 +338,11 @@ class DeviceCredential:
 def host_key_line(
     auth: TargetAuth, address: str | None = None, platform: str | None = None,
 ) -> str:
-    """Read the offered host keys through netops_core.hostkey.scan and keep the one matching the pin.
-
-    A cache hit answers without a keyscan at all; a miss queues the keyscan
-    itself through the same per-device lane as every other SSH-family
-    connection, so it too respects the platform's connection spacing.
-    """
+    """Build a Fortinet pin locally, or use the cached scan for other platforms."""
     target = _resolve_target_ipv4(auth)[0] if address is None else address
     effective_platform = auth.ssh_platform if platform is None else platform
+    if effective_platform in _IDENTITY_PLATFORMS or effective_platform == "fortios":
+        return core_hostkey.pinned_line(target, auth.port, auth.host_key_fingerprint, getattr(auth, "host_key", None))
     cache_key = (target, auth.port, auth.host_key_fingerprint)
     cached = _cached_host_key_line(cache_key)
     if cached is not None:
@@ -390,6 +418,16 @@ def _exec_failure(auth: TargetAuth, exc: core_ssh.SshError) -> BaseException:
     return exc
 
 
+def _is_junos_traceroute(platform: str, command: str) -> bool:
+    return platform in {"juniper_junos", "juniper_junos_els"} and command.startswith("traceroute ")
+
+
+class _NxosTraceTimeout(TimeoutError):
+    def __init__(self, output: bytes):
+        super().__init__("NX-OS traceroute timed out")
+        self.output = output
+
+
 def _exec_command(
     auth: TargetAuth,
     address: str,
@@ -399,12 +437,33 @@ def _exec_command(
     platform: str,
     stdout_consumer=None,
 ) -> core_ssh.Result:
+    if platform in _IDENTITY_PLATFORMS:
+        return _fortinet_exec(auth, platform, command, stdout_consumer)
     limits = auth.configuration_limits
     stream_options = ({"stdout_consumer": stdout_consumer, "idle_timeout_seconds": limits.idle_seconds, "capture_max_bytes": limits.all_bytes}
                       if stdout_consumer is not None else {})
+    timeout = _SSH_READ_TIMEOUT_SECONDS
+    trace_output = None
+    if stdout_consumer is not None:
+        timeout = limits.total_seconds
+    elif platform == "cisco_nxos" and command.startswith(("traceroute ", "traceroute6 ")):
+        # The SSH runner feeds bounded output before it stops a timed-out process.
+        trace_output = bytearray()
+        stream_options["stdout_consumer"] = trace_output.extend
+    elif _is_junos_traceroute(platform, command):
+        timeout = _JUNOS_TRACEROUTE_TIMEOUT_SECONDS
+        stream_options["separate_client_log"] = True
+    scope = _READ_SCOPE.get() or {}
+    if (scope.get("ios_security_read") or scope.get("ios_management") or scope.get("ios_empty_allowed")
+            or platform == "cisco_ios" and (scope.get("xe_detail") or scope.get("xe_log_history"))):
+        # Keep device-channel stderr so a failed read cannot become an empty success.
+        stream_options["suppress_login_banner"] = True
+        if platform == "cisco_xe" and scope.get("ios_security_read"):
+            # IOL XE can acknowledge a successful read and then close the SSH connection.
+            stream_options["separate_client_log"] = True
     try:
         with _paced_connection(address, auth.port, platform):
-            return core_ssh.run_command(
+            result = core_ssh.run_command(
                 address,
                 auth.port,
                 auth.login,
@@ -412,13 +471,16 @@ def _exec_command(
                 known_hosts_line,
                 command,
                 legacy_ssh=auth.legacy_ssh,
-                timeout_seconds=_read_timeout(limits.total_seconds if stdout_consumer is not None else _SSH_READ_TIMEOUT_SECONDS),
+                timeout_seconds=_read_timeout(timeout),
                 **stream_options,
             )
+            return replace(result, stdout=bytes(trace_output)) if trace_output is not None else result
     except (core_ssh.OutputLimitError, core_ssh.OutputConsumerError):
         raise
     except core_ssh.SshError as exc:
         _forget_host_key_line(address, auth.port)
+        if trace_output and _transport_status(exc) == "timeout":
+            raise _NxosTraceTimeout(bytes(trace_output)) from exc
         raise _exec_failure(auth, exc) from exc
 
 
@@ -428,20 +490,238 @@ _IDENTITY_PROBE = ContextVar("helper_identity_probe", default=False)
 
 _LINE_END_PLATFORMS = frozenset({"fortinet"}) | normalization.IDENTITY_PROFILES
 
+_OPENSSH_STDERR_NOTICES = frozenset({
+    "** WARNING: connection is not using a post-quantum key exchange algorithm.",
+    '** This session may be vulnerable to "store now, decrypt later" attacks.',
+    "** This session may be vulnerable to store-now decrypt-later attacks.",
+    "** The server may need to be upgraded. See https://openssh.com/pq.html",
+})
+_OPENSSH_KNOWN_HOST_ADDED = re.compile(
+    r"Warning: Permanently added '[^'\r\n]+' \([A-Z0-9-]+\) to the list of known hosts\."
+)
+_IOSV_SSH_LICENSE = re.compile(
+    r"(?m)^\*{20,}[ \t]*\n\* IOSv is strictly limited to use for evaluation,[^\r\n]*\*[ \t]*\n"
+    r"(?:\* [^*\r\n]+\*[ \t]*\n){4}\* Cisco in writing\.[ \t]+\*[ \t]*\n"
+    r"\*{20,}[ \t]*(?:\n|$)"
+)
+_EMPTY_READ_STDERR_ERROR = "The device read returned unexpected SSH diagnostics without data"
+
+
+class _FortinetReader:
+    """Hold the connection lane and the pinned terminal from the first read to the end of an operation."""
+
+    def __init__(self, auth: TargetAuth, stack: ExitStack):
+        self.auth = auth
+        self.stack = stack
+        self.endpoint = None
+        self.cli = None
+        self.failure = None
+
+    def target(self, platform):
+        if self.failure is not None:
+            raise self.failure
+        if self.endpoint is None:
+            auth = self.auth
+            try:
+                address = _resolve_target_ipv4(auth)[0]
+                self.endpoint = address, host_key_line(auth, address, platform)
+            except Exception as exc:
+                self.failure = exc
+                raise
+        return self.endpoint
+
+    def session(self, platform, *, capture_max_bytes=None):
+        if self.failure is not None:
+            raise self.failure
+        if self.cli is None:
+            auth = self.auth
+            try:
+                address, _ = self.target(platform)
+                device = SimpleNamespace(platform=platform, port=auth.port, address=address,
+                                         legacy_ssh=auth.legacy_ssh, host_key=getattr(auth, "host_key", None),
+                                         host_key_fingerprint=auth.host_key_fingerprint)
+                with ExitStack() as connection:
+                    connection.enter_context(_paced_connection(address, auth.port, platform))
+                    self.cli = connection.enter_context(core_session.fortinet_session(
+                        device, DeviceCredential(auth), connect_timeout_seconds=_read_timeout(_SSH_LOGIN_TIMEOUT_SECONDS),
+                        capture_max_bytes=_SSH_CAPTURE_MAX_BYTES if capture_max_bytes is None else capture_max_bytes,
+                    ))
+                    self.stack.enter_context(connection.pop_all())
+            except Exception as exc:
+                self.failure = exc
+                raise
+        return self.cli
+
+    @contextmanager
+    def cleanup_shell(self, platform):
+        """Give the recipe one fresh, pinned session after the original transport is lost."""
+        if not getattr(self.cli, "_closed", False):
+            raise ValueError("the diagnostic session is still open")
+        self.stack.close()  # Release the original connection lane before reacquiring it.
+        with ExitStack() as stack:
+            repair = _FortinetReader(self.auth, stack)
+            repair.endpoint = self.endpoint
+            cli = repair.session(platform, capture_max_bytes=self.cli.max_transcript_bytes)
+            yield _FortiosDiagnosticShell(cli, platform, answer_refusal_raises=platform != "fortiadc")
+
+
+_FORTINET_READER = ContextVar("helper_fortinet_reader", default=None)
+
+
+@contextmanager
+def _fortinet_operation(auth, *, finish=False):
+    """Bind a lazy reader for this caller, including its audited subcalls."""
+    current = _FORTINET_READER.get()
+    if current is not None and current.auth is auth:
+        try:
+            yield current
+        finally:
+            if finish:
+                current.stack.close()
+        return
+    with ExitStack() as stack:
+        reader = _FortinetReader(auth, stack)
+        token = _FORTINET_READER.set(reader)
+        try:
+            yield reader
+        finally:
+            _FORTINET_READER.reset(token)
+
+
+def _fortinet_needs_refusal_text(platform, command):
+    # These catalogue families interpret specific CLI refusals. Core's run()
+    # marks such a command as refused and discards its body.
+    if platform == "fortiadc":
+        return command in fortiadc_diagnostics.INTERFACE_EXEC_WORDS
+    return command.startswith(("diagnose wireless-controller ", "diagnose switch-controller switch-info mclag ",
+                               "get router info bgp neighbors ", "get router info6 bgp neighbors "))
+
+
+def _fortinet_exec(auth, platform, command, stdout_consumer=None):
+    with _fortinet_operation(auth) as reader:
+        cli = reader.session(platform)
+        timeout = _read_timeout(_SSH_READ_TIMEOUT_SECONDS)
+        if stdout_consumer is None and _fortinet_needs_refusal_text(platform, command):
+            shell = _FortiosDiagnosticShell(cli, platform, answer_refusal_raises=False)
+            text = shell.exec_text(command, timeout)
+            rc = int(platform == "fortiadc" and _cli_refused(platform, text))
+            return core_session.FortinetResult(rc, text.encode(), "", "", "")
+        options = {"timeout_seconds": timeout, "capture_max_bytes": core_ssh.CAPTURE_MAX_BYTES}
+        if stdout_consumer is not None:
+            limits = auth.configuration_limits
+            options = dict(timeout_seconds=_read_timeout(limits.total_seconds),
+                           idle_timeout_seconds=limits.idle_seconds, capture_max_bytes=limits.all_bytes)
+        framed = stdout_consumer is not None and platform == "fortiadc"
+        if framed:
+            # Core strips terminal framing. Feed the observed start/end prompts into the
+            # existing ADC normalizer after Core has established each one.
+            initial = cli._last_prompt
+            first = True
+
+            def framed_consumer(data):
+                nonlocal first
+                if first:
+                    data = initial + data
+                    first = False
+                stdout_consumer(data)
+        else:
+            framed_consumer = stdout_consumer
+        try:
+            result = cli.run(command, stdout_consumer=framed_consumer, **options)
+        except core_session.SessionError as exc:
+            if stdout_consumer is not None and exc.code == "output_limit":
+                raise core_ssh.OutputLimitError() from None
+            raise
+        if result.continuation:
+            cli.close()
+            raise core_session.SessionError("unexpected Fortinet continuation", code="terminal")
+        if framed and result.rc == 0 and not first:
+            try:
+                stdout_consumer(cli._last_prompt + b"\n")
+            except core_ssh.OutputLimitError:
+                raise
+            except Exception:
+                raise core_ssh.OutputConsumerError() from None
+        return result
+
 
 def _exec_read(auth: TargetAuth, platform: str, command: str, stdout_consumer=None) -> tuple[int | None, str]:
-    address = _resolve_target_ipv4(auth)[0]
-    known_hosts_line = host_key_line(auth, address, platform)
-    credential = DeviceCredential(auth)
-    for preamble in _PLATFORM_PREAMBLE.get(platform, ()):
-        _exec_command(auth, address, known_hosts_line, credential, preamble, platform)
     options = {'stdout_consumer': stdout_consumer} if stdout_consumer is not None else {}
-    result = _exec_command(auth, address, known_hosts_line, credential, command, platform, **options)
+    if platform in _IDENTITY_PLATFORMS:
+        with _fortinet_operation(auth) as reader:
+            address, pinned_line = reader.target(platform)
+            result = _exec_command(auth, address, pinned_line, DeviceCredential(auth), command, platform, **options)
+    else:
+        address = _resolve_target_ipv4(auth)[0]
+        known_hosts_line = host_key_line(auth, address, platform)
+        credential = DeviceCredential(auth)
+        for preamble in _PLATFORM_PREAMBLE.get(platform, ()):
+            _exec_command(auth, address, known_hosts_line, credential, preamble, platform)
+        result = _exec_command(auth, address, known_hosts_line, credential, command, platform, **options)
     if stdout_consumer is not None:
         if result.stdout:
             raise ValueError('streaming transport returned unexpected accumulated output')
         return result.rc, ''
     text = result.stdout.decode("utf-8", "replace")
+    if _is_junos_traceroute(platform, command) and result.stderr:
+        # Junos writes the trace header and diagnostics to stderr.
+        stderr = result.stderr.decode("utf-8", "replace")
+        text = stderr.rstrip("\r\n") + "\n" + text if text else stderr
+    if platform in {"cisco_ios", "cisco_xe", "cisco_nxos", "extreme_exos"} and result.stderr:
+        # Keep recognized refusals for redaction and classification. Other stderr stays private.
+        stderr = result.stderr.decode("utf-8", "replace").replace("\r\n", "\n")
+        device_stderr = core_prompt.cleaned(stderr, platform)
+        holder = _READ_SCOPE.get()
+        management_read = holder is not None and holder.get("ios_management") and not _IDENTITY_PROBE.get()
+        refusals = "\n".join(
+            line for line in device_stderr.split("\n")
+            if _cli_refused(platform, line, command=command)
+            or management_read and normalization.output_status(
+                strip_terminal_controls(line), profile=platform, command=command
+            ) in {"permission_denied", "unsupported"}
+        )
+        if holder is not None and not _IDENTITY_PROBE.get():
+            if platform == "cisco_nxos":
+                # A successful NX-OS exec can carry any configured login banner on stderr.
+                holder["unexpected_stderr"] = bool(refusals)
+            else:
+                notices = _OPENSSH_STDERR_NOTICES
+                blank_only = not stderr.strip()
+                if (holder.get("ios_g57") or holder.get("ios_management") or holder.get("xe_detail")) and result.rc == 0:
+                    # IOSv writes its license greeting to stderr. IOL XE can emit a
+                    # client disconnect notice after sending a successful exit status.
+                    identity = holder.get("product_identity", {})
+                    if platform == "cisco_ios" and identity.get("model") == "IOSv":
+                        stderr = _IOSV_SSH_LICENSE.sub("", stderr, count=1)
+                    if platform == "cisco_xe":
+                        notices = notices | {f"Connection to {address} closed by remote host."}
+                # IOL-L2 closes a successful empty EtherChannel/LACP exec after two CRLFs.
+                # Require successful execution with the measured empty framing.
+                xe_empty_channel = (
+                    platform == "cisco_xe" and result.rc == 0 and result.stdout == b"\r\n\r\n"
+                    and (command == "show lacp internal" or re.fullmatch(r"show etherchannel [0-9]{1,3} detail", command))
+                )
+                if result.rc == 0 and platform == "cisco_xe" and (
+                    xe_empty_channel or (holder.get("xe_detail") and not text.strip())
+                    or command in {"show aaa servers", "show tacacs"}
+                ):
+                    notices = notices | {f"Connection to {address} closed by remote host."}
+                xe_empty_table = command in {
+                    "show lacp neighbor", "show standby brief", "show spanning-tree root", "show ntp associations",
+                } and not text.strip()
+                if platform == "cisco_xe" and result.rc == 0 and (holder.get("ios_security_read") or xe_empty_table):
+                    # IOL XE can also deliver the close notice on the command channel after
+                    # sending exit status 0. Accept only a notice naming this SSH endpoint.
+                    notices = notices | {
+                        f"Connection to {address} closed by remote host.",
+                        f"Connection to {address} port {auth.port} closed by remote host.",
+                    }
+                holder["unexpected_stderr"] = blank_only or any(
+                    line and line not in notices and not _OPENSSH_KNOWN_HOST_ADDED.fullmatch(line)
+                    for line in map(str.strip, stderr.split("\n"))
+                )
+        if refusals:
+            text = refusals + "\n" + text
     if platform in _LINE_END_PLATFORMS:
         # schema_read and the table parsers read this text: pattern rules could destroy CLI syntax.
         secrets = () if _IDENTITY_PROBE.get() else _redaction_secret_forms(auth)
@@ -450,7 +730,12 @@ def _exec_read(auth: TargetAuth, platform: str, command: str, stdout_consumer=No
         text = text.replace("\r\n", "\n")
         for value in secrets:
             text = text.replace(value, "<REDACTED>")
-    return result.rc, core_prompt.cleaned(text, platform)
+    cleaned = core_prompt.cleaned(text, platform)
+    if platform == "fortiadc" and command in fortiadc_diagnostics.INTERFACE_EXEC_WORDS and result.stderr:
+        refusal = fortiadc_diagnostics.interface_exec_refusal(command, cleaned, result.stderr.decode("utf-8", "replace"))
+        if refusal:
+            cleaned = cleaned.rstrip("\r\n") + "\n" + refusal
+    return result.rc, cleaned
 
 
 def _erase_backspaces(text: str) -> str:
@@ -517,47 +802,87 @@ def _pty_read(auth: TargetAuth, platform: str, command: str) -> tuple[int | None
     return None, _pty_body(answered, command, _RUCKUS_ENABLE_PROMPT)
 
 
-def _prompt_read(auth: TargetAuth, platform: str, command: str) -> tuple[int | None, str]:
+_IOS_EXEC_PROMPT = re.compile(rb"(?:\A|\n)([A-Za-z0-9_.-]{1,63}[>#])[ \t]*\Z")
+_IOS_LOGIN_PROMPT_QUIET_SECONDS = 0.25
+_IOS_XE_INVALID_PROBE = re.compile(r"(?m)^[ \t]*% Invalid input detected at '\^' marker\.[ \t]*\Z")
+
+
+def _ios_probe_prompt(auth: TargetAuth, command: str, *, platform: str = "cisco_ios") -> tuple[int | None, str]:
+    """Capture a bounded IOS probe through its final prompt, without terminal settings."""
     address = _resolve_target_ipv4(auth)[0]
     known_hosts_line = host_key_line(auth, address, platform)
     try:
         with _paced_connection(address, auth.port, platform):
             session = core_session.Session(
-                address,
-                auth.port,
-                auth.login,
-                DeviceCredential(auth),
-                known_hosts_line,
-                legacy_ssh=auth.legacy_ssh,
-                timeout_seconds=_SSH_READ_TIMEOUT_SECONDS,
+                address, auth.port, auth.login, DeviceCredential(auth), known_hosts_line,
+                legacy_ssh=auth.legacy_ssh, timeout_seconds=_SSH_READ_TIMEOUT_SECONDS,
                 capture_max_bytes=_SSH_CAPTURE_MAX_BYTES,
             )
             try:
-                prompt = _FortiosDiagnosticShell(session, platform).prompt
+                # A banner line can look like the prompt at the end of a PTY read.
+                _, login = session.expect(
+                    [_IOS_EXEC_PROMPT], _SSH_LOGIN_TIMEOUT_SECONDS, quiet_seconds=_IOS_LOGIN_PROMPT_QUIET_SECONDS,
+                )
+                prompt = _IOS_EXEC_PROMPT.search(login)[1]
+                session.discard(login)
                 session.send(command)
-                _, answered = session.expect([prompt], _SSH_READ_TIMEOUT_SECONDS)
+                if platform == "cisco_xe":
+                    final_prompt = re.compile(rb"(?:\A|\n)" + re.escape(prompt) + rb"[ \t]*\Z")
+                    index, answered = session.expect([final_prompt, b"--More--"], _SSH_READ_TIMEOUT_SECONDS)
+                    if index == 1:
+                        return None, _erase_backspaces(answered.decode("utf-8", "replace").replace("\r", ""))
+                else:
+                    _, answered = session.expect([prompt], _SSH_READ_TIMEOUT_SECONDS)
+                # IOS can horizontally scroll a long command echo. Discard that first line.
+                text = _erase_backspaces(answered.decode("utf-8", "replace").replace("\r", "")).rstrip(" \t")
+                marker = prompt.decode("ascii")
+                if not text.endswith(marker):
+                    raise ValueError("the IOS probe did not reach its final prompt")
+                body = "\n".join(text[:-len(marker)].split("\n")[1:]).strip()
+                holder = _READ_SCOPE.get()
+                if (platform == "cisco_xe" and " source " in command and prompt.endswith(b"#")
+                        and holder is not None and holder.get("product_identity") is not None
+                        and _IOS_XE_INVALID_PROBE.search(body)):
+                    # A '#' prompt can also belong to a lower privilege level.
+                    try:
+                        session.send("show privilege")
+                        _, privilege = session.expect([final_prompt], _SSH_READ_TIMEOUT_SECONDS)
+                        holder["xe_source_privileged"] = (
+                            _pty_body(privilege.rstrip(b" \t"), "show privilege", prompt) == "Current privilege level is 15"
+                        )
+                    except core_session.SessionError:
+                        pass  # Preserve the original refusal when privilege cannot be verified.
             finally:
                 session.close()
     except core_session.SessionError:
         _forget_host_key_line(address, auth.port)
         raise
-    return None, _pty_body(answered, command, prompt)
+    return None, body
+
+
+def _prompt_read(auth: TargetAuth, platform: str, command: str) -> tuple[int | None, str]:
+    with _fortinet_operation(auth) as reader:
+        shell = _FortiosDiagnosticShell(reader.session(platform), platform, answer_refusal_raises=False)
+        return None, shell.command(command, _read_timeout(_SSH_READ_TIMEOUT_SECONDS))
 
 
 def _ios_family_adapter(platform):
-    """(adapter module, its unsupported-firmware error) for the Cisco IOS, IOS XE, NX-OS and Arista EOS configuration reads."""
+    """The adapter module of the Cisco IOS, IOS XE, NX-OS, Arista EOS and Junos (G136) configuration reads."""
+    if platform in ('juniper_junos', 'juniper_junos_els'):
+        from . import config_junos_adapter as adapter
+        return adapter
     if platform == 'cisco_nxos':
         from . import config_cisco_nxos_adapter as adapter
-        return adapter, adapter.UnsupportedNxosFirmware
+        return adapter
     if platform == 'arista_eos':
         from . import config_arista_eos_adapter as adapter
-        return adapter, adapter.UnsupportedEosFirmware
+        return adapter
     if platform == 'cisco_xe':
         from . import config_cisco_xe_adapter as adapter
-        return adapter, adapter.UnsupportedXeFirmware
+        return adapter
     if platform == 'cisco_ios':
         from . import config_cisco_ios_adapter as adapter
-        return adapter, adapter.UnsupportedIosFirmware
+        return adapter
     raise ValueError('config_platform_not_supported')
 
 
@@ -569,14 +894,24 @@ def _ios_family_redactor(platform):
     if platform == 'arista_eos':
         from .config_indented import EosStreamRedactor
         return EosStreamRedactor
+    if platform in ('juniper_junos', 'juniper_junos_els'):
+        from .config_junos_adapter import JunosSetRedactor
+        return JunosSetRedactor
     from .config_cisco_ios import StreamRedactor
     return StreamRedactor
 
 
+def _adapter_platform(adapter, platform):
+    """The platform an adapter reads for: its single PLATFORM, or the requested one of its PLATFORMS (Junos)."""
+    platforms = getattr(adapter, 'PLATFORMS', None)
+    return platform if platforms is not None and platform in platforms else adapter.PLATFORM
+
+
 def _ios_capture_consumer(command, stdout_consumer, platform='cisco_ios') -> bool:
-    """Cisco IOS/IOS XE/NX-OS/Arista EOS stream only the fixed adapter command into a configuration.bounded_consumer feed."""
+    """Allow only fixed adapter capture commands and a bounded configuration consumer."""
     from . import configuration
-    return (command == _ios_family_adapter(platform)[0].COMMAND
+    adapter = _ios_family_adapter(platform)
+    return (command in (adapter.COMMAND, getattr(adapter, 'STARTUP_COMMAND', adapter.COMMAND))
             and getattr(stdout_consumer, '__module__', None) == configuration.__name__
             and getattr(stdout_consumer, '__qualname__', None) == 'bounded_consumer.<locals>.feed')
 
@@ -597,9 +932,11 @@ def read_from_device(
 ) -> tuple[int | None, str]:
     normalized = normalize_platform(platform)
     if stdout_consumer is not None and (normalized not in ('fortinet', 'fortiadc', 'extreme_exos', 'cisco_ios', 'cisco_xe',
-                                                           'cisco_nxos', 'arista_eos')
+                                                           'cisco_nxos', 'arista_eos', 'juniper_junos',
+                                                           'juniper_junos_els')
                                         or not callable(stdout_consumer)
-                                        or (normalized in ('cisco_ios', 'cisco_xe', 'cisco_nxos', 'arista_eos')
+                                        or (normalized in ('cisco_ios', 'cisco_xe', 'cisco_nxos', 'arista_eos',
+                                                           'juniper_junos', 'juniper_junos_els')
                                             and not _ios_capture_consumer(command, stdout_consumer, normalized))):
         raise ValueError('streaming is supported only for FortiOS, FortiADC and ExtremeXOS exec reads '
                          'and the fixed Cisco IOS configuration capture')
@@ -609,8 +946,12 @@ def read_from_device(
     if attempt is not None:
         attempt[0] = True
     if prompt:
+        if normalized == "cisco_ios" and stdout_consumer is None:
+            return _ios_probe_prompt(auth, command)
+        if normalized == "cisco_xe" and stdout_consumer is None:
+            return _ios_probe_prompt(auth, command, platform=normalized)
         if normalized not in ("fortiadc", "fortinet") or stdout_consumer is not None:
-            raise ValueError("prompt reads are supported only for FortiADC and FortiOS catalogue queries")
+            raise ValueError("prompt reads require a supported CLI catalogue query")
         return _prompt_read(auth, normalized, command)
     if _SSH_TRANSPORTS[normalized] == _TRANSPORT_PTY:
         return _pty_read(auth, normalized, command)
@@ -624,7 +965,10 @@ _CISCO_AUTOCOMMAND_REFUSAL = re.compile(
 _JUNOS_REFUSAL = re.compile(
     r"(?m)^[ \t]*error: (?:syntax error, expecting <command>: [^\r\n]*+"
     r"|unknown command: [^\r\n]*+|permission denied: [^\r\n]*+"
-    r"|the [a-z0-9-]+ subsystem is not running)[ \t]*\r?$"
+    r"|the [a-z0-9-]+ subsystem is not running"
+    r"|device [a-z0-9./:-]+ not found"
+    # G132: an unknown routing instance in `show route table <ri>.inet.0` / `show arp vpn <ri>`.
+    r"|No routing tables matching specification\.|Named Route table not found\.)[ \t]*\r?$"
 )
 _CLI_REFUSALS = {
     "fortinet": re.compile(
@@ -637,13 +981,15 @@ _CLI_REFUSALS = {
     ),
     "extreme_exos": re.compile(
         r"(?mi)^[ \t]*(?:This user does not have permissions for this command\."
+        r"|Error:[ \t]+Permission denied\.?"
         r"|Method is not implemented on this platform\."
         r"|%%[ \t]+(?:Invalid input detected|Unrecognized command|Incomplete command|Ambiguous command)[^\r\n]*+)[ \t]*\r?$"
     ),
     "cisco_ios": _CISCO_AUTOCOMMAND_REFUSAL,
     "cisco_xe": _CISCO_AUTOCOMMAND_REFUSAL,
     "arista_eos": re.compile(
-        r"(?m)^[ \t]*% Invalid input(?: \([^)\r\n]*\))? at line [0-9]+[ \t]*\r?$"
+        r"(?mi)^[ \t]*(?:% Invalid input(?: \([^)\r\n]*\))? at line [0-9]+|"
+        + normalization.EOS_UNAVAILABLE_LINE + r")[ \t]*\r?$"
     ),
     "juniper_junos": _JUNOS_REFUSAL,
     "juniper_junos_els": _JUNOS_REFUSAL,
@@ -651,15 +997,36 @@ _CLI_REFUSALS = {
         r"(?m)^[ \t]*(?:Syntax error while parsing '[^'\r\n]*'"
         r"|% Permission denied for the role)[ \t]*\r?$"
     ),
+    # Unleashed 200.15: an object read (ap/wlan/performance by MAC or name) of an absent object.
+    "ruckus_unleashed": wifi_parse.RUCKUS_NOT_FOUND,
 }
+
+
+_RUCKUS_CLI_UNRECOGNIZED = re.compile(r"(?mi)^[ \t]*The command is either unrecognized or incomplete\.[^\r\n]*$")
 
 
 def _cli_refused(platform: str, output: str, *, command: str | None = None) -> bool:
     """Detect device refusal lines anywhere; command is compatibility metadata only."""
+    if (platform == "cisco_nxos" and command is not None
+            and command.startswith("show radius-server statistics ")
+            and output.strip() == "RADIUS server not found"):
+        return True
+    if platform == "ruckus_unleashed" and _RUCKUS_CLI_UNRECOGNIZED.search(output):
+        return True
     pattern = _CLI_REFUSALS.get(platform)
     return ((pattern is not None and pattern.search(output) is not None)
             or normalization.permission_refused(platform, output)
             or normalization.template_refused(platform, output))
+
+
+def _fortiadc_diagnose_refused(command: str | None, output: str) -> bool:
+    from .fortiadc_diagnostics import diagnose_refused
+    return command is not None and diagnose_refused(command, output)
+
+
+def _fortiadc_diagnose_advice() -> str:
+    from .fortiadc_diagnostics import DIAGNOSE_NOT_PERMITTED_ADVICE
+    return DIAGNOSE_NOT_PERMITTED_ADVICE
 
 
 def _control_refused(platform: str, output: str) -> bool:
@@ -707,12 +1074,20 @@ def _check_identity(auth: TargetAuth, platform: str, read) -> tuple[str, int | N
                 state = normalization.output_status(status, rc=rc, truncated=len(status.encode("utf-8")) > _SSH_CAPTURE_MAX_BYTES, profile=platform, command=command)
                 if state != "ok" or _cli_refused(platform, status, command=command):
                     raise normalization.IdentityError("identity_" + (state if state != "ok" else "refused"))
-                normalization.parse_identity(platform, status)
+                identity = normalization.parse_identity(platform, status)
+                holder = _READ_SCOPE.get()
+                if platform in {"cisco_nxos", "cisco_ios", "cisco_xe"} and holder is not None:
+                    holder["product_identity"] = identity
+                if platform == "extreme_exos" and holder is not None and holder.get("exos_log_history"):
+                    holder["exos_log_firmware"] = health_rules.exos_firmware(identity, status, EXOS_LOG_HISTORY)
             except normalization.IdentityError as exc:
                 raise _ProductIdentityError(platform, rc, exc.reason) from None
             return command, rc, _redact_output(status, auth)
         rc, status = read(auth, platform, _IDENTITY_COMMAND)
         _require_product(platform, rc, status)
+        holder = _READ_SCOPE.get()
+        if platform == "fortinet" and holder is not None and holder.get("fortios_firmware"):
+            holder["fortios_identity"] = core_platforms.version_record(status)
         return _IDENTITY_COMMAND, rc, _redact_output(status, auth)
     finally:
         _IDENTITY_PROBE.reset(token)
@@ -765,21 +1140,57 @@ def _context_read(auth: TargetAuth, platform: str, found: dict, commands: tuple[
     return rc, output
 
 
+def _exos_log_evidence(auth: TargetAuth, command: str, parse):
+    # Isolate optional reads from the primary capture's stderr and keep only parsed timestamps.
+    with _scope_capture() as holder:
+        try:
+            rc, output = read_from_device(auth, "extreme_exos", command)
+        except Exception:
+            return None
+        state = normalization.output_status(output, rc=rc, profile="extreme_exos", command=command,
+                                            truncated=len(output.encode("utf-8")) > _SSH_CAPTURE_MAX_BYTES)
+        if rc != 0 or state != "ok" or holder.get("unexpected_stderr"):
+            return None
+    return parse(output)
+
+
 def _verified_read(auth: TargetAuth, platform: str, command: str, prompt: bool = False) -> tuple[int | None, str]:
     if platform in normalization.IDENTITY_PROFILES:
         identity_command, rc, status = _check_identity(auth, platform, read_from_device)
-        return (rc, status) if command == identity_command else read_from_device(auth, platform, command)
+        holder = _READ_SCOPE.get()
+        if holder is not None and holder.get("junos_firmware"):
+            holder["junos_identity"] = normalization.parse_identity(platform, status)
+            if command == LOG_HISTORY_COMMAND:
+                holder["junos_log_clock"] = _triage_read(auth, platform, "uptime")
+        if holder is not None and holder.get("xe_log_history"):
+            holder["xe_log_clock"] = _triage_read(auth, platform, "clock")
+        if holder is not None and (source := holder.get("exos_log_history")):
+            holder["exos_log_clock"] = _exos_log_evidence(
+                auth, READ_QUERIES["extreme_exos"]["switch"].command, health_rules.exos_log_clock)
+            rc, output = read_from_device(auth, platform, command)
+            if rc == 0 and not _cli_refused(platform, output, command=command):
+                # Read retention after the selected window, so an older row still retained is evidence
+                # for the earlier capture. The validated source selects one of two fixed reads.
+                retained_command = {
+                    "memory-buffer": READ_QUERIES["extreme_exos"]["log_messages"].command,
+                    "nvram": "show log messages nvram",
+                }[source]
+                holder["exos_log_oldest"] = _exos_log_evidence(auth, retained_command, health_rules.exos_log_oldest)
+            return rc, output
+        return ((rc, status) if command == identity_command else
+                read_from_device(auth, platform, command, **({"prompt": True} if prompt else {})))
     if platform not in _IDENTITY_PLATFORMS:
         return read_from_device(auth, platform, command)
-    # A requested status is itself the live identity check.
-    identity_command, rc, status = _check_identity(auth, platform, read_from_device)
-    if platform == "fortinet":
-        found = _session_scope(auth, status, command == identity_command)
-        if command != identity_command and fortios_vdom.contextual(found):
-            return _context_read(auth, platform, found, (command,))
-    if command == identity_command:
-        return rc, status
-    return read_from_device(auth, platform, command, **({"prompt": True} if prompt else {}))
+    with _fortinet_operation(auth):
+        # A requested status is itself the live identity check.
+        identity_command, rc, status = _check_identity(auth, platform, read_from_device)
+        if platform == "fortinet":
+            found = _session_scope(auth, status, command == identity_command)
+            if command != identity_command and fortios_vdom.contextual(found):
+                return _context_read(auth, platform, found, (command,))
+        if command == identity_command:
+            return rc, status
+        return read_from_device(auth, platform, command, **({"prompt": True} if prompt else {}))
 
 
 _SEQUENCE_STEP_TIMEOUT_SECONDS = 30
@@ -836,49 +1247,40 @@ def _vdom_context_read(auth: TargetAuth, platform: str, vdom: str, commands: tup
     attempt = _TRIAGE_READ_ATTEMPT.get()
     if attempt is not None:
         attempt[0] = True
-    address = _resolve_target_ipv4(auth)[0]
-    known_hosts_line = host_key_line(auth, address, platform)
-    try:
-        with _paced_connection(address, auth.port, platform):
-            with core_session.Session(
-                address, auth.port, auth.login, DeviceCredential(auth), known_hosts_line,
-                legacy_ssh=auth.legacy_ssh, timeout_seconds=_SSH_READ_TIMEOUT_SECONDS,
-                capture_max_bytes=_SSH_CAPTURE_MAX_BYTES,
-            ) as session:
-                shell = _FortiosDiagnosticShell(session, platform, answer_refusal_raises=False)
-                index: int | None
+    with _fortinet_operation(auth) as reader:
+        session = reader.session(platform)
+        shell = _FortiosDiagnosticShell(session, platform, answer_refusal_raises=False)
+        initial = shell.prompt
+        index: int | None
+        entered = False
+        try:
+            try:
+                shell.navigate("config vdom")
+            except ValueError as refused:
+                if "refused" not in str(refused) or not _login_vdom_context(shell, vdom):
+                    raise fortios_vdom.VdomRefused("vdom_context_unverified") from None
+                if any(command in _VDOM_ADMIN_REFUSED_COMMANDS for command in (*commands, *extra)):
+                    raise fortios_vdom.VdomRefused(
+                        fortios_vdom.VDOM_ADMIN_GLOBAL, {"vdom_mode": "multiple", "vdom": vdom}) from None
+                index = None
+            else:
+                entered = True
                 try:
-                    shell.navigate("config vdom")
-                except ValueError as refused:
-                    if "refused" not in str(refused) or not _login_vdom_context(shell, vdom):
-                        raise fortios_vdom.VdomRefused("vdom_context_unverified") from None
-                    # Every command of the read, its `extra` join too (review 206-rv finding 1), before any is sent.
-                    if any(command in _VDOM_ADMIN_REFUSED_COMMANDS for command in (*commands, *extra)):
-                        raise fortios_vdom.VdomRefused(
-                            fortios_vdom.VDOM_ADMIN_GLOBAL, {"vdom_mode": "multiple", "vdom": vdom}) from None
-                    index = None  # the login context of a per-VDOM administrator: no marker, nothing to leave
-                else:
-                    try:
-                        index = fortios_vdom.context_index(shell.navigate("edit " + vdom), vdom)
-                    except ValueError:
-                        raise fortios_vdom.VdomRefused("vdom_context_unverified") from None
-                    if not shell.prompt.endswith(b" (" + vdom.encode("ascii") + b") # ") and \
-                            not shell.prompt.endswith(b" (" + vdom.encode("ascii") + b") $ "):
-                        raise fortios_vdom.VdomRefused("vdom_context_unverified")
-                text = ""
-                for position, command in enumerate(commands):
-                    text = shell.command(command, _SEQUENCE_STEP_TIMEOUT_SECONDS)
-                    if sequence and position < len(commands) - 1 and text.strip():
-                        break
-                extras = tuple(shell.command(command, _SEQUENCE_STEP_TIMEOUT_SECONDS) for command in extra)
-                if index is not None:
-                    try:
-                        shell.navigate("end")
-                    except Exception:
-                        pass  # the session closes next; nothing read here is answered
-    except core_session.SessionError:
-        _forget_host_key_line(address, auth.port)
-        raise
+                    index = fortios_vdom.context_index(shell.navigate("edit " + vdom), vdom)
+                except ValueError:
+                    raise fortios_vdom.VdomRefused("vdom_context_unverified") from None
+                if not shell.prompt.endswith((b" (" + vdom.encode("ascii") + b") # ",
+                                              b" (" + vdom.encode("ascii") + b") $ ")):
+                    raise fortios_vdom.VdomRefused("vdom_context_unverified")
+            text = ""
+            for position, command in enumerate(commands):
+                text = shell.command(command, _SEQUENCE_STEP_TIMEOUT_SECONDS)
+                if sequence and position < len(commands) - 1 and text.strip():
+                    break
+            extras = tuple(shell.command(command, _SEQUENCE_STEP_TIMEOUT_SECONDS) for command in extra)
+        finally:
+            if entered:
+                shell.leave(initial)
     return None, text, index, extras
 
 
@@ -900,34 +1302,22 @@ def _global_context_read(auth: TargetAuth, platform: str, command: str,
     attempt = _TRIAGE_READ_ATTEMPT.get()
     if attempt is not None:
         attempt[0] = True
-    address = _resolve_target_ipv4(auth)[0]
-    known_hosts_line = host_key_line(auth, address, platform)
-    try:
-        with _paced_connection(address, auth.port, platform):
-            with core_session.Session(
-                address, auth.port, auth.login, DeviceCredential(auth), known_hosts_line,
-                legacy_ssh=auth.legacy_ssh, timeout_seconds=_SSH_READ_TIMEOUT_SECONDS,
-                capture_max_bytes=_SSH_CAPTURE_MAX_BYTES,
-            ) as session:
-                shell = _FortiosDiagnosticShell(session, platform, answer_refusal_raises=False)
-                try:
-                    entered = shell.navigate("config " + fortios_vdom.GLOBAL_CONTEXT)
-                except ValueError as refused:
-                    code = "global_context_not_permitted" if "refused" in str(refused) else "global_context_unverified"
-                    if code == "global_context_not_permitted" and vdom is not None and \
-                            _login_vdom_context(shell, vdom):
-                        code = fortios_vdom.VDOM_ADMIN_GLOBAL
-                    raise fortios_vdom.VdomRefused(code) from None
-                if entered.strip() or not fortios_vdom.global_prompt(shell.prompt):
-                    raise fortios_vdom.VdomRefused("global_context_unverified")
-                text = shell.command(command, _SEQUENCE_STEP_TIMEOUT_SECONDS)
-                try:
-                    shell.navigate("end")
-                except Exception:
-                    pass  # the session closes next; nothing read here is answered
-    except core_session.SessionError:
-        _forget_host_key_line(address, auth.port)
-        raise
+    with _fortinet_operation(auth) as reader:
+        shell = _FortiosDiagnosticShell(reader.session(platform), platform, answer_refusal_raises=False)
+        initial = shell.prompt
+        try:
+            entered = shell.navigate("config " + fortios_vdom.GLOBAL_CONTEXT)
+        except ValueError as refused:
+            code = "global_context_not_permitted" if "refused" in str(refused) else "global_context_unverified"
+            if code == "global_context_not_permitted" and vdom is not None and _login_vdom_context(shell, vdom):
+                code = fortios_vdom.VDOM_ADMIN_GLOBAL
+            raise fortios_vdom.VdomRefused(code) from None
+        try:
+            if entered.strip() or not fortios_vdom.global_prompt(shell.prompt):
+                raise fortios_vdom.VdomRefused("global_context_unverified")
+            text = shell.command(command, _SEQUENCE_STEP_TIMEOUT_SECONDS)
+        finally:
+            shell.leave(initial)
     return None, text
 
 
@@ -940,36 +1330,43 @@ def _sequence_read(auth: TargetAuth, platform: str, commands: tuple[str, ...]) -
     commands = require_fortinet_sequence(tuple(commands))
     if platform != "fortinet":
         raise ValueError("command sequences are supported only for FortiOS")
-    address = _resolve_target_ipv4(auth)[0]
-    known_hosts_line = host_key_line(auth, address, platform)
-    try:
-        with _paced_connection(address, auth.port, platform):
-            with core_session.Session(
-                address, auth.port, auth.login, DeviceCredential(auth), known_hosts_line,
-                legacy_ssh=auth.legacy_ssh, timeout_seconds=_SSH_READ_TIMEOUT_SECONDS,
-                capture_max_bytes=_SSH_CAPTURE_MAX_BYTES,
-            ) as session:
-                shell = _FortiosDiagnosticShell(session, platform, answer_refusal_raises=False)
-                text = ""
-                for index, command in enumerate(commands):
-                    text = shell.command(command, _SEQUENCE_STEP_TIMEOUT_SECONDS)
-                    if index < len(commands) - 1 and text.strip():
-                        break
-    except core_session.SessionError:
-        _forget_host_key_line(address, auth.port)
-        raise
+    with _fortinet_operation(auth) as reader:
+        shell = _FortiosDiagnosticShell(reader.session(platform), platform, answer_refusal_raises=False)
+        text = ""
+        for index, command in enumerate(commands):
+            text = shell.command(command, _SEQUENCE_STEP_TIMEOUT_SECONDS)
+            if index < len(commands) - 1 and text.strip():
+                break
     return None, text
 
 
 def _verified_sequence(auth: TargetAuth, platform: str, commands: tuple[str, ...]) -> tuple[int | None, str]:
     if platform not in _IDENTITY_PLATFORMS:
         raise ValueError("command sequences are supported only for FortiOS")
-    _, _, status = _check_identity(auth, platform, read_from_device)
-    if platform == "fortinet":
-        found = _session_scope(auth, status, False)
-        if fortios_vdom.contextual(found):
-            return _context_read(auth, platform, found, tuple(commands), sequence=True)
-    return _sequence_read(auth, platform, commands)
+    with _fortinet_operation(auth):
+        _, _, status = _check_identity(auth, platform, read_from_device)
+        if platform == "fortinet":
+            found = _session_scope(auth, status, False)
+            if fortios_vdom.contextual(found):
+                return _context_read(auth, platform, found, tuple(commands), sequence=True)
+        return _sequence_read(auth, platform, commands)
+
+
+def _verified_fortiadc_interface_summary(auth: TargetAuth, commands: tuple[str, str]):
+    """Use the reviewed exec reads and stop on the first unsuccessful source."""
+    with _fortinet_operation(auth):
+        platform = "fortiadc"
+        _check_identity(auth, platform, read_from_device)
+        sources = []
+        for command in commands:
+            rc, output = read_from_device(auth, platform, command)
+            if rc not in (0, None) or _cli_refused(platform, output, command=command):
+                return rc, output, command
+            if len(output.encode("utf-8")) > _SSH_CAPTURE_MAX_BYTES:
+                raise core_ssh.OutputLimitError()
+            sources.append(output)
+        rows = fortiadc_diagnostics.interface_summary(*sources)
+        return rc, "".join(json.dumps(row, separators=(",", ":")) + "\n" for row in rows), None
 
 
 _WTP_SEEN: dict[tuple[Any, ...], dict[str, float]] = {}
@@ -980,24 +1377,32 @@ _WTP_SEEN_MAX_IDS = 256
 _WTP_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,34}")
 
 
-def _wtp_key(auth: TargetAuth) -> tuple[Any, ...]:
-    return (auth.alias, auth.host, auth.port, auth.login)
+_RUCKUS_WLAN_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,31}")
+_OBSERVED_PATTERNS = {"wtp_ids": _WTP_ID, "wlan_names": _RUCKUS_WLAN_NAME}
 
 
-def _observed_wtp_ids(auth: TargetAuth) -> frozenset[str]:
+def _wtp_key(auth: TargetAuth, category: str = "wtp_ids") -> tuple[Any, ...]:
+    key = (auth.alias, auth.host, auth.port, auth.login)
+    return key if category == "wtp_ids" else (*key, category)
+
+
+def _observed_wtp_ids(auth: TargetAuth, category: str = "wtp_ids") -> frozenset[str]:
     now = time.monotonic()
     with _WTP_SEEN_LOCK:
         for key, entries in list(_WTP_SEEN.items()):
             _WTP_SEEN[key] = {serial: expiry for serial, expiry in entries.items() if expiry > now}
             if not _WTP_SEEN[key]:
                 _WTP_SEEN.pop(key, None)
-        entry = _WTP_SEEN.get(_wtp_key(auth))
+        entry = _WTP_SEEN.get(_wtp_key(auth, category))
         return frozenset(entry) if entry else frozenset()
 
 
-def _remember_wtp_ids(auth: TargetAuth, serials: list[str]) -> None:
-    """Remember the access point ids this target itself listed in `wtp-status`; nothing else is remembered."""
-    clean = frozenset(item for item in serials if _WTP_ID.fullmatch(item))
+def _remember_wtp_ids(auth: TargetAuth, serials: list[str], category: str = "wtp_ids") -> None:
+    """Remember the access point ids (FortiOS `wtp-status`, Ruckus AP device names) or the Ruckus WLAN names this
+    target itself listed; nothing else is remembered."""
+    clean = frozenset(item for item in serials
+                      if isinstance(item, str) and _OBSERVED_PATTERNS[category].fullmatch(item)
+                      and not (category == "wlan_names" and item.casefold() == "all"))
     if not clean:
         return
     with _WTP_SEEN_LOCK:
@@ -1006,7 +1411,7 @@ def _remember_wtp_ids(auth: TargetAuth, serials: list[str]) -> None:
             _WTP_SEEN[old_key] = {serial: expiry for serial, expiry in entries.items() if expiry > now}
             if not _WTP_SEEN[old_key]:
                 del _WTP_SEEN[old_key]
-        key = _wtp_key(auth)
+        key = _wtp_key(auth, category)
         if key not in _WTP_SEEN and len(_WTP_SEEN) >= _WTP_SEEN_MAX_TARGETS:
             _WTP_SEEN.pop(min(_WTP_SEEN, key=lambda item: max(_WTP_SEEN[item].values())), None)
         entries = _WTP_SEEN.setdefault(key, {})
@@ -1016,10 +1421,11 @@ def _remember_wtp_ids(auth: TargetAuth, serials: list[str]) -> None:
 
 
 def _read_inventory(auth: TargetAuth) -> dict[str, tuple[str, ...]]:
-    """Enrolled inventory plus the access point ids this target listed earlier (wtp_ids only)."""
+    """Enrolled inventory plus the access point ids (and Ruckus WLAN names) this target listed earlier."""
     inventory = dict(auth.read_inventory)
-    if auth.ssh_platform == "fortinet":
-        inventory["wtp_ids"] = tuple(sorted(set(inventory.get("wtp_ids", ())) | _observed_wtp_ids(auth)))
+    categories = {"fortinet": ("wtp_ids",), "ruckus_unleashed": ("wtp_ids", "wlan_names")}
+    for category in categories.get(auth.ssh_platform, ()):
+        inventory[category] = tuple(sorted(set(inventory.get(category, ())) | _observed_wtp_ids(auth, category)))
     return inventory
 
 
@@ -1083,17 +1489,17 @@ def _page_text(text: str, offset: int, max_bytes: int, whole_lines: bool = False
     }
 
 
-def _redaction_secret_forms(auth: TargetAuth) -> tuple[str, ...]:
+def _redaction_secret_forms(auth: TargetAuth, extra: Iterable[str] = ()) -> tuple[str, ...]:
     forms = {
         form
-        for value in auth.redaction_secrets
+        for value in (*auth.redaction_secrets, *extra)
         for form in (value, value.replace("\r\n", "\n"), value.replace("\r", ""))
         if len(form.encode("utf-8")) >= 3  # same floor as sanitize.redact
     }
     return tuple(sorted(forms, key=lambda value: (-len(value), value)))
 
 
-def _redact_output(output: str, auth: TargetAuth) -> str:
+def _redact_output(output: str, auth: TargetAuth, *, extra_secrets: Iterable[str] = ()) -> str:
     """Canonical SSH text: the bytes the client receives, hashed and paged by the caller.
 
     The proxy and worker redact the response again with their own rules. Applying every
@@ -1102,7 +1508,7 @@ def _redact_output(output: str, auth: TargetAuth) -> str:
     """
     from .sanitize import redact_response
 
-    return redact_response(output, _redaction_secret_forms(auth))
+    return redact_response(output, _redaction_secret_forms(auth, extra_secrets))
 
 
 _SCHEMA_REDACTION_UNVERIFIED = "schema redaction could not be verified; report withheld"
@@ -1300,7 +1706,8 @@ INVALID_AUDIT_VALUE = "<invalid>"
 
 
 def _audit_fields(arguments: dict[str, Any], result: dict[str, Any],
-                  ssh_platform: str | None = None) -> dict[str, Any]:
+                  ssh_platform: str | None = None,
+                  diagnostic_names: tuple[str, ...] = ()) -> dict[str, Any]:
     fields: dict[str, Any] = {}
     endpoint = arguments.get("endpoint")
     if isinstance(endpoint, str):
@@ -1335,10 +1742,23 @@ def _audit_fields(arguments: dict[str, Any], result: dict[str, Any],
         value = arguments["recipe"]
         valid = isinstance(value, str) and (
             value in {"ping","traceroute","sniffer","sessions","flow","nslookup","http_probe","health_check_verify","logs"}
-            or (ssh_platform == "fortiadc" and value in {"system_event_logs", "waf_attack_logs",
-                                                         "session_list", "persistence_list"})
+            or (ssh_platform == "fortiadc" and (value in fortiadc_diagnostics.RECIPES
+                                                or value in fortiadc_diagnostics.STATE_RECIPES
+                                                or value in {"disk_usage", "ntp_status",
+                                                             fortiadc_diagnostics.PACKET_CAPTURE}))
         )
         fields["recipe"] = value if valid else INVALID_AUDIT_VALUE
+    destination = arguments.get("address")
+    if (ssh_platform == "fortinet" and fields.get("recipe") in ("ping", "traceroute")
+            and isinstance(destination, str) and "%" not in destination):
+        from .fortios_diagnostics import probe_target
+        try:
+            kind = probe_target(destination)
+        except ValueError:
+            pass
+        else:
+            if kind == 6 or (kind == "name" and destination in diagnostic_names):
+                fields["destination_address"] = destination
     for name in ("address", "source_address"):
         value = arguments.get(name)
         if isinstance(value, str):
@@ -1429,7 +1849,7 @@ def _audit_device_call(function: Any) -> Any:
     def preflight(auth: TargetAuth, arguments: dict[str, Any]) -> str:
         try:
             operation_id = f"op_{secrets.token_hex(16)}"
-            fields = _audit_fields(arguments, {}, auth.ssh_platform)
+            fields = _audit_fields(arguments, {}, auth.ssh_platform, auth.read_inventory.get("diagnostic_names", ()))
             if auth.legacy_ssh is not None:
                 fields["legacy_ssh"] = auth.legacy_ssh
             record(
@@ -1450,7 +1870,8 @@ def _audit_device_call(function: Any) -> Any:
         result: dict[str, Any] | None = None,
         detail: str | None = None,
     ) -> None:
-        fields = _audit_fields(arguments, result or {}, auth.ssh_platform)
+        fields = _audit_fields(arguments, result or {}, auth.ssh_platform,
+                               auth.read_inventory.get("diagnostic_names", ()))
         if auth.legacy_ssh is not None:
             fields["legacy_ssh"] = auth.legacy_ssh
         if detail is not None:
@@ -1498,7 +1919,8 @@ def _audit_device_call(function: Any) -> Any:
             raise _pagination_refused(missing)
         operation_id = preflight(auth, arguments)
         try:
-            result = function(auth, *args, **kwargs)
+            with _fortinet_operation(auth):
+                result = function(auth, *args, **kwargs)
         except Exception as exc:
             complete(
                 auth, arguments, "failed", operation_id,
@@ -1540,16 +1962,17 @@ def _load_cached_ssh_output(key: tuple[Any, ...]) -> tuple[int | None, str] | No
 
 def _store_cached_ssh_output(
     key: tuple[Any, ...], rc: int | None, output: str, redacted_with: Iterable[str] = (),
-    normalized: dict | None = None, line_limit: dict | None = None, vdom_label: dict | None = None,
+    normalized: dict | None = None, line_limit: dict | None = None, labels: dict | None = None,
+    eos_log_metadata: tuple[str, int] | None = None,
 ) -> None:
-    """Store a redacted result with the secret set it was redacted with (and its VDOM label, if any)."""
+    """Store redacted text and the metadata that belongs to this snapshot."""
     with _SSH_CACHE_LOCK:
         if len(_SSH_PAGE_CACHE) >= _SSH_CACHE_MAX_ENTRIES:
             oldest = min(_SSH_PAGE_CACHE, key=lambda item: _SSH_PAGE_CACHE[item][0])
             _SSH_PAGE_CACHE.pop(oldest, None)
         _SSH_PAGE_CACHE[key] = (
             time.monotonic() + _SSH_CACHE_TTL_SECONDS, rc, output, frozenset(redacted_with), normalized, line_limit,
-            *((dict(vdom_label),) if vdom_label else ()),
+            dict(labels) if labels else None, eos_log_metadata,
         )
 
 
@@ -1585,6 +2008,13 @@ def _ssh_read_state(
 ) -> tuple[str, str, tuple[Any, ...]]:
     normalized = auth.require_ssh_query(platform, query)
     inventory = _read_inventory(auth) if inventory is None else inventory
+    if normalized in JUNOS_PROFILES and query in JUNOS_CONFIG_READS:
+        if "read" not in auth.read_inventory.get("config_access", ()):
+            raise PolicyScopeError("Junos configuration reads require config_access read")
+    if normalized in JUNOS_PROFILES and query == LOG_HISTORY_QUERY:
+        auth.require_ssh_query(normalized, "uptime")
+    if normalized in {"cisco_ios", "cisco_xe"} and query == XE_LOG_HISTORY:
+        auth.require_ssh_query(normalized, "clock")
     if is_read_sequence(normalized, query):
         normalized, commands, _ = render_read_sequence(normalized, query, parameters, inventory)
         return normalized, "\n".join(commands), _ssh_cache_key(auth, normalized, query, parameters)
@@ -1600,6 +2030,22 @@ def _wifi_payload(auth: TargetAuth, query: str, text: str, mac_filter: dict[str,
     if mac_literal:
         parsed["mac_filter"] = mac_filter or {"mac_literal": mac_literal, "scanned_lines": None, "matched": None,
                                               "note": "continuation page of an already filtered snapshot"}
+    return {"wifi": parsed}
+
+
+def _ruckus_wifi_payload(auth: TargetAuth, query: str, text: str) -> dict[str, Any]:
+    """Normalised records of a Ruckus Unleashed read; AP device names and WLAN names it lists become selectable.
+
+    The parser always reads the whole captured snapshot (every page carries the same `wifi`), so `complete` says
+    whether that snapshot was read completely: no counters missing (`incomplete`) and no unparsed line. It never
+    depends on the text page and is never true together with `incomplete`.
+    """
+    parsed = wifi_parse.summarize_ruckus(query, text)
+    parsed["complete"] = not parsed.get("incomplete", False) and parsed["unparsed_count"] == 0
+    if query == "access_points":
+        _remember_wtp_ids(auth, [item["name"] for item in parsed["records"] if item["name"]])
+    elif query == "wlans":
+        _remember_wtp_ids(auth, [item["name"] for item in parsed["records"] if item["name"]], "wlan_names")
     return {"wifi": parsed}
 
 
@@ -1623,6 +2069,195 @@ def _limit_log_lines(text: str, oldest_first: bool = False) -> tuple[str, dict[s
     return "\n".join(lines[:keep]) + "\n" + note + "\n", limit
 
 
+_NXOS_PROBES = frozenset({"ping", "ping_source", "ping6", "ping6_source",
+                          "traceroute", "traceroute_source", "traceroute6", "traceroute6_source"})
+
+
+def _nxos_probe_complete(query, text, parameters):
+    """Recognize completion, not connectivity success; a lost ping is still a measurement."""
+    if query.startswith("ping"):
+        counts = re.search(r"(?m)^5 packets transmitted, ([0-5]) packets received, [0-9.]+% packet loss\s*$", text)
+        return counts is not None
+    # NX-OS SSH exec omits the traceroute banner. A hop ends with all three
+    # probe answers. Earlier hops alone must never look like a completed trace.
+    for line in text.splitlines():
+        hop = re.match(r"^\s*(\d+)\s+(.+)$", line)
+        if not hop:
+            continue
+        answers = re.findall(r"\b[0-9.]+ ms\b|\*", hop[2])
+        reached = re.search(r"(?<![0-9A-Fa-f:.])" + re.escape(parameters["address"]) + r"(?![0-9A-Fa-f:.])", hop[2])
+        if len(answers) >= 3 and (reached or int(hop[1]) == 30 or re.search(r"![A-Z]", hop[2])):
+            return True
+    return False
+
+
+_JUNOS_TRACEROUTE_HOP = re.compile(r"(?m)^[ \t]*(\d{1,2})[ \t]+([^\r\n]+)")
+_JUNOS_TRACE_ADDRESS = r"(?:[0-9]{1,3}\.){3}[0-9]{1,3}"
+_JUNOS_TRACE_RTT = r"[0-9]+(?:\.[0-9]+)?[ \t]+ms"
+_JUNOS_TRACEROUTE_PROBE = re.compile(
+    rf"\b(?P<address>{_JUNOS_TRACE_ADDRESS})\b|\b{_JUNOS_TRACE_RTT}\b(?P<marker>[ \t]*!\S*)?"
+)
+_JUNOS_TRACEROUTE_BANNER = re.compile(
+    rf"traceroute to {_JUNOS_TRACE_ADDRESS} \({_JUNOS_TRACE_ADDRESS}\), [0-9]+ hops max, [0-9]+ byte packets"
+)
+_JUNOS_TRACEROUTE_FULL_HOP = re.compile(
+    rf"([0-9]{{1,2}})(?:[ \t]+(?:\*|(?:{_JUNOS_TRACE_ADDRESS}[ \t]+)?"
+    rf"{_JUNOS_TRACE_RTT}(?:[ \t]*!(?:[A-Z]|[0-9]+)?)?)){{3}}"
+)
+
+
+def _junos_traceroute_summary(command: str, output: str) -> dict[str, Any] | None:
+    hops = _JUNOS_TRACEROUTE_HOP.findall(output)
+    if not hops:
+        return None
+    last_hop, probes = hops[-1]
+    target = command.split()[1]
+    responder = None
+    reached = False
+    for probe in _JUNOS_TRACEROUTE_PROBE.finditer(probes):
+        if probe["address"] is not None:
+            responder = probe["address"]
+        elif responder == target and (probe["marker"] or "").strip() in {"", "!"}:
+            # A standalone ! is a low reply TTL. !H, !N, etc. are ICMP failure codes.
+            reached = True
+    return {
+        "destination_reached": reached,
+        "hop_limit_reached": not reached and int(last_hop) == TRACEROUTE_MAX_HOPS,
+        "last_hop": int(last_hop),
+        "max_hops": TRACEROUTE_MAX_HOPS,
+    }
+
+
+def _junos_traceroute_rows_complete(output: str) -> bool:
+    lines = [line.strip() for line in output.splitlines() if line.strip()]
+    if lines and _JUNOS_TRACEROUTE_BANNER.fullmatch(lines[0]):
+        lines = lines[1:]
+    return output.endswith("\n") and bool(lines) and all(
+        (hop := _JUNOS_TRACEROUTE_FULL_HOP.fullmatch(line)) is not None and int(hop[1]) == index
+        for index, line in enumerate(lines, 1)
+    )
+
+
+def _fortigate_interface_samples(auth):
+    from . import fortigate_tables
+
+    session_unavailable = False
+
+    def read(command):
+        nonlocal session_unavailable
+        start = time.monotonic()
+        if session_unavailable:
+            return start, ''
+        try:
+            rc, text = _verified_read(auth, 'fortinet', command)
+        except Exception as exc:
+            code = _transport_cause(exc)
+            if code is None:
+                raise
+            reader = _FORTINET_READER.get()
+            session_unavailable = code == 'disconnected' or (
+                reader is not None and getattr(reader.cli, '_closed', False))
+            # Keep the verified link state and the remaining telemetry samples.
+            rc, text = None, ''
+        midpoint = (start + time.monotonic()) / 2
+        if normalization.output_status(text, rc=rc, profile='fortinet', command=command) != 'ok':
+            text = ''
+        return midpoint, text
+
+    start, before = read(fortigate_tables.INTERFACE_COUNTERS_COMMAND)
+    _, speed = read(fortigate_tables.INTERFACE_SPEED_COMMAND)
+    end, after = read(fortigate_tables.INTERFACE_COUNTERS_COMMAND)
+    return fortigate_tables.interface_samples(end - start, before, speed, after)
+
+
+def _junos_count_matches(auth, profile, query, expected, *, pattern="[[:graph:]]"):
+    command = READ_QUERIES[profile][query].command.removesuffix(" | no-more")
+    try:
+        rc, count = read_from_device(auth, profile, command + f' | match "{pattern}" | count | no-more')
+    except Exception:
+        return False
+    return rc == 0 and count.strip() == f"Count: {expected} lines"
+
+
+def _junos_counter_count_matches(auth, profile, query, output):
+    # Ignore blank lines so CLI formatting and transport whitespace agree.
+    return _junos_count_matches(auth, profile, query, sum(bool(line.strip()) for line in output.splitlines()))
+
+
+def _junos_g134_output(auth, profile, query, output, rc, parameters, clock_read):
+    """Return safe query text and snapshot labels, or a fixed error classification."""
+    from . import junos_management
+    from .switch_dhcp import junos_dhcp_status
+
+    if len(output.encode("utf-8")) > _SSH_CAPTURE_MAX_BYTES:
+        return "", {}, "truncated"
+    if query == LOG_HISTORY_QUERY:
+        output = _JUNOS_LAST_PAGER_MARK.sub("", output)
+    state = normalization.output_status(output, rc=rc, profile=profile)
+    if normalization.permission_refused(profile, output):
+        return "", {}, "permission_denied"
+    if _cli_refused(profile, output):
+        return "", {}, junos_dhcp_status(query, output) or (state if state == "unsupported" else "device_cli_error")
+    if state not in {"ok", "empty"}:
+        return "", {}, "device_cli_error" if state == "transport_error" else state
+    if state == "empty" and query != LOG_HISTORY_QUERY and not query.endswith("_statistics"):
+        return output, {}, None
+    if query in JUNOS_CONFIG_COMMANDS:
+        try:
+            projected = junos_management.json_lines(junos_management.config_projection(query, output))
+        except ValueError:
+            return "", {}, "unparsed"
+        return _redact_output(projected, auth), {}, None
+    if query == LOG_HISTORY_QUERY:
+        try:
+            if not clock_read or not clock_read.get("ok"):
+                raise ValueError("missing Junos clock")
+            clock, zone = junos_management.device_clock(clock_read["text"])
+        except ValueError:
+            # Keep the fixed error and withhold the unfiltered log.
+            return "", {}, "unparsed"
+        date_reference = clock
+        clock_verified = True
+        if clock.hour == 23 and clock.minute >= 58:
+            # A capture near midnight may contain classic log entries from the next day or year.
+            # Keep the earlier clock for completeness: the later sample is only for dating entries.
+            after = _triage_read(auth, profile, "uptime")
+            try:
+                later, later_zone = junos_management.device_clock(after["text"] if after.get("ok") else "")
+                clock_verified = later_zone == zone and timedelta(0) <= later - clock <= timedelta(minutes=5)
+                if clock_verified:
+                    date_reference = later
+            except ValueError:
+                clock_verified = False
+        projected, coverage = junos_management.log_history(
+            output, parameters, clock, zone, truncated=False,
+            date_reference=date_reference, clock_verified=clock_verified)
+        return _redact_output(projected, auth), {"log_history": coverage}, None
+    if query == "snmp_statistics":
+        try:
+            counters, extended = junos_management.snmp_counters(output)
+        except ValueError:
+            return "", {}, "unparsed"
+        if not extended and not _junos_counter_count_matches(auth, profile, query, output):
+            return "", {}, "unparsed"
+        return _redact_output(junos_management.json_lines(counters), auth), {}, None
+    if query == "system_users":
+        try:
+            sessions = junos_management.session_projection(output)
+        except ValueError:
+            return "", {}, "unparsed"
+        return _redact_output(junos_management.json_lines(sessions), auth), {"session_count": len(sessions)}, None
+    if query == "dns_lookup":
+        if output.strip() == ";; connection timed out; no servers could be reached":
+            return "", {}, "dns_timeout"
+        if not junos_management.dns_output_complete(output):
+            return "", {}, "unparsed"
+    state = junos_dhcp_status(query, output)
+    if state == "needs_count":
+        state = None if _junos_counter_count_matches(auth, profile, query, output) else "unparsed"
+    return _redact_output(output, auth), {}, state
+
+
 def _ssh_read(
     auth: TargetAuth,
     platform: str,
@@ -1637,16 +2272,48 @@ def _ssh_read(
     offset, max_bytes = _validate_pagination(offset, max_bytes)
     normalized, command, cache_key = _ssh_read_state(auth, platform, query, parameters)
     entry = READ_QUERIES[normalized].get(query)
+    extender_modem = normalized == "fortinet" and query == health_rules.EXTENDER_MODEM_QUERY
+    empty_allowed = entry is not None and entry.empty_allowed
+    nxos_overlay = normalized == "cisco_nxos" and query in NXOS_G97_QUERIES
+    nxos_management = normalized == "cisco_nxos" and query in NXOS_G95_QUERIES
+    nxos_log = normalized == "cisco_nxos" and query in {NXOS_LOG_HISTORY, "log_messages"}
+    nxos_gateway = normalized == "cisco_nxos" and query in health_rules.NXOS_GATEWAY_QUERIES
+    nxos_g93 = nxos_log or normalized == "cisco_nxos" and query in NXOS_G93_QUERIES
     sequence = is_read_sequence(normalized, query)
+    ios_security = query in _IOS_SECURITY_QUERIES.get(normalized, {})
+    adc_interface_read = normalized == "fortiadc" and query in fortiadc_diagnostics.INTERFACE_EXEC_QUERIES
+    adc_summary = normalized == "fortiadc" and query == "interface_summary"
     prompt = entry is not None and entry.pty
-    transport = _TRANSPORT_PTY if prompt or sequence else _SSH_TRANSPORTS[normalized]
+    transport = _TRANSPORT_PTY if prompt or (sequence and not adc_summary) else _SSH_TRANSPORTS[normalized]
     output_filter: dict[str, str] = {}
     if sequence:
         _, commands, output_filter = render_read_sequence(normalized, query, parameters, _read_inventory(auth))
+    c9800_read = normalized == "cisco_xe" and query.startswith("c9800_")
     pagination_source = "fresh"
     identity_response = None
+    g135 = normalized in JUNOS_PROFILES and query in G135_QUERIES
+    g134 = normalized in JUNOS_PROFILES and query in G134_QUERIES
+    ios_g57 = normalized in {"cisco_ios", "cisco_xe"} and query in IOS_G57_QUERIES
+    qfp_read = normalized == "cisco_xe" and query in {"qfp_drops", "qfp_utilization"}
+    # The QFP parser classifies a blank capture as incomplete.
+    empty_allowed = empty_allowed or qfp_read
+    xe_probe = normalized == "cisco_xe" and query in IOS_XE_PROBE_QUERIES
+    xe_log = normalized in {"cisco_ios", "cisco_xe"} and query == XE_LOG_HISTORY
+    exos_log = normalized == "extreme_exos" and query == EXOS_LOG_HISTORY
+    exos_buffer_log = normalized == "extreme_exos" and query in _EXOS_LOG_QUERIES
+    xe_detail = normalized in {"cisco_ios", "cisco_xe"} and query in health_rules.XE_DETAIL_KEYS
+    xe_g72 = xe_log or xe_detail
+    ios_management = normalized in {"cisco_ios", "cisco_xe"} and query in IOS_MANAGEMENT_QUERIES
+    management_complete = False
+    ios_management_refusal = None
+    xe_source_privileged = False
     line_limit = None
-    vdom_label: dict[str, Any] = {}
+    labels: dict[str, Any] = {}
+    junos_labels: dict[str, Any] = {}
+    eos_log_metadata = None
+    stderr_failure = None
+    ruckus_config_refused = False
+    exos_log_refused = False
     if offset:
         if not _named_snapshot(content_sha256):
             raise _pagination_refused(_SSH_SNAPSHOT_UNNAMED)
@@ -1656,44 +2323,285 @@ def _ssh_read(
         rc, cleaned = cached
         with _SSH_CACHE_LOCK:
             capture = _SSH_PAGE_CACHE.get((*cache_key, content_sha256))
-            identity_response = capture[4] if capture and len(capture) > 4 else None
-            line_limit = capture[5] if capture and len(capture) > 5 else None
-            vdom_label = dict(capture[6]) if capture and len(capture) > 6 and capture[6] else {}
+            if capture is not None:
+                identity_response, line_limit, cached_labels, eos_log_metadata = capture[4:]
+                labels = dict(cached_labels or {})
+                management_complete = labels.pop("_ios_management_complete", False)
+                if g134:
+                    junos_labels, labels = labels, {}
         pagination_source = "cached"
     else:
         try:
             with _scope_capture() as holder:
+                if normalized == "cisco_ios" and empty_allowed:
+                    holder["ios_empty_allowed"] = True
+                if g135 or g134:
+                    holder["junos_firmware"] = True
+                if ios_g57:
+                    holder["ios_g57"] = True
+                if ios_management:
+                    holder["ios_management"] = True
+                if xe_log:
+                    holder["xe_log_history"] = True
+                if exos_log:
+                    holder["exos_log_history"] = parameters["source"]
+                if xe_detail:
+                    holder["xe_detail"] = True
+                if extender_modem or normalized == "fortinet" and query in FORTIOS_IPSEC_KEY_QUERIES:
+                    holder["fortios_firmware"] = True
+                if ios_security:
+                    holder["ios_security_read"] = True
                 try:
-                    rc, output = (_verified_sequence(auth, normalized, commands) if sequence
-                                  else _verified_read(auth, normalized, command, prompt))
+                    if adc_summary:
+                        rc, output, failed_command = _verified_fortiadc_interface_summary(auth, commands)
+                        if failed_command is not None:
+                            command = failed_command
+                    else:
+                        rc, output = (_verified_sequence(auth, normalized, commands) if sequence
+                                      else _verified_read(auth, normalized, command, prompt))
+                    if normalized == 'fortinet' and query == INTERFACE_LIST_QUERY and output.strip() and (
+                            normalization.output_status(output, rc=rc, profile=normalized, command=command) == 'ok'):
+                        with _scope_capture():
+                            output += _fortigate_interface_samples(auth)
                 finally:
-                    vdom_label = fortios_vdom.label(holder.get("scope"), query, holder.get("index"))
+                    labels = fortios_vdom.label(holder.get("scope"), query, holder.get("index"))
+                    if normalized == "cisco_nxos":
+                        labels.update(_nxos_firmware(holder, query))
+                    elif ios_security:
+                        labels.update(_ios_security_firmware(holder, normalized, query))
+                    elif normalized == "cisco_xe":
+                        labels.update(_ios_xe_port_firmware(holder, query))
+                    if c9800_read and (identity := holder.get("product_identity")) is not None:
+                        from netops_core import c9800, tested
+
+                        labels.update(_firmware_fields(tested.support(
+                            "IOS XE", identity["os_version"], c9800.DOCUMENTED_RELEASES,
+                            model=identity["model"], function=query,
+                        )))
+                    if qfp_read and (identity := holder.get("product_identity")) is not None:
+                        from netops_core import tested
+
+                        # Cisco's QFP examples identify the platform family but omit its running release.
+                        labels.update(_firmware_fields({
+                            "status": tested.UNTESTED, "platform": "IOS XE", "device_version": identity["os_version"],
+                            "model": identity["model"], "tested_versions": [],
+                            "message": "Cisco's published hardware QFP samples do not identify a tested IOS XE release.",
+                        }))
+                    if extender_modem and (identity := holder.get("fortios_identity")) is not None:
+                        from netops_core import tested
+
+                        model, version, build = identity
+                        labels.update(_firmware_fields(tested.support(
+                            "FortiOS", f"{version} build{build}", ("5.4 (Fortinet CLI fixture, build unspecified)",),
+                            model=model, function=query)))
+                    elif "fortios_identity" in holder:
+                        from .fortios_diagnostics import fortios_support
+                        from .triage_vpn import DETAIL_IDENTITIES
+
+                        labels.update(_firmware_fields(fortios_support(
+                            holder["fortios_identity"], DETAIL_IDENTITIES, query)))
+                    if (xe_probe or ios_management) and (identity := holder.get("product_identity")) is not None:
+                        from netops_core import tested
+                        os_name, versions = (
+                            ("IOS", ("15.9(3)M12", "15.2(20200924:215240)")) if normalized == "cisco_ios"
+                            else ("IOS XE", ("17.18.2",))
+                        )
+                        labels.update(_firmware_fields(tested.support(
+                            os_name, identity["os_version"], versions, model=identity["model"], function=query,
+                        )))
+                    if xe_probe:
+                        xe_source_privileged = holder.get("xe_source_privileged", False)
+                    if ios_g57 and (identity := holder.get("product_identity")) is not None:
+                        from netops_core import tested
+
+                        os_name, versions = (("IOS", ("15.9(3)M12",)) if normalized == "cisco_ios"
+                                        else ("IOS XE", ("17.18.2",)))
+                        if query == "qos_queues":
+                            # Vendor captures supply the populated hardware queue results.
+                            versions = ((("Catalyst 2960-X", "15.2(6)E"),) if normalized == "cisco_ios"
+                                        else (("Catalyst 9300", "16.12.3"),))
+                        labels.update(_firmware_fields(tested.support(
+                            os_name, identity["os_version"], versions, model=identity["model"], function=query,
+                        )))
+                    if xe_g72 and (identity := holder.get("product_identity")) is not None:
+                        from netops_core import tested
+                        labels.update(_firmware_fields(tested.support(
+                            "IOS" if normalized == "cisco_ios" else "IOS XE", identity["os_version"],
+                            health_rules.IOS_HEALTH_TESTED if normalized == "cisco_ios" else health_rules.XE_HEALTH_TESTED,
+                            model=identity["model"], function=query,
+                        )))
+                    if exos_log:
+                        labels.update(holder.get("exos_log_firmware", {}))
                     read_scope = {"scope": holder.get("scope")}
+                    if g135 or g134:
+                        identity_response = holder.get("junos_identity")
+                    elif normalized == "cisco_ios" and query == "etherchannel_load_balance":
+                        identity_response = holder.get("product_identity")
         except fortios_vdom.VdomRefused as exc:
             return {
                 "ok": False, "target": auth.alias, "platform": normalized,
                 "query": query, "transport": transport,
-                "error_code": exc.code, "error": str(exc), **vdom_label,
+                "error_code": exc.code, "error": str(exc), **labels,
             }
         except _ProductIdentityError as exc:
             return {
                 "ok": False, "target": auth.alias, "platform": normalized,
                 "query": query, "transport": transport, "rc": exc.rc,
                 "error_code": "product_identity", "error": str(exc),
+                **({"complete": False} if adc_interface_read or xe_probe or xe_g72 or nxos_g93 or exos_log else {}),
                 **({"reason": exc.reason} if normalized in normalization.IDENTITY_PROFILES else {}),
             }
+        except _NxosTraceTimeout as exc:
+            hops = "".join(line for line in exc.output.decode("utf-8", "replace").splitlines(keepends=True)
+                           if line.endswith("\n") and re.match(r"[ \t]*(?:[1-9]|[12][0-9]|30)[ \t]+", line))
+            cleaned = _redact_output(hops, auth)
+            return {
+                "ok": False, "target": auth.alias, "platform": normalized, "query": query,
+                "transport": transport, "status": "timeout", "complete": False, **labels,
+                **_transport_failure("timeout", auth),
+                "untrusted_device_output": _page_text(cleaned, 0, max_bytes)["untrusted_device_output"],
+            }
         except Exception as exc:
+            status = _transport_status(exc) if normalized in normalization.IDENTITY_PROFILES else None
+            if exos_log and status == "truncated":
+                status = "incomplete"
             return {
                 "ok": False, "target": auth.alias, "platform": normalized,
                 "query": query, "transport": transport, **_read_failure(exc, auth),
-                **({"status": _transport_status(exc)} if normalized in normalization.IDENTITY_PROFILES else {}),
+                **({"complete": False} if adc_interface_read or xe_probe or xe_g72 or nxos_g93 or exos_log else {}),
+                **(labels if xe_probe or xe_g72 else {}),
+                **({"status": status} if status else {}),
+                **({"status": "incomplete", "complete": False} if extender_modem else {}),
             }
-        cleaned = _redact_output(output, auth)
+        if extender_modem:
+            # This command can contain subscriber identifiers anywhere in the reply, including refusal text.
+            # Only the typed projection is exposed. Do not cache or page the original bytes.
+            body = strip_terminal_controls(output)
+            refused = rc not in (0, None) or _cli_refused(normalized, body, command=command)
+            summary = health_rules.fortiextender_modem_status("" if refused else body)
+            return {
+                "ok": not refused, "target": auth.alias, "platform": normalized, "query": query,
+                "transport": transport, "rc": rc, "pagination_source": "fresh", **labels, **_page_text("", 0, max_bytes),
+                "status": summary["status"], "complete": summary["complete"],
+                "fortiextender_modem": {"modems": summary["modems"],
+                                       "identifiers_redacted": summary["identifiers_redacted"]},
+                **({"error_code": "device_cli_error", "error": "The FortiExtender modem query was refused"}
+                   if refused else {}),
+            }
+        if empty_allowed and holder.get("unexpected_stderr") and (not xe_log or not output.strip()):
+            stderr_failure = {
+                "ok": False, "target": auth.alias, "platform": normalized,
+                "query": query, "transport": transport, "rc": rc, "status": "unparsed",
+                "error_code": "device_cli_error", "error": _EMPTY_READ_STDERR_ERROR,
+                **(labels if ios_g57 else {}),
+                **({"complete": False} if xe_g72 or nxos_g93 or exos_log else {}),
+            }
+        if normalized == "extreme_exos" and query in {"radius", "tacacs", "accounts", "netlogin", "netlogin_port", "management", "snmp_targets"}:
+            from .exos_services import redact_credentials
+            output = redact_credentials(output)
+        if normalized == "ruckus_unleashed":
+            from .sanitize import redact_ruckus_secrets, ruckus_config_allowlist
+            secrets = _redaction_secret_forms(auth)
+            output = redact_ruckus_secrets(output, secrets)
+            if query == "config_settings":
+                # Test the CLI reply before the section filter replaces top-level refusal text.
+                ruckus_config_refused = _cli_refused(normalized, output, command=command)
+                output = "" if ruckus_config_refused else ruckus_config_allowlist(output, secrets)
+        if normalized == "arista_eos":
+            projected = eos_management_status(query, output)
+            if output.strip() and not projected.strip():
+                return {
+                    "ok": False, "target": auth.alias, "platform": normalized, "query": query,
+                    "transport": transport, "rc": rc, "status": "unparsed",
+                    "error_code": "incomplete_output",
+                    "error": "The device response did not contain recognized operational fields",
+                }
+            output = projected
+        if ios_g57 and query in {"ikev1_sa", "ikev2_sa", "ipsec_sa"}:
+            output = redact_cisco_sa_keys(output)
+        if normalized == "cisco_ios" and query == "qos_policy":
+            output = re.sub(r"[ \t]+(--More--)[ \t\r\n]*\Z", r"\n\1\n", output, flags=re.I)
+        if normalized == "juniper_junos" and query in {"ike_security_associations", "ipsec_security_associations"}:
+            from .sanitize import redact_junos_sa_keys
+            output = redact_junos_sa_keys(output)
+        if normalized == "fortinet" and query in FORTIOS_IPSEC_KEY_QUERIES:
+            # G14: IKE/ESP key material before hashing, paging and the response.
+            output = redact_fortios_ipsec_keys(output)
+        if normalized == "cisco_xe" and query == "authentication_sessions_interface":
+            # Cisco redirect URLs can include per-session tokens of any length.
+            output = _ACCESS_SESSION_REDIRECT.sub(r"\1 <REDACTED>", strip_terminal_controls(output))
+        if ios_management:
+            state = normalization.output_status(strip_terminal_controls(output), rc=rc, profile=normalized, command=command)
+            if state in {"permission_denied", "unsupported"}:
+                ios_management_refusal = state
+            output, management_complete = redact_ios_management(query, output, classic_ios=normalized == "cisco_ios")
+        if normalized == "cisco_xe" and query == "c9800_client_deletes":
+            output = wifi_parse.c9800_preserve_numeric_counters(output)
+        community_secrets: set[str] = set()
+        if nxos_management:
+            if query == "snmp_statistics":
+                _, labels["_snmp_table_masked"] = redact_nxos_snmp_communities(
+                    output, community_secrets=community_secrets)
+            state = normalization.output_status(output, rc=rc, profile=normalized, command=command)
+            output, recognized = nxos_management_output(query, output)
+            if query == "radius_statistics" and output.strip() == "RADIUS server not found":
+                state = "not_applicable"
+            elif state == "ok" and not recognized:
+                state = "unparsed"
+            labels["_nxos_management_state"] = state
+        if normalized in {"cisco_ios", "cisco_xe"} and (xe_log or query in {"log_messages", "log_warnings"}):
+            output = redact_ios_log_commands(output)
+        if exos_log or exos_buffer_log:
+            exos_log_refused = _cli_refused(normalized, output, command=command)
+            exos_state = normalization.output_status(output, rc=rc, profile=normalized, command=command)
+            output, exos_withheld = redact_exos_log_commands(output)
+            if exos_buffer_log and (exos_withheld or exos_state == "truncated"):
+                labels["status"] = "incomplete"
+        if (xe_detail or nxos_gateway) and query in {"hsrp_detail", "vrrp_detail", "vrrpv3_detail"}:
+            ios_paged = normalized == "cisco_ios" and normalization.output_status(
+                strip_terminal_controls(output), rc=rc, profile=normalized, command=command,
+            ) == "truncated"
+            output = health_rules.xe_redact_fhrp(output)
+            if ios_paged and not output.rstrip().endswith("--More--"):
+                output = output.rstrip() + "\n--More--\n"
+        if g134:
+            cleaned, junos_labels, state = _junos_g134_output(
+                auth, normalized, query, output, rc, parameters or {}, holder.get("junos_log_clock"))
+            if state == "not_applicable":
+                junos_labels["status"] = state
+            elif state:
+                known_status = ("timeout" if state == "dns_timeout" else
+                                state if state in normalization.RESULT_STATES else "unparsed")
+                return {
+                    "ok": False, "target": auth.alias, "platform": normalized, "query": query,
+                    "transport": transport, "rc": rc, "status": known_status, "complete": False,
+                    "error_code": ("incomplete_output" if state in {"unparsed", "truncated"} else state),
+                    "error": ("The device's DNS lookup timed out without reaching a resolver"
+                              if state == "dns_timeout" else
+                              "The device did not provide a complete, recognized output"
+                              if state in {"unparsed", "truncated"} else
+                              "The device command failed or was refused; check command support and account permissions"),
+                    **({"archive_correlation": "external_archive_unavailable"}
+                       if query == LOG_HISTORY_QUERY and state == "permission_denied" else {}),
+                }
+        else:
+            cleaned = _redact_output(output, auth, extra_secrets=community_secrets)
+        if query == FILTER_BINDING_QUERY:
+            from .tables import junos_firewall_bindings
+            if not (re.fullmatch(r"\s*error: (?:permission denied(?:: [\w-]+)?|unknown command)[^\S\n]*\s*", cleaned)
+                    or junos_firewall_bindings(cleaned)["complete"]):
+                return {
+                    "ok": False, "target": auth.alias, "platform": normalized, "query": query,
+                    "transport": transport, "rc": rc, "status": "unparsed",
+                    "error_code": "incomplete_output", "error": "Unrecognized IPv4 firewall filter binding output",
+                }
         if len(cleaned.encode("utf-8")) > _SSH_CAPTURE_MAX_BYTES:
             return {
                 "ok": False, "target": auth.alias, "platform": normalized,
                 "query": query, "transport": transport, "rc": rc,
                 "error": "SSH output exceeds the 2000000-byte safety cap",
+                **({"complete": False} if adc_interface_read or xe_g72 or nxos_g93 or exos_log else {}),
+                **({"status": "incomplete"} if exos_log else {}),
             }
         try:
             cleaned = _fortiswitch_configuration_output(normalized, query, parameters, cleaned, read_scope)
@@ -1701,21 +2609,78 @@ def _ssh_read(
             return {
                 "ok": False, "target": auth.alias, "platform": normalized,
                 "query": query, "transport": transport, "rc": rc,
-                "error_code": exc.code, "error": str(exc), **vdom_label,
+                "error_code": exc.code, "error": str(exc), **labels,
             }
         if "other_vdom_records" in read_scope:
             # Multi-VDOM VLAN projection: only the VLAN interfaces whose own `set vdom` names this VDOM.
-            vdom_label.update(data_scope="vdom", other_vdom_records=read_scope["other_vdom_records"])
-        if normalized == "extreme_exos" and query in _EXOS_LOG_QUERIES:
+            labels.update(data_scope="vdom", other_vdom_records=read_scope["other_vdom_records"])
+        if nxos_g93 and (rc not in (0, None) or _cli_refused(normalized, cleaned, command=command)):
+            state = normalization.output_status(cleaned, rc=rc, profile=normalized, command=command)
+            return {
+                "ok": False, "target": auth.alias, "platform": normalized, "query": query,
+                "transport": transport, "rc": rc, "complete": False,
+                "status": state if state in {"permission_denied", "unsupported"} else "unparsed",
+                "error_code": "device_cli_error", "error": "The device command failed or was refused", **labels,
+            }
+        if xe_g72 and rc not in (0, None):
+            return {
+                "ok": False, "target": auth.alias, "platform": normalized, "query": query,
+                "transport": transport, "rc": rc, "status": "unparsed", "complete": False,
+                "error_code": "device_cli_error", "error": "The device command exited unsuccessfully", **labels,
+            }
+        if xe_log and not _cli_refused(normalized, cleaned, command=command):
+            state = normalization.output_status(cleaned, rc=rc, profile=normalized, command=command)
+            cleaned, coverage = health_rules.xe_log_history(
+                cleaned, parameters or {}, holder.get("xe_log_clock", {}), state, _LOG_MAX_LINES, profile=normalized)
+            labels["log_history"] = coverage
+        if nxos_log and not _cli_refused(normalized, cleaned, command=command):
+            if stderr_failure is not None and not cleaned.strip():
+                return stderr_failure
+            state = normalization.output_status(cleaned, rc=rc, profile=normalized, command=command)
+            cleaned, labels["log_history"] = health_rules.nxos_log_history(
+                cleaned, parameters if query == NXOS_LOG_HISTORY else {"count": "200"}, state)
+        if exos_log:
+            if rc not in (0, None) or exos_log_refused:
+                denied = exos_state == "permission_denied"
+                return {
+                    "ok": False, "target": auth.alias, "platform": normalized, "query": query,
+                    "transport": transport, "rc": rc, "complete": False,
+                    "status": "permission_denied" if denied else "incomplete",
+                    "error_code": "permission_denied" if denied else "device_cli_error",
+                    "error": "The EXOS log read was refused or failed",
+                }
+            cleaned, coverage = health_rules.exos_log_history(
+                cleaned, parameters, exos_state, _LOG_MAX_LINES, withheld=exos_withheld,
+                clock=holder.get("exos_log_clock"), oldest=holder.get("exos_log_oldest"))
+            labels.update(log_history=coverage, status=coverage["status"])
+        if normalized == "arista_eos" and query in EOS_LOG_WINDOW_QUERIES:
+            state = normalization.output_status(cleaned, rc=rc, profile=normalized, command=command)
+            unreadable = 0
+            interface = (parameters or {}).get("interface")
+            if interface and rc in (None, 0) and state in {"ok", "empty", "truncated"} and not _cli_refused(
+                    normalized, cleaned, command=command):
+                from .triage_health import eos_filter_log_interface
+                cleaned, unreadable = eos_filter_log_interface(cleaned, interface)
+            eos_log_metadata = (state, unreadable)
+        if exos_buffer_log:
             cleaned, line_limit = _limit_log_lines(cleaned)
+            if line_limit["truncated"]:
+                labels["status"] = "incomplete"
         elif normalized in _OLDEST_FIRST_LOG_PROFILES and query in _OLDEST_FIRST_LOG_QUERIES:
             if normalized.startswith("juniper_junos"):
                 cleaned = _JUNOS_LAST_PAGER_MARK.sub("", cleaned)
             cleaned, line_limit = _limit_log_lines(cleaned, oldest_first=True)
+    management_state = labels.pop("_nxos_management_state", None)
+    snmp_table_masked = labels.pop("_snmp_table_masked", False)
     empty_output = not cleaned.strip()
+    empty_allowed = (empty_allowed or junos_labels.get("status") == "not_applicable"
+                     or junos_labels.get("session_count") == 0)
     mac_filter = None
-    refused = (_cli_refused(normalized, cleaned) if sequence
-               else _cli_refused(normalized, cleaned, command=command))
+    refused = (ruckus_config_refused or ios_management_refusal is not None or exos_log_refused
+               or _cli_refused(normalized, cleaned, command=None if sequence else command))
+    traceroute = _is_junos_traceroute(normalized, command)
+    trace_summary = _junos_traceroute_summary(command, cleaned) if traceroute else None
+    traceroute_failed = traceroute and not empty_output and trace_summary is None
     if output_filter.get("mac_literal") and not offset and not empty_output and not refused:
         cleaned, mac_filter = wifi_parse.filter_events_by_mac(cleaned, output_filter["mac_literal"])
     cache_key = (*cache_key, hashlib.sha256(cleaned.encode("utf-8")).hexdigest())
@@ -1730,65 +2695,594 @@ def _ssh_read(
         and re.search(r"(?m)^[ \t]*command parse error before 'wireless-controller'[ \t]*\r?$", cleaned, re.I) is not None
         and re.search(r"(?m)^[ \t]*Command fail\. Return code -61[ \t]*\r?$", cleaned, re.I) is not None
     )
-    exos_250_error = normalized == "extreme_exos" and rc == 250 and bool(cleaned.strip()) and not normalization.exos_exit_250(normalized, rc, cleaned, command=command)
+    # These EXOS protocol reads return exactly one newline with status 250 when there is no state.
+    exos_empty_250 = (
+        normalized == "extreme_exos" and rc == 250 and cleaned == "\n"
+        and query in _EXOS_BLANK_STATUS_250_QUERIES and empty_allowed
+    )
+    exos_success_250 = exos_empty_250 or normalization.exos_exit_250(normalized, rc, cleaned, command=command)
+    exos_250_error = normalized == "extreme_exos" and rc == 250 and not empty_output and not exos_success_250
     # Measured in a verified VDOM context: a profile without diagnose answers only `Unknown action 0`.
-    diagnose_denied = (vdom_label.get("vdom_mode") == "multiple" and not sequence
+    diagnose_denied = (labels.get("vdom_mode") == "multiple" and not sequence
                        and fortios_vdom.diagnose_refused(command, cleaned))
-    if exos_250_error or (refused and not (mclag and mclag_not_supported(query, cleaned))) or lookup_route_failed:
+    forwarding_failed = (normalized == "cisco_nxos" and query == "forwarding_ipv4_route"
+                         and (rc not in (0, None) or re.search(r"(?m)^\s*Cmd exec error\.[ \t]*$", cleaned)))
+    partial_forwarding = forwarding_failed and not refused and re.search(r"(?m)^IPv4 routes for table ", cleaned)
+    # FortiADC (G28 ADC-C13, measured 7.6.7 build0676): a profile without diagnose rejects the first diagnose word.
+    adc_diagnose_denied = normalized == "fortiadc" and not sequence and _fortiadc_diagnose_refused(command, cleaned)
+    adc_interface_failed = adc_interface_read and rc not in (0, None)
+    adc_interface_denied = (adc_interface_read and auth.account_role == "read-only"
+                            and fortiadc_diagnostics.interface_exec_refusal(command, cleaned) is not None)
+    xe_missing_vrf = (xe_probe and (parameters or {}).get("vrf") and re.search(
+        r"(?m)^vrf " + re.escape(parameters["vrf"]) + r" does not exist(?:[ \t]+\^)?[ \t]*$", cleaned,
+    ))
+    xe_invalid_source = xe_source_privileged and not xe_missing_vrf
+    management_failed = (
+        nxos_management and (rc not in (0, None) or management_state in {"permission_denied", "unsupported"})
+    ) or (ios_management and not empty_output and rc not in (0, None))
+    if (management_failed or forwarding_failed or exos_250_error
+            or (refused and not (mclag and mclag_not_supported(query, cleaned)))
+            or lookup_route_failed or traceroute_failed or adc_interface_failed):
         with _SSH_CACHE_LOCK:
             _SSH_PAGE_CACHE.pop(cache_key, None)
         return {
             "ok": False, "target": auth.alias, "platform": normalized,
             "query": query, "transport": transport, "rc": rc,
-            "error_code": "permission_denied" if wifi_permission_denied or diagnose_denied else "device_cli_error",
+            "error_code": ("permission_denied" if (wifi_permission_denied or diagnose_denied or adc_diagnose_denied
+                                                   or adc_interface_denied)
+                           else "incomplete_output" if adc_interface_failed and not refused
+                           else "invalid_argument" if xe_invalid_source else "device_cli_error"),
             "error": ("Wi-Fi diagnostics need an admin-bounded account with wifi read-write and cli-diagnose; or remove wifi_* from the target's enabled_queries" if wifi_permission_denied else
                       fortios_vdom.ADVICE["diagnose_not_permitted"] if diagnose_denied else
+                      "The FortiADC read-only profile was denied access to this interface command" if adc_interface_denied else
+                      _fortiadc_diagnose_advice() if adc_diagnose_denied else
+                      "The FortiADC interface command exited unsuccessfully; its output may be incomplete" if adc_interface_failed and not refused else
                       "Policy lookup could not resolve a route for the supplied flow" if lookup_route_failed else
+                      "The enrolled VRF does not exist on the device" if xe_missing_vrf else
+                      "The device rejected a probe parameter; check that the source interface exists and can be used"
+                      if xe_invalid_source else
+                      "Traceroute returned a diagnostic without any hop results" if traceroute_failed and not refused else
+                      "The device returned a partial forwarding table before the command failed" if partial_forwarding else
+                      "The requested RADIUS server is not configured on the device"
+                      if nxos_management and query == "radius_statistics" and management_state == "not_applicable" else
+                      "The device has no access point, WLAN or client with that MAC address or name"
+                      if normalized == "ruckus_unleashed" and wifi_parse.RUCKUS_NOT_FOUND.search(cleaned) else
+                      "The device command exited unsuccessfully" if management_failed and not refused else
                       "The device CLI refused the command; check its supported features and account permissions"),
-            **({"reason": "diagnose_not_permitted"} if diagnose_denied else {}), **vdom_label,
+            **({"reason": "diagnose_not_permitted"} if diagnose_denied or adc_diagnose_denied else {}),
+            **({"status": management_state, "complete": False} if nxos_management else {}),
+            **({"complete": False} if forwarding_failed else {}),
+            **({"status": ios_management_refusal} if ios_management_refusal else {}),
+            **({"status": "not_applicable"} if xe_missing_vrf else {}),
+            **({"status": "unparsed"} if xe_invalid_source else {}),
+            **({"status": normalization.output_status(cleaned, rc=rc, profile=normalized, command=command),
+                "complete": False} if normalized == "arista_eos" and refused else {}),
+            **({"complete": False} if adc_interface_read or xe_probe or ios_g57 or xe_g72 or nxos_overlay or ios_management or nxos_g93 else {}),
+            **labels,
             "untrusted_device_output": _page_text(cleaned, 0, max_bytes)["untrusted_device_output"],
         }
-    if empty_output and not (entry is not None and entry.empty_allowed):
+    if normalized == "cisco_nxos" and query in _NXOS_PROBES and not empty_output:
+        failed = rc not in (0, None, 1) or re.search(r"(?mi)^traceroute:|^ping6?:.*(?:invalid|not local|cannot|error)", cleaned)
+        if failed or not _nxos_probe_complete(query, cleaned, parameters or {}):
+            return {
+                "ok": False, "target": auth.alias, "platform": normalized,
+                "query": query, "transport": transport, "rc": rc,
+                "error_code": "device_cli_error" if failed else "incomplete_output",
+                "error": "The device probe failed" if failed else "The bounded probe returned no complete statistics or final hop",
+                "untrusted_device_output": _page_text(cleaned, 0, max_bytes)["untrusted_device_output"],
+            }
+    if empty_output and stderr_failure is not None:
+        return stderr_failure
+    fortinet_refused = normalized in _IDENTITY_PLATFORMS and rc == 1
+    # Let the overlay adapter report incomplete coverage for blank captures.
+    if empty_output and not empty_allowed and not fortinet_refused and not (nxos_overlay or c9800_read):
         with _SSH_CACHE_LOCK:
             _SSH_PAGE_CACHE.pop(cache_key, None)
         return {
             "ok": False, "target": auth.alias, "platform": normalized,
             "query": query, "transport": transport, "rc": rc,
             "error_code": "empty",
-            "error": "The device returned no output for this query; no result was read", **vdom_label,
+            "error": "The device returned no output for this query; no result was read", **labels,
+            **({"complete": False} if adc_interface_read or xe_probe or xe_g72 or nxos_overlay or nxos_g93 else {}),
         }
+    if empty_output and rc not in (0, None) and not exos_empty_250 and junos_labels.get("status") != "not_applicable":
+        # empty_allowed means an empty successful read; a failed command without output is not an empty log.
+        with _SSH_CACHE_LOCK:
+            _SSH_PAGE_CACHE.pop(cache_key, None)
+        return {
+            "ok": False, "target": auth.alias, "platform": normalized,
+            "query": query, "transport": transport, "rc": rc,
+            "error_code": "device_cli_error",
+            "error": "The device command failed without output; no result was read", **labels,
+            **({"complete": False} if nxos_overlay else {}),
+        }
+    if normalized == "ruckus_unleashed" and not offset:
+        model, version = (wifi_parse.ruckus_identity(cleaned) if query == "system_info"
+                          else _read_ruckus_identity(auth))
+        labels.update(_ruckus_firmware_fields(auth, model, version))
     if not offset and normalized in normalization.IDENTITY_PROFILES and query == "version":
         identity_response = _normalized_identity(auth, normalized, rc, cleaned)
     page = _page_text(cleaned, offset, max_bytes, whole_lines=True)
-    capture_state = (normalization.output_status(cleaned, rc=rc, profile=normalized, command=command)
+    if g134:
+        coverage = junos_labels.get("log_history")
+        if coverage is not None and not coverage["complete"]:
+            page["complete"] = False
+            junos_labels["status"] = "unparsed"
+        junos_labels.setdefault("status", "empty" if empty_output else "ok")
+    interface_payload = {}
+    if adc_summary:
+        if offset and cleaned.encode("utf-8")[offset - 1:offset] != b"\n":
+            raise ValueError("offset is not an interface row boundary; use next_offset")
+        try:
+            rows_complete = all(row.get("complete") is True for row in map(json.loads, cleaned.splitlines()))
+            interface_payload["interfaces"] = [json.loads(line) for line in page["untrusted_device_output"].splitlines()]
+        except (AttributeError, ValueError):
+            return {"ok": False, "target": auth.alias, "platform": normalized, "query": query,
+                    "transport": transport, "rc": rc, "complete": False, "error_code": "incomplete_output",
+                    "error": "The FortiADC interface summary could not be represented safely"}
+        if not rows_complete:
+            interface_payload.update(complete=False, interface_summary_note="Interface source data is missing for one "
+                                     "or more rows. See missing_sources and missing_fields in the affected rows.")
+    capture_state = (normalization.output_status(cleaned, rc=0 if exos_empty_250 else rc,
+                                                 profile=normalized, command=command)
                      if normalized in normalization.IDENTITY_PROFILES else None)
-    if page["next_offset"] is not None:
-        if offset == 0:
-            _store_cached_ssh_output(cache_key, rc, cleaned, auth.redaction_secrets, identity_response, line_limit,
-                                     vdom_label)
-    else:
-        with _SSH_CACHE_LOCK:
-            _SSH_PAGE_CACHE.pop(cache_key, None)
-    return {
-        "ok": True, "target": auth.alias, "platform": normalized, "query": query,
-        "transport": transport, "rc": rc, **vdom_label,
-        "pagination_source": pagination_source, **page,
+    if trace_summary is not None:
+        if (capture_state == "ok" and (trace_summary["destination_reached"] or trace_summary["hop_limit_reached"])
+                and _junos_traceroute_rows_complete(cleaned)):
+            labels["status"] = "ok"
+        else:
+            page["complete"] = False
+    if eos_log_metadata and eos_log_metadata[0] not in {"ok", "empty"}:
+        capture_state = eos_log_metadata[0]
+    if nxos_management:
+        capture_state = management_state
+        if capture_state != "ok":
+            page["complete"] = False
+    if ios_management and capture_state == "ok" and not management_complete:
+        capture_state = "unparsed"
+    if capture_state == "truncated" or (ios_management and capture_state == "unparsed"):
+        page["complete"] = False
+    if nxos_overlay and offset:
+        # A continuation page cannot supply a complete set of normalized records.
+        page["complete"] = False
+    if xe_log and "log_history" in labels:
+        capture_state = labels["log_history"]["status"]
+        if not labels["log_history"]["complete"]:
+            page["complete"] = False
+        labels["status"] = capture_state
+    if nxos_log and (coverage := labels.get("log_history")) is not None:
+        labels["status"] = coverage["status"]
+        capture_state = coverage["status"] if coverage["complete"] else "unparsed"
+        if not coverage["complete"]:
+            page["complete"] = False
+    nxos_health_details = {}
+    if normalized == "cisco_nxos" and (nxos_gateway or query == "logging_info"):
+        if nxos_gateway:
+            summary = health_rules.nxos_gateway_detail(query, cleaned, capture_state)
+            nxos_health_details["gateway"] = summary
+        else:
+            summary = health_rules.nxos_logging_info(cleaned, capture_state)
+            nxos_health_details["logging"] = summary
+        nxos_health_details["status"] = summary["status"]
+        if not summary["complete"]:
+            page["complete"] = False
+    if exos_log and not labels["log_history"]["complete"]:
+        page["complete"] = False
+    if exos_buffer_log and labels.get("status") == "incomplete":
+        page["complete"] = False
+        capture_state = "incomplete"
+    xe_summary = (health_rules.xe_detail(query, cleaned, capture_state)
+                  if xe_detail and not offset and page["next_offset"] is None else {})
+    if normalized == "cisco_ios" and xe_detail and not xe_summary:
+        page["complete"] = False
+    diagnostics = {}
+    firmware = {}
+    if (g135 or g134) and identity_response is not None:
+        from netops_core import tested
+        firmware = _firmware_fields(tested.support(
+            "Junos", identity_response["os_version"], TESTED_G134,
+            model=identity_response["model"], function="G134 Junos diagnostics" if g134 else "G135 Junos diagnostics",
+        ))
+    if g135 and not offset and page["next_offset"] is None:
+        from .tables import junos_firewall_diagnostics
+        count_verified = True
+        if query == "security_policies" and capture_state == "ok":
+            headers = len(re.findall(r"(?m)^[ \t]*Policy:", cleaned))
+            count_verified = _junos_count_matches(auth, normalized, query, headers, pattern="^[[:space:]]*Policy:")
+        diagnostics = junos_firewall_diagnostics(
+            normalized, query, cleaned, capture_state, parameters, count_verified=count_verified)
+    nxos_diagnostics = {}
+    if normalized == "cisco_nxos" and not offset and page["next_offset"] is None:
+        from . import tables
+        from .query_catalog.cisco import NXOS_G94_QUERIES, NXOS_G96_QUERIES
+
+        if nxos_overlay:
+            normalized_table = tables.nxos_overlay_diagnostics(query, cleaned, capture_state)
+        elif query in tables.NXOS_SCOPED_TABLES:
+            table = ("neighbor_l3" if query in tables.NXOS_LOOKUPS else
+                     "dhcp_binding" if query == "dhcp_snooping_binding" else "mac_entry")
+            normalized_table = tables.parse(normalized, table, query, cleaned, rc=rc, status=capture_state,
+                                            command=command)
+        elif query in NXOS_G94_QUERIES or query == "access_lists":
+            normalized_table = tables.nxos_g94_diagnostics(query, cleaned, parameters or {}, capture_state)
+        elif query in NXOS_G96_QUERIES:
+            normalized_table = tables.nxos_g96_diagnostics(query, cleaned, parameters or {}, capture_state, rc)
+        else:
+            normalized_table = None
+        if normalized_table is not None:
+            nxos_diagnostics = {"normalized": normalized_table}
+            if not normalized_table["coverage"]["complete"]:
+                nxos_diagnostics["complete"] = False
+    ios_diagnostics = {}
+    if ios_security and not offset and page["next_offset"] is None:
+        from . import tables
+        table = tables.IOS_FORWARDING_TABLES.get(query)
+        if table:
+            ios_diagnostics["normalized"] = tables.parse(normalized, table, query, cleaned, rc=rc,
+                                                 status=capture_state, command=command)
+        else:
+            diagnostic = tables.ios_security_diagnostic(normalized, query, cleaned, capture_state, parameters or {})
+            if diagnostic is not None:
+                ios_diagnostics["normalized"] = diagnostic
+        if ios_diagnostics and not ios_diagnostics["normalized"]["coverage"]["complete"]:
+            ios_diagnostics["complete"] = False
+    if ios_g57:
+        from .tables import ios_g57_diagnostics
+
+        if not offset and page["next_offset"] is None:
+            summary = ios_g57_diagnostics(normalized, query, cleaned, parameters or {}, capture_state)
+            ios_diagnostics["normalized"] = summary
+            page["complete"] = summary["coverage"]["complete"]
+        else:
+            page["complete"] = False
+    c9800_payload = {}
+    if c9800_read:
+        parsed = wifi_parse.summarize_c9800(query, cleaned, status=capture_state)
+        if query == "c9800_client_detail":
+            from .normalization import normalize_mac
+            expected_mac = normalize_mac((parameters or {})["mac"])
+            if not parsed["records"] or parsed["records"][0]["mac"] != expected_mac:
+                parsed.update(records=[], complete=False, status="incomplete")
+        if query == "c9800_ap_tag_detail":
+            if not parsed["records"] or parsed["records"][0]["name"] != (parameters or {})["ap_name"]:
+                parsed.update(records=[], complete=False, status="incomplete")
+        if offset or page["next_offset"] is not None:
+            parsed.update(records=[], complete=False, status="incomplete")
+        c9800_payload = {"wifi": parsed, "status": parsed["status"],
+                         "complete": page["complete"] and parsed["complete"]}
+    qfp_payload = {}
+    if qfp_read:
+        from .tables import ios_xe_qfp_diagnostic
+
+        diagnostic = ios_xe_qfp_diagnostic(query, cleaned, capture_state,
+                                          full_page=not offset and page["next_offset"] is None)
+        qfp_payload = {"normalized": diagnostic, "complete": diagnostic["coverage"]["complete"]}
+    overlay_failed = nxos_overlay and rc not in (0, None)
+    result = {
+        "ok": not overlay_failed, "target": auth.alias, "platform": normalized, "query": query,
+        "transport": transport, "rc": rc, **labels, **junos_labels,
+        "pagination_source": pagination_source, **page, **interface_payload, **c9800_payload,
+        **qfp_payload,
+        **({"status": capture_state} if ios_management else {}),
+        **({"error_code": "device_cli_error", "error": "The device command exited unsuccessfully",
+            "complete": False} if overlay_failed else {}),
         **({"line_limit": line_limit} if line_limit else {}),
-        **({"normalized": identity_response} if identity_response is not None else {}),
-        **({"_warnings": (["exit_status_250"] if normalization.exos_exit_250(normalized, rc, cleaned, command=command) else [])
-                          + (["log_line_limit"] if line_limit and line_limit["truncated"] else [])}
-           if normalization.exos_exit_250(normalized, rc, cleaned, command=command) or (line_limit and line_limit["truncated"]) else {}),
+        **({"normalized": identity_response}
+           if identity_response is not None and query == "version" and not (g135 or g134) else {}),
+        **({"_warnings": (["exit_status_250"] if exos_success_250 else [])
+                          + (["log_line_limit"] if line_limit and line_limit["truncated"] else [])
+                          + (["snmp_community_table_unrecognized"] if snmp_table_masked else [])}
+           if exos_success_250 or (line_limit and line_limit["truncated"]) or snmp_table_masked else {}),
+        **({"status": management_state} if nxos_management else {}),
         **({"_capture_state": capture_state} if normalized in normalization.IDENTITY_PROFILES else {}),
         **({"mclag": mclag_summarize(query, cleaned, parameters)} if mclag else {}),
         **({"vpc": vpc_summarize(cleaned, capture_state)} if normalized == "cisco_nxos" and query == "vpc_status" else {}),
+        **({"traceroute": trace_summary} if trace_summary is not None else {}),
         **mlag_eos_payload(normalized, query, cleaned, capture_state),
+        **(_eos_management_payload(query, cleaned, parameters) if normalized == "arista_eos" else {}),
+        **(_eos_health_routing_payload(query, cleaned, parameters, capture_state, page, line_limit,
+                                       eos_log_metadata[1] if eos_log_metadata else 0)
+           if normalized == "arista_eos" else {}),
         **mlag_exos_payload(normalized, query, cleaned, capture_state),
         **({"dhcp_bindings": dhcp_bindings_summarize(cleaned, page["offset"], page["offset"] + page["returned_bytes"])}
            if normalized == "fortinet" and query == DHCP_BINDINGS_QUERY else {}),
+        **({"dhcp_leases": fortios_leases_summarize(cleaned, page["offset"], page["offset"] + page["returned_bytes"])}
+           if normalized == "fortinet" and query == FORTIOS_LEASES_QUERY else {}),
+        **({"devices": user_devices_summarize(cleaned, page["offset"], page["offset"] + page["returned_bytes"])}
+           if normalized == "fortinet" and query == USER_DEVICES_QUERY else {}),
+        **({"sensors": hardware_sensors_summarize(cleaned, page["offset"], page["offset"] + page["returned_bytes"])}
+           if normalized == "fortinet" and query == SENSORS_QUERY else {}),
+        **({"crash_log": crash_log_summarize(cleaned, page["offset"], page["offset"] + page["returned_bytes"])}
+           if normalized == "fortinet" and query == CRASH_LOG_QUERY else {}),
+        **({"route_database": route_database_summarize(cleaned, page["offset"], page["offset"] + page["returned_bytes"])}
+           if normalized == "fortinet" and query in ROUTE_DATABASE_QUERIES else {}),
+        **({"bgp_neighbors": bgp_neighbors_summarize(cleaned, page["offset"], page["offset"] + page["returned_bytes"])}
+           if normalized == "fortinet" and query in BGP_NEIGHBOR_QUERIES else {}),
+        **({"interfaces": interface_list_summarize(cleaned, page["offset"], page["offset"] + page["returned_bytes"])}
+           if normalized == "fortinet" and query == INTERFACE_LIST_QUERY else {}),
         **(_wifi_payload(auth, query, cleaned, mac_filter, output_filter.get("mac_literal"))
            if normalized == "fortinet" and query in wifi_parse.PARSERS else {}),
+        **(_ruckus_wifi_payload(auth, query, cleaned)
+           if normalized == "ruckus_unleashed" and query in wifi_parse.RUCKUS_PARSERS else {}),
+        **({"ha_standby": fortiadc_diagnostics.standby_status(
+            cleaned, complete=page["complete"] and not offset)}
+           if normalized == "fortiadc" and query == "ha_standby_status" else {}),
+        **_nxos_ports_read(normalized, query, cleaned, parameters, capture_state, rc),
         **_optics_payload(normalized, query, cleaned, parameters, capture_state),
+        **junos_poe.payload(normalized, query, cleaned, capture_state),
+        **(_ios_routing_read(query, cleaned, parameters, capture_state, normalized)
+           if normalized in {"cisco_ios", "cisco_xe"} and not xe_probe else {}),
+        **(_ios_xe_probe_result(query, cleaned, parameters, capture_state) if xe_probe else {}),
+        **(_ios_ports_read(normalized, query, cleaned, parameters, capture_state, (identity_response or {}).get("os_version"))
+           if normalized in ("cisco_ios", "cisco_xe") else {}),
+        **diagnostics,
+        **nxos_diagnostics,
+        **nxos_health_details,
+        **ios_diagnostics,
+        **xe_summary,
+        **firmware,
     }
+    if stderr_failure is not None and result.get("normalized", {}).get("status", capture_state) == "empty":
+        return stderr_failure
+    if page["next_offset"] is not None:
+        if offset == 0:
+            cache_labels = {**labels, **junos_labels}
+            if nxos_management:
+                cache_labels.update(_nxos_management_state=management_state, _snmp_table_masked=snmp_table_masked)
+            if ios_management:
+                cache_labels["_ios_management_complete"] = management_complete
+            _store_cached_ssh_output(cache_key, rc, cleaned, auth.redaction_secrets, identity_response, line_limit,
+                                     cache_labels, eos_log_metadata)
+    else:
+        with _SSH_CACHE_LOCK:
+            _SSH_PAGE_CACHE.pop(cache_key, None)
+    return result
+
+
+def _eos_health_routing_payload(query, output, parameters, capture_state, page, line_limit, unreadable_logs):
+    """G120 (EP09/EP10): EOS log window, health and routing summaries."""
+    from .triage_health import eos_health_payload
+    from .triage_routing import eos_routing_payload
+    return (eos_health_payload(query, output, capture_state, page["offset"], page["offset"] + page["returned_bytes"],
+                               parameters, line_limit, unreadable_logs)
+            or eos_routing_payload(query, output, parameters, capture_state))
+
+
+def _eos_management_payload(query, output, parameters):
+    if query == "dhcp_relay_counters":
+        return {"dhcp_relay_counters": eos_relay_counters(output)}
+    if query != "dns_lookup":
+        return {}
+    name = parameters["name"]
+    if output.strip() in {f"{program}: {name}: {error}" for program in ("ping", "ping6")
+                          for error in ("Name or service not known", "Temporary failure in name resolution")}:
+        return {"dns_lookup": {"name": name, "resolved": False, "address": None}}
+    match = re.search(r"(?m)^PING [^\s(]+[ \t]*\(([0-9a-fA-F:.]+)\)", output)
+    try:
+        address = str(ipaddress.ip_address(match[1])) if match else None
+    except ValueError:
+        address = None
+    return {"dns_lookup": {"name": name, "resolved": True if address else None, "address": address}}
+
+
+_NXOS_G92_READS = frozenset({
+    "interface_details", "interface_transceiver", "stp_detail", "stp_interface_detail", "stp_mst",
+    "port_channel_database", "lacp_interface", "port_channel_load_balance", "vpc_status",
+    "vpc_member_consistency", "vpc_interface_consistency", "lldp_neighbor_interface", "cdp_neighbor_interface",
+})
+
+
+def _nxos_firmware(holder, query):
+    identity = holder.get("product_identity")
+    from .query_catalog.cisco import NXOS_G94_QUERIES, NXOS_G96_QUERIES
+
+    if not identity or query not in (_NXOS_G92_READS | NXOS_G94_QUERIES.keys() | NXOS_G96_QUERIES.keys()
+                                     | NXOS_G93_QUERIES.keys() | NXOS_G95_QUERIES | NXOS_G97_QUERIES.keys()
+                                     | {"access_lists", "dhcp_snooping_binding"}):
+        return {}
+    from netops_core import tested
+
+    # DOM uses manufacturer's output. The GNS3 image does not measure a physical module.
+    versions = ("10.6(x)",) if query == "interface_transceiver" else ("9.3(12)",)
+    return _firmware_fields(tested.support("NX-OS", identity["os_version"], versions,
+                                           model=identity.get("model"), function=query))
+
+
+_IOS_SECURITY_QUERIES = {"cisco_ios": IOS_G55_QUERIES, "cisco_xe": IOS_XE_G73_QUERIES}
+_ACCESS_SESSION_REDIRECT = re.compile(r"(?mi)^([ \t]*URL[ \t]+Redirect[ \t]*:)[^\n]*?(?=--More--[ \t]*$|$)")
+
+
+def _ios_security_firmware(holder, profile, query):
+    identity = holder.get("product_identity")
+    if not identity:
+        return {}
+    from netops_core import tested
+
+    family, versions = (("IOS XE", ("17.18.2",)) if profile == "cisco_xe"
+                        else ("IOS", ("15.2(20200924:215240)", "15.9(3)M12")))
+    return _firmware_fields(tested.support(family, identity["os_version"], versions,
+                                          model=identity.get("model"), function=query))
+
+
+def _ios_xe_port_firmware(holder, query):
+    identity = holder.get("product_identity")
+    if not identity or query not in IOS_XE_PORT_QUERIES.keys() | {"interface_transceiver", "interface_details", "interface_errors"}:
+        return {}
+    from netops_core import tested
+
+    versions = {"power_inline_detail": ("17.14.x",), "interface_transceiver": ("17.13.x",)}.get(query, ("17.18.2",))
+    return _firmware_fields(tested.support(
+        "IOS XE", identity["os_version"], versions, model=identity.get("model"), function=query,
+    ))
+
+
+def _nxos_ports_read(platform, query, text, parameters, state, rc):
+    if platform != 'cisco_nxos':
+        return {}
+    from . import switch_vpc, tables
+    if query in ('vpc_interface_consistency', 'vpc_member_consistency'):
+        return {'vpc_consistency': switch_vpc.consistency(text, state)}
+    table = {
+        'stp_interface_detail': 'stp_port_counters',
+        'lacp_interface': 'lag_member', 'lldp_neighbor_interface': 'lldp_neighbor',
+        'cdp_neighbor_interface': 'cdp_neighbor',
+    }.get(query)
+    if table is None:
+        return {}
+    interface = (parameters or {}).get('interface')
+    field = 'local_port' if table.endswith('_neighbor') else 'port'
+    filters = {field: tables.port(interface)} if interface else None
+    return {'normalized': tables.parse(platform, table, query, text, rc=rc, status=state, filters=filters)}
+
+
+def _ios_ports_read(platform, query, text, parameters, state, version):
+    """Cisco port, STP, LACP, PoE and neighbor summaries over the redacted capture."""
+    from . import ios_ports
+    return ios_ports.read(query, text, parameters, state, version=version, profile=platform)
+
+
+_IOS_PROBES = frozenset({
+    "ping", "ping_source", "ping_vrf", "ping_vrf_source", "ping_ipv6", "ping_ipv6_source",
+    "traceroute", "traceroute_source", "traceroute_vrf", "traceroute_vrf_source",
+})
+_IOS_XE_TRACE_HOP = re.compile(
+    r"([1-5])[ \t]+(\*|([0-9a-fA-F:.]+)(?: \[AS \d+\])?"
+    r"(?: \[MPLS: Labels? ([0-9]+(?:/[0-9]+)*) Exp [0-9]+\])?"
+    r"(?: \([^()]+\))?[ \t]+\d+ msec)"
+)
+_IOS_XE_PING_SENT = re.compile(r"Sending (\d+), \d+-byte ICMP Echos to (\S+), timeout is (\d+) seconds:")
+_IOS_XE_PING_TOTAL = re.compile(
+    r"Success rate is (\d+) percent \((\d+)/(\d+)\)(?:, round-trip min/avg/max = \d+/\d+/\d+ ms)?"
+)
+
+
+def _ios_probe_result(query, text, parameters, state):
+    """Expose measured loss/hops; a missing ping footer is never a completed probe."""
+    status = state or "unparsed"
+    summary = {"destination": parameters["address"],
+               "source_interface": parameters.get("source"), "vrf": parameters.get("vrf")}
+    if re.search(r"(?mi)^% (?:Unrecognized host or address, or protocol not running|VRF .*does not exist)", text):
+        status = "not_configured"
+    if status == "ok":
+        if query.startswith("ping"):
+            found = re.search(r"Success rate is (\d+) percent \((\d+)/(\d+)\)", text)
+            sent = re.search(r"Sending (\d+),", text)
+            if not found or not sent or int(found[3]) != 5 or int(sent[1]) != 5 or not 0 <= int(found[2]) <= 5 or int(found[1]) != int(found[2]) * 20:
+                status = "unparsed"
+            else:
+                summary.update(sent=5, received=int(found[2]), loss_percent=100-int(found[1]),
+                               reachable=int(found[2]) > 0, timeout_seconds=1)
+        else:
+            hops = re.findall(r"(?m)^ *([1-5]) +([^\n]+)$", text)
+            if "Tracing the route to " not in text or not hops:
+                status = "unparsed"
+            else:
+                summary.update(max_hops=5, probes_per_hop=1, timeout_seconds=1,
+                               hops=[{"hop": int(number), "result": body.strip()} for number, body in hops])
+                summary["reached_destination"] = any(
+                    parameters["address"] in row["result"].split() for row in summary["hops"])
+    envelope = normalization.response_envelope(
+        "cisco_ios", status, [normalization.source_record(query, text, status)], identity_coverage=False)
+    envelope["coverage"]["complete"] = status == "ok"
+    return {"probe": summary, "normalized": envelope}
+
+
+def _ios_xe_ping(lines, destination, source_interface, vrf):
+    if len(lines) < 3:
+        return None
+    sent = _IOS_XE_PING_SENT.fullmatch(lines[0])
+    total = _IOS_XE_PING_TOTAL.fullmatch(lines[-1])
+    if not sent or not total or sent[1] != "5" or sent[3] != "1" or ipaddress.ip_address(sent[2]) != destination:
+        return None
+    replies = lines[1:-1]
+    source = None
+    prefix = "Packet sent with a source address of "
+    if replies[0].startswith(prefix):
+        address, _, zone = replies[0].removeprefix(prefix).partition("%")
+        source = ipaddress.ip_address(address)
+        if source.version != destination.version or (zone and zone != vrf):
+            return None
+        replies = replies[1:]
+    if source_interface and source is None:
+        return None
+    progress = "".join(replies)
+    received = progress.count("!")
+    if (not re.fullmatch(r"[!.UQM?&]{5}", progress)
+            or (int(total[1]), int(total[2]), int(total[3])) != (received * 20, received, 5)):
+        return None
+    return {"sent": 5, "received": received, "loss_percent": 100 - received * 20,
+            "reachable": received > 0, "timeout_seconds": 1,
+            **({"source_address": str(source)} if source is not None else {})}
+
+
+def _ios_xe_trace(lines, destination):
+    header = "Tracing the route to "
+    if not lines or not lines[0].startswith(header) or ipaddress.ip_address(lines[0][len(header):]) != destination:
+        return None
+    rows = lines[1:]
+    if rows and rows[0] == "VRF info: (vrf in name/id, vrf out name/id)":
+        rows = rows[1:]
+    exhausted = bool(rows and rows[-1] == "Destination not found inside max hopcount diameter.")
+    if exhausted:
+        rows = rows[:-1]
+    hops = []
+    destination_replied = False
+    for number, row in enumerate(rows, 1):
+        hop = _IOS_XE_TRACE_HOP.fullmatch(row)
+        if not hop or int(hop[1]) != number or destination_replied:
+            return None
+        if hop[3]:
+            address = ipaddress.ip_address(hop[3])
+            if address.version != destination.version:
+                return None
+            destination_replied = address == destination
+        measured = {"hop": number, "result": hop[2]}
+        if hop[4]:
+            measured["mpls_labels"] = [int(label) for label in hop[4].split("/")]
+        hops.append(measured)
+    if not hops or (exhausted and (destination_replied or len(hops) != 5)):
+        return None
+    # The verified EXEC prompt also ends traces to a target that replies from another address.
+    ended_early = len(hops) < 5 and hops[-1]["result"] != "*"
+    if len(hops) < 5 and not ended_early:
+        return None
+    return {"max_hops": 5, "probes_per_hop": 1, "timeout_seconds": 1,
+            "hops": hops, "reached_destination": destination_replied or ended_early,
+            "destination_replied": destination_replied}
+
+
+def _ios_xe_probe_result(query, text, parameters, state):
+    destination = ipaddress.ip_address(parameters["address"])
+    source = parameters.get("source")
+    vrf = parameters.get("vrf")
+    measurement = None
+    if state == "ok":
+        lines = [line.strip() for line in text.splitlines() if line.strip()]
+        if lines and lines[0] == "Type escape sequence to abort.":
+            lines.pop(0)
+            try:
+                measurement = (_ios_xe_ping(lines, destination, source, vrf) if query.startswith("ping")
+                               else _ios_xe_trace(lines, destination))
+            except ValueError:  # The device printed a malformed address.
+                pass
+        if measurement is None:
+            state = "unparsed"
+    envelope = normalization.response_envelope(
+        "cisco_xe", state, [normalization.source_record(query, text, state)], identity_coverage=False,
+    )
+    envelope["coverage"]["complete"] = measurement is not None
+    if measurement is None:
+        return {"ok": False, "complete": False, "normalized": envelope, "error_code": "incomplete_output",
+                "error": "The device did not return a complete, recognized probe result"}
+    return {"probe": {"destination": str(destination), "source_interface": source, "vrf": vrf, **measurement},
+            "normalized": envelope}
+
+
+def _ios_routing_read(query, text, parameters, state, platform="cisco_ios"):
+    if platform == "cisco_ios" and query in _IOS_PROBES:
+        return _ios_probe_result(query, text, parameters, state)
+    from .triage_routing import ios_read
+    return ios_read(query, text, parameters, state, platform)
 
 
 def _optics_payload(platform, query, text, parameters, capture_state):
@@ -1939,6 +3433,20 @@ def _typed_cause(error):
     """The class an exception's type or errno proves; None when only its text could tell."""
     if isinstance(error, core_ssh.OutputLimitError):
         return "output_limit"
+    if isinstance(error, core_session.SessionError):
+        if error.code in {"timeout", "idle_timeout"}:
+            return "timeout"
+        if error.code in {"output_limit", "page_limit"}:
+            return "output_limit"
+        if error.code == "auth":
+            return _client_verdict(error) or "auth"
+        if error.code == "host_key":
+            return "host_key_mismatch"
+        if error.code == "negotiation":
+            return "negotiation"
+        if error.code == "disconnected":
+            # Before the first prompt, Core can retain a fixed verdict from the separate client log.
+            return _client_verdict(error) or "disconnected"
     if isinstance(error, core_hostkey.HostKeyUnavailable):
         return "host_key_unavailable"
     if isinstance(error, core_hostkey.HostKeyError):
@@ -2006,6 +3514,9 @@ _FORTIOS_VDOM_AUTH_ADVICE = ("; a per-VDOM administrator of a multi-VDOM FortiGa
 def _transport_failure(code, auth):
     """The transport class and its fixed advice; `auth` is the target, required so that no path drops its advice."""
     advice = _TRANSPORT_ADVICE[code]
+    if (code == "host_key_mismatch" and auth is not None and
+            auth.ssh_platform in _IDENTITY_PLATFORMS and getattr(auth, "host_key", None) in (None, "")):
+        advice = "missing Fortinet public host key; add host_key at enrollment"
     if (code == "auth" and auth is not None and auth.ssh_platform == "fortinet"
             and auth.read_inventory.get("diagnostic_vdoms")):
         advice += _FORTIOS_VDOM_AUTH_ADVICE
@@ -2034,12 +3545,102 @@ def _transport_result(profile, table, query, exc, auth):
     return result
 
 
+def _adc_certificate_inventory(auth, platform, query, parameters, offset, max_bytes, content_sha256):
+    from netops_core.fortiadc_https import Management, RequestError
+    from . import config_fortiadc
+    from .proxy_sanitize import sanitize_object
+
+    offset, max_bytes = _validate_pagination(offset, max_bytes)
+    if offset or content_sha256 is not None:
+        raise ValueError("certificate_inventory returns a fresh structured result")
+    _, command, _ = _ssh_read_state(auth, platform, query, parameters)
+    port = auth.require_tcp_port(auth.fortios_rest_port)
+    result = {"target": auth.alias, "platform": platform, "query": query,
+              "scope": "account-visible global VDOM", "ok": False, "complete": False}
+    if auth.credential_kind != "password":
+        return {**result, "error_code": "password_credential_required"}
+    missing = []
+    try:
+        acme = None
+        with _fortinet_operation(auth) as reader:
+            try:
+                address, _ = reader.target(platform)
+            except (OSError, ValueError, core_hostkey.HostKeyError) as exc:
+                return {**result, **_read_failure(exc, auth)}
+            client = Management(address, port, auth.fortios_rest_certificate_sha256)
+            try:
+                rc, output = _verified_read(auth, platform, command)
+                if rc in (0, None) and not _cli_refused(platform, output, command=command):
+                    acme = config_fortiadc.certificate_acme(output)
+            except (OSError, ValueError, core_ssh.SshError, core_session.SessionError, _ProductIdentityError):
+                # ACME is an optional extra read (1.0.12 summary 702, 550-rv/3): a refused SSH identity read leaves the
+                # ACME state unknown (reported in `missing`) but must not discard the HTTPS inventory, which verifies
+                # the product identity on its own through platform/info.
+                pass
+        with client.login(auth.login, auth.secret) as session:
+            info = session.read("platform/info", vdom="global")
+            if not isinstance(info, dict) or not isinstance(info.get("firmwareVersion"), str):
+                raise RequestError("product_identity")
+            try:
+                identity, _ = config_fortiadc.verify_identity("Version: " + info["firmwareVersion"])
+            except (ValueError, config_fortiadc.UnsupportedConfigurationFirmware):
+                raise RequestError("product_identity") from None
+            entries, missing = config_fortiadc.certificate_inventory(session, acme, datetime.now(timezone.utc))
+            entries = sanitize_object(entries, (*auth.secrets, session.token, *session.cookies.values()))
+        result.update(_config_firmware_fields(config_fortiadc, identity))
+    except RequestError as exc:
+        return {**result, "error_code": exc.code}
+
+    entries.sort(key=lambda row: (row["not_after"], row["kind"], row["name"]))
+    kept, used = [], 2
+    for entry in entries:
+        size = len(json.dumps(entry, ensure_ascii=False).encode()) + 2
+        if used + size > max_bytes:
+            missing.append({"source": "response", "reason": "output_limit"})
+            break
+        kept.append(entry)
+        used += size
+    result.update(ok=bool(kept) or not missing, complete=not missing,
+                  certificates=kept, observed_count=len(entries),
+                  expires_within_30_days=sum(entry["expires_within_30_days"] for entry in entries),
+                  missing=missing, device_output_trust="untrusted")
+    if missing:
+        result["status"] = "incomplete"
+        if not result["ok"]:
+            result["error_code"] = missing[0]["reason"]
+    else:
+        result["status"] = "ok" if entries else "empty"
+    return result
+
+
 @_audit_device_call
 def ssh_read(
     auth: TargetAuth, platform: str, query: str, parameters: dict[str, str] | None,
     offset: int, max_bytes: int, content_sha256: str | None = None,
 ) -> dict[str, Any]:
+    if platform == "fortiadc" and query == "certificate_inventory":
+        return _adc_certificate_inventory(auth, platform, query, parameters, offset, max_bytes, content_sha256)
     result = _ssh_read(auth, platform, query, parameters, offset, max_bytes, content_sha256)
+    if (platform == "fortiadc" and query in ("slb_vs_overview", "slb_rs_stat")
+            and result.get("ok") is True):
+        from . import triage_slb as slb_rules
+        result["statistics_status"] = "incomplete"
+        if offset == 0 and result.get("next_offset") is None:
+            try:
+                rows = slb_rules.parse_vs_overview(result["untrusted_device_output"], parameters["vdom"])
+                if query == "slb_vs_overview":
+                    result["virtual_servers"] = rows
+                else:
+                    if len(rows) != 1 or rows[0]["virtual_server"] != parameters["virtual_server"]:
+                        raise slb_rules.TriageParseError("vs_stat returned another virtual server")
+                    members = [{"pool": pool["name"], **member}
+                               for pool in rows[0]["pools"] for member in pool["members"]]
+                    if len(members) != 1 or members[0]["id"] != int(parameters["real_server"]):
+                        raise slb_rules.TriageParseError("vs_stat did not select the requested member")
+                    result["real_server_statistics"] = members[0]
+                result["statistics_status"] = "data"
+            except slb_rules.TriageParseError:
+                pass
     capture_state = result.pop("_capture_state", None)
     exit_warnings = result.pop("_warnings", [])
     if result["platform"] not in normalization.IDENTITY_PROFILES:
@@ -2069,11 +3670,27 @@ def ssh_read(
             warnings=([result["reason"]] if result.get("reason") else []) + exit_warnings,
             identity_coverage=query == "version",
         )
+        if result["ok"] and state == "empty" and result["platform"] in {"cisco_ios", "cisco_xe", "extreme_exos"}:
+            result["normalized"]["records"] = []
     elif exit_warnings:
         result["normalized"]["warnings"].extend(exit_warnings)
     if result.get("content_sha256") and result["normalized"]["identity"] is None and result["normalized"]["sources"]:
         result["normalized"]["sources"][0]["content_sha256"] = result["content_sha256"]
     result["status"] = result["normalized"]["status"]
+    if result["platform"] == "cisco_nxos" and query in NXOS_G95_QUERIES:
+        result["normalized"]["coverage"]["complete"] = result.get("complete", False)
+    if result["platform"] in {"cisco_ios", "cisco_xe"} and query in IOS_MANAGEMENT_QUERIES:
+        result["complete"] = result["ok"] and result.get("complete", False) and result["status"] in {
+            "ok", "empty", "not_applicable",
+        }
+        result["normalized"]["coverage"]["complete"] = result["complete"] and not offset
+    if result["platform"] == "cisco_nxos":
+        from .query_catalog.cisco import NXOS_G96_QUERIES
+
+        if query in NXOS_G96_QUERIES:
+            result["complete"] = result["normalized"]["coverage"]["complete"]
+            if result["status"] in {"unsupported", "permission_denied", "transport_error"}:
+                result["ok"] = False
     return result
 
 
@@ -2082,42 +3699,105 @@ class _FortiosDiagnosticShell:
         self.session = session
         self.platform = platform
         self.answer_refusal_raises = answer_refusal_raises
-        _, login = session.expect([b"# ", b"$ "], 15)
-        marker = login.splitlines()[-1]
+        marker = getattr(session, "_last_prompt", None)
+        if marker is None:
+            _, login = session.expect([b"# ", b"$ "], 15)
+            marker = login.splitlines()[-1]
+            session.discard(login)
+        marker = marker.rstrip() + b" "
         if not re.fullmatch(self._role() + rb"[A-Za-z0-9_.+-]+(?: \([A-Za-z0-9_.+-]+\)|\((?:Primary|Secondary)\))? [#$] ", marker):
             raise ValueError("the diagnostic session prompt cannot be verified")
         self.prompt = marker
         self.ready = True
-        session.discard(login)
 
     def _role(self):
         return rb"(?:\((?:P|S|M|I)\) )?" if self.platform == "fortiadc" else b""
 
+    def _expect_prompt(self, command, timeout, *, navigate=False, page=False):
+        pattern = getattr(self.session, "_prompt_pattern", None)
+        if pattern is None:
+            _, raw = self.session.expect([b"# ", b"$ "] if navigate else [self.prompt], timeout)
+            return raw, raw.splitlines()[-1] if navigate else self.prompt
+        output = core_session._FortinetOutput(
+            pattern, command=command.encode("utf-8"), previous=self.session._last_prompt,
+            exact_prompt=self.session._expected_prompt(command, navigate), keep_refusal=True,
+        )
+        try:
+            self.session._alive()
+            match = self.session._read_output(
+                output, time.monotonic() + timeout, timeout, self.session.max_transcript_bytes,
+                core_session.FORTINET_MAX_PAGES if page else None,
+            )
+        except core_session.SessionError:
+            self.session.close()
+            raise
+        self.session._accept_prompt(match)
+        return bytes(output.output) + match[0], match[0]
+
+    def exec_text(self, command, timeout):
+        initial = getattr(self.session, "_last_prompt", self.prompt).decode("ascii")
+        self.session.send(command)
+        try:
+            raw, marker = self._expect_prompt(command, timeout, page=True)
+        except Exception:
+            self.session.close()
+            raise
+        body = raw.removesuffix(marker).decode("utf-8", "replace").replace("\r\n", "\n")
+        if getattr(self.session, "_prompt_pattern", None) is not None:
+            return body
+        echo, _, remaining = body.partition("\n")
+        return remaining if echo.rstrip("\r") in (command, initial + command) else body
+
     def _answer(self, command, timeout):
-        _, raw = self.session.expect([self.prompt], timeout)
+        raw, marker = self._expect_prompt(command, timeout)
         self.ready = True
-        text = _pty_body(raw, command, self.prompt)
+        text = _pty_body(raw, self._echo(command), marker)
         if self.answer_refusal_raises and _cli_refused(self.platform, text):
             from .fortios_diagnostics import StepRefused
             raise StepRefused(text)
         return text
 
+    def _echo(self, command):
+        return command if getattr(self.session, "_prompt_pattern", None) is None else ""
+
     def command(self, command, timeout=10):
         self.ready = False
-        self.session.send(command)
+        try:
+            self.session.send(command)
+        except core_session.SessionError:
+            self.session.close()
+            raise
         return self._answer(command, timeout)
 
     def navigate(self, command):
+        start_context = getattr(self.session, "context", None)
         self.session.send(command)
-        _, raw = self.session.expect([b"# ", b"$ "], 10)
-        marker = raw.splitlines()[-1]
-        if not re.fullmatch(self._role() + rb"[A-Za-z0-9_.+-]+(?: \([A-Za-z0-9_.+-]+\))? [#$] ", marker):
+        try:
+            raw, marker = self._expect_prompt(command, 10, navigate=True)
+        except core_session.SessionError:
+            self.session.close()
+            raise
+        if not re.fullmatch(self._role() + rb"[A-Za-z0-9_.+-]+(?: \([A-Za-z0-9_.+-]+\)|\((?:Primary|Secondary)\))? [#$][ \t]*", marker):
+            self.session.close()
             raise ValueError("the diagnostic context prompt cannot be verified")
-        text = _pty_body(raw, command, marker)
+        text = _pty_body(raw, self._echo(command), marker)
         if _cli_refused(self.platform, text):
+            if getattr(self.session, "context", None) != start_context:
+                self.session.close()
+                raise ValueError("the diagnostic context prompt cannot be verified")
             raise ValueError("the device refused the diagnostic context")
-        self.prompt = marker
+        self.prompt = marker.rstrip() + b" "
         return text
+
+    def leave(self, initial):
+        try:
+            self.navigate("end")
+            if self.prompt == initial:
+                return
+        except (ValueError, core_session.SessionError):
+            pass
+        # A later read must never run after the verified context was lost.
+        self.session.close()
 
     def listen(self, timeout):
         return self._answer("", timeout)
@@ -2133,50 +3813,31 @@ def _diagnostic_transport_failure(auth, recipe, code, platform=None):
             **_transport_failure(code, auth)}
 
 
-def _session_target(auth):
-    """The resolved address of a diagnostic session, or the transport class when the name does not resolve."""
-    try:
-        return _resolve_target_ipv4(auth)[0], None
-    except OSError as error:
-        return None, _transport_error_code(error)
-
-
-def _fortiadc_logs(auth, recipe, address, interface, count, timeout, max_bytes, vdom, since, until):
-    from . import fortiadc_diagnostics as diagnostics
-    if vdom is not None or since is not None or until is not None:
-        raise ValueError(f"{recipe} does not accept VDOM or time-window parameters")
-    diagnostics.validate(recipe, address, interface, count, timeout, max_bytes)
-    diagnostics.authorize(auth, recipe, address)
+def _fortiadc_logs(auth, recipe, address, interface, count, timeout, max_bytes, vdom, since, until,
+                   source_address=None, start_line=None):
+    from . import config_fortiadc, fortiadc_diagnostics as diagnostics
+    if vdom is not None:
+        raise ValueError(f"{recipe} does not accept a VDOM parameter")
+    diagnostics.validate(recipe, address, interface, count, timeout, max_bytes, source_address=source_address,
+                         since=since, until=until, start_line=start_line)
+    diagnostics.authorize(auth, recipe, address, source_address=source_address)
     from netops_core.target_lock import target_lock
     with target_lock(auth.host_key_fingerprint):
-        target_address, unresolved = _session_target(auth)
-        if unresolved:
-            return _diagnostic_transport_failure(auth, recipe, unresolved, platform="fortiadc")
         try:
-            known_hosts = host_key_line(auth, target_address, "fortiadc")
-            with _paced_connection(target_address, auth.port, "fortiadc"):
-                with core_session.Session(
-                    target_address, auth.port, auth.login, DeviceCredential(auth),
-                    known_hosts, legacy_ssh=auth.legacy_ssh, timeout_seconds=30 + timeout,
-                    capture_max_bytes=16384,
-                ) as session:
-                    @contextmanager
-                    def reconnect():
-                        session.close()
-                        with core_session.Session(
-                            target_address, auth.port, auth.login, DeviceCredential(auth),
-                            known_hosts, legacy_ssh=auth.legacy_ssh, timeout_seconds=30 + timeout,
-                            capture_max_bytes=16384,
-                        ) as repair_session:
-                            yield _FortiosDiagnosticShell(repair_session, "fortiadc", answer_refusal_raises=False)
-
-                    shell = _FortiosDiagnosticShell(session, "fortiadc", answer_refusal_raises=False)
-                    if recipe in diagnostics.STATE_RECIPES:
-                        result = diagnostics.run_state_list(
-                            shell, recipe, address, count, timeout, reconnect=reconnect,
-                        )
-                    else:
-                        result = diagnostics.run(shell, count, timeout, recipe=recipe, reconnect=reconnect)
+            with _fortinet_operation(auth, finish=True) as reader:
+                session = reader.session("fortiadc", capture_max_bytes=16384)
+                shell = _FortiosDiagnosticShell(session, "fortiadc", answer_refusal_raises=False)
+                if recipe in diagnostics.STATE_RECIPES:
+                    result = diagnostics.run_state_list(
+                        shell, recipe, address, count, timeout, source_address=source_address,
+                        reconnect=lambda: reader.cleanup_shell("fortiadc"),
+                    )
+                else:
+                    result = diagnostics.run(
+                        shell, count, timeout, recipe=recipe, start_line=start_line or 0,
+                        since=since, until=until, virtual_server=address, source_address=source_address,
+                        reconnect=lambda: reader.cleanup_shell("fortiadc"),
+                    )
         except Exception as error:
             code = _transport_cause(error)
             if code is None:
@@ -2185,29 +3846,55 @@ def _fortiadc_logs(auth, recipe, address, interface, count, timeout, max_bytes, 
 
     raw_text = result["raw_output"]
     text = redact(raw_text, auth.secrets)
-    # Cut to max_bytes below: the floor must hold in every prefix (task 302-r7).
-    selected = redact(result["output"], auth.secrets, cut_bytes=max_bytes)
     total = text.encode("utf-8")
-    selected_bytes = selected.encode("utf-8")
-    returned = selected_bytes[:max_bytes].decode("utf-8", "ignore")
-    byte_truncated = returned != selected
     state = result["state"]
-    if byte_truncated:
-        state = "incomplete"
+    returned_records = result["returned_records"]
+    next_start_line = result.get("next_start_line")
+    if recipe == "admin_event_logs":
+        # Each sanitized line is one device record. Fit whole records after redaction so that
+        # the textual output, structured records and continuation all describe the same rows.
+        lines = [redact(line, auth.secrets) for line in result["output"].split("\n")] if returned_records else []
+        selected = "\n".join(lines)
+        used_bytes = 0
+        returned_records = 0
+        for line in lines:
+            record_bytes = len(line.encode("utf-8")) + (1 if returned_records else 0)
+            if used_bytes + record_bytes > max_bytes:
+                break
+            used_bytes += record_bytes
+            returned_records += 1
+        returned = "\n".join(lines[:returned_records])
+        byte_truncated = returned_records < len(lines)
+        if byte_truncated:
+            state = "more_pages"
+            offsets = result["admin_records"]
+            next_start_line = offsets[returned_records - 1][0] + 1 if returned_records else offsets[0][0]
+            if next_start_line > diagnostics.MAX_START_LINE:
+                next_start_line = None
+    else:
+        # Cut to max_bytes below: the floor must hold in every prefix (task 302-r7).
+        selected = redact(result["output"], auth.secrets, cut_bytes=max_bytes)
+        returned = selected.encode("utf-8")[:max_bytes].decode("utf-8", "ignore")
+        byte_truncated = returned != selected
+        if byte_truncated:
+            state = "incomplete"
     cleanup = result["cleanup"]
     timed_out = result["timed_out"]
-    complete = state == "data" and cleanup == "verified" and not timed_out and not byte_truncated
+    ok = state in ("data", "more_pages") and cleanup == "verified" and not timed_out
+    complete = ok and state == "data"
     if recipe in diagnostics.STATE_RECIPES:
-        scope = "current {} table for this virtual server only; no global completeness".format(
-            diagnostics.STATE_RECIPES[recipe])
+        scope = "current {} table for this virtual server{} only; no global completeness".format(
+            diagnostics.STATE_RECIPES[recipe], " and client source_address" if source_address is not None else "")
     else:
-        scope = "current {}/{} display batch only; no historical completeness".format(*diagnostics.RECIPES[recipe])
+        scope = "current {}/{} display page; filters apply within this page".format(*diagnostics.RECIPES[recipe])
+        if state == "more_pages":
+            scope += "; additional pages are not included"
     answer = {
-        "ok": complete,
+        "ok": ok,
         "target": auth.alias,
         "platform": "fortiadc",
         "recipe": recipe,
-        "start_line": 0,
+        "start_line": start_line or 0,
         "scope": scope,
         "identity": list(result["identity"]),
         "state": state,
@@ -2215,73 +3902,162 @@ def _fortiadc_logs(auth, recipe, address, interface, count, timeout, max_bytes, 
         "deadline_reached": timed_out,
         "complete": complete,
         "loaded_records": result["loaded_records"],
-        "returned_records": result["returned_records"],
+        "returned_records": returned_records,
         "count_truncated": result["count_truncated"],
-        "truncated": result["count_truncated"] or byte_truncated,
+        "truncated": result["count_truncated"] or byte_truncated or state == "more_pages",
         "total_bytes": len(total),
         "returned_bytes": len(returned.encode("utf-8")),
         "line_count": len(text.splitlines()),
         "content_sha256": digest_text(text),
         "selected_sha256": digest_text(selected),
         "unrecognized_body": result["unrecognized_body"],
+        **_firmware_fields(config_fortiadc.firmware_support(tuple(result["identity"]),
+                                                            "fortios_diagnostics " + recipe + " for FortiADC")),
         "untrusted_device_output": returned,
     }
     if recipe in diagnostics.STATE_RECIPES:
         answer["virtual_server"] = result["virtual_server"]
         answer["header_only"] = result["header_only"]
+        answer["source_address"] = result["source_address"]
+        answer["filter_mismatch"] = result["filter_mismatch"]
+        # G28 ADC-C08: the parsed columns of the returned rows (device text, redacted like the output); only for a
+        # complete answer, so a row never appears without the text it was parsed from.
+        answer["records"] = [{key: redact(value, auth.secrets) if isinstance(value, str) else value
+                              for key, value in row.items()} for row in result["records"]] if complete else []
+    else:
+        answer["next_start_line"] = next_start_line if state == "more_pages" else None
+        answer["since"] = since
+        answer["until"] = until
+        if recipe == "admin_event_logs":
+            answer["records"] = [{key: redact(value, auth.secrets) for key, value in record.items()}
+                                 for _, record in result["admin_records"][:returned_records]]
+        if recipe in diagnostics.VS_LOG_RECIPES:
+            answer["virtual_server"] = address or None
+            answer["source_address"] = source_address
     return answer
+
+
+# G110 (RP10): the Unleashed identity the reads were checked on (R610, G107-G110 live runs).
+TESTED_RUCKUS = (("r610", "%s build %s" % (wifi_parse.RUCKUS_R610_RELEASE, wifi_parse.RUCKUS_R610_BUILD)),)
+
+
+def _read_ruckus_identity(auth):
+    try:
+        platform = auth.require_ssh_query("ruckus_unleashed", "system_info")
+    except PolicyScopeError:
+        return None, None
+    command = READ_QUERIES[platform]["system_info"].command
+    try:
+        rc, output = _verified_read(auth, platform, command)
+        if rc in (0, None) and not _cli_refused(platform, output, command=command):
+            return wifi_parse.ruckus_identity(_redact_output(output, auth))
+    except Exception:
+        # The optional identification read must not discard the main query response.
+        pass
+    return None, None
+
+
+def _ruckus_firmware_fields(auth, model, version):
+    from netops_core import tested
+    support = tested.support("Ruckus Unleashed", version, TESTED_RUCKUS, model=model,
+                             function="Ruckus Unleashed reads")
+    if support["status"] == tested.UNKNOWN and "system_info" not in auth.enabled_queries:
+        support["message"] = "Ruckus Unleashed identity was skipped because system_info is not enabled for this target."
+    return _firmware_fields(support)
+
+
+def _firmware_fields(support: dict[str, Any]) -> dict[str, Any]:
+    """The G00 result fields: firmware_support always, and for a version outside the tested ones one warnings[]
+    item (code firmware_untested) with the text for the person and the agent; the data are returned either way."""
+    from netops_core import tested
+    warning = tested.warning(support)
+    return {"firmware_support": support, **({"warnings": [warning]} if warning else {})}
+
+
+def _diagnostic_reason(error: BaseException, module: Any) -> str | None:
+    """The fixed text of a ValueError that the diagnostic recipe module raised itself (never device output)."""
+    if type(error) is not ValueError or not error.args or not isinstance(error.args[0], str):
+        return None
+    trace = error.__traceback__
+    while trace is not None and trace.tb_next is not None:
+        trace = trace.tb_next
+    if trace is None or trace.tb_frame.f_globals.get("__name__") != module.__name__:
+        return None
+    return error.args[0]
 
 
 @_audit_device_call
 def fortios_diagnostics(auth: TargetAuth, recipe: str, address: str, interface: str,
-                        count: int = 3, timeout: int = 10, max_bytes: int = 16000, vdom: str | None = None,
+                        count: int = 3, timeout: int | None = None, max_bytes: int = 16000, vdom: str | None = None,
                         health_check: str | None = None,
                         source_address: str | None = None, source_port: int | None = None,
                         destination_port: int | None = None, protocol: int | None = None,
-                        since: str | None = None, until: str | None = None) -> dict[str, Any]:
+                        since: str | None = None, until: str | None = None, log_category: str | None = None,
+                        log_subtype: str | None = None, log_action: str | None = None,
+                        policy_id: int | None = None, sniffer_filter: str | None = None,
+                        start_line: int | None = None) -> dict[str, Any]:
     from . import fortios_diagnostics as diagnostics
+    if timeout is None:
+        timeout = 10
+        if auth.ssh_platform == "fortiadc" and recipe == "ntp_status":
+            from .adc_monitoring import NTP_TIMEOUT
+            timeout = NTP_TIMEOUT
+    g10 = {"log_category": log_category, "log_subtype": log_subtype, "log_action": log_action,
+           "policy_id": policy_id, "sniffer_filter": sniffer_filter}
+    if auth.ssh_platform == "fortiadc" and any(value is not None for value in g10.values()):
+        raise ValueError("log_category, log_subtype, log_action, policy_id and sniffer_filter apply only to a "
+                         "FortiOS target")
     if auth.ssh_platform == "fortiadc":
-        if any(value is not None for value in (source_address, source_port, destination_port, protocol)):
+        if recipe in ("disk_usage", "ntp_status"):
+            if any(value is not None for value in (vdom, health_check, source_address, source_port,
+                                                   destination_port, protocol, since, until, start_line)):
+                raise ValueError("disk/NTP reads do not accept filters")
+            return _fortiadc_monitoring(auth, recipe, address, interface, count, timeout, max_bytes)
+        if recipe == fortiadc_diagnostics.PACKET_CAPTURE:  # G32 ADC-G11
+            if any(value is not None for value in (vdom, health_check, source_port, protocol, since, until,
+                                                   start_line)):
+                raise ValueError("packet_capture takes only address, source_address and destination_port filters")
+            return _fortiadc_capture(auth, address, interface, count, timeout, max_bytes, source_address,
+                                     destination_port)
+        if any(value is not None for value in (source_port, destination_port, protocol)):
             raise ValueError("a TCP or UDP tuple applies only to a FortiOS target")
-        if recipe in {"system_event_logs", "waf_attack_logs", "session_list", "persistence_list"}:
+        if recipe in fortiadc_diagnostics.RECIPES or recipe in fortiadc_diagnostics.STATE_RECIPES:
             if health_check is not None:
                 raise ValueError("health_check applies only to the FortiADC health_check_verify diagnostic")
             return _fortiadc_logs(
                 auth, recipe, address, interface, count, timeout, max_bytes, vdom, since, until,
+                source_address=source_address, start_line=start_line,
             )
+        if source_address is not None:
+            raise ValueError("a TCP or UDP tuple applies only to a FortiOS target")
+        if start_line is not None:
+            raise ValueError("start_line applies only to the FortiADC log recipes")
         diagnostics.log_window(recipe, since, until)
         return _fortiadc_diagnostics(auth, recipe, address, interface, count, timeout, max_bytes, vdom, health_check)
+    if start_line is not None:
+        raise ValueError("start_line applies only to the FortiADC log recipes")
     if health_check is not None:
         raise ValueError("health_check applies only to a FortiADC target")
     diagnostics.validate(recipe, address, interface, count, timeout, max_bytes, vdom,
                          source_address=source_address, source_port=source_port,
-                         destination_port=destination_port, protocol=protocol)
+                         destination_port=destination_port, protocol=protocol, **g10)
     window = diagnostics.log_window(recipe, since, until)
     diagnostics.authorize(auth, recipe, address, interface, vdom, source_address=source_address)
+    support: list[dict[str, Any]] = []  # firmware_support of the run (G00): filled once the identity is read
     from netops_core.target_lock import target_lock
     with target_lock(auth.host_key_fingerprint):
-        target_address, unresolved = _session_target(auth)
-        if unresolved:
-            return _diagnostic_transport_failure(auth, recipe, unresolved)
         try:
-            known_hosts = host_key_line(auth, target_address, "fortinet")
-            with _paced_connection(target_address, auth.port, "fortinet"):
-                with core_session.Session(target_address, auth.port, auth.login, DeviceCredential(auth),
-                                          known_hosts, legacy_ssh=auth.legacy_ssh,
-                                          timeout_seconds=30, capture_max_bytes=131072) as session:
-                    @contextmanager
-                    def reconnect():
-                        session.close()
-                        with core_session.Session(target_address, auth.port, auth.login, DeviceCredential(auth),
-                                                  known_hosts, legacy_ssh=auth.legacy_ssh,
-                                                  timeout_seconds=30, capture_max_bytes=131072) as repair:
-                            yield _FortiosDiagnosticShell(repair)
-
-                    shell = _FortiosDiagnosticShell(session)
-                    raw, timed_out, identity, domain = diagnostics.run(
-                        shell, recipe, address, interface, count, timeout, vdom, reconnect=reconnect,
-                        source_address=source_address, source_port=source_port,
-                        destination_port=destination_port, protocol=protocol, window=window)
+            with _fortinet_operation(auth, finish=True) as reader:
+                session = reader.session("fortinet", capture_max_bytes=131072)
+                shell = _FortiosDiagnosticShell(session)
+                raw, timed_out, identity, domain = diagnostics.run(
+                    shell, recipe, address, interface, count, timeout, vdom,
+                    source_address=source_address, source_port=source_port,
+                    destination_port=destination_port, protocol=protocol, window=window, support=support,
+                    close_with_operation=True, reconnect=lambda: reader.cleanup_shell("fortinet"), **g10)
+        except diagnostics.SourceNotLocal as error:
+            return {"ok": False, "target": auth.alias, "recipe": recipe, "error_code": "source_not_local",
+                    "error": str(error)}
         except Exception as error:
             if isinstance(error, (diagnostics.UnsupportedPlatform, diagnostics.ScopeRefused,
                                   diagnostics.OptionRefused, diagnostics.PermissionRefused)):
@@ -2293,15 +4069,31 @@ def fortios_diagnostics(auth: TargetAuth, recipe: str, address: str, interface: 
                          "sessions": "'diagnose sys session filter' on the device; if a filter is set, run "
                                      "'diagnose sys session filter clear'",
                          "logs": "'execute log filter dump' on the device",
-                         }.get(recipe, "'execute " + recipe + "-options view-settings' on the device")
+                         }.get(recipe, "'execute " + recipe + "6" * (":" in address) + "-options view-settings' on "
+                                       "the device")
                 raise ValueError("bounded FortiOS diagnostic failed; the session was closed and the diagnostic "
                                  "state restoration could not be verified: check " + check) from None
             # A transport failure that escapes the recipe left no diagnostic state behind, or its
             # restoration was verified; otherwise RestoreUnverified above names the check.
             code = _transport_cause(error)
             if code is None:
-                raise ValueError("bounded FortiOS diagnostic failed; the session was closed") from None
+                # G00 (H5, X-P03): a refusal of the recipe itself names its fixed reason; others stay generic.
+                reason = _diagnostic_reason(error, diagnostics)
+                raise ValueError("bounded FortiOS diagnostic failed" + (": " + reason if reason else "") +
+                                 "; the session was closed") from None
             return _diagnostic_transport_failure(auth, recipe, code)
+    if not support:  # the recipe reports it once the identity is read; otherwise derive it from that identity
+        probe = recipe in diagnostics.PROBE_RECIPES
+        support.append(diagnostics.firmware_support(
+            identity, recipe, tuple_given=source_address is not None and not probe and not diagnostics.session_partial(
+                recipe, source_address, source_port, destination_port, protocol, policy_id),
+            prefix_given=recipe in ("sessions", "flow") and any(
+                isinstance(value, str) and "/" in value for value in (address, source_address)),
+            address=address, source_given=probe and source_address is not None,
+            filter_part=diagnostics.filter_part(
+                recipe, interface, log_category=log_category, sniffer_filter=sniffer_filter, policy_id=policy_id,
+                partial=diagnostics.session_partial(recipe, source_address, source_port, destination_port,
+                                                    protocol, policy_id))))
     if recipe == "logs":
         text = redact(raw["output"], auth.secrets, cut_bytes=max_bytes)  # cut below (task 302-r7)
         page = text.encode("utf-8")[:max_bytes].decode("utf-8", "ignore")
@@ -2309,12 +4101,16 @@ def fortios_diagnostics(auth: TargetAuth, recipe: str, address: str, interface: 
                 "identity": identity, "deadline_reached": timed_out, "cleanup": "verified",
                 "log_state": raw["state"],
                 "filter_applied": {key: redact(value, auth.secrets) for key, value in raw["filter"].items()},
-                "filter_source": "device current filter as read; not set by type, target or time",
-                "coverage": "loaded batch only, current category only",
+                "filter_source": ("set by this call in its own SSH session (category, fields, view-lines); "
+                                  "the session-local filter was discarded on close" if log_category is not None else
+                                  "device current filter as read; not set by type, target or time"),
+                "coverage": ("loaded batch only, of the part of the log the device had searched"
+                             if log_category is not None else "loaded batch only, current category only"),
+                "searched_percent": raw.get("searched_percent"),
                 "window": window, "found": raw["found"], "loaded": raw["loaded"], "matched": raw["matched"],
                 "returned": raw["returned"], "time_range": raw["time_range"],
                 "content_sha256": digest_text(text), "returned_bytes": len(page.encode("utf-8")),
-                "truncated": raw["truncated"] or page != text,
+                "truncated": raw["truncated"] or page != text, **_firmware_fields(support[0]),
                 "untrusted_device_output": page}
     # Cut to max_bytes below: the floor must hold in every prefix (task 302-r7). The session
     # projection keeps only numbers, addresses and fixed words of the redacted text.
@@ -2358,30 +4154,116 @@ def fortios_diagnostics(auth: TargetAuth, recipe: str, address: str, interface: 
             "content_sha256": digest_text(cleaned),
             "identity": identity, "deadline_reached": timed_out,
             "cleanup": "verified", "total_bytes": len(data), "returned_bytes": len(returned.encode("utf-8")),
-            "truncated": omitted or returned != cleaned, **extra,
+            "truncated": omitted or returned != cleaned, **extra, **_firmware_fields(support[0]),
             "untrusted_device_output": returned}
 
 
+def _fortiadc_monitoring(auth, recipe, address, interface, count, timeout, max_bytes):
+    from . import adc_monitoring, config_fortiadc
+    if (recipe not in adc_monitoring.RECIPES or address != "" or interface != ""
+            or type(count) is not int or count != 3
+            or type(timeout) is not int or not 1 <= timeout <= (adc_monitoring.NTP_TIMEOUT if recipe == "ntp_status" else 10)
+            or type(max_bytes) is not int or not 1000 <= max_bytes <= 16384):
+        raise ValueError("invalid bounded FortiADC monitoring read")
+    auth.require_ssh_query("fortiadc", "system_status")
+    if recipe not in auth.read_inventory.get("diagnostic_recipes", ()):
+        raise ValueError("diagnostic recipe is not enrolled for this target")
+    from netops_core.target_lock import target_lock
+    with target_lock(auth.host_key_fingerprint):
+        try:
+            with _fortinet_operation(auth, finish=True) as reader:
+                session = reader.session("fortiadc", capture_max_bytes=65536)
+                result = adc_monitoring.run(
+                    _FortiosDiagnosticShell(session, "fortiadc", answer_refusal_raises=False), recipe, timeout)
+        except Exception as error:
+            code = _transport_cause(error)
+            if code is None:
+                raise ValueError("bounded FortiADC monitoring read failed; the session was closed") from None
+            return _diagnostic_transport_failure(auth, recipe, code, platform="fortiadc")
+    text = redact(result["raw"], auth.secrets)
+    returned = text.encode("utf-8")[:max_bytes].decode("utf-8", "ignore")
+    truncated = returned != text
+    state = "incomplete" if truncated else result["state"]
+    answer = {"ok": state == "data", "target": auth.alias, "platform": "fortiadc", "recipe": recipe,
+              "state": state, "complete": state == "data", "cleanup": "not_required",
+              "identity": list(result["identity"]), "count_applied": False,
+              "content_sha256": digest_text(text), "total_bytes": len(text.encode("utf-8")),
+              "returned_bytes": len(returned.encode("utf-8")), "truncated": truncated,
+              "untrusted_device_output": returned,
+              **_config_firmware_fields(config_fortiadc, result["identity"])}
+    # Never provide derived values from a clipped response or an unredacted device field.
+    if not truncated:
+        for field in ("disk", "ntp"):
+            if field in result:
+                answer[field] = json.loads(redact(json.dumps(result[field]), auth.secrets))
+    return answer
+
+
+def _fortiadc_capture(auth, address, interface, count, timeout, max_bytes, source_address, port):
+    """G32 ADC-G11: one bounded packet capture with a fixed host/port filter; no device state is left behind."""
+    from . import config_fortiadc, fortiadc_diagnostics as diagnostics
+    recipe = diagnostics.PACKET_CAPTURE
+    diagnostics.validate_capture(address, interface, count, timeout, max_bytes, source_address, port)
+    diagnostics.authorize_capture(auth, address, interface, source_address)
+    from netops_core.target_lock import target_lock
+    with target_lock(auth.host_key_fingerprint):
+        try:
+            with _fortinet_operation(auth, finish=True) as reader:
+                session = reader.session("fortiadc", capture_max_bytes=65536)
+                shell = _FortiosDiagnosticShell(session, "fortiadc", answer_refusal_raises=False)
+                result = diagnostics.run_capture(shell, interface, address, count, timeout,
+                                                 source_address=source_address, port=port)
+        except Exception as error:
+            code = _transport_cause(error)
+            if code is None:
+                raise ValueError("bounded FortiADC packet capture failed; the session was closed") from None
+            return _diagnostic_transport_failure(auth, recipe, code, platform="fortiadc")
+    state = result["state"]
+    text = redact(result["raw_output"], auth.secrets, cut_bytes=max_bytes)  # cut below (task 302-r7)
+    returned = text.encode("utf-8")[:max_bytes].decode("utf-8", "ignore")
+    truncated = returned != text
+    if truncated and state in ("count_reached", "deadline_reached"):
+        state = "incomplete"
+    captured = state in ("count_reached", "deadline_reached")
+    answer = {
+        "ok": captured, "target": auth.alias, "platform": "fortiadc", "recipe": recipe,
+        "interface": interface, "filter": result["filter"], "count_requested": count, "state": state,
+        "deadline_reached": result["timed_out"], "complete": captured, "cleanup": "not_required",
+        "packets_returned": len(result["packets"]) if captured else 0,
+        "discarded_lines": result["discarded_lines"],
+        "device_received": result["received"], "device_dropped": result["dropped"],
+        "identity": list(result["identity"]), "unrecognized_body": result["unrecognized_body"],
+        "content_sha256": digest_text(text), "total_bytes": len(text.encode("utf-8")),
+        "returned_bytes": len(returned.encode("utf-8")), "truncated": truncated,
+        "records": [{key: redact(value, auth.secrets) if isinstance(value, str) else value
+                     for key, value in row.items()} for row in result["records"]] if captured else [],
+        **_firmware_fields(config_fortiadc.firmware_support(tuple(result["identity"]),
+                                                            "fortios_diagnostics packet_capture for FortiADC")),
+        "untrusted_device_output": returned,
+    }
+    if state == "permission_denied":
+        answer.update(error_code="permission_denied", reason="diagnose_not_permitted",
+                      error=diagnostics.CAPTURE_NOT_PERMITTED)
+    if "capture_summary" in result:
+        answer["capture_summary"] = result["capture_summary"]
+    elif state == "deadline_reached" and not result["packets"]:
+        answer["capture_summary"] = ("no packet matched the filter " + result["filter"] + " on " + interface +
+                                     " within " + str(timeout) + " s; an empty capture shows neither that the "
+                                     "traffic passes nor that it is blocked")
+    return answer
+
+
 def _fortiadc_diagnostics(auth, recipe, address, interface, count, timeout, max_bytes, vdom, health_check):
-    from . import configuration, fortios_diagnostics as diagnostics
+    from . import config_fortiadc, fortios_diagnostics as diagnostics
     diagnostics.adc_validate(recipe, address, interface, count, timeout, max_bytes, vdom, health_check)
     diagnostics.adc_authorize(auth, recipe, address, health_check)
     from netops_core.target_lock import target_lock
     with target_lock(auth.host_key_fingerprint):
-        target_address, unresolved = _session_target(auth)
-        if unresolved:
-            return _diagnostic_transport_failure(auth, recipe, unresolved, platform="fortiadc")
         try:
-            known_hosts = host_key_line(auth, target_address, "fortiadc")
-            with _paced_connection(target_address, auth.port, "fortiadc"):
-                with core_session.Session(target_address, auth.port, auth.login, DeviceCredential(auth),
-                                          known_hosts, legacy_ssh=auth.legacy_ssh,
-                                          timeout_seconds=30 + timeout, capture_max_bytes=131072) as session:
-                    shell = _FortiosDiagnosticShell(session, "fortiadc")
-                    raw, timed_out, identity = diagnostics.adc_run(shell, recipe, address, timeout, count, health_check)
-        except configuration.UnsupportedConfigurationFirmware as error:
-            raise diagnostics.UnsupportedPlatform("config_platform_not_supported: FortiADC " +
-                                                  " build ".join(error.detected) + " is not measured") from None
+            with _fortinet_operation(auth, finish=True) as reader:
+                session = reader.session("fortiadc", capture_max_bytes=131072)
+                shell = _FortiosDiagnosticShell(session, "fortiadc")
+                raw, timed_out, identity = diagnostics.adc_run(shell, recipe, address, timeout, count, health_check)
         except Exception as error:
             code = _transport_cause(error)
             if code is None:
@@ -2399,6 +4281,7 @@ def _fortiadc_diagnostics(auth, recipe, address, interface, count, timeout, max_
             "deadline_reached": timed_out, "complete": not timed_out and not truncated,
             "cleanup": "not_required", "total_bytes": len(cleaned.encode("utf-8")),
             "returned_bytes": len(returned.encode("utf-8")), "truncated": truncated,
+            **_firmware_fields(config_fortiadc.firmware_support(identity, "fortios_diagnostics " + recipe + " for FortiADC")),
             "untrusted_device_output": returned}
 
 
@@ -2420,8 +4303,16 @@ def triage_flow_read(auth: TargetAuth, platform: str, query: str,
 
 
 @_audit_device_call
-def triage_vpn_read(auth: TargetAuth, platform: str, query: str) -> dict[str, Any]:
-    return _triage_read(auth, platform, query)
+def triage_vpn_read(auth: TargetAuth, platform: str, query: str,
+                    parameters: dict[str, str] | None = None) -> dict[str, Any]:
+    return _triage_read(auth, platform, query, parameters)
+
+
+def _c9800_triage_read(auth, query, parameters=None):
+    try:
+        return triage_wifi_read(auth, "cisco_xe", query, parameters)
+    except PolicyScopeError:
+        return {"ok": False, "reason": "permission_denied"}
 
 
 @_audit_device_call
@@ -2497,12 +4388,30 @@ def _triage_read(auth: TargetAuth, platform: str, query: str,
                     "error_code": "ssh_unavailable"}
         return {"ok": False, "platform": normalized, "query": query,
                 "reason": "timeout" if code == "timeout" else "transport_error", **_transport_failure(code, auth)}
+    if normalized == "ruckus_unleashed":
+        from .sanitize import redact_ruckus_secrets
+        output = redact_ruckus_secrets(output, _redaction_secret_forms(auth))
+    if normalized == "fortinet" and query in FORTIOS_IPSEC_KEY_QUERIES:
+        # G14: IKE/ESP key material before the hash and the triage parser.
+        output = redact_fortios_ipsec_keys(output)
     cleaned = _redact_output(output, auth)
     if len(cleaned.encode("utf-8")) > _SSH_CAPTURE_MAX_BYTES:
         return {"ok": False, "platform": normalized, "query": query, "rc": rc, "reason": "truncated"}
-    if rc not in (0, None) or (
+    if normalized in JUNOS_PROFILES or normalized in {"cisco_ios", "cisco_xe", "cisco_nxos", "extreme_exos"}:
+        state = normalization.output_status(cleaned, rc=rc, profile=normalized, command=command)
+        if state in {"permission_denied", "truncated", "unsupported"}:
+            return {"ok": False, "platform": normalized, "query": query, "rc": rc, "reason": state,
+                    "error_code": state}
+    if normalized == "ruckus_unleashed" and rc in (0, None) and wifi_parse.RUCKUS_NOT_FOUND.search(cleaned):
+        # G108: an object read of an absent client/AP/station is an answer for wifi_triage, not a failed read.
+        return {"ok": True, "absent": True, "platform": normalized, "query": query, "rc": rc,
+                "content_sha256": digest_text(cleaned), "total_bytes": len(cleaned.encode("utf-8")), "text": cleaned}
+    if (rc not in (0, None) and not normalization.exos_exit_250(normalized, rc, cleaned, command)) or (
             _cli_refused(normalized, cleaned) if is_read_sequence(normalized, query)
             else _cli_refused(normalized, cleaned, command=command)):
+        if normalized == "fortiadc" and _fortiadc_diagnose_refused(command, cleaned):
+            return {"ok": False, "platform": normalized, "query": query, "rc": rc, "reason": "permission_denied",
+                    "error_code": "permission_denied", "detail": "diagnose_not_permitted"}
         if (context_read or global_read) and fortios_vdom.diagnose_refused(command, cleaned):
             # Measured: in a verified VDOM context a profile without diagnose answers `Unknown action 0`.
             return {"ok": False, "platform": normalized, "query": query, "rc": rc, "reason": "permission_denied",
@@ -2550,7 +4459,7 @@ def _scoped_triage(auth: TargetAuth, tool: str, read, execute) -> dict[str, Any]
                 holder["scope"] = fortios_vdom.scope(answer["text"])
                 fortios_vdom.require(holder["scope"], auth.read_inventory, answer["text"])
             except fortios_vdom.VdomRefused as refused:
-                # Raised before the next read, so an unqualified model or build is still refused as such first.
+                # Raised before the next read, so an unreadable identity is still refused as such first.
                 holder["scope"], holder["refused"] = refused.scope, refused
         return answer
 
@@ -2573,6 +4482,16 @@ def _scoped_triage(auth: TargetAuth, tool: str, read, execute) -> dict[str, Any]
 _TRIAGE_VANTAGE = {
     "triage_health": ("device_cli_read", "the status, resources, sessions, HA and routing summaries the FortiGate reports",
                       "traffic of a client and the path beyond the firewall"),
+    "triage_health_ios": ("device_cli_read", "IOS uptime, CPU, memory, environment and NTP",
+                          "client traffic and the path beyond the device"),
+    "triage_health_xe": ("device_cli_read", "IOS XE uptime, CPU, memory, platform resources, environment and NTP",
+                         "client traffic and the path beyond the device"),
+    "triage_health_nxos": ("device_cli_read", "NX-OS uptime, CPU, memory, module, environment and NTP state",
+                           "client traffic and the path beyond the device"),
+    "triage_health_exos": ("device_cli_read", "EXOS switch state, CPU, memory, hardware, stacking, MLAG and NTP",
+                           "client traffic and the path beyond the switch"),
+    "triage_health_ruckus": ("device_cli_read", "Unleashed controller memory, AP roles, radios, wired links and mesh topology",
+                             "traffic from clients and the path beyond the AP"),
     "triage_routing": ("device_cli_read", "the route lookup, routing table and neighbour state of the FortiGate",
                        "packets on the path; ping and traceroute are separate fortios_diagnostics calls"),
     "triage_vpn": ("device_cli_read", "the IPsec tunnel state, its routes and IKE error counters of the FortiGate",
@@ -2581,6 +4500,8 @@ _TRIAGE_VANTAGE = {
                     "the packet itself; the lookup sends none"),
     "wifi_triage": ("device_cli_read", "wireless events, access point and radio state reported by the FortiGate",
                     "the switch port behind the access point"),
+    "wifi_triage_ruckus": ("device_cli_read", "client, access point, WLAN and performance data reported by Ruckus Unleashed",
+                           "the switch port behind the access point"),
     "triage_slb": ("device_cli_read", "the configuration and runtime state the FortiADC reports for the virtual server, "
                    "its pool, members, health checks and profiles",
                    "whether new client connections pass through the virtual server; test that from a client"),
@@ -2588,19 +4509,32 @@ _TRIAGE_VANTAGE = {
 
 
 def _triage_vantage(auth: TargetAuth, tool: str) -> dict[str, Any]:
+    if tool in {"wifi_triage", "triage_health"} and auth.ssh_platform == "ruckus_unleashed":
+        tool += "_ruckus"
+    if tool == "triage_health" and auth.ssh_platform in {"cisco_ios", "cisco_xe", "cisco_nxos"}:
+        tool += "_" + auth.ssh_platform.removeprefix("cisco_")
+    if tool == "triage_health" and auth.ssh_platform == "extreme_exos":
+        tool += "_exos"
     kind, sees, does_not_see = _TRIAGE_VANTAGE[tool]
+    if auth.ssh_platform in JUNOS_PROFILES:
+        if tool == "triage_health":
+            sees = "Junos routing-engine resources, environment, active alarms and NTP state"
+            does_not_see = "client traffic and the path beyond the device"
+        elif tool == "triage_routing":
+            sees = "Junos active routes for the selected address and reported OSPF and BGP neighbor state"
+            does_not_see = "packets on the path"
     return {"kind": kind, "device": auth.alias, "packets_sent": False, "sees": sees, "does_not_see": does_not_see}
 
 
-def _run_triage(auth, run, read, tool):
-    """Keep transport failures distinct from unsupported firmware, without losing partial facts."""
+def _run_triage(auth, run, read, tool, *, identity_query="system_status"):
+    """Keep transport failures distinct from an unreadable identity or scope, without losing partial facts."""
     from .triage_health import UnsupportedPlatform
     failures = []
 
     def checked(query, *args):
         answer = read(query, *args)
         transport = answer.get("error_code") in _TRANSPORT_ERROR_CODES
-        if not answer.get("ok") and (query == "system_status" or transport or answer.get("error_code") == "ssh_unavailable"):
+        if not answer.get("ok") and (query == identity_query or transport or answer.get("error_code") == "ssh_unavailable"):
             failures.append({"step": query, "reason": answer.get("reason", "device_cli_error"),
                              "error_code": answer.get("error_code", answer.get("reason", "device_cli_error")),
                              **({"error": answer["error"]} if transport else {})})
@@ -2608,16 +4542,20 @@ def _run_triage(auth, run, read, tool):
 
     try:
         result = run(checked)
-    except UnsupportedPlatform:
+    except UnsupportedPlatform as refused:
         if not failures:
+            # G00 (H10): a model or build outside the tested ones is not refused (firmware_support); what remains
+            # is an unreadable identity, another product or a scope limit, named by the triage itself.
+            reason = str(refused).split(": ", 1)[-1]
             return {"ok": False, "target": auth.alias, "error_code": "config_platform_not_supported",
-                    "failed_step": "system_status", "error": "The reported model and build are not qualified for this triage",
-                    "missing": [{"step": "system_status", "reason": "unsupported"}], "verdict": "incomplete",
+                    "failed_step": identity_query,
+                    "error": "The triage was not run: " + reason + "; nothing past the identity read was read",
+                    "missing": [{"step": identity_query, "reason": "unsupported"}], "verdict": "incomplete",
                     "vantage": _triage_vantage(auth, tool)}
         result = {"missing": failures, "verdict": "incomplete"}
     if failures:
         result.update(error_code=failures[0]["error_code"], failed_step=failures[0]["step"])
-        if failures[0]["step"] == "system_status":
+        if failures[0]["step"] == identity_query:
             result.update(ok=False, error=failures[0].get(
                 "error", "Triage read failed; inspect missing steps and check SSH access, account permissions and target scope"))
     result.setdefault("vantage", _triage_vantage(auth, tool))
@@ -2628,8 +4566,49 @@ def _run_triage(auth, run, read, tool):
 def triage_health(auth: TargetAuth) -> dict[str, Any]:
     from datetime import datetime, timezone
     from . import triage_health as triage
+    if auth.ssh_platform in JUNOS_PROFILES:
+        return _junos_triage(auth, "triage_health", lambda read: triage.run_junos(
+            auth.ssh_platform, read, lambda: datetime.now(timezone.utc)), total=6)
+    if auth.ssh_platform == "ruckus_unleashed":
+        steps = progress.Steps("triage_health", total=5)
+
+        def read_ruckus(query: str) -> dict[str, Any]:
+            try:
+                return triage_health_read(auth, "ruckus_unleashed", query)
+            finally:
+                steps.read(query)
+
+        result = triage.run_ruckus(read_ruckus, lambda: datetime.now(timezone.utc), auth.enabled_queries)
+        return {"target": auth.alias, "vantage": _triage_vantage(auth, "triage_health"), **result}
+    if auth.ssh_platform in {"cisco_ios", "cisco_xe", "cisco_nxos", "extreme_exos"}:
+        profile = auth.ssh_platform
+        queries = {
+            "cisco_ios": triage.IOS_HEALTH_QUERIES,
+            "cisco_xe": triage.XE_HEALTH_QUERIES,
+            "cisco_nxos": triage.NXOS_HEALTH_QUERIES,
+            "extreme_exos": triage.EXOS_HEALTH_QUERIES,
+        }[profile]
+        check_ha = profile == "cisco_xe" and any(query in auth.enabled_queries for query in triage.C9800_HA_QUERIES)
+        steps = progress.Steps("triage_health", total=len(queries) + (len(triage.C9800_HA_QUERIES) if check_ha else 0))
+
+        def read_profile(query):
+            try:
+                return triage_health_read(auth, profile, query)
+            except PolicyScopeError:
+                return {"ok": False, "reason": "permission_denied"}
+            finally:
+                steps.read(query)
+
+        clock = lambda: datetime.now(timezone.utc)
+        if profile == "cisco_nxos":
+            run = lambda read: triage.run_nxos(read, clock)
+        elif profile == "extreme_exos":
+            run = lambda read: triage.run_exos(read, clock)
+        else:
+            run = lambda read: triage.run_ios_health(profile, read, clock, check_c9800_ha=check_ha)
+        return _run_triage(auth, run, read_profile, "triage_health", identity_query="version")
     if auth.ssh_platform != "fortinet":
-        raise ValueError("unsupported_platform: triage_health supports FortiOS targets only")
+        raise ValueError("unsupported_platform: triage_health supports FortiOS, IOS, IOS XE, NX-OS, EXOS, Junos and Ruckus Unleashed targets")
 
     steps = progress.Steps("triage_health")
 
@@ -2647,12 +4626,19 @@ def triage_health(auth: TargetAuth) -> dict[str, Any]:
 
 
 @_audit_device_call
-def triage_routing(auth: TargetAuth, address: str) -> dict[str, Any]:
+def triage_routing(auth: TargetAuth, address: str, vrf: str | None = None,
+                   sla_id: int | None = None) -> dict[str, Any]:
     import ipaddress
     from datetime import datetime, timezone
     from . import triage_routing as triage
-    if auth.ssh_platform != "fortinet":
-        raise ValueError("unsupported_platform: triage_routing supports FortiOS targets only")
+    if auth.ssh_platform in triage.CISCO_RUNBOOK_TESTED:
+        if sla_id is not None and (type(sla_id) is not int or not 1 <= sla_id <= 2147483647):
+            raise ValueError("sla_id must be a positive operation identifier")
+        return _cisco_runbook(auth, "triage_routing", address=address, vrf=vrf, sla_id=sla_id)
+    if vrf is not None or sla_id is not None:
+        raise ValueError("vrf and sla_id apply to Cisco triage_routing")
+    if auth.ssh_platform not in JUNOS_PROFILES | {"fortinet"}:
+        raise ValueError("unsupported_platform: triage_routing supports FortiOS, IOS/IOS XE and Junos targets")
     try:
         enrolled = (isinstance(address, str) and str(ipaddress.IPv4Address(address)) == address
                     and address in auth.read_inventory.get("addresses", ()))
@@ -2660,6 +4646,10 @@ def triage_routing(auth: TargetAuth, address: str) -> dict[str, Any]:
         enrolled = False
     if not enrolled:
         raise ValueError("address must be one enrolled IPv4 address")
+    if auth.ssh_platform in JUNOS_PROFILES:
+        auth.require_ssh_query(auth.ssh_platform, "route_lookup")
+        return _junos_triage(auth, "triage_routing", lambda read: triage.run_junos(
+            auth.ssh_platform, read, lambda: datetime.now(timezone.utc), address), total=4)
 
     steps = progress.Steps("triage_routing")
 
@@ -2677,12 +4667,27 @@ def triage_routing(auth: TargetAuth, address: str) -> dict[str, Any]:
     return {"target": auth.alias, **result}
 
 
+def _junos_triage(auth, tool, run, *, total):
+    profile = auth.ssh_platform
+    auth.require_ssh_query(profile, "version")
+    steps = progress.Steps(tool, total=total)
+
+    def read(query, parameters):
+        try:
+            return triage_health_read(auth, profile, query, parameters)
+        except PolicyScopeError:
+            return {"ok": False, "reason": "permission_denied"}
+        finally:
+            steps.read(query)
+
+    return _run_triage(auth, run, read, tool, identity_query="version")
+
+
 def _flow_session_text(auth: TargetAuth, flow: dict[str, Any], interface: str) -> dict[str, Any]:
     """Read the sessions of one flow through the measured `sessions` recipe machinery: the known source port in the
     filter, or no `sport` selector when the source port is unknown."""
     known = {"source_port": flow["source_port"]} if flow.get("source_port") is not None else {"any_source_port": True}
     from . import fortios_diagnostics as diagnostics
-    from netops_core.target_lock import target_lock
     protocol = {"tcp": 6, "udp": 17}[flow["proto"]]
     try:
         diagnostics.validate("sessions", flow["dst"], interface, 8, 5, 16000, source_address=flow["src"],
@@ -2695,43 +4700,37 @@ def _flow_session_text(auth: TargetAuth, flow: dict[str, Any], interface: str) -
             return {"ok": False, "reason": "not_enrolled"}
     except (ValueError, PolicyScopeError):
         return {"ok": False, "reason": "permission_denied"}
+    from netops_core.target_lock import target_lock
+    # The target lock is non-blocking, so this substep can safely share
+    # the CLI and connection lane already held by the rest of flow triage.
     with target_lock(auth.host_key_fingerprint):
-        target_address, unresolved = _session_target(auth)
-        if unresolved:
-            return {"ok": False, "reason": "transport_error", **_transport_failure(unresolved, auth)}
-        try:
-            known_hosts = host_key_line(auth, target_address, "fortinet")
-            with _paced_connection(target_address, auth.port, "fortinet"):
-                with core_session.Session(target_address, auth.port, auth.login, DeviceCredential(auth),
-                                          known_hosts, legacy_ssh=auth.legacy_ssh,
-                                          timeout_seconds=30, capture_max_bytes=131072) as session:
-                    @contextmanager
-                    def reconnect():
-                        session.close()
-                        with core_session.Session(target_address, auth.port, auth.login, DeviceCredential(auth),
-                                                  known_hosts, legacy_ssh=auth.legacy_ssh,
-                                                  timeout_seconds=30, capture_max_bytes=131072) as repair:
-                            yield _FortiosDiagnosticShell(repair)
-
+        with _fortinet_operation(auth) as reader:
+            try:
+                session = reader.session("fortinet")
+                maximum = getattr(session, "max_transcript_bytes", 131072)
+                try:
+                    session.max_transcript_bytes = 131072
                     raw, timed_out, _, _ = diagnostics.run(
                         _FortiosDiagnosticShell(session), "sessions", flow["dst"], interface, 8, 5, None,
-                        reconnect=reconnect, source_address=flow["src"], destination_port=flow["port"],
-                        protocol=protocol, **known)
-        except diagnostics.RestoreUnverified:
-            return {"ok": False, "reason": "restore_unverified", "failed_step": "session",
-                    "detail": "Diagnostic state restoration could not be verified: check 'diagnose sys session filter' "
-                              "on the device; if a filter is set, run 'diagnose sys session filter clear'"}
-        except diagnostics.ScopeRefused:
-            return {"ok": False, "reason": "scope_refused", "failed_step": "session",
-                    "detail": "The enrolled interface belongs to another VDOM"}
-        except diagnostics.UnsupportedPlatform:
-            return {"ok": False, "reason": "unsupported"}
-        except Exception as error:
-            code = _transport_cause(error)
-            if code is None:
-                return {"ok": False, "reason": "device_cli_error"}
-            return {"ok": False, "reason": "timeout" if code == "timeout" else "transport_error",
-                    **_transport_failure(code, auth)}
+                        source_address=flow["src"], destination_port=flow["port"], protocol=protocol,
+                        reconnect=lambda: reader.cleanup_shell("fortinet"), **known)
+                finally:
+                    session.max_transcript_bytes = maximum
+            except diagnostics.RestoreUnverified:
+                return {"ok": False, "reason": "restore_unverified", "failed_step": "session",
+                        "detail": "Diagnostic state restoration could not be verified: check 'diagnose sys session filter' "
+                                  "on the device; if a filter is set, run 'diagnose sys session filter clear'"}
+            except diagnostics.ScopeRefused:
+                return {"ok": False, "reason": "scope_refused", "failed_step": "session",
+                        "detail": "The enrolled interface belongs to another VDOM"}
+            except diagnostics.UnsupportedPlatform:
+                return {"ok": False, "reason": "unsupported"}
+            except Exception as error:
+                code = _transport_cause(error)
+                if code is None:
+                    return {"ok": False, "reason": "device_cli_error"}
+                return {"ok": False, "reason": "timeout" if code == "timeout" else "transport_error",
+                        **_transport_failure(code, auth)}
     if timed_out:
         return {"ok": False, "reason": "timeout"}
     cleaned = _redact_output(raw, auth)
@@ -2740,17 +4739,114 @@ def _flow_session_text(auth: TargetAuth, flow: dict[str, Any], interface: str) -
     return {"ok": True, "content_sha256": digest_text(cleaned), "text": cleaned}
 
 
+def _cisco_runbook(auth, tool, **args):
+    from netops_core import tested
+    from . import triage_flow as flow, triage_routing as routing
+    from .read_policy import _validate_slot
+
+    platform = auth.ssh_platform
+    plan = routing.cisco_runbook_plan(tool, args)
+    auth.require_ssh_query(platform, "version")
+    auth.require_tcp_port(auth.port)
+    for field, category, kind in (
+        ("address", "addresses", "ipv4_address"), ("src", "addresses", "ipv4_address"),
+        ("dst", "addresses", "ipv4_address"), ("vrf", "vrfs", "vrf"),
+        ("interface", "interfaces", "interface" if tool == "triage_flow" else platform + "_interface"),
+    ):
+        if (value := args.get(field)) is not None:
+            _validate_slot(value, kind)
+            if value not in auth.read_inventory.get(category, ()):
+                raise PolicyScopeError(f"{field} is outside target policy")
+    for query, parameters in plan:
+        if query in auth.enabled_queries:
+            _ssh_read_state(auth, platform, query, parameters)
+
+    def read(query, parameters):
+        if query not in auth.enabled_queries:
+            return {"ok": False, "reason": "query_not_enabled"}
+        # Flow learns the VRF from the device after proxy admission. It must
+        # still pass the same enrollment and typed catalogue checks.
+        if query in {"vrf_route_lookup", "vrf_cef_lookup"} and parameters["vrf"] not in auth.read_inventory.get("vrfs", ()):
+            return {"ok": False, "reason": "scope_refused"}
+        return _ssh_read(auth, platform, query, parameters, 0, 48_000)
+
+    runbook = routing.CiscoRunbook(read, plan, platform)
+    identity = None
+    text = runbook.capture("version")
+    if text:
+        try:
+            identity = normalization.parse_identity(platform, text, [])
+        except normalization.IdentityError:
+            pass
+    if identity is None:
+        runbook.unknown("identity", "version")
+        checks = {
+            "interface_details": "link", "stp_tree": "spanning_tree", "route_lookup": "route",
+            "vrf_route_lookup": "route", "vrf_arp_table": "vrf_neighbor", "ip_sla_statistics": "ip_sla",
+            "cef_lookup": "cef", "ip_interface_details": "ingress_acl", "ip_policy": "ip_policy",
+        }
+        for query, _ in plan:
+            if query in checks:
+                check = checks[query]
+                table = {"table": None if tool == "triage_flow" else args["vrf"] or "global"} if check in {"route", "cef"} else {}
+                runbook.found(check, "unknown", query=query, reason="identity_unavailable", **table)
+    elif tool == "triage_port":
+        routing.run_cisco_port(runbook, args["interface"])
+    elif tool == "triage_routing":
+        routing.run_cisco_routing(runbook, args["address"], args["vrf"], args["sla_id"])
+    else:
+        flow.run_cisco_flow(runbook, args["interface"], args["dst"])
+    os_name, versions = routing.CISCO_RUNBOOK_TESTED[platform]
+    identity_fields = identity or {}
+    return {"target": auth.alias, "platform": platform, "identity": identity, **args, **runbook.result(),
+            **({"packet_disposition": "unknown"} if tool == "triage_flow" else {}),
+            **_firmware_fields(tested.support(os_name, identity_fields.get("os_version"), versions,
+                                              model=identity_fields.get("model"), function=tool))}
+
+
+@_audit_device_call
+def triage_nxos_path(auth: TargetAuth, interface: str, address: str) -> dict[str, Any]:
+    """Correlate existing authorized NX-OS reads for one port and destination."""
+    from netops_core import tested
+    from . import triage_flow as triage
+
+    platform = "cisco_nxos"
+    plan = triage.nxos_path_plan(interface, address)
+    for query, parameters in plan:
+        if query in triage.NXOS_PATH_REQUIRED or query in auth.enabled_queries:
+            _ssh_read_state(auth, platform, query, parameters)
+
+    def read(query, parameters):
+        if query not in auth.enabled_queries:
+            return {"ok": False, "reason": "query_not_enabled"}
+        return _ssh_read(auth, platform, query, parameters, 0, 48_000)
+
+    result = triage.nxos_path_run(read, interface, address)
+    identity = result["identity"] or {}
+    return {"target": auth.alias, **result, **_firmware_fields(tested.support(
+        "NX-OS", identity.get("os_version"), ("9.3(12)",),
+        model=identity.get("model"), function="triage_nxos_path",
+    ))}
+
+
 @_audit_device_call
 def triage_flow(auth: TargetAuth, src: str, dst: str, port: int, proto: str,
-                source_port: int | None = None) -> dict[str, Any]:
+                source_port: int | None = None, *, interface: str | None = None) -> dict[str, Any]:
     from datetime import datetime, timezone
     from . import triage_flow as triage
-    if auth.ssh_platform != "fortinet":
-        raise ValueError("unsupported_platform: triage_flow supports FortiOS targets only")
+    from .triage_routing import CISCO_RUNBOOK_TESTED
+    if auth.ssh_platform not in CISCO_RUNBOOK_TESTED.keys() | {"fortinet"}:
+        raise ValueError("unsupported_platform: triage_flow supports FortiOS and IOS/IOS XE targets")
     flow = triage.validate(src, dst, port, proto, source_port)
     if "unsupported" in flow:
         return {"ok": False, "target": auth.alias, "verdict": "unsupported", "reason": flow["unsupported"],
                 "detail": "triage_flow reads IPv4 flows only; no device was contacted"}
+    if auth.ssh_platform in CISCO_RUNBOOK_TESTED:
+        if interface is None:
+            raise ValueError("interface is required for Cisco triage_flow")
+        return _cisco_runbook(auth, "triage_flow", interface=interface, **flow)
+    if interface is not None:
+        raise ValueError("interface applies to Cisco triage_flow")
 
     def read(query: str, parameters: dict[str, str] | None) -> dict[str, Any]:
         try:
@@ -2774,14 +4870,18 @@ def triage_vpn(auth: TargetAuth, tunnel: str) -> dict[str, Any]:
         raise ValueError("unsupported_platform: triage_vpn supports FortiOS targets only")
     if not triage.valid_tunnel(tunnel):
         raise ValueError("invalid_argument: tunnel must match [A-Za-z0-9][A-Za-z0-9_.-]{0,34}")
+    if FORTIOS_IPSEC_KEY_QUERIES.intersection(auth.enabled_queries):
+        if tunnel not in auth.read_inventory.get("ipsec_tunnels", ()):
+            raise PolicyScopeError("tunnel is not enrolled in target inventory")
 
     steps = progress.Steps("triage_vpn")
 
-    def read(query: str) -> dict[str, Any]:
+    def read(query: str, parameters: dict[str, str] | None = None) -> dict[str, Any]:
         try:
-            return triage_vpn_read(auth, "fortinet", query)
+            return triage_vpn_read(auth, "fortinet", query, parameters)
         except PolicyScopeError:
-            return {"ok": False, "reason": "permission_denied"}
+            # An optional detail query (G14) the operator did not enable is not a failed step.
+            return {"ok": False, "reason": "not_enrolled" if query in FORTIOS_IPSEC_KEY_QUERIES else "permission_denied"}
         finally:
             steps.read(query)
 
@@ -2797,7 +4897,14 @@ def fortios_wifi_get(auth: TargetAuth, endpoint: str, budget_seconds: float | No
     document = (wifi_rest.get(auth, endpoint) if budget_seconds is None
                 else wifi_rest.get(auth, endpoint, budget_seconds=budget_seconds))
     records, unparsed = wifi_rest.parse_counted(endpoint, document)
-    return {"ok": True, "records": records, "endpoint": endpoint, "unparsed_rows": unparsed,
+    firmware = {}
+    if endpoint == wifi_rest.POLICY_HITS:
+        from netops_core import tested
+        version = document.get('version')
+        version = version.removeprefix('v') if isinstance(version, str) else None
+        support = tested.support('FortiOS', version, ('8.0.2',), function='firewall_policy_hits')
+        firmware = {'firmware_support': support, 'warnings': [tested.warning(support)] if not tested.is_tested(support) else []}
+    return {"ok": True, "records": records, "endpoint": endpoint, "unparsed_rows": unparsed, **firmware,
             "content_sha256": digest_text(json.dumps(records, sort_keys=True, allow_nan=False))}
 
 
@@ -2834,6 +4941,8 @@ def _wifi_rest_result(auth, reads, before_read=None):
                 result["http_status"] = exc.http_status
             break
         result[name] = answer["records"]
+        if 'firmware_support' in answer:
+            result.update(firmware_support=answer['firmware_support'], warnings=answer['warnings'])
         fetched_at = _triage_now()
         if endpoint.endswith("/managed_ap"):
             for ap_record in result[name]:
@@ -2951,6 +5060,52 @@ def wifi_aps_live(auth: TargetAuth, summary: bool = False, limit: int = 100,
 
 
 @_audit_device_call
+def firewall_policy_hits(auth: TargetAuth, unused_only: bool = False, limit: int = 100,
+                         offset: int = 0, max_bytes: int = 16_000) -> dict[str, Any]:
+    """RO policy counters in root VDOM; zero hits are candidates within the counter lifetime only."""
+    from .wifi_rest import POLICY_HITS
+    from . import switch_pages
+    if type(unused_only) is not bool:
+        raise ValueError('unused_only must be boolean')
+    switch_pages.validate(limit, offset, max_bytes)
+    result = _wifi_rest_result(auth, (('records', POLICY_HITS),))
+    if result.get('ok'):
+        rows = sorted(result['records'], key=lambda row: row['policy_id'])
+        incomplete = sum(row['state'] == 'incomplete' for row in rows)
+        result.update(state='incomplete' if incomplete else 'ok' if rows else 'empty',
+                      counts={'policies': len(rows), 'unused_candidates': sum(row['unused_candidate'] is True for row in rows),
+                              'incomplete': incomplete}, unused_only=unused_only,
+                      counter_note='Counters cover the device counter lifetime; reset, reboot and HA changes can affect them. '
+                                   'Zero hits are candidates for investigation, not proof a policy is safe to remove. '
+                                   'Only policies returned by the root VDOM monitor are included; policy 0 is implicit. '
+                                   'Each page reads current counters and sorts by policy ID.')
+        result['records'] = [row for row in rows if row['unused_candidate'] is True] if unused_only else rows
+    return switch_pages.page(result, limit=limit, offset=offset, max_bytes=max_bytes)
+
+
+@_audit_device_call
+def fortiswitch_overview(auth: TargetAuth) -> dict[str, Any]:
+    """Every FortiLink-managed switch of the root VDOM from two RO REST reads; no serial is needed."""
+    from .wifi_rest import SWITCH_HEALTH, SWITCH_STATUS, switch_overview
+    result = _wifi_rest_result(auth, (("records", SWITCH_STATUS),))
+    if not result.get("ok"):
+        result["records"] = []
+        return result
+    health = _wifi_rest_result(auth, (("health", SWITCH_HEALTH),))
+    result["sources"].extend(health.get("sources", []))
+    if not health.get("ok"):
+        # The connection view stands on its own; only uptime and health stay unknown.
+        result["health_missing"] = {"reason": "rest_unavailable", **{
+            key: health[key] for key in ("error_code", "http_status", "failed_step") if key in health}}
+    result["records"] = switch_overview(result["records"], health.get("health"))
+    result["counts"] = {"switches": len(result["records"]),
+                        "up": sum(1 for row in result["records"] if row["status"] == "Connected"),
+                        "not_connected": sum(1 for row in result["records"] if row["status"] != "Connected")}
+    result["join_time_note"] = "join_time_local is the FortiGate wall clock without a time zone, as the device prints it."
+    return result
+
+
+@_audit_device_call
 def wifi_rogue(auth: TargetAuth, limit: int = 100, min_signal: int | None = None,
                offset: int = 0, max_bytes: int = 16_000, mac: str | None = None, ap: str | None = None, full: bool = False) -> dict[str, Any]:
     from .wifi_rest import MONITOR, checked_rogue_filters
@@ -3024,8 +5179,16 @@ def triage_wifi(auth: TargetAuth, mac: str | None = None, ip: str | None = None,
                 history_limit: int = 100, history_offset: int = 0) -> dict[str, Any]:
     from datetime import datetime, timezone
     from . import triage_wifi as triage
+    if auth.ssh_platform == "cisco_xe":
+        triage.validate_history(history_limit, history_offset)
+        if not triage.valid_mac(mac) or ip is not None or name is not None:
+            raise ValueError("invalid_argument: Catalyst 9800 wifi_triage requires one client MAC")
+        return triage.run_c9800(lambda query, parameters: _c9800_triage_read(auth, query, parameters),
+                               mac, auth.alias, summary=summary)
+    if auth.ssh_platform == "ruckus_unleashed":
+        return _triage_wifi_ruckus(auth, mac, ip, summary, name, history_limit, history_offset)
     if auth.ssh_platform != "fortinet":
-        raise ValueError("unsupported_platform: wifi_triage supports FortiOS targets only")
+        raise ValueError("unsupported_platform: wifi_triage supports FortiOS, Ruckus Unleashed and Catalyst 9800 targets")
     from .wifi_rest import checked_filters, wireless_log_path, MONITOR
     triage.validate_history(history_limit, history_offset)
     checked_filters(name=name)
@@ -3053,6 +5216,29 @@ def triage_wifi(auth: TargetAuth, mac: str | None = None, ip: str | None = None,
     return triage.overview(result) if summary is True else triage.full_page(result, history_limit, history_offset)
 
 
+def _triage_wifi_ruckus(auth: TargetAuth, mac: str | None, ip: str | None, summary: bool, name: str | None,
+                        history_limit: int, history_offset: int) -> dict[str, Any]:
+    """G108 (RP02): Ruckus Unleashed client triage over catalogue reads of this target (inside the audited call)."""
+    from datetime import datetime, timezone
+    from . import triage_wifi as triage
+    triage.validate_history(history_limit, history_offset)
+    if name is not None:
+        raise ValueError("invalid_argument: a Ruckus Unleashed target selects the client by mac or ip, not by name")
+
+    def read(query: str, parameters: dict[str, str] | None) -> dict[str, Any]:
+        try:
+            return triage_wifi_read(auth, "ruckus_unleashed", query, parameters)
+        except PolicyScopeError:
+            return {"ok": False, "reason": "permission_denied"}
+
+    result = _run_triage(auth, lambda checked: triage.run_ruckus(checked, lambda: datetime.now(timezone.utc), mac, ip,
+                                                                  auth.alias, enabled_queries=auth.enabled_queries),
+                         read, "wifi_triage", identity_query="system_info")
+    if not result.get("ok"):
+        return {"ok": False, **result}
+    return triage.ruckus_overview(result) if summary is True else triage.full_page(result, history_limit, history_offset)
+
+
 def _schema_cache_key(
     auth: TargetAuth, library: Any, path: str, view: str, vdom: str | None, keys: list[str],
 ) -> tuple[Any, ...]:
@@ -3061,12 +5247,19 @@ def _schema_cache_key(
         "schema":library.sha256})
 
 
+def _schema_capture_text(captured, auth):
+    text = captured.decode("utf-8", "replace")
+    for value in _redaction_secret_forms(auth):
+        text = text.replace(value, "<REDACTED>")
+    return core_prompt.cleaned(text, "fortinet")
+
+
 @_audit_device_call
 def schema_read(
     auth: TargetAuth, path: str, view: str, vdom: str | None,
     owners: list[str] | None, offset: int, max_bytes: int, content_sha256: str | None = None,
 ) -> dict[str, Any]:
-    from . import schema_read as reader
+    from . import configuration, schema_read as reader
     offset,max_bytes=_validate_pagination(offset,max_bytes)
     if not os.environ.get("NETOPS_SCHEMA_REGISTRY"):
         return {"ok": False, "target": auth.alias, "error_code": "unsupported",
@@ -3095,7 +5288,17 @@ def schema_read(
             raise ValueError("the device refused the identity check")
         current_vdom=reader.verify_status(library,status)
         try:
-            rc,raw=read_from_device(auth,"fortinet","show full-configuration")
+            captured = bytearray()
+
+            def capture(chunk):
+                if len(captured) + len(chunk) > reader.MAX_SNAPSHOT:
+                    raise core_ssh.OutputLimitError()
+                captured.extend(chunk)
+
+            rc,raw=read_from_device(auth,"fortinet","show full-configuration",
+                                    stdout_consumer=configuration.bounded_consumer(capture))
+            if captured:
+                raw = _schema_capture_text(captured, auth)
         except Exception as exc:
             if (code:=_transport_cause(exc)) is not None:
                 return {"ok":False,"target":auth.alias,"platform":"fortinet","query":"schema_read",**_transport_failure(code,auth)}
@@ -3170,9 +5373,8 @@ class RedactionUnverified(PaginationRefused):
 class SnapshotIncomparable(PaginationRefused):
     """config_diff of two snapshots taken with other section, firmware, profile or options (task 157).
 
-    Also snapshots of another scope (target, platform or credential; task 157-r2). The text stays
-    configuration.INCOMPARABLE or the scope mismatch text; only the machine code is new. A restart at
-    offset 0 cannot repair it: a new pair of snapshots with the same arguments is required.
+    Also snapshots of another scope (target, platform or credential; task 157-r2) or different
+    FortiADC account visibility. A restart at offset 0 cannot repair the mismatch.
     """
 
     restartable = False
@@ -3182,9 +5384,11 @@ class ConfigurationRefusal(PaginationRefused):
     """A config_read/config_diff refusal with a fixed machine code and fixed safe text (task 186).
 
     ``config_platform_not_supported``: the identity of an ExtremeXOS, Cisco IOS, IOS XE, NX-OS or Arista EOS
-    target is not the admitted one (firmware-not-supported) or cannot be verified as it (identity-unverifiable);
-    the text stays the engine text, only the machine code is new.  ``config_diff_limit_exceeded``: the line
-    diff of two snapshots exceeds its fixed bound.  A restart at offset 0 repairs neither.
+    target cannot be read conclusively (identity-unverifiable); the text stays the engine text, only the
+    machine code is new.  An identity that is read but is not the tested one is no refusal (G00): the read
+    runs and the reply carries ``firmware_support`` with a ``firmware_untested`` warning.
+    ``config_diff_limit_exceeded``: the line diff of two snapshots exceeds its fixed bound.  A restart at
+    offset 0 repairs neither.
     """
 
     restartable = False
@@ -3459,7 +5663,8 @@ def _sftp_entry(auth: TargetAuth, path: str) -> core_sftp.Entry:
                 roots=auth.sftp_roots,
             )
     except core_ssh.SshError as exc:
-        _forget_host_key_line(address, auth.port)
+        if platform not in _IDENTITY_PLATFORMS and platform != "fortios":
+            _forget_host_key_line(address, auth.port)
         raise _exec_failure(auth, exc) from exc
 
 
@@ -3828,9 +6033,30 @@ def config_read(auth: TargetAuth, platform: str, section: str, include_all: bool
                 snapshot_id: str = '', offset: int = 0, limit: int = 48000,
                 redaction: str = 'minimal', include_defaults: bool = False, *,
                 contains: str | None = None, context: int = 0,
-                content_sha256: str | None = None, filter_sha256: str | None = None) -> dict[str, Any]:
+                content_sha256: str | None = None, filter_sha256: str | None = None,
+                approve_baseline: bool = False) -> dict[str, Any]:
     from . import configuration
     configuration.require(auth, platform, 'read')
+    if type(approve_baseline) is not bool:
+        raise ValueError('invalid baseline approval')
+    if approve_baseline:
+        if platform == 'ruckus_unleashed':
+            raise ValueError('Unleashed snapshots support in-memory comparison')
+        configuration.require(auth, platform, 'compare')
+        if (not snapshot_id or content_sha256 is None or offset != 0 or contains is not None or
+                filter_sha256 is not None or context != 0):
+            raise ValueError('baseline approval requires an existing unfiltered snapshot and content_sha256')
+        response = config_read(auth, platform, section, include_all, snapshot_id, offset, limit,
+                               redaction, include_defaults, content_sha256=content_sha256)
+        if response.get('ok'):
+            stored = 'fortios' if platform == 'fortinet' else platform
+            with configuration.capture(auth.configuration_limits, target=configuration.scope(auth, stored)):
+                try:
+                    response.update(configuration.approve_baseline(auth, snapshot_id, section,
+                                                                   content_sha256, platform=stored))
+                except configuration.ConfigurationBaselineError as exc:
+                    raise ConfigurationRefusal('config_baseline_unavailable', str(exc)) from None
+        return response
     if redaction not in ('minimal', 'full') or type(include_defaults) is not bool:
         raise ValueError('invalid configuration capture options')
     configuration.filter_arguments(contains, context, content_sha256, filter_sha256)
@@ -3840,10 +6066,14 @@ def config_read(auth: TargetAuth, platform: str, section: str, include_all: bool
     if not snapshot_id and (content_sha256 is not None or filter_sha256 is not None):
         raise ValueError('configuration fingerprints require an existing snapshot')
     view = (contains, context, content_sha256, filter_sha256)
+    if platform == 'ruckus_unleashed':
+        if section != 'all' or include_all is not True or redaction != 'full' or include_defaults:
+            raise ValueError('Unleashed requires section all, include_all true, redaction full and include_defaults false')
+        return _ruckus_config_read(auth, snapshot_id, offset, limit, view)
     if platform == 'extreme_exos':
         return _exos_config_read(auth, section, include_all, snapshot_id, offset, limit, redaction,
                                  include_defaults, view)
-    if platform in ('cisco_ios', 'cisco_xe', 'cisco_nxos', 'arista_eos'):
+    if platform in ('cisco_ios', 'cisco_xe', 'cisco_nxos', 'arista_eos', 'juniper_junos', 'juniper_junos_els'):
         return _ios_config_read(auth, section, include_all, snapshot_id, offset, limit, redaction,
                                 include_defaults, view, platform)
     try:
@@ -3873,13 +6103,16 @@ def _raise_transport(exc: BaseException) -> None:
 
 
 def _minimal_config_read(auth, section, include_all, snapshot_id, offset, limit, view):
-    from . import configuration
+    from . import configuration, config_fortios
     command = configuration.read_command(section, include_all)
     configuration.page_arguments(offset, limit)
     with configuration.capture(auth.configuration_limits, target=configuration.scope(auth, 'fortios')):
+        forbidden = auth.redaction_secrets
         if snapshot_id:
             capture = configuration.get_snapshot(auth, snapshot_id, section)
             text, count, firmware, identity = capture.text, capture.redacted_count, capture.firmware, snapshot_id
+            if not configuration.snapshot_redaction_current(capture, forbidden):
+                raise _pagination_refused(_CONFIG_REDACTION_CHANGED)
         else:
             if snapshot_id != '' or offset != 0:
                 raise ValueError('a nonzero page offset requires an existing snapshot')
@@ -3893,13 +6126,13 @@ def _minimal_config_read(auth, section, include_all, snapshot_id, offset, limit,
             firmware = configuration.require_single_vdom(status)
             if _cli_refused('fortinet', status):
                 raise ValueError('configuration identity read refused; output withheld')
-            capture = configuration.StreamRedactor(auth.secrets, section, limits=auth.configuration_limits)
+            capture = configuration.StreamRedactor(forbidden, section, limits=auth.configuration_limits)
             try:
                 rc, raw = read_from_device(auth, 'fortinet', command, stdout_consumer=configuration.bounded_consumer(capture.feed))
                 if rc != 0 or raw:
                     raise ValueError('configuration read refused; output withheld')
                 text, hidden, count = capture.finish()
-                text = configuration.response_content(text, auth.secrets)
+                text = configuration.response_content(text, forbidden)
             except core_ssh.OutputLimitError:
                 raise ValueError('configuration capture-limit-exceeded; output withheld') from None
             except core_ssh.OutputConsumerError:
@@ -3916,16 +6149,19 @@ def _minimal_config_read(auth, section, include_all, snapshot_id, offset, limit,
                 raise ValueError('configuration read failed; output withheld') from None
             finally:
                 capture.close()
-            identity = configuration.store(auth, text, hidden, count, section, firmware)
+            identity = configuration.store(auth, text, hidden, count, section, firmware, response_secrets=forbidden)
         capture = hidden = None
         try:
             view_fields = _filtered_view(configuration, identity, view, offset, limit,
-                                         lambda: configuration.get_snapshot(auth, identity, section), auth.secrets)
+                                         lambda: configuration.get_snapshot(auth, identity, section), forbidden, current=True)
             response = {'ok': True, 'target': auth.alias, 'platform': 'fortios', 'view': 'running',
                     'snapshot_id': identity, 'snapshot_sha256': configuration.content_digest(text),
                     'redaction_profile': configuration.PROFILE, 'redacted_count': count,
                     'section': section, 'command': command,
                     'firmware': dict(zip(('model', 'version', 'build'), firmware)), **view_fields}
+            if not snapshot_id:
+                response.update(configuration.retain_history(auth, identity, section))
+            response.update(_firmware_fields(config_fortios.firmware_support(firmware)))
             text = None
             return response
         except BaseException:
@@ -3958,6 +6194,9 @@ def _full_config_read(auth, platform, section, include_all, snapshot_id, offset,
     platform = 'fortiadc' if platform == 'fortiadc' else 'fortios'
     wire_platform = 'fortiadc' if platform == 'fortiadc' else 'fortinet'
     adapter = config_fortiadc if platform == 'fortiadc' else config_fortios
+    forbidden = auth.redaction_secrets
+    retain_adc = (platform == 'fortiadc' and section == 'all' and include_defaults and
+                  configuration.fortiadc_history_enabled(auth))
     command = adapter.read_command(section, include_all, include_defaults)
     configuration.page_arguments(offset, limit)
     with configuration.capture(auth.configuration_limits,
@@ -3966,6 +6205,8 @@ def _full_config_read(auth, platform, section, include_all, snapshot_id, offset,
             cached = configuration.get_full_snapshot(auth, snapshot_id, section, platform=platform,
                                                        include_defaults=include_defaults)
             firmware, text, count, identity = cached.firmware, cached.text, cached.redacted_count, snapshot_id
+            if not configuration.snapshot_redaction_current(cached, forbidden):
+                raise _pagination_refused(_CONFIG_REDACTION_CHANGED)
             policy = adapter.policy_for(firmware)
             if cached.profile != policy.identifier:
                 raise ValueError('configuration snapshot policy mismatch')
@@ -3981,17 +6222,12 @@ def _full_config_read(auth, platform, section, include_all, snapshot_id, offset,
             if rc != 0 or _cli_refused(wire_platform, status):
                 raise ValueError('configuration device-refused during identity read; output withheld')
             try:
+                # G00 (H11, H12, H18): a version or build outside the tested ones is read with the nearest field
+                # policy and reported in firmware_support; only an unreadable identity or product is refused.
                 firmware, metadata = adapter.verify_identity(status)
-            except configuration.UnsupportedConfigurationFirmware as exc:
-                message = 'configuration firmware-not-supported'
-                if exc.detected:
-                    message += (' for ' + platform + '; detected ' + exc.detected[0] + ' build ' + exc.detected[1] +
-                                '; supported ' + ', '.join(version + ' build ' + build for version, build in exc.supported))
-                raise ValueError(message + '; output withheld') from None
             except ValueError:
                 raise ValueError('configuration identity-unverifiable; output withheld') from None
             policy = adapter.policy_for(firmware)
-            forbidden = auth.secrets
             capture_section = (adapter.object_section(section)[0]
                                if platform == 'fortiadc' and section != 'all' else section)
             capture = configuration.StreamRedactor(forbidden, capture_section, policy=policy, limits=auth.configuration_limits)
@@ -4018,6 +6254,12 @@ def _full_config_read(auth, platform, section, include_all, snapshot_id, offset,
                 except ValueError as exc:
                     _raise_transport(exc)
                     raise configuration.ConfigurationRedactionError('redaction-unverifiable') from None
+                except core_session.SessionError as exc:
+                    if (exc.code in {"timeout", "idle_timeout", "disconnected", "page_limit"}
+                            and (normalizer.raw_bytes if normalizer else capture.raw_bytes)):
+                        raise configuration.ConfigurationRedactionError('stream-incomplete') from None
+                    _raise_transport(exc)
+                    raise ValueError('configuration transport-failed during capture; output withheld') from None
                 except Exception as exc:
                     _raise_transport(exc)
                     raise ValueError('configuration transport-failed during capture; output withheld') from None
@@ -4032,9 +6274,14 @@ def _full_config_read(auth, platform, section, include_all, snapshot_id, offset,
                             tls_fields.finish()
                     except ValueError:
                         raise configuration.ConfigurationRedactionError('stream-incomplete') from None
+                framed = capture.frame_prompt is not None
                 text, hidden, count = capture.finish()
                 if platform == 'fortiadc':
-                    metadata = adapter.assess(text, auth.login, section)
+                    full_adc = section == 'all' and include_defaults
+                    if ((framed or full_adc) and not capture.frame_ended or
+                            full_adc and not adapter.full_capture_complete(text)):
+                        raise configuration.ConfigurationRedactionError('stream-incomplete')
+                    metadata = adapter.assess(text, auth.login, section, include_defaults=include_defaults)
                 else:
                     metadata = adapter.assess(text, auth.login, metadata)
                 # The stored, hashed and paged text is what the client receives after proxy and worker.
@@ -4051,7 +6298,8 @@ def _full_config_read(auth, platform, section, include_all, snapshot_id, offset,
                         metadata['visibility_limitations'].append('formats-not-verified')
                 identity = configuration.store(auth, text, hidden, count, section, firmware,
                                                platform=platform, profile=policy.identifier,
-                                               include_defaults=include_defaults, metadata=metadata)
+                                               include_defaults=include_defaults, metadata=metadata,
+                                               response_secrets=forbidden)
             except configuration.ConfigurationRedactionError as exc:
                 raise ValueError('configuration ' + exc.reason + exc.location + '; output withheld') from None
             except ValueError:
@@ -4065,21 +6313,99 @@ def _full_config_read(auth, platform, section, include_all, snapshot_id, offset,
             view_fields = _filtered_view(
                 configuration, identity, view, offset, limit,
                 lambda: configuration.get_full_snapshot(auth, identity, section, platform=platform,
-                                                        include_defaults=include_defaults), auth.secrets)
+                                                        include_defaults=include_defaults), forbidden,
+                current=True)
             response = {'ok': True, 'target': auth.alias, 'platform': platform, 'view': 'running',
                     'snapshot_id': identity, 'snapshot_sha256': configuration.content_digest(text),
                     'redaction_profile': policy.identifier, 'redacted_count': count,
                     'redaction': 'full', 'include_defaults': include_defaults, 'capture_complete': True,
                     'section': section, 'command': command, **metadata,
                     'firmware': dict(zip(('model', 'version', 'build'), firmware)), **view_fields}
+            support = adapter.firmware_support(firmware)
+            if support['status'] != 'tested':
+                # The field policy of the nearest tested version redacted this snapshot (fail-closed).
+                response['policy_firmware'] = adapter.policy_firmware(firmware)
+            response.update(_firmware_fields(support))
             if (platform == 'fortiadc' and section != 'all' and
                     adapter.object_section(section)[0] == config_fortiadc.TLS_GET_FAMILY):
                 response['normalized_from_get'] = True
+            if not snapshot_id and (platform == 'fortios' or retain_adc):
+                response.update(configuration.retain_history(auth, identity, section, platform=platform))
             text = None
             return response
         except BaseException:
             if not snapshot_id:
                 configuration.discard_snapshot(identity)
+            raise
+
+
+def _ruckus_config_read(auth, snapshot_id, offset, limit, view):
+    from . import configuration
+    from .config_buffers import ContentBuilder, ContentLimitError
+    from .sanitize import ruckus_config_allowlist
+
+    platform, section = 'ruckus_unleashed', 'all'
+    profile = configuration.RUCKUS_PROFILE
+    command = READ_QUERIES[platform]["config_settings"].command
+    configuration.page_arguments(offset, limit)
+    if offset and not snapshot_id:
+        raise ValueError('configuration continuation requires snapshot_id')
+    response = {'target': auth.alias, 'platform': platform, 'section': section, 'command': command}
+    limits = auth.configuration_limits
+    forbidden = _redaction_secret_forms(auth)
+    with configuration.capture(limits, target=configuration.scope(auth, platform)):
+        fresh = not snapshot_id
+        if snapshot_id:
+            snapshot = configuration.get_snapshot(auth, snapshot_id, section, platform=platform, profile=profile)
+            if not configuration.snapshot_redaction_current(snapshot, forbidden):
+                raise _pagination_refused(_CONFIG_REDACTION_CHANGED)
+            model, version = snapshot.firmware
+            text = snapshot.text
+        else:
+            try:
+                rc, output = _verified_read(auth, platform, command)
+            except Exception as exc:
+                return {**response, 'ok': False, 'complete': False, **_read_failure(exc, auth)}
+            if rc not in (0, None) or _cli_refused(platform, output, command=command):
+                return {**response, 'ok': False, 'complete': False, 'error_code': 'device_cli_error',
+                        'error': 'The device CLI refused the configuration read'}
+            byte_limit = min(_SSH_CAPTURE_MAX_BYTES, limits.all_bytes)
+            if len(output.encode('utf-8')) > byte_limit:
+                return {**response, 'ok': False, 'complete': False, 'error_code': 'incomplete_output',
+                        'error': 'The configuration output exceeds its capture limit'}
+            cleaned = _redact_output(ruckus_config_allowlist(output, forbidden), auth)
+            parsed = wifi_parse.parse_ruckus_config(cleaned)
+            model, version = _read_ruckus_identity(auth)
+            if parsed["incomplete"] or parsed["unparsed_count"]:
+                return {**response, 'ok': False, 'complete': False, 'error_code': 'incomplete_output',
+                        'error': 'The device did not return all recognized configuration sections',
+                        'missing_sections': parsed["missing_sections"], 'unparsed_count': parsed["unparsed_count"],
+                        **_ruckus_firmware_fields(auth, model, version)}
+            builder = ContentBuilder(byte_limit, forbidden, serialized_markers=False)
+            try:
+                builder.add(cleaned.encode('ascii', 'backslashreplace'))
+                text = configuration.response_content(builder.finish(), forbidden)
+            except ContentLimitError:
+                return {**response, 'ok': False, 'complete': False, 'error_code': 'incomplete_output',
+                        'error': 'The redacted configuration exceeds its capture limit'}
+            finally:
+                builder.close()
+            metadata = {'config_scope': 'device-account-visible', 'configuration_complete': False,
+                        'visibility_limitations': ['requested-section-only', 'account-rights-not-verified']}
+            snapshot_id = configuration.store(
+                auth, text, configuration.HiddenRecords(), 0, section, (model, version),
+                platform=platform, profile=profile, metadata=metadata, response_secrets=forbidden)
+            snapshot = configuration.get_snapshot(auth, snapshot_id, section, platform=platform, profile=profile)
+        try:
+            page = _filtered_view(configuration, snapshot_id, view, offset, limit, lambda: snapshot, forbidden,
+                                  current=not fresh)
+            return {**response, 'ok': True, 'complete': True, 'capture_complete': True, 'view': 'running',
+                    'snapshot_id': snapshot_id, 'snapshot_sha256': configuration.content_digest(text),
+                    'redaction': 'full', 'redaction_profile': profile, 'include_defaults': False,
+                    **configuration.snapshot_metadata(snapshot), **_ruckus_firmware_fields(auth, model, version), **page}
+        except BaseException:
+            if fresh:
+                configuration.discard_snapshot(snapshot_id)
             raise
 
 
@@ -4097,6 +6423,20 @@ _CONFIG_PLATFORM_NOT_SUPPORTED = 'config_platform_not_supported'
 _IDENTITY_UNVERIFIABLE = 'configuration identity-unverifiable; output withheld'
 
 
+def _config_firmware_fields(adapter, firmware):
+    """G00 (decision of 2026-11-17): the reply fields of the identity against the adapter's tested identity.
+
+    A tested identity adds nothing, so its reply stays as before.  Another model, version or build is no
+    refusal: the reply carries ``firmware_support`` (netops_core.tested, machine-readable) and a
+    ``warnings`` item with the code ``firmware_untested`` and a short text for a person or an agent.
+    """
+    from netops_core import tested
+    support = adapter.firmware_support(firmware)
+    if tested.is_tested(support):
+        return {}
+    return {'firmware_support': support, 'warnings': [tested.warning(support)]}
+
+
 def _identity_refused():
     """A device refusal of an EXOS/IOS family identity read: the same device-refused class as a refused capture.
 
@@ -4108,7 +6448,7 @@ def _identity_refused():
         configuration.ConfigurationRefusedError())
 
 
-def _exos_identity(auth):
+def _exos_identity(auth, *, include_switch=False):
     """Exactly two protected exec identity reads; anything inconclusive withholds before the capture."""
     from . import config_exos_adapter as adapter
     outputs = []
@@ -4127,13 +6467,167 @@ def _exos_identity(auth):
             raise ConfigurationRefusal(_CONFIG_PLATFORM_NOT_SUPPORTED, _IDENTITY_UNVERIFIABLE) from None
         outputs.append(status)
     try:
-        return adapter.verify_identity(*outputs)
-    except adapter.UnsupportedExosFirmware:
-        raise ConfigurationRefusal(_CONFIG_PLATFORM_NOT_SUPPORTED,
-                                   'configuration firmware-not-supported for extreme_exos; supported ' +
-                                   ' '.join(adapter.SUPPORTED) + '; output withheld') from None
+        identity = adapter.verify_identity(*outputs)
+        return (*identity, outputs[1]) if include_switch else identity
     except ValueError:
         raise ConfigurationRefusal(_CONFIG_PLATFORM_NOT_SUPPORTED, _IDENTITY_UNVERIFIABLE) from None
+
+
+def _exos_dirty(auth, hostname):
+    platform = 'extreme_exos'
+    address = _resolve_target_ipv4(auth)[0]
+    known_hosts_line = host_key_line(auth, address, platform)
+    anchor = (hostname + '.').encode('ascii')
+    with _paced_connection(address, auth.port, platform):
+        with core_session.Session(address, auth.port, auth.login, DeviceCredential(auth),
+                                  known_hosts_line, legacy_ssh=auth.legacy_ssh,
+                                  timeout_seconds=_SSH_LOGIN_TIMEOUT_SECONDS) as session:
+            kind, _ = session.expect([b'\n' + anchor, b'\n* ' + anchor, b'\nSlot-', b'\n* Slot-'],
+                                     _SSH_LOGIN_TIMEOUT_SECONDS)
+            if kind >= 2:
+                _, slot = session.expect(anchor, _SSH_LOGIN_TIMEOUT_SECONDS)
+                if re.fullmatch(rb'[0-9]+ ' + re.escape(anchor), slot) is None:
+                    raise ValueError('unverified ExtremeXOS stack prompt')
+            _, tail = session.expect([b'# ', b'> '], _SSH_LOGIN_TIMEOUT_SECONDS)
+    if re.fullmatch(rb'[0-9]+ [#>] ', tail) is None:
+        raise ValueError('unverified ExtremeXOS prompt')
+    return kind in (1, 3)
+
+
+def _exos_live_diff(auth, base, offset, secret_offset):
+    from . import config_exos_adapter as adapter
+
+    if offset or secret_offset:
+        raise ValueError('a live configuration comparison does not have continuation pages')
+    try:
+        firmware, _, switch = _exos_identity(auth, include_switch=True)
+    except _ConfigurationTransportFailed as failure:
+        return {'ok': False, 'target': auth.alias, 'platform': adapter.PLATFORM,
+                **_transport_failure(failure.code, auth)}
+    try:
+        hostname, selected, booted, saved = adapter.comparison_source(switch, base)
+    except ValueError:
+        return {'ok': False, 'target': auth.alias, 'platform': adapter.PLATFORM,
+                'comparison_complete': False, 'reason': 'saved_configuration_unverified'}
+    command = adapter.comparison_command(saved)
+    response = {'ok': True, 'target': auth.alias, 'platform': adapter.PLATFORM, 'view': 'running',
+                'origin': 'device', 'saved_configuration': saved, 'selected_configuration': selected,
+                'booted_configuration': booted, 'firmware': dict(zip(('model', 'version', 'build'), firmware)),
+                **_config_firmware_fields(adapter, firmware)}
+    missing = []
+    try:
+        if saved not in (selected, booted):
+            rc, files = read_from_device(auth, adapter.PLATFORM, 'ls')
+            if rc or saved not in files.split():
+                raise ValueError('saved configuration file was not found')
+        rc, output = read_from_device(auth, adapter.PLATFORM, command)
+        if rc != 0 or _cli_refused(adapter.PLATFORM, output):
+            missing.append('difference_refused')
+        else:
+            removed, added = adapter.diff_counts(output, saved)
+            response.update(content_changed=bool(removed or added), added_lines=added, removed_lines=removed,
+                            hidden_changed_lines=removed + added)
+    except core_ssh.OutputLimitError:
+        missing.append('difference_unverified')
+    except (core_ssh.SshError, _ConfigurationTransportFailed):
+        missing.append('difference_transport_failed')
+    except ValueError:
+        missing.append('difference_unverified')
+    try:
+        response['dirty'] = _exos_dirty(auth, hostname)
+    except (ValueError, OSError, core_ssh.SshError, core_session.SessionError):
+        response['dirty'] = None
+        missing.append('prompt_unverified')
+    return {**response, 'comparison_complete': not missing, 'missing': missing}
+
+
+_JUNOS_LOGIN_PROMPT = re.compile(rb'(?:\A|\n)([A-Za-z0-9_.-]{1,128}@[A-Za-z0-9_.-]{1,64})> [ \t]*\Z')
+_JUNOS_EDIT_FOOTER = re.compile(r'(?:\A|\n)(?:# commit confirmed will be rolled back in [0-9]+ minutes?\n)?\[edit\]\Z')
+
+
+def _junos_candidate_compare(auth, platform):
+    """Read the shared candidate in a separate session without editing or discarding configuration."""
+    from .config_junos_adapter import CANDIDATE_COMPARE
+
+    address = _resolve_target_ipv4(auth)[0]
+    known = host_key_line(auth, address, platform)
+    with _paced_connection(address, auth.port, platform):
+        with core_session.Session(address, auth.port, auth.login, DeviceCredential(auth), known,
+                                  legacy_ssh=auth.legacy_ssh, timeout_seconds=_SSH_LOGIN_TIMEOUT_SECONDS) as session:
+            _, login = session.expect([_JUNOS_LOGIN_PROMPT], _SSH_LOGIN_TIMEOUT_SECONDS)
+            identity = _JUNOS_LOGIN_PROMPT.search(login).group(1)
+            prompts = [re.compile(rb'(?:\A|\n)' + re.escape(identity + mode) + rb' [ \t]*\Z')
+                       for mode in (b'>', b'#')]
+            session.send('configure')
+            mode, entered = session.expect(prompts, _SSH_READ_TIMEOUT_SECONDS)
+            if mode != 1 or b'Entering configuration mode' not in entered:
+                return 1, ''
+            session.send(CANDIDATE_COMPARE)
+            mode, answer = session.expect(prompts, _SSH_READ_TIMEOUT_SECONDS)
+            if mode != 1:
+                return 1, ''
+            # A read-only shared editor can exit while another editor's changes are still pending.
+            # Never answer a discard prompt: closing this otherwise untouched session is sufficient.
+            session.send('exit configuration-mode')
+            session.expect(prompts[:1], _SSH_READ_TIMEOUT_SECONDS)
+    output = _pty_body(answer, CANDIDATE_COMPARE, identity + b'# ')
+    footer = _JUNOS_EDIT_FOOTER.search(output)
+    if footer is None:
+        raise ValueError('Junos comparison has no configuration prompt context')
+    return 0, output[:footer.start()]
+
+
+def _junos_live_diff(auth, platform, base, other, offset, limit, secret_offset):
+    """Compare a rollback or the shared candidate with running and redact the hierarchical output."""
+    from . import config_junos_adapter as adapter
+
+    if offset or secret_offset:
+        raise ValueError('a live configuration comparison does not have continuation pages')
+    try:
+        firmware, _ = _ios_identity(auth, platform)
+    except _ConfigurationTransportFailed as failure:
+        return {'ok': False, 'target': auth.alias, 'platform': platform, **_transport_failure(failure.code, auth)}
+    candidate = 'candidate' in (base, other)
+    command = adapter.comparison_command('candidate' if candidate else base)
+    response = {'ok': True, 'target': auth.alias, 'platform': platform, 'view': 'running', 'origin': 'device',
+                'base_snapshot': base, 'other_snapshot': other, 'command': command,
+                'redaction_profile': adapter.PROFILE, 'hidden_lines_compared': False,
+                'firmware': dict(zip(('model', 'version', 'build'), firmware)),
+                **_config_firmware_fields(adapter, firmware)}
+    missing = []
+    try:
+        rc, probe = read_from_device(auth, platform, adapter.VISIBILITY_COMMAND)
+        if rc != 0 or type(probe) is not str or _cli_refused(platform, probe) or not adapter.visible(probe):
+            missing.append('configuration_not_visible')
+        else:
+            rc, output = (_junos_candidate_compare(auth, platform) if candidate
+                          else read_from_device(auth, platform, command))
+            if rc != 0 or type(output) is not str or _cli_refused(platform, output):
+                missing.append('difference_refused')
+            else:
+                # Junos show | compare treats the candidate as the destination.
+                lines, counts = adapter.compare_lines(output, auth.redaction_secrets, reverse=base == 'candidate')
+                text = ''.join(line + '\n' for line in lines)
+                if len(text.encode('utf-8')) > min(limit, adapter.DIFF_MAX_BYTES):
+                    missing.append('difference_too_large')
+                else:
+                    if counts['unparsed_lines']:
+                        missing.append('difference_unparsed')
+                    changed = bool(counts['added_lines'] or counts['removed_lines'])
+                    response.update(identical=not changed and not counts['unparsed_lines'],
+                                    content_changed=changed or bool(counts['unparsed_lines']), **counts,
+                                    untrusted_device_output=text)
+    except core_ssh.OutputLimitError:
+        missing.append('difference_too_large')
+    except (core_ssh.SshError, core_session.SessionError, _ConfigurationTransportFailed):
+        missing.append('difference_transport_failed')
+    except ValueError as exc:
+        from .configuration import ConfigurationRefusedError
+        missing.append('difference_refused' if isinstance(exc, ConfigurationRefusedError) else 'difference_unverified')
+    if missing:
+        for key in ('identical', 'content_changed', 'untrusted_device_output'):
+            response.pop(key, None)
+    return {**response, 'comparison_complete': not missing, 'missing': missing}
 
 
 def _exos_capture(auth, section, include_all, snapshot_id, offset, limit, redaction, include_defaults, view):
@@ -4148,7 +6642,7 @@ def _exos_capture(auth, section, include_all, snapshot_id, offset, limit, redact
         if snapshot_id:
             cached = configuration.get_full_snapshot(auth, snapshot_id, section, platform=platform,
                                                        include_defaults=include_defaults)
-            if cached.profile != adapter.PROFILE or cached.firmware != adapter.SUPPORTED:
+            if cached.profile != adapter.PROFILE or not adapter.firmware_record(cached.firmware):
                 raise ValueError('configuration snapshot policy mismatch')
             if configuration.response_content(cached.text, forbidden) is not cached.text:
                 # The session gained a secret after this capture: refuse, a fresh capture redacts it.
@@ -4218,7 +6712,8 @@ def _exos_capture(auth, section, include_all, snapshot_id, offset, limit, redact
                         'redaction_profile': adapter.PROFILE, 'redacted_count': count,
                         'redaction': 'full', 'include_defaults': include_defaults, 'capture_complete': True,
                         'section': section, 'command': command, **metadata,
-                        'firmware': dict(zip(('model', 'version', 'build'), firmware)), **view_fields}
+                        'firmware': dict(zip(('model', 'version', 'build'), firmware)),
+                        **_config_firmware_fields(adapter, firmware), **view_fields}
             text = None
             return response
         except BaseException:
@@ -4230,48 +6725,44 @@ def _exos_capture(auth, section, include_all, snapshot_id, offset, limit, redact
 def _ios_config_read(auth, section, include_all, snapshot_id, offset, limit, redaction, include_defaults, view,
                      platform='cisco_ios'):
     """Cisco IOS, IOS XE, NX-OS or Arista EOS configuration read with the adapter's fixed read command, through the adapter's stream consumer (one admitted option set)."""
-    adapter = _ios_family_adapter(platform)[0]
+    adapter = _ios_family_adapter(platform)
     try:
         return _ios_capture(auth, section, include_all, snapshot_id, offset, limit, redaction, include_defaults, view,
                             platform)
     except _ConfigurationTransportFailed as failure:
-        return {'ok': False, 'target': auth.alias, 'platform': adapter.PLATFORM,
+        return {'ok': False, 'target': auth.alias, 'platform': _adapter_platform(adapter, platform),
                 'section': section, **_transport_failure(failure.code, auth)}
 
 
 def _ios_identity(auth, platform='cisco_ios'):
     """One protected exec ``show version`` read, bounded by the adapter; anything else withholds before the capture."""
-    adapter, unsupported = _ios_family_adapter(platform)
+    adapter = _ios_family_adapter(platform)
+    platform = _adapter_platform(adapter, platform)
     (command,) = adapter.IDENTITY_COMMANDS
     try:
-        rc, status = read_from_device(auth, adapter.PLATFORM, command)
+        rc, status = read_from_device(auth, platform, command)
     except Exception as exc:
         _raise_transport(exc)
         raise ValueError('configuration transport-failed during identity read; output withheld') from None
-    if rc != 0 or type(status) is not str or _cli_refused(adapter.PLATFORM, status):
+    if rc != 0 or type(status) is not str or _cli_refused(platform, status):
         _identity_refused()
     try:
         return adapter.verify_identity(status)
-    except unsupported:
-        supported = ' '.join(adapter.SUPPORTED)
-        if getattr(adapter, 'IMAGE_FAMILY', None):
-            supported += ' ' + adapter.IMAGE_FAMILY  # IOS/IOS XE; NX-OS and EOS have no image family
-        raise ConfigurationRefusal(_CONFIG_PLATFORM_NOT_SUPPORTED,
-                                   'configuration firmware-not-supported for ' + adapter.PLATFORM + '; supported ' +
-                                   supported + '; output withheld') from None
     except ValueError:
         raise ConfigurationRefusal(_CONFIG_PLATFORM_NOT_SUPPORTED, _IDENTITY_UNVERIFIABLE) from None
 
 
 def _ios_capture(auth, section, include_all, snapshot_id, offset, limit, redaction, include_defaults, view,
-                 platform='cisco_ios'):
+                 platform='cisco_ios', *, comparison_view=None):
     from . import configuration
-    adapter = _ios_family_adapter(platform)[0]
-    platform = adapter.PLATFORM
+    adapter = _ios_family_adapter(platform)
+    platform = _adapter_platform(adapter, platform)
     redactor = _ios_family_redactor(platform)
     # The only admitted option set (section all, include_all true, no defaults, redaction full);
     # everything else, including a request with the ``all`` option, is refused before any SSH.
     command = adapter.read_command(section, include_all, include_defaults, redaction)
+    if comparison_view == 'startup':
+        command = adapter.STARTUP_COMMAND
     configuration.page_arguments(offset, limit)
     # Credentials plus the private session handoff, as for EXOS: redaction input only; the snapshot
     # scope stays the target/credential HMAC.
@@ -4280,20 +6771,43 @@ def _ios_capture(auth, section, include_all, snapshot_id, offset, limit, redacti
         if snapshot_id:
             cached = configuration.get_full_snapshot(auth, snapshot_id, section, platform=platform,
                                                        include_defaults=include_defaults)
-            admitted = getattr(adapter, 'firmware_admitted', None)  # EOS: the record also keeps the image build text
-            if cached.profile != adapter.PROFILE or not (
-                    admitted(cached.firmware) if admitted is not None else cached.firmware == adapter.SUPPORTED):
+            if cached.profile != adapter.PROFILE or not adapter.firmware_record(cached.firmware):
                 raise ValueError('configuration snapshot policy mismatch')
             if configuration.response_content(cached.text, forbidden) is not cached.text:
                 # The session gained a secret after this capture: refuse, a fresh capture redacts it.
                 raise _pagination_refused(_CONFIG_REDACTION_CHANGED)
             text, count, firmware, identity = cached.text, cached.redacted_count, cached.firmware, snapshot_id
             metadata = configuration.snapshot_metadata(cached)
+            if metadata.get('comparison_view') == 'startup':
+                command = adapter.STARTUP_COMMAND
         else:
             if snapshot_id != '' or offset != 0:
                 raise ValueError('a nonzero page offset requires an existing snapshot')
             firmware, metadata = _ios_identity(auth, platform)
-            capture = redactor(forbidden, section, limits=auth.configuration_limits)
+            if comparison_view is not None and platform == 'cisco_nxos':
+                try:
+                    rc, output = read_from_device(auth, platform, command + ' | count')
+                except (*_TRANSPORT_EXCEPTIONS, ValueError) as exc:
+                    _raise_transport(exc)
+                    raise ValueError('configuration stream-incomplete; output withheld') from None
+                if rc != 0:
+                    raise ValueError('configuration device-refused during count; output withheld')
+                expected_lines = adapter.line_count(output)
+                if expected_lines is None:
+                    raise ValueError('configuration stream-incomplete; output withheld')
+                capture = adapter.ComparisonRedactor(forbidden, section, limits=auth.configuration_limits,
+                                                     command=command, expected_lines=expected_lines)
+            elif comparison_view is not None and platform == 'cisco_ios':
+                capture = redactor(forbidden, section, limits=auth.configuration_limits, comparison=True)
+            elif comparison_view is not None and platform == 'arista_eos':
+                from .config_indented import EosComparisonRedactor
+                capture = EosComparisonRedactor(forbidden, section, limits=auth.configuration_limits, command=command)
+            elif platform == 'cisco_xe':
+                capture = redactor(forbidden, section, limits=auth.configuration_limits, comparison_view=comparison_view)
+            else:
+                capture = redactor(forbidden, section, limits=auth.configuration_limits)
+            if comparison_view is not None:
+                metadata['comparison_view'] = comparison_view
             try:
                 try:
                     rc, raw = read_from_device(auth, platform, command,
@@ -4352,12 +6866,14 @@ def _ios_capture(auth, section, include_all, snapshot_id, offset, limit, redacti
                 lambda: configuration.get_full_snapshot(auth, identity, section, platform=platform,
                                                         include_defaults=include_defaults), forbidden,
                 current=bool(snapshot_id))
-            response = {'ok': True, 'target': auth.alias, 'platform': platform, 'view': 'running',
+            response = {'ok': True, 'target': auth.alias, 'platform': platform,
+                        'view': metadata.get('comparison_view', 'running'),
                         'snapshot_id': identity, 'snapshot_sha256': configuration.content_digest(text),
                         'redaction_profile': adapter.PROFILE, 'redacted_count': count,
                         'redaction': 'full', 'include_defaults': include_defaults, 'capture_complete': True,
                         'section': section, 'command': command, **metadata,
-                        'firmware': dict(zip(('model', 'version', 'build'), firmware)), **view_fields}
+                        'firmware': dict(zip(('model', 'version', 'build'), firmware)),
+                        **_config_firmware_fields(adapter, firmware), **view_fields}
             text = None
             return response
         except BaseException:
@@ -4370,8 +6886,35 @@ def _ios_capture(auth, section, include_all, snapshot_id, offset, limit, redacti
 # EXOS and the IOS family compare only snapshots of their exact config_read profile.
 _DIFF_PLATFORMS = {'fortios': 'fortios', 'fortinet': 'fortios', 'fortiadc': 'fortiadc',
                    'extreme_exos': 'extreme_exos', 'cisco_ios': 'cisco_ios', 'cisco_xe': 'cisco_xe',
-                   'cisco_nxos': 'cisco_nxos', 'arista_eos': 'arista_eos'}
-_MARKER_DIFF_PLATFORMS = frozenset(('extreme_exos', 'cisco_ios', 'cisco_xe', 'cisco_nxos', 'arista_eos'))
+                   'cisco_nxos': 'cisco_nxos', 'arista_eos': 'arista_eos',
+                   'ruckus_unleashed': 'ruckus_unleashed',
+                   'juniper_junos': 'juniper_junos', 'juniper_junos_els': 'juniper_junos_els'}
+_MARKER_DIFF_PLATFORMS = frozenset(('extreme_exos', 'cisco_ios', 'cisco_xe', 'cisco_nxos', 'arista_eos', 'ruckus_unleashed',
+                                     'juniper_junos', 'juniper_junos_els'))
+
+
+def _startup_live_diff(auth, adapter):
+    from . import configuration
+    captures = []
+    try:
+        for source in adapter.LIVE_DIFF:
+            captured = _ios_capture(auth, 'all', True, '', 0, 1, 'full', False,
+                                    (None, 0, None, None), adapter.PLATFORM, comparison_view=source)
+            captures.append(captured['snapshot_id'])
+    except BaseException:
+        for identity in captures:
+            configuration.discard_snapshot(identity)
+        raise
+    status = None
+    try:
+        rc, output = read_from_device(auth, adapter.PLATFORM, adapter.DIFF_COMMAND)
+        if rc == 0 and not _cli_refused(adapter.PLATFORM, output):
+            status = adapter.native_diff_status(output)
+    except (*_TRANSPORT_EXCEPTIONS, ValueError):
+        # The two redacted captures are still usable when the auxiliary native check fails.
+        pass
+    firmware_fields = {key: captured[key] for key in ('firmware_support', 'warnings') if key in captured}
+    return captures[0], captures[1], status, firmware_fields
 
 
 @_audit_device_call
@@ -4382,10 +6925,39 @@ def config_diff(auth: TargetAuth, platform: str, base_snapshot: str,
     configuration.page_arguments(offset, limit)
     if type(secret_offset) is not int or not 0 <= secret_offset <= 1073741824:
         raise ValueError('invalid secret change page')
+    live = (platform in ('arista_eos', 'cisco_nxos', 'cisco_ios', 'cisco_xe')
+            and (base_snapshot, other_snapshot) == ('startup', 'running'))
+    if live:
+        adapter = _ios_family_adapter(platform)
+        if offset or secret_offset:
+            raise ValueError('active startup comparison starts at offset zero; use its snapshot IDs for later pages')
+        try:
+            base_snapshot, other_snapshot, native_status, firmware_fields = _startup_live_diff(auth, adapter)
+        except _ConfigurationTransportFailed as failure:
+            return {'ok': False, 'target': auth.alias, 'platform': platform, **_transport_failure(failure.code, auth)}
+        except ValueError as failure:
+            match = re.match(r'configuration (device-refused|stream-incomplete|capture-limit-exceeded|'
+                             r'redaction-unverifiable)\b', str(failure))
+            return {'ok': False, 'target': auth.alias, 'platform': platform,
+                    'error_code': match[1] if match else 'configuration-capture-failed',
+                    'error': {'arista_eos': 'EOS', 'cisco_nxos': 'NX-OS',
+                              'cisco_ios': 'IOS', 'cisco_xe': 'IOS XE'}[platform] +
+                             ' running/startup comparison could not capture both configurations'}
     stored = _DIFF_PLATFORMS[platform]
+    if stored == 'ruckus_unleashed' and base_snapshot == 'baseline':
+        raise ValueError('Unleashed comparison requires two in-memory snapshot IDs')
+    if stored == 'extreme_exos':
+        from . import config_exos_adapter as adapter
+        if adapter.live_comparison(base_snapshot, other_snapshot):
+            return _exos_live_diff(auth, base_snapshot, offset, secret_offset)
+    if stored in ('juniper_junos', 'juniper_junos_els'):
+        from . import config_junos_adapter as adapter
+        if adapter.live_comparison(base_snapshot, other_snapshot):
+            return _junos_live_diff(auth, stored, base_snapshot, other_snapshot, offset, limit, secret_offset)
     marked = stored in _MARKER_DIFF_PLATFORMS
+    guarded = marked or stored in ('fortios', 'fortiadc')
     admit = None
-    if marked:
+    if guarded:
         forbidden = auth.redaction_secrets
 
         def admit(snapshot):
@@ -4399,6 +6971,8 @@ def config_diff(auth: TargetAuth, platform: str, base_snapshot: str,
                 auth, base_snapshot, other_snapshot, platform=stored, with_metadata=True, admit=admit)
         except PaginationRefused:
             raise
+        except configuration.ConfigurationBaselineError as exc:
+            raise ConfigurationRefusal('config_baseline_unavailable', str(exc)) from None
         except configuration.DiffLimitExceeded as exc:
             # The line diff of the EXOS/IOS family exceeds its fixed bound (task 186) or the memory budget
             # (task 186-r2): a fixed code and one of two fixed texts.
@@ -4407,12 +6981,11 @@ def config_diff(auth: TargetAuth, platform: str, base_snapshot: str,
                 message = configuration.DIFF_LIMIT_EXCEEDED
             raise ConfigurationRefusal('config_diff_limit_exceeded', message) from None
         except ValueError as exc:
-            if marked and str(exc) in (configuration.INCOMPARABLE, _CONFIG_SCOPE_MISMATCH):
-                # Snapshots of another target, platform or credential are incomparable too (task 157-r2);
-                # the text stays unchanged, only the machine code is added.
+            if ((marked and str(exc) in (configuration.INCOMPARABLE, _CONFIG_SCOPE_MISMATCH)) or
+                    (stored == 'fortiadc' and str(exc) == configuration.FORTIADC_VISIBILITY_MISMATCH)):
                 raise SnapshotIncomparable('config_snapshot_incomparable', str(exc)) from None
             raise
-        if marked:
+        if guarded:
             # The paged diff text is redacted with the same session secrets as the final reply.
             try:
                 text = configuration.response_content(text, forbidden)
@@ -4425,10 +6998,27 @@ def config_diff(auth: TargetAuth, platform: str, base_snapshot: str,
                 'identical': identical, 'secrets_changed': changes,
                 'secret_offset': secret_offset, 'next_secret_offset': next_secret,
                 'secrets_changed_count': len(changed), **metadata, **configuration.payload(text, offset, limit)}
+        if stored == 'ruckus_unleashed':
+            identity = metadata['base_capture']['firmware']
+            response.update(_ruckus_firmware_fields(auth, identity['model'], identity['version']))
         if marked:
             # Hidden (MARKER) lines are constants in both snapshots: identical means only that the visible
             # redacted text is equal; a change confined to hidden lines is not visible (no hidden-line hashes).
             response['hidden_lines_compared'] = False
+        if live:
+            response.update(firmware_fields)
+        elif stored == 'cisco_nxos':
+            adapter = _ios_family_adapter(stored)
+            firmware = metadata['other_capture']['firmware']
+            record = tuple(firmware[key] for key in ('model', 'version', 'build') if key in firmware)
+            response.update(_config_firmware_fields(adapter, record))
+        if live:
+            if native_status is False and not identical:
+                native_status = None
+            response['unsaved_changes'] = native_status
+            response['comparison_status'] = 'incomplete' if native_status is None else 'verified'
+            if native_status is None:
+                response['comparison_reason'] = 'native-diff-unavailable-or-inconsistent'
         text = changed = None
         return response
 
@@ -4496,10 +7086,13 @@ def triage_slb(auth: TargetAuth, virtual_server: str, vdom: str = "root") -> dic
             return identity_failure("device_cli_error", "device_cli_error",
                                     "The identity read was refused; check the account permissions")
         try:
-            _, identity = config_fortiadc.verify_identity(status)
+            found, identity = config_fortiadc.verify_identity(status)
+            # G00 (H12): another model or build is triaged with firmware_support "untested" and a warning.
+            support = config_fortiadc.firmware_support(found, "triage_slb")
         except configuration.UnsupportedConfigurationFirmware:
+            # Only another product kind is refused here (G00 §2.4), never a model or build.
             return identity_failure("config_platform_not_supported", "unsupported",
-                                    "triage_slb requires FortiADC 7.6.7 build 0676")
+                                    "triage_slb requires a FortiADC target; the device reports another product")
         except Exception:
             return identity_failure("product_identity", "unparsed",
                                     "The identity of the target could not be verified; nothing else was read")
@@ -4594,9 +7187,54 @@ def triage_slb(auth: TargetAuth, virtual_server: str, vdom: str = "root") -> dic
     pool_name = vs["pool"] if vs else None
     chain["pool"] = {"name": pool_name, "config": None}
     required = rules.REQUIRED_STEPS
-    if vs and vs["content_routing"] == "enable":
-        miss("pool_config", "unsupported",
-             "content-routing enable: the virtual server selects pools per request, which triage_slb does not evaluate")
+    content_routing = bool(vs) and vs["content_routing"] == "enable"
+    if content_routing:
+        # G28 ADC-C04: the pool is chosen per request by the content-routing entries; read each entry (at most
+        # MAX_CONTENT_ROUTES) and name its pool as a configured candidate. With exactly one candidate pool and every
+        # entry read, that pool is the pool of every routed request and is evaluated like a static pool.
+        chain["pool"]["selection"] = "content_routing"
+        chain["content_routing"] = []
+        required = ["vs_config", "slb_vs_stat", "system_performance"]
+        complete = bool(vs["content_routing_list"])
+        if not complete:
+            miss("content_routing", "empty", "content-routing enable without content-routing-list")
+        for index, entry in enumerate(dict.fromkeys(vs["content_routing_list"])):
+            safe = SAFE_FORTIADC_OBJECT.fullmatch(entry) is not None
+            step = "content_routing:" + entry if safe else "content_routing"
+            if index >= rules.MAX_CONTENT_ROUTES or not safe:
+                complete = False
+                miss(step, "truncated" if index >= rules.MAX_CONTENT_ROUTES else "unparsed")
+                continue
+            value = config_step(step, "load-balance content-routing " + entry,
+                                lambda text, n=entry: rules.content_routing_config(text, n))
+            required.append(step)
+            if value is None:
+                complete = False
+            elif value["schedule_list"] == "enable":
+                complete = False
+                miss(step, "unsupported", "content-routing entry selects its pool by schedule-list")
+            chain["content_routing"].append({
+                "entry": entry, "type": value["type"] if value else None,
+                "pool": value["pool"] if value and value["schedule_list"] != "enable" else None,
+                "conditions": value["conditions"] if value else None,
+                "sources": [sources["vs_config"], *([sources[step]] if value else [])]})
+        references: dict[str, dict[str, Any]] = {}
+        for item in chain["content_routing"]:
+            if item["pool"] is not None:
+                reference = references.setdefault(item["pool"], {"name": item["pool"], "relation": "configured_candidate",
+                                                                 "entries": [], "sources": [sources["vs_config"]]})
+                reference["entries"].append(item["entry"])
+                reference["sources"].append(item["sources"][1])
+        chain["pool"]["references"] = list(references.values())
+        chain["pool"]["candidates_complete"] = complete
+        single = list(references) if complete and len(references) == 1 else []
+        pool_name = single[0] if single else None
+        chain["pool"]["name"] = pool_name
+        if pool_name is not None and SAFE_FORTIADC_OBJECT.fullmatch(pool_name):
+            required.append("pool_config")
+            chain["pool"]["config"] = config_step("pool_config", "load-balance pool " + pool_name,
+                                                  lambda text: rules.pool_config(text, pool_name))
+        required = tuple(required)
     elif vs and vs["schedule_list"] == "enable":
         # The pool is chosen by schedule: read the schedule-pool entries and their schedule groups; the
         # candidate pools are configured references only, the device output names no active pool.
@@ -4695,7 +7333,8 @@ def triage_slb(auth: TargetAuth, virtual_server: str, vdom: str = "root") -> dic
     chain["load"] = query_step("slb_load", "slb_load", None, lambda text: rules.parse_slb_load(text, virtual_server))
     chain["members"] = []
     if pool:
-        states = {m["id"]: m for p in (runtime or {}).get("pools", ()) for m in p["members"]}
+        # Joined by pool name and member id; a candidate missing from vs_stat keeps an unknown (None) runtime.
+        states = rules.pool_runtime_members((runtime or {}).get("pools"), pool_name) or {}
         for member in pool["members"]:
             state = states.get(member["id"])
             chain["members"].append({
@@ -4717,9 +7356,10 @@ def triage_slb(auth: TargetAuth, virtual_server: str, vdom: str = "root") -> dic
                                              rules.parse_key_values)
     chain["resources"] = {"runtime": query_step("system_performance", "system_performance", None,
                                                 rules.parse_key_values)}
-    # Resolve only DOWN members, once per real server, within the reserved read plan.
+    # Resolve only DOWN members, once per real server, within the reserved read plan (not with content routing,
+    # whose entry reads use that part of the plan).
     chain["real_servers"] = {}
-    if pool and runtime:
+    if pool and runtime and not content_routing:
         states = {m["id"]: m for p in runtime["pools"] if p["name"] == pool_name for m in p["members"]}
         names = list(dict.fromkeys(m["real_server"] for m in pool["members"]
                                   if m["status"] == "enable" and m["real_server"]
@@ -4746,6 +7386,7 @@ def triage_slb(auth: TargetAuth, virtual_server: str, vdom: str = "root") -> dic
         "findings": findings, "hypotheses": hypotheses, "next_steps": next_steps,
         "missing": missing, "checked": checked,
         "verdict": rules.verdict(findings, missing, executed, required),
+        **_firmware_fields(support),
     }
 
 
@@ -4875,10 +7516,16 @@ def _vdom_scoped_table(auth: TargetAuth, result: dict[str, Any], holder: dict[st
 @_audit_device_call
 def normalized_query(auth: TargetAuth, platform: str, query: str, table: str, parameters=None) -> dict[str, Any]:
     """One authorized, identity-checked catalogue read, redacted before parsing."""
-    from . import tables
+    from . import fortigate_tables, tables
     profile, command, _ = _ssh_read_state(auth, platform, query, parameters)
+    entry = READ_QUERIES[profile].get(query)
     try:
         with _scope_capture(_membership_commands(auth, profile, query, table)) as holder:
+            if profile == 'cisco_ios' and entry is not None and entry.empty_allowed:
+                holder['ios_empty_allowed'] = True
+            ios_security = query in _IOS_SECURITY_QUERIES.get(profile, {})
+            if ios_security:
+                holder['ios_security_read'] = True
             try:
                 rc, output = _verified_read(auth, profile, command)
             except fortios_vdom.VdomRefused as exc:
@@ -4891,10 +7538,47 @@ def normalized_query(auth: TargetAuth, platform: str, query: str, table: str, pa
         except fortios_vdom.VdomRefused as exc:
             return _vdom_refused_table(profile, table, query, exc)
         state = normalization.output_status(cleaned, rc=rc, profile=profile, command=command)
+        if profile == 'extreme_exos' and query == 'lag_summary' and state == 'empty':
+            # A valid empty EXOS sharing table has a zero-group footer.
+            state = 'unparsed'
         refused = _cli_refused(profile, cleaned)
+        if profile == 'fortinet' and query == 'local_stp_ports' and state == 'not_applicable':
+            state = 'empty' if rc in (0, None) else 'unsupported'
         if refused and state == 'ok':
             state = 'permission_denied'
-        result = tables.parse(profile, table, query, cleaned, rc=rc, status=state, command=command, refused=refused)
+        if profile == 'fortinet' and query == 'local_switch_vlans' and state == 'ok':
+            companion = fortigate_tables.LOCAL_SWITCH_INTERFACE_COMMAND
+            with _scope_capture():
+                interface_rc, interface_output = _verified_read(auth, profile, companion)
+            interface_output = _redact_output(interface_output, auth)
+            if (len(interface_output.encode('utf-8')) + len(cleaned.encode('utf-8')) > _SSH_CAPTURE_MAX_BYTES):
+                return tables.parse(profile, table, query, '', status='truncated')
+            if normalization.output_status(interface_output, rc=interface_rc, profile=profile, command=companion) == 'ok':
+                cleaned += fortigate_tables.LOCAL_SWITCH_INTERFACES + interface_output
+        filters = None
+        if (parameters and 'interface' in parameters and (
+                profile == 'cisco_nxos' and query in _NXOS_G92_READS or
+                profile == 'cisco_xe' and query in IOS_XE_PORT_QUERIES.keys() | {'interface_transceiver'})):
+            field = 'local_port' if table.endswith('_neighbor') else 'port'
+            filters = {field: tables.port(parameters['interface'])}
+        result = tables.parse(profile, table, query, cleaned, rc=rc, status=state, command=command,
+                              refused=refused, filters=filters)
+        unexpected_stderr = holder.get('unexpected_stderr') and entry is not None and entry.empty_allowed
+        if unexpected_stderr and (not cleaned.strip() or result['status'] == 'empty'):
+            result = tables.parse(profile, table, query, cleaned, rc=rc, status='unparsed', command=command)
+            return dict(result, error_code='device_cli_error', error=_EMPTY_READ_STDERR_ERROR)
+        if unexpected_stderr and refused and not result['ok']:
+            result['error_code'] = 'device_cli_error'
+        firmware = {}
+        if ios_security:
+            firmware = _ios_security_firmware(holder, profile, query)
+        elif profile == 'cisco_nxos':
+            firmware = _nxos_firmware(holder, query)
+        elif profile == 'cisco_xe':
+            firmware = _ios_xe_port_firmware(holder, query)
+        if firmware:
+            result['warnings'].extend(firmware.pop('warnings', []))
+            result.update(firmware)
         if state == 'transport_error':
             result.update(_transport_failure('exit_status', auth))
         if normalization.exos_exit_250(profile, rc, cleaned, command=command):
@@ -4912,17 +7596,35 @@ def normalized_query(auth: TargetAuth, platform: str, query: str, table: str, pa
 def switch_read(auth: TargetAuth, table: str, vlan_id: str | None = None,
                 mac: str | None = None, ip: str | None = None, limit: int = 100,
                 offset: int = 0, max_bytes: int = 16_000, interface: str | None = None,
-                managed_switch: str | None = None) -> dict[str, Any]:
+                managed_switch: str | None = None, baseline: str | None = None,
+                summary: str | None = None, vr: str | None = None, vrf: str | None = None,
+                address_family: str | None = None) -> dict[str, Any]:
     from . import ip_interfaces, tables, switch_pages, port_vlan
     switch_pages.validate(limit, offset, max_bytes)
     profile = auth.ssh_platform
-    if table == "interface_errors" and profile != "fortinet":
+    counters_key = previous = None
+    if table == "interface_errors":
         from . import port_errors
-        tables.request(profile, table, vlan_id, mac, ip, auth.device_types, interface, managed_switch)
-        result = port_errors.read(auth, interface, normalized_query)
+        if summary is not None and summary not in port_errors.SUMMARY_MODES:
+            raise ValueError("summary is counts or changes")
+        # The baseline is checked before any device read.
+        counters_key = port_errors._key(auth.alias, profile, interface, managed_switch)
+        previous = port_errors.decode_baseline(baseline, counters_key) if baseline is not None else None
+    elif baseline is not None or summary is not None:
+        raise ValueError("baseline and summary apply only to table interface_errors")
+    if table == "interface_errors" and profile != "fortinet":
+        tables.request(profile, table, vlan_id, mac, ip, auth.device_types, interface, managed_switch, vr=vr, vrf=vrf,
+                       address_family=address_family)
+        result = port_errors.shape(port_errors.read(auth, interface, normalized_query), counters_key, previous, summary)
         return switch_pages.page({"target": auth.alias, **result}, ("records", "unparsed"),
                                  limit=limit, offset=offset, max_bytes=max_bytes)
-    query, parameters, filters = tables.request(profile, table, vlan_id, mac, ip, auth.device_types, interface, managed_switch)
+    query, parameters, filters = tables.request(profile, table, vlan_id, mac, ip, auth.device_types, interface, managed_switch,
+                                                vr=vr, vrf=vrf, address_family=address_family,
+                                                enabled_queries=auth.enabled_queries)
+    if profile == 'arista_eos' and table == 'mac_entry' and query not in auth.enabled_queries:
+        from .eos_ports import mac_queries
+        raise PolicyScopeError('SSH query is not enabled for this target; the MAC read needs one of: '
+                               + ', '.join(mac_queries(vlan_id, mac, interface)))
     if profile == 'fortinet' and table == 'mac_entry' and managed_switch is None:
         from . import fortigate_tables
         result = fortigate_tables.read_mac(auth,
@@ -4933,14 +7635,16 @@ def switch_read(auth: TargetAuth, table: str, vlan_id: str | None = None,
             from . import switch_managed
             result.update(reason='table_not_supported_for_profile', data={
                 'field': 'table', 'supported_tables': switch_managed.supported_tables()})
-    elif table == 'port_vlan' and profile == 'fortinet':
+    elif table == 'port_vlan' and profile == 'fortinet' and managed_switch is not None:
         from . import fortiswitch_ports
         result = fortiswitch_ports.read_vlan(auth, parameters,
             lambda q, t, p: normalized_query(auth, profile, q, t, p))
-    elif table == 'port_vlan':
-        result = port_vlan.read(auth, lambda q, t: normalized_query(auth, profile, q, t))
+    elif table == 'port_vlan' and profile != 'fortinet':
+        result = port_vlan.read(auth, lambda q, t, p=None: normalized_query(auth, profile, q, t, p), interface)
     else:
         result = normalized_query(auth, profile, query, table, parameters)
+    if table == 'interface' and profile == 'extreme_exos':
+        result = port_vlan.join_interfaces(auth, result, lambda q, t: normalized_query(auth, profile, q, t))
     if table == 'vlan':
         result = port_vlan.join_vlans(auth, result, lambda q, t: normalized_query(auth, profile, q, t))
     if managed_switch is not None:
@@ -4955,8 +7659,14 @@ def switch_read(auth: TargetAuth, table: str, vlan_id: str | None = None,
 
         result = route_fallback.lookup(result, tables.literal(ip)[1], read_route_table)
     if table == 'ip_interface':
-        result = ip_interfaces.join(profile, result, auth.enabled_queries,
-                                    lambda name, other: normalized_query(auth, profile, name, other))
+        if profile == 'cisco_nxos' and vrf is not None:
+            # A management/customer interface must never borrow a mask from the default VRF.
+            enabled = ('route_table',) if 'route_table_vrf' in auth.enabled_queries else ()
+            result = ip_interfaces.join(profile, result, enabled,
+                lambda name, other: normalized_query(auth, profile, name + '_vrf', other, {'vrf': vrf}))
+        else:
+            result = ip_interfaces.join(profile, result, auth.enabled_queries,
+                                        lambda name, other: normalized_query(auth, profile, name, other))
     if profile == 'juniper_junos_els' and table == 'mac_entry' and result['records']:
         if 'vlans' in auth.enabled_queries:
             vlans = normalized_query(auth, profile, 'vlans', 'vlan')
@@ -4984,36 +7694,150 @@ def switch_read(auth: TargetAuth, table: str, vlan_id: str | None = None,
     # The filter is applied after the full capture has been classified. A bad
     # line outside the matching rows must still make coverage incomplete.
     result['records'] = [row for row in result['records'] if all(row.get(k) == v for k, v in filters.items())]
-    if table == 'route' and ip is not None and query is not None and not parameters:
+    if table == 'route' and ip is not None and query is not None and '{address}' not in READ_QUERIES[profile][query].command:
         result['records'] = tables.longest_prefix(result['records'], tables.literal(ip)[1])
+    if table == 'interface_errors':
+        result = port_errors.shape(result, counters_key, previous, summary)
     return switch_pages.page({'target': auth.alias, **result, 'ok': result['status'] in ('ok', 'empty', 'not_applicable')},
                              ('records', 'unparsed'), limit=limit, offset=offset, max_bytes=max_bytes)
+
+
+def check_intent(plan_name, plans, read_switch):
+    """Compare declared checks against normalized switch_read results for one invocation."""
+    from . import port_vlan, switch_pages
+    from .normalization import normalize_port
+    from .tables import LAG_FLAGS
+
+    def port_key(value):
+        try:
+            return normalize_port(value)['name']
+        except ValueError:
+            # FortiOS allows underscores in enrolled aggregate names.
+            return value
+
+    states = {name for _, name in LAG_FLAGS}
+    reads, checks = {}, []
+    steps = progress.Steps("check_intent", total=sum(len(rows) for _, _, plan in plans for rows in plan.values()))
+    for target, platform, plan in plans:
+        for kind, rows in plan.items():
+            for expected in rows:
+                selector = expected['name'] if kind == 'lag' else expected['port']
+                table = {'lag': 'lag', 'vlan': 'port_vlan', 'poe': 'poe_port'}[kind]
+                interface = selector if kind != 'lag' or platform == 'fortinet' else None
+                serial = expected.get('managed_switch')
+                key = (target, table, interface, serial)
+                if key not in reads:
+                    args = {'target': target, 'table': table, 'max_bytes': switch_pages.MAX_BYTES,
+                            'limit': switch_pages.MAX_LIMIT}
+                    if interface is not None:
+                        args['interface'] = interface
+                    if serial is not None:
+                        args['managed_switch'] = serial
+                    reads[key] = read_switch(args)
+                steps.read(table)
+                payload = reads[key]
+                check = {'target': target, 'kind': kind, 'expected': expected}
+                if 'firmware_support' in payload:
+                    check['firmware_support'] = payload['firmware_support']
+
+                coverage = payload.get('coverage', {})
+                complete = coverage.get('complete') is True
+                if kind == 'vlan' and payload.get('source') == 'configuration':
+                    # FortiSwitch membership is configuration and has no operational link state.
+                    complete = complete or coverage.get('missing_fields') == ['oper_status']
+                if (payload.get('status') not in ('ok', 'empty') or not complete or payload.get('unparsed')
+                        or payload.get('has_more') is not False or coverage.get('warnings')):
+                    check.update(status='incomplete', reason='read_incomplete',
+                                 read_status=payload.get('status', 'unavailable'))
+                    checks.append(check)
+                    continue
+
+                column = 'name' if kind == 'lag' else 'port'
+                matches = [record for record in payload.get('records', ())
+                           if port_key(record.get(column)) == port_key(selector)]
+                if kind == 'lag' and len(matches) == 1:
+                    members = matches[0].get('members')
+                    if members is not None and all(
+                        member.get('state') in states and isinstance(member.get('port'), str) for member in members
+                    ):
+                        ports = [port_key(member['port']) for member in members]
+                        if len(ports) == len(set(ports)):
+                            active = sorted(port for port, member in zip(ports, members) if member['state'] == 'bundled')
+                            check.update(actual=active, status='pass' if active == sorted(
+                                {port_key(member) for member in expected['active_members']}) else 'fail')
+                elif kind == 'lag' and not matches:
+                    check.update(actual=None, status='fail', reason='lag_absent')
+                elif kind == 'vlan' and len(matches) == 1:
+                    membership = port_vlan.membership(matches[0], expected['vlan_id'])
+                    if membership['carries_vlan'] is not None:
+                        actual = membership['tagging'] if membership['carries_vlan'] else 'absent'
+                        check.update(actual=actual, status='pass' if actual == expected['membership'] else 'fail')
+                elif kind == 'poe' and len(matches) == 1:
+                    actual = matches[0].get('power_w')
+                    if type(actual) in (int, float) and 0 <= actual and math.isfinite(actual):
+                        check.update(actual=actual, status='pass' if expected['min_w'] <= actual <= expected['max_w'] else 'fail')
+                if 'status' not in check:
+                    check.update(status='incomplete', reason='observation_missing_or_ambiguous')
+                checks.append(check)
+    statuses = {check['status'] for check in checks}
+    status = 'incomplete' if not checks or 'incomplete' in statuses else 'fail' if 'fail' in statuses else 'pass'
+    return {'plan': plan_name, 'status': status, 'checks': checks}
 
 
 # The identity supplement that prints the host name where `show version` does not (EXOS sysName).
 _HOSTNAME_SUPPLEMENTS = {"extreme_exos": "switch", "arista_eos": "hostname"}
 
 
+def _locate_firmware(profile, status):
+    from netops_core import tested
+
+    if profile == 'fortinet':
+        try:
+            _, version, build = core_platforms.version_record(status)
+            version = version + ' build' + build
+        except core_platforms.VersionRecordError:
+            version = None
+        return tested.support('FortiOS', version, ('8.0.2 build0251',), function='endpoint location')
+    if profile == 'extreme_exos':
+        try:
+            version = normalization.parse_identity(profile, status)['os_version']
+        except normalization.IdentityError:
+            version = None
+        return tested.support('ExtremeXOS', version, ('33.6.1.14', '33.7.1.6'), function='endpoint location')
+    return None
+
+
 def _locate_endpoint_run(auths, endpoint, progress=lambda result: None, *, deadline=None):
+    with ExitStack() as connections:
+        return _locate_endpoint_correlate(auths, endpoint, progress, deadline, connections)
+
+
+def _locate_endpoint_correlate(auths, endpoint, progress, deadline, connections):
     from . import locate, tables, port_vlan
     budget = locate.Budget()
     if deadline is not None:
         budget.deadline = min(budget.deadline, deadline)
     verified = {}
-    identified = {}
+    identified, firmware = {}, {}
     target_reads = dict.fromkeys((a.alias for a in auths), 0)
     import threading
-    lanes = {(a.host, a.port): threading.RLock() for a in auths}
+    endpoints = [(a.host, a.port) for a in auths]
+    lanes = {address: threading.RLock() for address in endpoints}
+    # Distinct aliases of the same socket must not reserve its connection lane concurrently.
+    readers = {a.alias: _FortinetReader(a, connections) for a in auths
+               if a.ssh_platform == 'fortinet' and endpoints.count((a.host, a.port)) == 1}
 
     def serialized(function):
         @wraps(function)
         def wrapped(auth, *args, **kwargs):
             with lanes[(auth.host, auth.port)]:
                 token = _LOCATE_BUDGET.set(budget)
+                connection = _FORTINET_READER.set(readers.get(auth.alias))
                 try:
                     budget.remaining()
                     return function(auth, *args, **kwargs)
                 finally:
+                    _FORTINET_READER.reset(connection)
                     _LOCATE_BUDGET.reset(token)
         return wrapped
 
@@ -5059,11 +7883,18 @@ def _locate_endpoint_run(auths, endpoint, progress=lambda result: None, *, deadl
         try:
             if auth.alias not in verified:
                 verified[auth.alias] = (profile, _check_identity(auth, profile, device)[2])
+                firmware[auth.alias] = _locate_firmware(*verified[auth.alias])
             holder = {'scope': None, 'extra': _membership_commands(auth, profile, query, table)}
             if profile == 'fortinet' and table != 'identity':
                 holder['scope'] = fortios_vdom.require(fortios_vdom.scope(verified[auth.alias][1]),
                                                        auth.read_inventory)
             rc, output = device(auth, profile, command, holder)
+            if profile == 'fortinet':
+                # FortiOS redraws long FortiLink commands before echoing them.
+                # Erase only a leading line that reconstructs the exact command.
+                echo, _, body = output.lstrip('\r\n').partition('\n')
+                if '\b' in echo and _erase_backspaces(echo).strip() == command:
+                    output = body
             cleaned = _redact_output(output, auth)
             if len(cleaned.encode()) > _SSH_CAPTURE_MAX_BYTES:
                 return tables.parse(profile, table, query, '', status='truncated')
@@ -5075,11 +7906,17 @@ def _locate_endpoint_run(auths, endpoint, progress=lambda result: None, *, deadl
             refused = _cli_refused(profile, cleaned)
             if refused and state == 'ok':
                 state = 'permission_denied'
-            result = tables.parse(profile, table, query, cleaned, rc=rc, status=state, command=command, refused=refused)
+            if table in locate.NAME_TABLES:
+                result = locate.parse_name_read(profile, table, query, cleaned, state, parameters)
+            else:
+                result = tables.parse(profile, table, query, cleaned, rc=rc, status=state, command=command, refused=refused)
             if state == 'transport_error':
                 result.update(_transport_failure('exit_status', auth))
             if normalization.exos_exit_250(profile, rc, cleaned, command=command):
                 result['warnings'].append('exit_status_250')
+            support = firmware[auth.alias]
+            if support:
+                result['firmware_support'] = support
             return _vdom_scoped_table(auth, result, holder, profile, table, query, command, cleaned)
         except fortios_vdom.VdomRefused as exc:
             return _vdom_refused_table(profile, table, query, exc)
@@ -5130,18 +7967,293 @@ def _locate_endpoint_run(auths, endpoint, progress=lambda result: None, *, deadl
     def stations(auth, mac, ip):
         return _wifi_clients_result(auth, mac=mac, ip=ip, before_read=rest_read)
 
-    def wired(target_endpoint, report):
-        return locate.run(auths, target_endpoint, read, budget, report, identify)
+    def wired(target_endpoint, report, **options):
+        return locate.run(auths, target_endpoint, read, budget, report, identify, **options)
+
+    @serialized
+    @_audit_device_call
+    def ruckus_read(auth, platform, query, table, parameters):
+        """G108: one counted, audited Ruckus Unleashed catalogue read, redacted and parsed like ssh_read."""
+        from datetime import datetime, timezone
+        from .sanitize import redact_ruckus_secrets
+        profile, command, _ = _ssh_read_state(auth, platform, query, parameters)
+        captured = datetime.now(timezone.utc).isoformat(timespec='milliseconds')
+        try:
+            rc, output = device(auth, profile, command)
+        except locate.LimitReached:
+            raise
+        except Exception as exc:
+            return {'ok': False, 'error_code': _transport_cause(exc) or 'ssh_unavailable', 'failed_step': query}
+        cleaned = _redact_output(redact_ruckus_secrets(output, _redaction_secret_forms(auth)), auth)
+        source = {'query': query, 'command': command, 'content_sha256': digest_text(cleaned), 'captured_at': captured}
+        if rc not in (0, None) or _cli_refused(profile, cleaned, command=command):
+            return {'ok': False, 'error_code': 'device_cli_error', 'failed_step': query, 'sources': [source]}
+        parsed = wifi_parse.summarize_ruckus(query, cleaned)
+        if parsed['unparsed_count']:
+            return {'ok': False, 'error_code': 'unparsed', 'failed_step': query, 'sources': [source]}
+        if parsed.get('incomplete'):
+            return {'ok': False, 'error_code': 'incomplete', 'failed_step': query, 'sources': [source]}
+        return {'ok': True, 'records': parsed['records'], 'sources': [source]}
+
+    def ruckus(auth, mac, ip):
+        """Active clients of one Unleashed controller joined to the AP each is associated to (`show ap all`)."""
+        clients = ruckus_read(auth, 'ruckus_unleashed', 'clients', 'wifi_client', None)
+        if not clients['ok']:
+            return clients
+        rows = [row for row in clients['records'] if (mac is not None and row['mac'] == mac) or (ip is not None and row['ip'] == ip)]
+        if not rows:
+            return {**clients, 'records': []}
+        aps = ruckus_read(auth, 'ruckus_unleashed', 'access_points', 'wifi_ap', None)
+        if not aps['ok']:
+            return {**aps, 'sources': clients['sources'] + aps.get('sources', [])}
+        records = []
+        for row in rows:
+            ap = next((item for item in aps['records'] if item['mac'] and item['mac'] == row['ap_mac']), None)
+            records.append({**{key: row[key] for key in ('mac', 'ip', 'wlan', 'vlan_id', 'channel', 'radio')},
+                            'ap': None if ap is None else {
+                                'mac': ap['mac'], 'name': ap['name'], 'ip': ap['ip'], 'role': ap['role'],
+                                'uplink_ports': [port['interface'] for port in ap['lan_ports']
+                                                 if (port['logical_link'] or '').lower() == 'up']}})
+        return {'ok': True, 'records': records, 'sources': clients['sources'] + aps['sources']}
+
+    @serialized
+    @_audit_device_call
+    def c9800_client(auth, mac, ip):
+        from .triage_wifi import c9800_read
+        from netops_core import c9800 as controller
+
+        profile = "cisco_xe"
+        if ip is not None:
+            return {"ok": False, "error_code": "client_mac_required"}
+        try:
+            if auth.alias not in verified:
+                verified[auth.alias] = (profile, _check_identity(auth, profile, device)[2])
+            if not controller.CONTROLLER_IMAGE.search(verified[auth.alias][1]):
+                return {"ok": False, "error_code": "unsupported_platform"}
+        except _ProductIdentityError as exc:
+            return {"ok": False, "error_code": exc.reason}
+        except locate.LimitReached:
+            raise
+        except Exception as exc:
+            return {"ok": False, "error_code": _transport_cause(exc) or "ssh_unavailable"}
+
+        def read(query, parameters):
+            try:
+                _, command, _ = _ssh_read_state(auth, profile, query, parameters)
+            except PolicyScopeError:
+                return {"ok": False, "reason": "permission_denied"}
+            try:
+                rc, text = device(auth, profile, command)
+            except locate.LimitReached:
+                raise
+            except Exception as exc:
+                return {"ok": False, "reason": _transport_cause(exc) or "ssh_unavailable"}
+            text = _redact_output(text, auth)
+            state = normalization.output_status(text, rc=rc, profile=profile, command=command)
+            if state != "ok" or _cli_refused(profile, text, command=command):
+                return {"ok": False, "reason": state if state != "ok" else "device_cli_error"}
+            if len(text.encode()) > _SSH_CAPTURE_MAX_BYTES:
+                return {"ok": False, "reason": "truncated"}
+            return {"ok": True, "text": text, "content_sha256": digest_text(text)}
+
+        clients = c9800_read(read, "c9800_clients")
+        sources = [clients["source"]] if "source" in clients else []
+        if not clients["complete"]:
+            return {"ok": False, "failed_step": "c9800_clients", "sources": sources,
+                    "error_code": clients.get("reason", "incomplete")}
+        station = next((row for row in clients["records"] if row["mac"] == mac), None)
+        if station is None:
+            return {"ok": True, "records": [], "sources": sources}
+        detail = c9800_read(read, "c9800_client_detail", {"mac": mac})
+        aps = c9800_read(read, "c9800_aps")
+        sources.extend(item["source"] for item in (detail, aps) if "source" in item)
+        client = next((row for row in detail["records"] if row["mac"] == mac), {})
+        missing = [{"step": query, "reason": item.get("reason", "incomplete")}
+                   for query, item in (("c9800_client_detail", detail), ("c9800_aps", aps)) if not item["complete"]]
+        same_ap = client.get("ap_name", station["ap_name"]) == station["ap_name"]
+        if not same_ap:
+            missing.append({"step": "c9800_client_detail", "reason": "association_changed"})
+        ap = wifi_parse.c9800_ap({**station, **client}, aps["records"]) if same_ap and aps["complete"] else None
+        vlan = client.get("vlan", "")
+        return {"ok": True, "sources": sources, "missing": missing,
+                "records": [{"mac": mac, "ip": client.get("ip"), "wlan": client.get("wlan"),
+                             "vlan_id": int(vlan) if vlan.isdecimal() else None,
+                             "channel": client.get("channel"), "radio": client.get("slot"),
+                             "locally_switched": client.get("data_switching") == "Local",
+                             "ap": {"mac": ap["ethernet_mac"], "name": ap["name"], "ip": ap.get("ip"),
+                                    "role": ap["state"]} if ap else None}]}
+
+    def c9800_port(edge):
+        from . import port_errors
+
+        alias, port = edge["vantage"], edge["port"]
+        target = next((auth for auth in auths if auth.alias == alias), None)
+        if target is None or target.ssh_platform not in {"cisco_ios", "cisco_xe"}:
+            return {"ap_port_diagnostics": {"status": "unsupported", "complete": False}}
+        profile = target.ssh_platform
+        diagnostics = {}
+        for table in ("cdp_neighbor", "poe_port", "interface_errors"):
+            try:
+                if table == "interface_errors":
+                    bounded = port_errors.bounded_queries(profile, port, target.enabled_queries, target.read_inventory)
+                    if not bounded:
+                        raise PolicyScopeError("no enabled per-port counter read")
+                    observed = port_errors.read(target, port, locate_endpoint_read)
+                    selected = observed["records"]
+                else:
+                    query, params, _ = tables.request(profile, table, interface=port, device_types=target.device_types)
+                    if query is None:
+                        diagnostics[table] = {"status": "unsupported", "complete": False}
+                        continue
+                    observed = locate_endpoint_read(target, profile, query, table, params)
+                    field = "local_port" if table == "cdp_neighbor" else "port"
+                    selected = [row for row in observed["records"] if row.get(field) == tables.port(port)]
+                complete = observed["coverage"]["complete"] and len(selected) == len(observed["records"])
+                if table != "cdp_neighbor":
+                    complete = complete and bool(selected)
+                status = observed["status"]
+                diagnostics[table] = {"status": "incomplete" if not complete and status == "ok" else status,
+                                      "complete": complete, "records": selected, "sources": observed["sources"]}
+            except (PolicyScopeError, ValueError):
+                diagnostics[table] = {"status": "permission_denied", "complete": False}
+            except locate.LimitReached as exc:
+                diagnostics[table] = {"status": str(exc), "complete": False}
+        return diagnostics
 
     from . import locate_wifi
-    return locate_wifi.run(auths, endpoint, budget, wired, stations, progress)
+    kind, value = locate.selector(endpoint)
+    if kind != 'hostname':
+        return locate_wifi.run(auths, endpoint, budget, wired, stations, progress, ruckus=ruckus,
+                               c9800=c9800_client, c9800_port=c9800_port)
+
+    resolved = locate.resolve_name(auths, value, budget, read, progress)
+    identity = resolved['resolution']
+    if resolved['missing']:
+        return resolved
+
+    def with_resolution(result):
+        coverage = result['coverage']
+        missing = list(result['missing'])
+        verdict = result['verdict']
+        if verdict == 'not_found_in_checked_data':
+            verdict = 'incomplete'
+            missing.append({'vantage': None, 'table': 'endpoint', 'reason': 'location_not_observed'})
+            coverage = {**coverage, 'complete': False}
+        return {**result, 'endpoint': resolved['endpoint'], 'resolution': identity, 'verdict': verdict,
+                'vantage': resolved['vantage'] + result['vantage'], 'missing': missing, 'coverage': coverage}
+
+    return with_resolution(locate_wifi.run(auths, identity['mac'], budget, wired, stations,
+                                          lambda result: progress(with_resolution(result)),
+                                          ruckus=ruckus, c9800=c9800_client, c9800_port=c9800_port,
+                                          expected_ip=identity['ip']))
+
+
+def vpc_compare(auths: list[TargetAuth], vpc_id: str) -> dict[str, Any]:
+    """Compare exactly two enrolled NX-OS targets using only their enabled reads."""
+    from . import switch_vpc
+    from .read_policy import _validate_slot
+
+    number = int(_validate_slot(vpc_id, 'vpc_id'))
+    profile = 'cisco_nxos'
+    if (len(auths) != 2 or len({auth.alias for auth in auths}) != 2
+            or len({(auth.host, auth.port) for auth in auths}) != 2
+            or any(auth.ssh_platform != profile for auth in auths)):
+        raise ValueError('vpc_compare requires two distinct enrolled NX-OS targets')
+    queries = (('vpc_status', None), ('vpc_member_consistency', {'vpc_id': vpc_id}))
+    for auth in auths:
+        for query, parameters in queries:
+            _ssh_read_state(auth, profile, query, parameters)
+
+    observations = []
+    for auth in auths:
+        brief, parameters = (ssh_read(auth, profile, query, values, 0, 16000) for query, values in queries)
+        source_states = []
+        for (query, _), result, key in zip(queries, (brief, parameters), ('vpc', 'vpc_consistency')):
+            state = result.get(key, {}).get('state') or result.get('status') or result.get('error_code')
+            source_states.append({'query': query, 'status': state, 'content_sha256': result.get('content_sha256'),
+                                  **{name: result[name] for name in ('firmware_support', 'warnings') if name in result}})
+        observations.append({'target': auth.alias, 'sources': source_states,
+                             'vpc': brief.get('vpc', {}), 'consistency': parameters.get('vpc_consistency', {})})
+    result = switch_vpc.compare(observations, number)
+    return {'ok': result['state'] != 'incomplete', **result}
 
 
 def locate_endpoint(targets: list[str], endpoint: str, auth_context: str) -> dict[str, Any]:
     """Credentials travel over a private pipe to a separately bounded worker."""
-    from . import endpoint_worker, tables
-    tables.literal(endpoint)
+    from . import endpoint_worker, locate
+    locate.selector(endpoint)
     # Decode before spawning: an invalid or incomplete injected scope cannot
     # trigger a worker, and the worker repeats this check before device access.
     endpoint_worker.decode(targets, auth_context)
     return endpoint_worker.call(targets, endpoint, auth_context)
+
+
+@_audit_device_call
+def triage_port(auth: TargetAuth, interface: str, domain: str = 's0') -> dict[str, Any]:
+    """Correlate authorized EXOS or EOS port reads; the EXOS domain is enrolled in services."""
+    from . import triage_port as triage
+    from .triage_routing import CISCO_RUNBOOK_TESTED
+    if auth.ssh_platform in CISCO_RUNBOOK_TESTED:
+        if domain != 's0':
+            raise ValueError('domain applies only to EXOS triage_port')
+        return _cisco_runbook(auth, "triage_port", interface=interface)
+    if auth.ssh_platform == 'arista_eos':
+        return _triage_port_eos(auth, interface, domain)
+    if auth.ssh_platform == 'juniper_junos_els':
+        platform = auth.ssh_platform
+        if domain != 's0':
+            raise ValueError('domain applies only to EXOS triage_port')
+        from .read_policy import _validate_slot
+        _validate_slot(interface, 'junos_physical_interface')
+        _ssh_read_state(auth, platform, 'interface_details', {'interface': interface})
+
+        def read_raw(query, parameters):
+            if query not in auth.enabled_queries:
+                return {'ok': False, 'status': 'permission_denied', 'query': query}
+            max_bytes = 48000 if query == 'interface_details' else 16000
+            return ssh_read(auth, platform, query, parameters, 0, max_bytes)
+
+        return {'target': auth.alias, 'platform': platform, **triage.run_junos(interface, read_raw)}
+
+    if auth.ssh_platform != 'extreme_exos':
+        raise ValueError('unsupported_platform: triage_port supports EXOS, EOS, Junos ELS and IOS/IOS XE')
+    # Validate both selectors and inventory before the first transport call.
+    _ssh_read_state(auth, auth.ssh_platform, 'stp_port_detail', {'interface': interface, 'domain': domain})
+    from . import tables
+
+    def read_table(table):
+        query = 'lldp_interface_details' if table == 'lldp_neighbor' else tables.BINDINGS[auth.ssh_platform].get(table)
+        if query not in auth.enabled_queries:
+            return tables.parse(auth.ssh_platform, table, query, '', status='permission_denied')
+        if table == 'lldp_neighbor':
+            return normalized_query(auth, auth.ssh_platform, query, table, {'interface': interface})
+        return switch_read(auth, table, interface=interface, limit=500, max_bytes=48000)
+
+    def read_raw(query, params):
+        if query not in auth.enabled_queries:
+            return {'ok': False, 'status': 'permission_denied', 'query': query}
+        return ssh_read(auth, auth.ssh_platform, query, params, 0, 16000)
+
+    result = triage.run(interface, domain, read_table, read_raw)
+    return {'target': auth.alias, 'platform': auth.ssh_platform, **result}
+
+
+def _triage_port_eos(auth: TargetAuth, interface: str, domain: str) -> dict[str, Any]:
+    from . import tables, triage_port as triage
+    if domain != 's0':
+        raise ValueError('domain applies only to EXOS triage_port')
+    # Validate the selector and inventory before the first transport call.
+    _ssh_read_state(auth, auth.ssh_platform, 'stp_interface_detail', {'interface': interface})
+
+    def read_table(table):
+        query = tables.request(auth.ssh_platform, table, interface=interface)[0]
+        if query not in auth.enabled_queries:
+            return tables.parse(auth.ssh_platform, table, query, '', status='permission_denied')
+        return switch_read(auth, table, interface=interface, limit=500, max_bytes=48000)
+
+    def read_raw(query, params):
+        if query not in auth.enabled_queries:
+            return {'ok': False, 'status': 'permission_denied', 'query': query}
+        return ssh_read(auth, auth.ssh_platform, query, params, 0, 16000)
+
+    return {'target': auth.alias, 'platform': auth.ssh_platform, **triage.run_eos(interface, read_table, read_raw)}

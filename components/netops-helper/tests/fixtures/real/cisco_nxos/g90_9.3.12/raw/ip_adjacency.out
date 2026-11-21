@@ -1,0 +1,17 @@
+
+Flags: # - Adjacencies Throttled for Glean
+       G - Adjacencies of vPC peer with G/W bit
+       R - Adjacencies learnt remotely
+       CP - Added via L2RIB, Control plane Adjacencies
+       PS - Added via L2RIB, Peer Sync
+       RO - Re-Originated Peer Sync Entry
+       CC - Consistency check pending
+
+IP Adjacency Table for VRF default
+Total number of entries: 5
+Address         MAC Address     Pref Source     Interface       Flags
+203.0.113.252   0000.5e00.5302  50   arp        Vlan20                
+203.0.113.1     0000.5e00.5303  50   arp        Vlan10                
+203.0.113.3     0000.5e00.5304  50   arp        Vlan10                
+203.0.113.6     0000.5e00.5305  50   arp        Vlan10                
+203.0.113.7     0000.5e00.5306  50   arp        Vlan10                

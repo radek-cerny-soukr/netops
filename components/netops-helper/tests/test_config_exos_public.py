@@ -224,6 +224,8 @@ def test_fresh_public_read_redacts_stores_and_pages_without_more_ssh(env):
     assert first['redaction_profile'] == adapter.PROFILE
     assert re.fullmatch(r'extreme_exos-full-1:[0-9a-f]{64}', adapter.PROFILE)
     assert first['include_defaults'] is False
+    # The tested identity (G00): the reply is as before, without firmware_support or warnings.
+    assert 'firmware_support' not in first and 'warnings' not in first
 
     # Paging by whole lines over the stored Content; continuations never touch SSH.
     pages, page = [first], first
@@ -239,6 +241,7 @@ def test_fresh_public_read_redacts_stores_and_pages_without_more_ssh(env):
         assert item['returned_bytes'] == len(item['untrusted_device_output'].encode())
         assert item['capture_complete'] is True and item['configuration_complete'] is False
         assert item['firmware'] == first['firmware'] and item['redaction_profile'] == adapter.PROFILE
+        assert 'firmware_support' not in item and 'warnings' not in item
     for item in pages[:-1]:
         assert item['untrusted_device_output'].endswith('\n')
         assert item['next_offset'] == item['offset'] + item['returned_bytes']
@@ -247,7 +250,7 @@ def test_fresh_public_read_redacts_stores_and_pages_without_more_ssh(env):
     stored = configuration._SNAPSHOTS[first['snapshot_id']]
     assert isinstance(stored.text, configuration.Content)
     assert stored.text.sha256 == digest and stored.profile == adapter.PROFILE
-    assert stored.scope[1:3] == ('extreme_exos', 'running') and stored.firmware == adapter.SUPPORTED
+    assert stored.scope[1:3] == ('extreme_exos', 'running') and stored.firmware == adapter.TESTED
     assert len(stored.hidden) == 0
     _assert_no_sentinel(text, first, pages, repr(stored), str(dict(stored.metadata)))
 
@@ -440,18 +443,62 @@ def _identity_refusal(env, wire, message):
 
 
 SWITCH_OTHER_MODEL = SWITCH.replace('X440G2-12p-10G4', 'X440G2-24p-10G4')
-# Keep the unsupported firmware version distinct from the admitted version.
+# Keep the untested firmware version distinct from the tested version.
 VERSION_OTHER = VERSION.replace('33.7.1.6', '33.7.' + '2.1')
 SWITCH_OTHER = SWITCH.replace('33.7.1.6', '33.7.' + '2.1')
+# Real read-only captures of the lab X435-8P-4S (one device, booted secondary 33.7.1.6 patch1-11).
+X435 = FIXTURES / 'x435-8p-4s_33.7.1.6'
 
 
-@pytest.mark.parametrize('wire', [
-    lambda: Wire(switch=SWITCH_OTHER_MODEL),
-    lambda: Wire(version=VERSION_OTHER, switch=SWITCH_OTHER),
-    lambda: Wire(version=VERSION.replace('patch1-11', 'patch1-12'), switch=SWITCH.replace('patch1-11', 'patch1-12')),
-], ids=['other-model', 'other-version', 'other-patch'])
-def test_unsupported_consistent_firmware_never_reads_configuration(env, wire):
-    _identity_refusal(env, wire(), 'firmware-not-supported for extreme_exos')
+@pytest.mark.parametrize('wire, firmware', [
+    (lambda: Wire(switch=SWITCH_OTHER_MODEL), ('X440G2-24p-10G4', '33.7.1.6', 'patch1-11')),
+    (lambda: Wire(version=VERSION_OTHER, switch=SWITCH_OTHER), ('X440G2-12p-10G4', '33.7.' + '2.1', 'patch1-11')),
+    (lambda: Wire(version=VERSION.replace('patch1-11', 'patch1-12'), switch=SWITCH.replace('patch1-11', 'patch1-12')),
+     ('X440G2-12p-10G4', '33.7.1.6', 'patch1-12')),
+    (lambda: Wire(version=(X435 / 'version.txt').read_text(), switch=(X435 / 'switch.txt').read_text()),
+     ('X435-8P-4S', '33.7.1.6', 'patch1-11')),
+], ids=['other-model', 'other-version', 'other-patch', 'real-x435'])
+def test_untested_consistent_firmware_reads_with_a_warning(env, wire, firmware):
+    """G00: another model, image or patch is read with the same redaction and an untested warning."""
+    auth = _auth(env)
+    wire = _wire(env, wire())
+    first = _read(auth, limit=200)
+    assert wire.commands == ['show version', 'show switch', 'show configuration']
+    assert first['ok'] is True and first['capture_complete'] is True and first['configuration_complete'] is False
+    assert first['firmware'] == dict(zip(('model', 'version', 'build'), firmware))
+    support = first['firmware_support']
+    assert support == {
+        'status': 'untested', 'platform': 'ExtremeXOS', 'device_version': firmware[1] + ' ' + firmware[2],
+        'model': firmware[0], 'tested_versions': ['X440G2-12p-10G4 33.7.1.6 patch1-11', 'EXOS-VM 33.6.1.14'],
+        'message': ('ExtremeXOS %s %s on %s is not among the versions config_read was tested on '
+                    '(X440G2-12p-10G4 33.7.1.6 patch1-11, EXOS-VM 33.6.1.14). It may or may not work as designed and tested; '
+                    'check the result.' % (firmware[1], firmware[2], firmware[0]))}
+    assert first['warnings'] == [{'code': 'firmware_untested', 'message': support['message']}]
+    # The redaction is the same consumer and profile as on the tested identity: unknown lines stay hidden.
+    assert first['redaction_profile'] == adapter.PROFILE and first['redacted_count'] == 12
+    assert {key: first[key] for key in SUMMARY} == SUMMARY
+    pages, page = [first], first
+    while page['next_offset'] is not None:
+        page = _read(auth, snapshot_id=first['snapshot_id'], offset=page['next_offset'], limit=200)
+        assert page['firmware_support'] == support and page['warnings'] == first['warnings']
+        pages.append(page)
+    assert ''.join(item['untrusted_device_output'] for item in pages) == EXPECTED
+    assert len(wire.calls) == 3
+    stored = configuration._SNAPSHOTS[first['snapshot_id']]
+    assert stored.firmware == firmware
+    _assert_no_sentinel(first, pages, repr(stored))
+
+
+def test_untested_and_tested_snapshots_are_not_compared(env):
+    """A firmware change between two captures stays a config_diff incomparable pair, as before G00."""
+    auth = _auth(env)
+    _wire(env, Wire())
+    tested = _read(auth)
+    _wire(env, Wire(switch=SWITCH_OTHER_MODEL))
+    untested = _read(auth)
+    assert 'warnings' not in tested and untested['warnings'][0]['code'] == 'firmware_untested'
+    with pytest.raises(ValueError, match='firmware or profile mismatch'):
+        configuration.compare(auth, tested['snapshot_id'], untested['snapshot_id'], platform='extreme_exos')
 
 
 @pytest.mark.parametrize('wire', [
@@ -563,9 +610,16 @@ def test_cached_snapshot_refuses_other_target_credential_profile_and_platform(en
     configuration._SNAPSHOTS[identity] = replace(stored, profile='extreme_exos-full-1:' + '0' * 64)
     with pytest.raises(ValueError, match='policy mismatch'):
         _read(auth, snapshot_id=identity)
+    # G00: a stored untested identity pages with its warning; a record of another shape is refused.
     configuration._SNAPSHOTS[identity] = replace(stored, firmware=('X440G2-24p-10G4', '33.7.1.6', 'patch1-11'))
-    with pytest.raises(ValueError, match='policy mismatch'):
-        _read(auth, snapshot_id=identity)
+    page = _read(auth, snapshot_id=identity)
+    assert page['firmware_support']['status'] == 'untested' and page['firmware_support']['model'] == 'X440G2-24p-10G4'
+    assert page['warnings'][0]['code'] == 'firmware_untested'
+    for record in (('X440G2-12p-10G4', '33.7.1.6'), ('X440G2-12p-10G4', '33.7.1.6', None),
+                   ['X440G2-12p-10G4', '33.7.1.6', 'patch1-11'], ('', '33.7.1.6', 'patch1-11')):
+        configuration._SNAPSHOTS[identity] = replace(stored, firmware=record)
+        with pytest.raises(ValueError, match='policy mismatch'):
+            _read(auth, snapshot_id=identity)
     configuration._SNAPSHOTS[identity] = stored
     with pytest.raises(ValueError, match='capture options mismatch|not_supported'):
         _read(auth, snapshot_id=identity, include_defaults=True)
@@ -636,3 +690,51 @@ def test_forti_minimal_request_shape_is_still_validated_by_proxy(env):
     _, forwarded, emitted = _proxy(env, {'target': 'device-a', 'platform': 'fortiadc', 'section': 'all',
                                          'include_all': True, 'redaction': 'minimal'})
     assert forwarded is None and emitted[-1]['error']['data']['field'] == 'redaction'
+
+
+# ------------------------------------------------- image without a patch (task 441, EXOS-VM 33.6.1.14)
+# Real anonymised captures of the GNS3 EXOS-VM; re-read live on 2026-11-17 with the same Image line and the
+# same show switch layout (no patch line after "Primary ver").
+EXOSVM_VERSION = (FIXTURES / 'exosvm_33.6.1.14' / 'version.txt').read_text()
+EXOSVM_SWITCH = (FIXTURES / 'exosvm_33.6.1.14' / 'switch.txt').read_text()
+
+
+def test_real_image_without_patch_is_read_conclusively():
+    from netops_helper import config_exos_adapter as adapter
+    assert adapter.version_identity(EXOSVM_VERSION) == ('33.6.1.14', '')
+    assert adapter.switch_identity(EXOSVM_SWITCH) == ('EXOS-VM', '33.6.1.14', '')
+    # the patched image of the lab X440 keeps its build
+    assert adapter.version_identity(VERSION) == ('33.7.1.6', 'patch1-11')
+    assert adapter.switch_identity(SWITCH) == ('X440G2-12p-10G4', '33.7.1.6', 'patch1-11')
+
+
+def test_real_image_without_patch_is_a_consistent_identity_not_unverifiable(env):
+    auth = _auth(env)
+    wire = _wire(env, Wire(version=EXOSVM_VERSION, switch=EXOSVM_SWITCH))
+    first = _read(auth, limit=200)
+    assert first['ok'] is True and first['capture_complete'] is True
+    assert first['firmware'] == {'model': 'EXOS-VM', 'version': '33.6.1.14', 'build': ''}
+    assert 'firmware_support' not in first and 'warnings' not in first
+    pages, page = [first], first
+    while page['next_offset'] is not None:
+        page = _read(auth, snapshot_id=first['snapshot_id'], offset=page['next_offset'], limit=200)
+        assert 'firmware_support' not in page and 'warnings' not in page
+        pages.append(page)
+    assert ''.join(item['untrusted_device_output'] for item in pages) == EXPECTED
+    assert wire.commands == ['show version', 'show switch', 'show configuration']
+    assert configuration._SNAPSHOTS[first['snapshot_id']].firmware == ('EXOS-VM', '33.6.1.14', '')
+    _assert_no_sentinel(first, pages)
+
+
+
+@pytest.mark.parametrize('wire', [
+    lambda: Wire(version=EXOSVM_VERSION, switch=SWITCH),                       # no patch vs patched booted image
+    lambda: Wire(version=VERSION, switch=SWITCH.replace('                  patch1-11\n', '')),  # patch vs none
+    lambda: Wire(version=EXOSVM_VERSION, switch=EXOSVM_SWITCH.replace(
+        'Primary ver:      33.6.1.14               \n',
+        'Primary ver:      33.6.1.14               \n                  something-else\n')),
+    lambda: Wire(version=EXOSVM_VERSION.replace('33.6.1.14 by', '33.6.1.14 33.6.1.14 by'), switch=EXOSVM_SWITCH),
+    lambda: Wire(version=EXOSVM_VERSION.replace(' by release-manager', ''), switch=EXOSVM_SWITCH),
+], ids=['nopatch-vs-patch', 'patch-vs-nopatch', 'indented-non-patch', 'bare-release', 'no-by'])
+def test_image_without_patch_stays_strict(env, wire):
+    _identity_refusal(env, wire(), 'identity-unverifiable')

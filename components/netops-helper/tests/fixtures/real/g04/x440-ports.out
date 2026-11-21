@@ -1,0 +1,27 @@
+Port Summary
+Port     Display              VLAN Name           Port  Link  Speed  Duplex
+#        String               (or # VLANs)        State State Actual Actual
+===========================================================================
+1        port-desc-01           (0006)              E     A      1000   FULL
+2                             host04              E     R
+3                             host04              E     A      100    FULL
+4                             host04              E     R
+5                             host04              E     R
+6                             host04              E     R
+7                             host04              E     A      1000   FULL
+8                             host04              E     R
+9                             host04              E     A      1000   FULL
+10                            host04              E     R
+11                            host04              E     A      1000   FULL
+12                            host04              E     A      1000   FULL
+13                            host04              E     R
+14                            host04              E     R
+15                            host04              E     R
+16                            host04              E     R
+========================================================================
+   Port State: D-Disabled, E-Enabled, F-Disabled by link-flap detection,
+               L-Disabled due to licensing
+   Link State: A-Active, R-Ready, NP-Port not present, L-Loopback,
+               D-ELSM enabled but not up,
+               d-Ethernet OAM enabled but not up,
+               B-MACsec enabled but blocked awaiting authentication

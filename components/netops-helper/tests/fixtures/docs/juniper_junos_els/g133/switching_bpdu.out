@@ -1,0 +1,5 @@
+Interface: ge-0/0/0.0, Index: 71, State: down, Port mode: Trunk
+VLAN membership:
+    vlan100, 802.1Q Tag: 100, tagged, msti-id: 1, Disabled by bpdu-control
+    vlan200, 802.1Q Tag: 200, tagged, msti-id: 2, Disabled by bpdu-control
+Number of MACs learned on IFL: 0

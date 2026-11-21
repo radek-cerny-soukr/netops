@@ -1,0 +1,15 @@
+VR            Destination      
+   Mac               Age Static VLAN                             VID  Port
+
+Total Entries    :           0
+Dynamic Entries  :           0             Static Entries            :          0
+Pending Entries  :           0
+
+Timeout          :          20 minutes     Refresh                   :    Enabled
+Locktime         :        1000 milliseconds
+Retransmit Time  :        1000 milliseconds
+Reachable Time   :      900000 milliseconds (Auto)
+
+Neighbor Discovery Global Settings
+Max Entries         :     8192 
+Max Pending Entries :     1024 

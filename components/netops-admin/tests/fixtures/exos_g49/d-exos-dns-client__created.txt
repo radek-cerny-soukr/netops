@@ -1,0 +1,3 @@
+Number of domain suffixes: 0
+Number of domain servers: 1
+Name Server 0:  192.0.2.26     VR-Default

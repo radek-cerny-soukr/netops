@@ -1,0 +1,13 @@
+{
+    "ipV6Neighbors": [
+        {
+            "address": "2001:db8:1::250",
+            "hwAddress": "0000.5e00.5304",
+            "interface": "Vl3931, not learned"
+        }
+    ],
+    "totalEntries": 1,
+    "staticEntries": 1,
+    "dynamicEntries": 0,
+    "notLearnedEntries": 1
+}

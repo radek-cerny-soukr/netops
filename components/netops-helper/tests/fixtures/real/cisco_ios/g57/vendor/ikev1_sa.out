@@ -1,0 +1,3 @@
+dst             src             state          conn-id slot status
+192.0.2.3      198.51.100.225 QM_IDLE              2    0 STDBY
+203.0.113.1     203.0.113.2     QM_IDLE              1    0 ACTIVE

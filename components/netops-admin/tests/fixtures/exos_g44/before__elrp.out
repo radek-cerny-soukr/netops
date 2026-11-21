@@ -1,0 +1,15 @@
+
+ELRP Standalone Client:           Disabled
+ELRP Inter-VLAN loop detection:   On
+ELRP client hardware assist:      Disabled
+Loopback port:                    None
+
+Number of ELRP sessions:          0
+Number of ELRP pkts transmitted:  0
+Number of ELRP pkts received:     0
+
+                                     Interval                   Pkts    Pkts        Disable
+Client VLAN          Ports              (sec) Count Cyclic      Xmit    Rcvd Action Port (sec)
+----------------------------------------------------------------------------------------------
+----------------------------------------------------------------------------------------------
+Action : (P) Print, (L) Log, (T) Trap, (C) Callback, (E) Egress, (I) Ingress

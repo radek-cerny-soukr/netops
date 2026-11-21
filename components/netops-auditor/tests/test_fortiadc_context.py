@@ -25,7 +25,10 @@ NOHC = PREFIX + "lb.pool-no-health-check"
 SINGLE = PREFIX + "lb.pool-single-member"
 VERSION_GATE = PREFIX + "scope.unsupported-version"
 VDOM_GATE = PREFIX + "scope.vdom-unsupported"
+UNTESTED = PREFIX + "scope.untested-version"
 ALL_RULES = {TRUSTED, PLAIN, TLS, FACTORY, NOHC, SINGLE}
+# Rules that a scope gate turns unsupported: the content rules and the untested-version notice (G00).
+GATED = ALL_RULES | {UNTESTED}
 
 GOOD = (
     'config system admin\n    edit "admin"\n        set trusted-hosts 192.0.2.0/24\n    next\nend\n'
@@ -72,14 +75,14 @@ def states_of(states, wanted):
 
 
 def test_catalog_lists_gates_and_rules():
-    assert {rule.id for rule in load_catalog("fortiadc")} == ALL_RULES | {VERSION_GATE, VDOM_GATE}
+    assert {rule.id for rule in load_catalog("fortiadc")} == ALL_RULES | {VERSION_GATE, VDOM_GATE, UNTESTED}
 
 
 def test_complete_snapshot_with_explicit_safe_values_is_evaluated_clean():
     findings, states = audit(GOOD)
     assert findings == ()
     assert states_of(states, NOT_EVALUATED) == {FACTORY}
-    assert states_of(states, EVALUATED) == (ALL_RULES - {FACTORY}) | {VERSION_GATE, VDOM_GATE}
+    assert states_of(states, EVALUATED) == (ALL_RULES - {FACTORY}) | {VERSION_GATE, VDOM_GATE, UNTESTED}
 
 
 def test_user_policy_cannot_supply_a_context():
@@ -90,7 +93,7 @@ def test_user_policy_cannot_supply_a_context():
     for fake in (forged, SimpleNamespace(**forged), json.loads(json.dumps(forged, default=list))):
         findings, states = audit(GOOD, ctx=None, policy={adc().CONTEXT_KEY: fake})
         assert states_of(states, EVALUATED) == {VERSION_GATE, VDOM_GATE}
-        assert states_of(states, UNSUPPORTED) == ALL_RULES
+        assert states_of(states, UNSUPPORTED) == GATED
         assert {states[rule][1] for rule in ALL_RULES} == {VERSION_GATE}
         assert findings[0].rule_id == VERSION_GATE
 
@@ -131,7 +134,7 @@ def test_second_snapshot_does_not_inherit_the_context_of_the_first():
     second_text = GOOD.replace("tlsv1.2 tlsv1.3", "tlsv1.0")
     findings, states = audit(second_text, ctx=None)
     assert first == () and findings[0].rule_id == VERSION_GATE
-    assert states_of(states, UNSUPPORTED) == ALL_RULES
+    assert states_of(states, UNSUPPORTED) == GATED
     again, states = audit(second_text)
     assert [item.rule_id for item in again] == [TLS]
 
@@ -151,18 +154,52 @@ def test_contradictory_or_unknown_metadata_is_refused(bad):
     {"platform": "FortiADC-KVM", "version": "7.6.6", "build": "0676"},
     {"platform": "FortiADC-KVM", "version": "7.6.7", "build": "0675"},
     {"platform": "FortiADC-VM", "version": "7.6.7", "build": "0676"},
+    {"platform": "FortiADC-KVM", "version": "8.0.0", "build": "0100"},
 ])
-def test_any_other_identity_makes_everything_unsupported(identity):
+def test_another_fortiadc_identity_is_evaluated_with_an_untested_notice(identity):
+    """G00 (U1, U2): no scope gate; the rules are evaluated as on the tested identity, plus one info notice."""
     findings, states = audit(GOOD, identity=identity)
+    assert [item.rule_id for item in findings] == [UNTESTED]
+    finding = findings[0]
+    assert finding.severity == "info" and finding.rule_class == "fakt" and finding.object_key == "identity"
+    message = ("FortiADC %s build %s on %s is not among the versions the FortiADC audit catalog was tested on "
+               "(FortiADC-KVM 7.6.7 build 0676). It may or may not work as designed and tested; check the result."
+               % (identity["version"], identity["build"], identity["platform"]))
+    assert dict(finding.evidence) == {
+        "reason": "untested-version", "platform": identity["platform"], "version": identity["version"],
+        "build": identity["build"], "status": "untested", "tested_versions": "FortiADC-KVM 7.6.7 build 0676",
+        "message": message}
+    _, tested = audit(GOOD)
+    assert states == tested
+    assert states_of(states, UNSUPPORTED) == set() and states[FACTORY][0] == NOT_EVALUATED
+    # A risky value is still a finding next to the notice (the rules really run).
+    risky, _ = audit(GOOD.replace("192.0.2.0/24", "0.0.0.0/0"), identity=identity)
+    assert [item.rule_id for item in risky] == [TRUSTED, UNTESTED]
+
+
+def test_untested_firmware_support_uses_the_core_structure():
+    support = adc().firmware_support(context(GOOD, identity={**IDENTITY, "build": "0700"}))
+    assert support["status"] == "untested" and support["model"] == "FortiADC-KVM"
+    assert support["device_version"] == "7.6.7 build 0700"
+    assert adc().firmware_support(context(GOOD))["status"] == "tested"
+    assert adc().TESTED == ("FortiADC-KVM", "7.6.7", "0676")
+
+
+@pytest.mark.parametrize("platform", ["FortiGate-VM64-KVM", "FortiGate-60F", "Linux"])
+def test_another_product_stays_a_scope_gate(platform):
+    """The product kind is a technical boundary, not a version (identity-mismatch keeps every rule unsupported)."""
+    findings, states = audit(GOOD, identity={**IDENTITY, "platform": platform})
     assert [item.rule_id for item in findings] == [VERSION_GATE]
-    assert states_of(states, UNSUPPORTED) == ALL_RULES
+    assert dict(findings[0].evidence)["reason"] == "identity-mismatch"
+    assert states_of(states, UNSUPPORTED) == GATED
+    assert {states[rule][1] for rule in GATED} == {VERSION_GATE}
 
 
 def test_vdom_scope_is_a_gate():
     text = GOOD + 'config system vdom\n    edit "a"\n    next\n    edit "b"\n    next\nend\n'
     findings, states = audit(text)
     assert [item.rule_id for item in findings] == [VDOM_GATE]
-    assert states_of(states, UNSUPPORTED) == ALL_RULES
+    assert states_of(states, UNSUPPORTED) == GATED
     findings, _ = audit(GOOD, complete=False, limits=["vdom-override-unverified"])
     assert [item.rule_id for item in findings] == [VDOM_GATE]
 
@@ -255,11 +292,20 @@ def test_gate_fixtures(gate):
     positive = (FIXTURES / gate / "positive.conf").read_text()
     negative = (FIXTURES / gate / "negative.conf").read_text()
     if gate == VERSION_GATE:
-        assert [i.rule_id for i in audit(positive, identity={**IDENTITY, "build": "1"})[0]] == [gate]
+        assert [i.rule_id for i in audit(positive, ctx=None)[0]] == [gate]
+        assert [i.rule_id for i in audit(positive, identity={**IDENTITY, "platform": "FortiGate-60F"})[0]] == [gate]
         assert [i.rule_id for i in audit(negative)[0]] == []
+        assert [i.rule_id for i in audit(negative, identity={**IDENTITY, "build": "1"})[0]] == [UNTESTED]
     else:
         assert [i.rule_id for i in audit(positive)[0]] == [gate]
         assert [i.rule_id for i in audit(negative)[0]] == []
+
+
+def test_untested_version_fixtures():
+    positive = (FIXTURES / UNTESTED / "positive.conf").read_text()
+    negative = (FIXTURES / UNTESTED / "negative.conf").read_text()
+    assert [i.rule_id for i in audit(positive, identity={**IDENTITY, "version": "7.6.8"})[0]] == [UNTESTED]
+    assert [i.rule_id for i in audit(negative)[0]] == []
 
 
 def test_engine_run_is_status_aware():
@@ -356,7 +402,7 @@ def test_cli_snapshot_meta_is_refused_for_other_platforms(capsys, tmp_path):
 
 def test_api_lists_fortiadc_catalog():
     assert "fortiadc" in mcp_server.available_platforms()
-    assert {rule.id for rule in mcp_server._rules("fortiadc")} == ALL_RULES | {VERSION_GATE, VDOM_GATE}
+    assert {rule.id for rule in mcp_server._rules("fortiadc")} == ALL_RULES | {VERSION_GATE, VDOM_GATE, UNTESTED}
 
 
 HELPER_META = {
@@ -392,14 +438,20 @@ def test_helper_visibility_limitations_pass_through_and_block_clean():
     assert states[PLAIN] == (NOT_EVALUATED, "visibility:networking")
 
 
-@pytest.mark.parametrize("changes", [
-    {"build": "0700"}, {"version": "7.6.8"}, {"version": "8.0.2"}, {"model": "FortiGate-60F"},
-])
-def test_helper_metadata_of_another_build_is_never_a_supported_snapshot(changes):
+@pytest.mark.parametrize("changes", [{"build": "0700"}, {"version": "7.6.8"}, {"version": "8.0.2"}])
+def test_helper_metadata_of_another_build_is_evaluated_and_reported_untested(changes):
     converted = adc().from_helper_metadata(helper_meta(**changes), sha(GOOD))
     findings, states = audit(GOOD, ctx=adc().build_context(converted, sha(GOOD)))
+    assert [item.rule_id for item in findings] == [UNTESTED]
+    assert dict(findings[0].evidence)["status"] == "untested"
+    assert states_of(states, UNSUPPORTED) == set()
+
+
+def test_helper_metadata_of_another_product_is_never_a_supported_snapshot():
+    converted = adc().from_helper_metadata(helper_meta(model="FortiGate-60F"), sha(GOOD))
+    findings, states = audit(GOOD, ctx=adc().build_context(converted, sha(GOOD)))
     assert findings[0].rule_id == VERSION_GATE
-    assert states_of(states, UNSUPPORTED) == ALL_RULES
+    assert states_of(states, UNSUPPORTED) == GATED
 
 
 @pytest.mark.parametrize("changes", [
@@ -428,10 +480,24 @@ def test_cli_accepts_the_metadata_document_written_by_the_helper(capsys, tmp_pat
     assert report["rule_status"][FACTORY]["status"] == NOT_EVALUATED
 
 
-def test_cli_helper_metadata_of_another_build_reports_the_version_gate(capsys, tmp_path):
+def test_cli_helper_metadata_of_another_build_reports_an_untested_notice(capsys, tmp_path):
+    """G00: the same exit and coverage as on the tested build; the report carries the untested notice."""
     code, report, _ = cli_run(capsys, tmp_path, GOOD, helper_meta(build="0700"))
+    assert code == cli.EXIT_OK
+    assert [item["rule_id"] for item in report["findings"]] == [UNTESTED]
+    finding = report["findings"][0]
+    assert finding["severity"] == "info"
+    assert finding["evidence"]["status"] == "untested" and finding["evidence"]["build"] == "0700"
+    assert "is not among the versions" in finding["evidence"]["message"]
+    assert report["rule_status"][TLS]["status"] == EVALUATED
+    assert report["rule_status"][FACTORY]["status"] == NOT_EVALUATED
+
+
+def test_cli_helper_metadata_of_another_product_reports_the_version_gate(capsys, tmp_path):
+    code, report, _ = cli_run(capsys, tmp_path, GOOD, helper_meta(model="FortiGate-60F"))
+    assert code == cli.EXIT_INCOMPLETE
     assert [item["rule_id"] for item in report["findings"]] == [VERSION_GATE]
-    assert {report["rule_status"][rule]["status"] for rule in ALL_RULES} == {UNSUPPORTED}
+    assert {report["rule_status"][rule]["status"] for rule in GATED} == {UNSUPPORTED}
 
 
 @pytest.mark.parametrize('output', ['json', 'sarif'])
@@ -451,14 +517,15 @@ def test_cli_process_coverage(tmp_path, output, scenario):
     args = [sys.executable, '-B', '-m', 'netops_auditor.cli', 'run', '--platform', 'fortiadc',
             '--tenant', 't', '--device', 'd', '--config', str(config), '--snapshot-meta', str(metadata), '--' + output]
     result = subprocess.run(args, capture_output=True, text=True, env=os.environ.copy())
-    assert result.returncode == (0 if scenario in ('inherent', 'user') else 3), result.stderr
+    # G00: an untested version (scenario 'version') is evaluated like the tested one, only an info notice is added.
+    assert result.returncode == (0 if scenario in ('inherent', 'user', 'version') else 3), result.stderr
     report = json.loads(result.stdout)
     if output == 'sarif':
         report = report['runs'][0]['properties']['devices'][0]
     assert report['evaluation_complete'] is False
     coverage = report['coverage']
     assert coverage['complete'] is False
-    if scenario in ('inherent', 'user'):
+    if scenario in ('inherent', 'user', 'version'):
         assert {gap['rule_id'] for gap in coverage['inherent_gaps']} == {FACTORY}
         assert coverage['actionable_gaps'] == []
     elif scenario == 'networking':

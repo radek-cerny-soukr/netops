@@ -1,0 +1,6 @@
+diagnose sniffer packet port2 'hostx 198.51.100.100' 4 3 a
+interfaces=[port2]
+filters=[hostx 198.51.100.100]
+pcap_compile: can't parse filter expression: syntax error
+
+FortiADC-KVM #

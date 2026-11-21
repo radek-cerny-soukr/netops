@@ -1,0 +1,5 @@
+Flags -(Rmac):Router MAC (Stt):Static (L):Local (R):Remote (V):vPC link 
+(Dup):Duplicate (Spl):Split (Rcv):Recv(D):Del Pending (S):Stale (C):Clear
+(Ps):Peer Sync (Ro):Re-Originated (Orp):Orphan 
+Topology    Mac Address    Host IP                                 Prod   Flags         Seq No     Next-Hops                              
+----------- -------------- --------------------------------------- ------ ---------- ---------- ---------------------------------------

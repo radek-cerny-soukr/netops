@@ -1,0 +1,9 @@
+
+Building configuration...
+
+Current configuration : 72 bytes
+!
+interface Vlan901
+ ip address 203.0.113.5 255.255.255.0
+ shutdown
+end

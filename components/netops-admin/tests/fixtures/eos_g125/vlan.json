@@ -1,0 +1,46 @@
+{
+    "vlans": {
+        "1": {
+            "name": "default",
+            "dynamic": false,
+            "status": "active",
+            "interfaces": {
+                "Ethernet6": {
+                    "privatePromoted": false,
+                    "blocked": null,
+                    "egressOnly": false
+                },
+                "Ethernet7": {
+                    "privatePromoted": false,
+                    "blocked": null,
+                    "egressOnly": false
+                },
+                "Ethernet8": {
+                    "privatePromoted": false,
+                    "blocked": null,
+                    "egressOnly": false
+                },
+                "Ethernet9": {
+                    "privatePromoted": false,
+                    "blocked": null,
+                    "egressOnly": false
+                },
+                "Ethernet10": {
+                    "privatePromoted": false,
+                    "blocked": null,
+                    "egressOnly": false
+                },
+                "Ethernet11": {
+                    "privatePromoted": false,
+                    "blocked": null,
+                    "egressOnly": false
+                },
+                "Ethernet13": {
+                    "privatePromoted": false,
+                    "blocked": null,
+                    "egressOnly": false
+                }
+            }
+        }
+    }
+}

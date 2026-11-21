@@ -1,0 +1,12 @@
+Ethernet0 is up, line protocol is up
+Internet address is 203.0.113.247/28
+Broadcast address is 255.255.255.255
+Address determined by non-volatile memory
+MTU is 1500 bytes
+Helper address is not set
+Directed broadcast forwarding is enabled
+Secondary address 203.0.113.246/24
+Outgoing access list is not set
+Inbound access list is not set
+Proxy ARP is enabled
+Security level is default

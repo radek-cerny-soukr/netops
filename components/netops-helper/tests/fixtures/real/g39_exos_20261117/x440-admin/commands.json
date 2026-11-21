@@ -1,0 +1,37 @@
+{
+  "access_list": {
+    "command": "show access-list",
+    "rc": 0,
+    "bytes": 203
+  },
+  "policy_detail": {
+    "command": "show policy detail",
+    "rc": 0,
+    "bytes": 229
+  },
+  "policy": {
+    "command": "show policy x04test",
+    "rc": 0,
+    "bytes": 229
+  },
+  "access_list_port": {
+    "command": "show access-list port 12",
+    "rc": 0,
+    "bytes": 62
+  },
+  "access_list_counter": {
+    "command": "show access-list counter",
+    "rc": 0,
+    "bytes": 331
+  },
+  "dhcp_server": {
+    "command": "show dhcp-server vlan x07test",
+    "rc": 0,
+    "bytes": 244
+  },
+  "accounts": {
+    "command": "show accounts",
+    "rc": 0,
+    "bytes": 483
+  }
+}

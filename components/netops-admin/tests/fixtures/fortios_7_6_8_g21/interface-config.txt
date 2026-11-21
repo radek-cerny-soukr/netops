@@ -1,0 +1,5 @@
+host01        $ config system interface
+    edit "dmz"
+        set ip 192.0.2.1  255.255.255.0
+    next
+end

@@ -1,0 +1,69 @@
+Client MAC Address : 0000.5e00.5308
+[...]
+Client IPv4 Address : 203.0.113.254
+[...]
+AP MAC Address : 0000.5e00.5309
+AP Name: host04
+AP slot : 2
+Client State : Associated
+Policy Profile : Policy4TiagoHome
+Flex Profile : TiagoHomeFlexProfile
+Wireless LAN Id: 5
+WLAN Profile Name: ssid01
+Wireless LAN Network Name (SSID): ssid01
+BSSID : 0000.5e00.530a
+Connected For : 329 seconds
+Protocol : 802.11ax - 6 GHz
+Channel : 69
+Client IIF-ID : 0xa000000a
+Association Id : 33
+Authentication Algorithm : Open System
+[...]
+Current Rate : 6.0
+Supported Rates : 61.0
+[...]
+Policy Type : WPA3
+Encryption Cipher : CCMP (AES)
+Authentication Key Management : SAE
+AAA override passphrase : No
+SAE PWE Method : Hash to Element(H2E)
+[...]
+Protected Management Frame - 802.11w : Yes
+EAP Type : Not Applicable
+[...]
+Session Manager:
+Point of Attachment : capwap_90000025
+IIF ID : 0x90000025
+Authorized : TRUE
+Session timeout : 86400
+Common Session ID: [redacted]
+Acct Session ID : 0x00000000
+Auth Method Status List
+Method : SAE
+Local Policies:
+Service Template : wlan_svc_Policy4TiagoHome (priority 254)
+VLAN : default
+Absolute-Timer : 86400
+Server Policies:
+Resultant Policies:
+VLAN Name : default
+VLAN : 1
+Absolute-Timer : 86400
+[...]
+FlexConnect Data Switching : Local
+FlexConnect Dhcp Status : Local
+FlexConnect Authentication : Local
+Client Statistics:
+Number of Bytes Received from Client : 603220312
+Number of Bytes Sent to Client : 72111916
+Number of Packets Received from Client : 461422
+Number of Packets Sent to Client : 107888
+Number of Policy Errors : 0
+Radio Signal Strength Indicator : -45 dBm
+Signal to Noise Ratio : 48 dB
+[...]
+Device Classification Information:
+Device Type : Android-Google-Pixel
+Device Name : Pixel-6a
+Protocol Map : 0x000029 (OUI, DHCP, HTTP)
+Device OS : X11; Linux x86_64

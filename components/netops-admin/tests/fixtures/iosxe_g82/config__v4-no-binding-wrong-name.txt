@@ -1,0 +1,3 @@
+no ip access-group WRONGNAME in
+% Access-group WRONGNAME is not configured
+host01(config-if)#

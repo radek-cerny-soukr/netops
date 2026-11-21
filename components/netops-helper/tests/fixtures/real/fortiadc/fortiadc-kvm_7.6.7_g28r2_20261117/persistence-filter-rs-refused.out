@@ -1,0 +1,4 @@
+diagnose server-load-balance persistence filter 'rs-name RS_A'
+'rs-name' is invalid filter option or exceeded the maximum name length.
+
+FortiADC-KVM # 

@@ -36,6 +36,8 @@ GOLDEN_KEPT = {
     "X435-8P-4S": [
         "configure vlan default delete ports all",
         "configure vlan Default add ports 1-12 untagged  ",
+        "enable ssh2",
+        "disable telnet",
     ],
     "X440G2-12p-10G4": [
         "configure vlan default delete ports all",
@@ -44,6 +46,8 @@ GOLDEN_KEPT = {
         "configure ports 15 auto off speed 10000 duplex full ",
         "configure ports 16 auto off speed 10000 duplex full ",
         "configure vlan Default add ports 1-16 untagged  ",
+        "enable ssh2",
+        "disable telnet",
     ],
 }
 
@@ -457,7 +461,7 @@ def test_pager_prompt_is_withheld(data):
     (b"", "stream-incomplete"),
     (b"\n\n\n", "redaction-unverifiable"),
     (b"#\n# Module vlan configuration.\n#\n", "redaction-unverifiable"),
-    (b"configure snmp sysName FAKEonlyNOTREAL\nenable telnet\n", "redaction-unverifiable"),
+    (b"configure snmp sysName FAKEonlyNOTREAL\nenable snmp access\n", "redaction-unverifiable"),
 ])
 def test_empty_or_unverified_output_is_not_a_configuration(data, reason):
     exc, redactor = fail(data)

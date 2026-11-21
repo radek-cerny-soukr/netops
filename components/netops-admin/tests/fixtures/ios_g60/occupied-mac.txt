@@ -1,0 +1,7 @@
+          Mac Address Table
+-------------------------------------------
+
+Vlan    Mac Address       Type        Ports
+----    -----------       --------    -----
+3780    0000.5e00.5301    STATIC      Gi1/0 
+Total Mac Addresses for this criterion: 1

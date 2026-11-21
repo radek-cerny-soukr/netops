@@ -11,8 +11,8 @@ from __future__ import annotations
 from contextvars import ContextVar
 from typing import Any, Awaitable, Callable
 
-# Device reads a triage may take; also the cost charged to the target's triage budget.
-TRIAGE_READS = {"triage_health": 10, "triage_routing": 5, "triage_vpn": 4, "triage_slb": 21}
+# Upper bounds for triage progress and default reservations when there is no target-specific plan.
+TRIAGE_READS = {"triage_health": 10, "triage_routing": 5, "triage_vpn": 6, "triage_slb": 21}
 
 Report = Callable[[int, int, str], None]
 Sink = Callable[[int, int, str], Awaitable[Any]]
@@ -43,9 +43,9 @@ def transport() -> Sink | None:
 
 
 class Steps:
-    def __init__(self, tool: str) -> None:
+    def __init__(self, tool: str, *, total: int | None = None) -> None:
         self.tool = tool
-        self.total = TRIAGE_READS[tool]
+        self.total = TRIAGE_READS[tool] if total is None else total
         self.done = 0
         self._report = _REPORT.get()
         self._send("started")

@@ -38,19 +38,141 @@ REFUSED = re.compile(r'Line has invalid autocommand|privileged mode required|% I
 DENIED = re.compile(r'% Permission denied for the role|error: permission denied')
 ABSENT = re.compile(r'Syntax error while parsing|error: unknown command|error: syntax error|subsystem (?:is )?not running')
 FAILED = re.compile(r'(?mi)^(?:ERROR:|Cmd exec error\.)')
-NOT_CONFIGURED = re.compile(r'% BGP (?:not active|inactive)|IPv6 routing not enabled|BGP is not running|Spanning-tree is not enabled at global level|No spanning tree instances? exists?')
+NOT_CONFIGURED = re.compile(r'% BGP (?:not active|inactive)|IPv6 routing not enabled|BGP is not running|OSPF3 process does not exist in vrf |Spanning-tree is not enabled at global level|No spanning tree instances? exists?|No VRF named |IP routing table vrf .* does not exist')
 
+
+
+NXOS_G92_CAPTURES = {
+    "stp_detail": "2255-stp-detail",
+    "stp_interface_detail": "2255-stp-port",
+    "stp_mst": "2255-stp-mst",
+    "port_channel_database": "2261-lag-database",
+    "lacp_interface": "2261-lacp-port-compact",
+    "port_channel_load_balance": "2261-lag-load",
+    "vpc_member_consistency": "2261-vpc-member",
+    "vpc_interface_consistency": "2261-vpc-interface-compact",
+    "lldp_neighbor_interface": "2255-lldp-mgmt-compact",
+    "cdp_neighbor_interface": "2261-cdp-port",
+}
+
+def cisco_operational_capture(image: str, query: str) -> tuple[str, bool] | None:
+    if query == "vrf_cef_lookup":
+        capture = {
+            "iosv_15.9.3M12": REAL / "cisco_ios/g59/d-iosv/vrf_cef",
+            "iolxe_17.18.2": REAL / "cisco_xe/g77/d-iolxe/vrf_cef",
+        }.get(image)
+        if capture is not None:
+            return capture.read_text(), False
+    node = {"iosv_15.9.3M12": "iosv", "iolxe_17.18.2": "iolxe"}.get(image)
+    if node is None:
+        return None
+    captures = REAL / "cisco_ios" / "g57" / node
+    if node == "iolxe" and query == "qos_queues":
+        captures = REAL / "cisco_ios_xe" / "g75" / "lab"
+    read_only = captures / f"ro_{query}.out"
+    if not read_only.is_file():
+        return None
+    text = read_only.read_text()
+    admin = captures / f"{query}.out"
+    admin_answered = admin.is_file() and not REFUSED.search(admin.read_text())
+    return text, admin_answered
+
+
+XE_G72_CAPTURES = {
+    "log_history": "log_messages",
+    "hsrp_detail": "hsrp_detail",
+    "vrrp_detail": "vrrp_detail",
+    "ip_sla_statistics": "ip_sla_statistics",
+    "object_tracking": "object_tracking",
+}
+
+IOS_XE_G73_ROUTER_CAPTURES = {
+    "arp_lookup": "router-arp_global",
+    "arp_lookup_vrf": "router-arp_vrf",
+    "arp_table_vrf": "router-arp_vrf_table",
+    "ipv6_neighbors_interface": "router-nd_port",
+    "ipv6_neighbors_vrf": "router-nd_vrf",
+    "ipv6_neighbors_interface_vrf": "router-nd_vrf_port",
+    "dhcp_server_bindings": "router-lease",
+    "dhcp_server_binding_address": "router-lease_address",
+    "dhcp_server_pools": "router-pool",
+    "dhcp_server_conflicts": "router-conflict",
+    "dhcp_server_statistics": "router-stats",
+}
 
 def cell(directory: Path, name: str, index: dict) -> str:
     entry = index.get(name)
-    if entry is None:
+    groups = {"ceos_4.36.1F": ("g117_ceos_4.36.1F", "g118_ceos_4.36.1F", "g119_ceos_4.36.1F",
+                                       "g120_ceos_4.36.1F"),
+              "vjunosswitch_26.2R1.7": ("g132_vjunosswitch_26.2R1.7", "g133_vjunosswitch_26.2R1.7",
+                                      "g135_vjunosswitch_26.2R1.7")}.get(directory.name)
+    if entry is None and groups:
+        # Recent groups keep both accounts in separate fixture directories.
+        for group in groups:
+            capture = directory.with_name(group)
+            measured = json.loads((capture / "index.json").read_text())
+            entry = measured.get(name + "_ro")
+            if entry is None and group.startswith("g133_"):
+                entry = measured.get(name + "_admin")
+            if entry is not None:
+                text = entry["text"] if "text" in entry else (capture / entry["file"]).read_text()
+                admin = name + "_admin" in measured and measured[name + "_admin"]["rc"] == 0
+                if "error: unknown command" in text and admin:
+                    # G132 probes: the Junos read-only class lacks the network permission; admin answers.
+                    return "refused to the read-only account, answered to admin"
+                break
+        else:
+            return "-"
+    elif entry is None and directory.name == "nexus9300v_9.3.12" and name in NXOS_G92_CAPTURES:
+        capture = directory.with_name("g92_nexus9300v_9.3.12")
+        key = NXOS_G92_CAPTURES[name]
+        for filename in ("index.json", "index-extra.json"):
+            entry = json.loads((capture / filename).read_text())["captures"].get(key)
+            if entry is not None:
+                break
+        text = (capture / (key + ".out")).read_text()
+        admin = False
+    elif entry is None and directory.name == "nexus9300v_9.3.12":
+        capture = directory.with_name("g97") / "lab"
+        entry = json.loads((capture / "index.json").read_text()).get(name)
+        if entry is None:
+            return "-"
+        text = (capture / f"{name}.out").read_text()
+        admin = False
+    elif entry is None and (operational := cisco_operational_capture(directory.name, name)) is not None:
+        text, admin = operational
+        entry = {"rc": 0}
+    elif entry is None and directory.name == "iolxe_17.18.2" and name in XE_G72_CAPTURES:
+        capture = directory.with_name("iolxe_17.18.2_g72")
+        source = XE_G72_CAPTURES[name]
+        text = (capture / f"d-iolxe-ro-{source}.out").read_text()
+        admin = (capture / f"d-iolxe-admin-{source}.out").is_file()
+        entry = {"rc": 0}
+    elif entry is None and directory.name == "iolxe_17.18.2":
+        for group in ("iolxe_17.18.2_g69", "iolxe_17.18.2_g70"):
+            capture = directory.with_name(group) / (name + ".out")
+            if capture.is_file():
+                break
+        else:
+            filename = IOS_XE_G73_ROUTER_CAPTURES.get(name)
+            if filename is None:
+                return "-"
+            capture = directory.with_name("iolxe_17.18.2_g73") / (filename + ".out")
+        read_only_capture = capture.with_name("ro_" + capture.name)
+        admin = read_only_capture.is_file()
+        text = (read_only_capture if admin else capture).read_text()
+        entry = {"rc": 0}
+    elif entry is None:
         return "-"
-    text = (directory / f"{name}.txt").read_text()
-    admin = (directory / f"{name}.admin.txt").exists()
+    else:
+        text = (directory / f"{name}.txt").read_text()
+        admin = (directory / f"{name}.admin.txt").exists()
     if REFUSED.search(text) or DENIED.search(text):
         if admin:
             return "refused to the read-only account, answered to admin"
         return "refused to the read-only account" if DENIED.search(text) else "not supported by the image"
+    if entry.get("account") == "network" and "not needed by configuration" in text:
+        return "not configured"
     if ABSENT.search(text):
         return "feature off or not supported by the image"
     if NOT_CONFIGURED.search(text):
@@ -80,7 +202,8 @@ def render(profile: str, devices) -> str:
         rows.append((name, query.command, cells, "live" if answered else "docs-only"))
     head = "| Template | Command | " + " | ".join(label for _, label in devices) + " | verified |"
     rule = "|---|---|" + "---|" * len(devices) + "---|"
-    body = [f"| `{n}` | `{c}` | " + " | ".join(cells) + f" | {v} |" for n, c, cells, v in rows]
+    # GFM splits a cell at every unescaped pipe, also inside a code span
+    body = [f"| `{n}` | `" + c.replace("|", "\\|") + "` | " + " | ".join(cells) + f" | {v} |" for n, c, cells, v in rows]
     return "\n".join([begin, "", head, rule, *body, "", end])
 
 

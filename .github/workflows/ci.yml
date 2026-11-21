@@ -3,7 +3,7 @@ name: CI
 on:
   push:
     branches-ignore:
-      - "release/1.0.11-candidate"
+      - "release/1.0.12-candidate"
     tags:
       - "**"
   pull_request:
@@ -78,7 +78,7 @@ jobs:
             mkdir -p "qualification/$role"
             chmod 0777 "qualification/$role"
             docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges --memory 2g --cpus 2 \
-              --tmpfs /tmp:rw,nosuid,nodev,exec,size=512m,mode=1777 --tmpfs /pytmp:rw,nosuid,nodev,exec,size=512m,mode=1777 \
+              --tmpfs /tmp:rw,nosuid,nodev,exec,size=512m,mode=1777 --tmpfs /pytmp:rw,nosuid,nodev,exec,size=2g,mode=1777 \
               --mount "type=bind,source=$PWD/qualification/$role,target=/reports" netops-ci-engine-tests \
               --role "$role" --candidate-commit "$GITHUB_SHA" --candidate-image "$ref" --output /reports/engine-report.json \
               2>&1 | tee "test-logs/engine-$role.log" || status=1

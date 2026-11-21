@@ -1,0 +1,67 @@
+ show ap mac 00:00:5E:00:53:02
+AP:
+  ID:
+    1:
+      MAC Address= 00:00:5e:00:53:02
+      Model= r610
+      Approved= Yes
+      Device Name= host01
+      Device Role= Master
+      Description= port-desc-01
+      Location= 1stFloor
+      GPS= 
+      CERT = Normal
+      Bonjour-policy= 
+      Bonjour-fencing= 
+      Group Name= System Default
+      Channel Range:
+        A/N= 36,40,44,48,52,56,60,64,100,104 (Disallowed= 108,112,116,120,124,128,132,136)
+        B/G/N= 1,6,11 (Disallowed= 2,3,4,5,7,8,9,10,12,13)
+      Radio a/n:
+        Channelization= 40
+        Channel= 56
+        WLAN Services enabled= Yes
+        Tx. Power= Full
+        WLAN Group Name= System Default
+        Call Admission Control= 10% airtime usage limit
+        Protection Mode= 2
+      Radio b/g/n:
+        Channelization= 20
+        Channel= 11
+        WLAN Services enabled= Yes
+        Tx. Power= Full
+        WLAN Group Name= System Default
+        Call Admission Control= 20% airtime usage limit
+        Protection Mode= rts-cts
+      Override global ap-model port configuration= No
+      Network Setting:
+        Protocol mode= IPv4-Only
+        Device IP Settings= Manual
+        IP Address= 192.0.2.5
+        Netmask= 255.255.255.0
+        Gateway= 192.0.2.1
+        Primary DNS Server= 192.0.2.1
+        Secondary DNS Server= 
+      Mesh:
+        Status= Disabled
+      LLDP:
+        Status = Use Parent Setting
+      Venue Name List:
+      LAN Port:
+        0:
+          Interface= eth0
+          Dot1x= None
+          LogicalLink= Up
+          PhysicalLink= Up 1000Mbps full
+          Label= 10/100/1000 PoE Port1
+        1:
+          Interface= eth1
+          Dot1x= None
+          LogicalLink= Down
+          PhysicalLink= Down  
+          Label= 10/100/1000 Port2
+      PoE Mode= 802.3at
+      802.3af PoE Tx. chain= 2
+      LACP State= false
+ 
+      Channel stats:

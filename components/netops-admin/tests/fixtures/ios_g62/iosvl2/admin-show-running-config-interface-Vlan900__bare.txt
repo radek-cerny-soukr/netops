@@ -1,0 +1,8 @@
+Building configuration...
+
+Current configuration : 50 bytes
+!
+interface Vlan900
+ no ip address
+ shutdown
+end

@@ -116,7 +116,7 @@ def test_another_refused_option_is_not_reported_as_an_interface_refusal() -> Non
 
 def test_the_engine_passes_the_reason_to_the_caller(wire, audit_log, monkeypatch) -> None:
     shell = engine._FortiosDiagnosticShell(_Replay("secondary"))
-    monkeypatch.setattr(engine.core_session, "Session", _OpenSession)
+    monkeypatch.setattr(engine.core_session, "fortinet_session", _OpenSession)
     monkeypatch.setattr(engine, "_FortiosDiagnosticShell", lambda opened: shell)
     target = _diagnostic_target()
     target = replace(target, read_inventory={**target.read_inventory, "addresses": (ADDRESS,), "interfaces": (INTERFACE,)})

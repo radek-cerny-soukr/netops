@@ -66,7 +66,7 @@ def operate(monkeypatch, tmp_path, capsys, record, *command):
     monkeypatch.setattr(config, "load_config", lambda _path: None)
     monkeypatch.setattr(cli, "build_runtime", lambda _config: None)
     monkeypatch.setattr(execute, "apply", lambda _runtime, _device, _request, expected_plan_sha256=None: record)
-    monkeypatch.setattr(execute, "undo", lambda _runtime, _change_id, _reason: record)
+    monkeypatch.setattr(execute, "undo", lambda _runtime, _change_id, _reason, expected_plan_sha256=None: record)
     request = tmp_path / "request.json"
     request.write_bytes(request_bytes())
     arguments = {"apply": ("--device", "fw", "--request", str(request)),

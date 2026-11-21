@@ -1,0 +1,10 @@
+config router static
+    edit 439
+        set status disable
+        set dst 203.0.113.0 255.255.255.0
+        set gateway 198.51.100.2
+        set distance 20
+        set device "n439-v"
+        set comment "NetOps G19 test"
+    next
+end

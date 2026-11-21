@@ -1,0 +1,68 @@
+{
+  "platform": "junos",
+  "table": "nat-source-rule",
+  "versions": [
+    "26.2R1.7"
+  ],
+  "exact_versions": true,
+  "ops": [
+    "create",
+    "update",
+    "delete"
+  ],
+  "table_scoped_key": true,
+  "key_pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,62}@[A-Za-z0-9][A-Za-z0-9_.-]{0,62}$",
+  "protected_keys": [],
+  "attributes": {
+    "from-zone": {
+      "type": "text",
+      "required_on_create": true,
+      "update": true,
+      "unset": false,
+      "referenced_update": false,
+      "max_length": 63,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,62}$"
+    },
+    "to-zone": {
+      "type": "text",
+      "required_on_create": true,
+      "update": true,
+      "unset": false,
+      "referenced_update": false,
+      "max_length": 63,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,62}$"
+    },
+    "source-address": {
+      "type": "text",
+      "required_on_create": true,
+      "update": true,
+      "unset": false,
+      "referenced_update": false,
+      "max_length": 50,
+      "pattern": "^[0-9A-Fa-f:./]+$"
+    },
+    "destination-address": {
+      "type": "text",
+      "required_on_create": false,
+      "update": true,
+      "unset": true,
+      "referenced_update": false,
+      "max_length": 50,
+      "pattern": "^[0-9A-Fa-f:./]+$"
+    },
+    "translation": {
+      "type": "text",
+      "required_on_create": true,
+      "update": true,
+      "unset": false,
+      "referenced_update": false,
+      "max_length": 9,
+      "pattern": "^(interface|off)$"
+    }
+  },
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "Uses the Junos commit confirmed safeguard and scoped inverse (G132). SRX only: the preview is refused on a device without the security hierarchy. Verified against Juniper documentation outputs only (no SRX in the lab). Source NAT rule RULESET@RULE (rule-set zones, source and optional destination prefix, interface NAT or off). A change of an existing rule needs endpoint_impact."
+}

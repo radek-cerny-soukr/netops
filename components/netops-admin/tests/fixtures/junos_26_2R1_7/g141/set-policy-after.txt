@@ -1,0 +1,5 @@
+set policy-options prefix-list NETOPS-G141-PREFIXES 203.0.113.1/32
+set policy-options prefix-list NETOPS-G141-PREFIXES 203.0.113.2/32
+set policy-options policy-statement NETOPS-G141-POLICY term match from prefix-list NETOPS-G141-PREFIXES
+set policy-options policy-statement NETOPS-G141-POLICY term match then accept
+set policy-options policy-statement NETOPS-G141-POLICY term default then reject

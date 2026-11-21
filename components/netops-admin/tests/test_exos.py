@@ -103,16 +103,24 @@ def test_rejections(exos_snapshot, fields, fragment):
     rejected(exos_snapshot, fragment, **fields)
 
 
-def test_firmware_is_required_and_must_be_measured(exos_snapshot):
+def test_firmware_is_required_and_an_untested_one_is_planned_with_a_warning(exos_snapshot):
     rejected(exos_snapshot, "must state it", firmware=None)
-    rejected(exos_snapshot, "not measured on firmware", firmware="33.7.2")
-    rejected(exos_snapshot, "not measured on firmware", firmware="33.6.1")
-    rejected(exos_snapshot, "not measured on firmware", firmware="33.6.2")
+    tested = plan(exos_snapshot)
+    assert tested["firmware_support"]["status"] == "tested"
+    for firmware in ("33.7.2", "33.6.1", "33.6.2", "32.6.2.68"):
+        document = plan(exos_snapshot, firmware=firmware)
+        support = document["firmware_support"]
+        assert support["status"] == "untested" and support["device_version"] == firmware
+        assert support["tested_versions"] == ["33.7.1.6", "33.6.1.14"]
+        assert "may or may not work as designed and tested" in support["message"]
+        assert document["commands"] == tested["commands"] and document["inverse"] == tested["inverse"]
+        assert document["plan_sha256"] != tested["plan_sha256"]
 
 
 def test_measured_exos_vm_build_is_accepted(exos_snapshot):
     document = plan(exos_snapshot, firmware="33.6.1.14")
     assert document["firmware"] == "33.6.1.14"
+    assert document["firmware_support"]["status"] == "tested"
     assert document["commands"] == ["create vlan guest tag 3000"]
 
 

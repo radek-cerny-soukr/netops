@@ -1,0 +1,11 @@
+
+
+
+Building configuration...
+
+Current configuration : 65 bytes
+!
+interface Loopback902
+ vrf forwarding blue
+ no ip address
+end

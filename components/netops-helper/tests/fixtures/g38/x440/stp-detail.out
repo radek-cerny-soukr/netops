@@ -1,0 +1,19 @@
+Stpd: s0	Port: 1	PortId: 8001	Stp: ENABLED	Path Cost: 20000
+Port Mode         : 802.1D		Port Role          : Designated
+Port State        : FORWARDING		Topology Change Ack: FALSE
+Port Priority     : 128
+Designated Root   : 80:00:00:00:5e:00:53:01	Designated Cost: 0, IntCost: 0
+Designated Bridge : 80:00:00:00:5e:00:53:01	Designated Port Id: 8001
+Partner STP version     : Dot1w
+Restricted Role         : Disabled
+Active Role             : Disabled
+Edge Port Safe Guard    : Disabled
+BPDU Restrict           : Disabled
+maxAge: 20	msgAge: 0	fwdDelay: 15	helloTime: 2	maxHops: 20
+Restricted TCN          : Off
+Loop Protect            : Off
+Loop Protect Partner    : Incapable
+Operational Edge        : TRUE
+Auto Edge               : On
+Reflection BPDU         : On
+Participating Vlans: Default

@@ -1,0 +1,79 @@
+-------------------------
+Device ID: host02
+Entry address(es):
+  IP address: 192.0.2.51
+Platform: Cisco ,  Capabilities: Router Source-Route-Bridge
+Interface: Ethernet0/0,  Port ID (outgoing port): GigabitEthernet0/0
+Holdtime : 132 sec
+
+Version :
+Cisco IOS Software, IOSv Software (VIOS-ADVENTERPRISEK9-M), Version 15.9(3)M12, RELEASE SOFTWARE (fc1)
+Technical Support: http://www.cisco.com/techsupport
+Copyright (c) 1986-2025 by Cisco Systems, Inc.
+Compiled Fri 19-Sep-25 07:49 by mcpre
+
+advertisement version: 2
+Peer Source MAC: 0000.5e00.5303
+Management address(es):
+  IP address: 192.0.2.51
+
+-------------------------
+Device ID: host03(SERIAL00001)
+Entry address(es):
+IP address: 192.0.2.55
+Platform: N9K-C9300v,  Capabilities: Router Switch CVTA phone port
+Interface: Ethernet0/0,  Port ID (outgoing port): mgmt0
+Holdtime : 172 sec
+
+Version :
+Cisco Nexus Operating System (NX-OS) Software, Version 9.3(12)
+
+advertisement version: 2
+Peer Source MAC: 0000.5e00.5304
+Duplex: full
+Management address(es):
+  IP address: 192.0.2.55
+
+-------------------------
+Device ID: host04
+Entry address(es):
+  IP address: 192.0.2.52
+Platform: Cisco ,  Capabilities: Router Switch IGMP
+Interface: Ethernet0/0,  Port ID (outgoing port): GigabitEthernet0/0
+Holdtime : 153 sec
+
+Version :
+Cisco IOS Software, vios_l2 Software (vios_l2-ADVENTERPRISEK9-M), Experimental Version 15.2(20200924:215240) [sweickge-sep24-2020-l2iol-release 135]
+Copyright (c) 1986-2020 by Cisco Systems, Inc.
+Compiled Tue 29-Sep-20 11:53 by sweickge
+
+advertisement version: 2
+Peer Source MAC: 0000.5e00.5305
+VTP Management Domain: ''
+Native VLAN: 99
+Duplex: full
+Management address(es):
+  IP address: 192.0.2.52
+
+-------------------------
+Device ID: host05
+Entry address(es):
+  IP address: 192.0.2.57
+Platform: Linux Unix,  Capabilities: Router
+Interface: Ethernet0/0,  Port ID (outgoing port): Ethernet0/0
+Holdtime : 165 sec
+
+Version :
+Cisco IOS Software [IOSXE], Linux Software (X86_64BI_LINUX-ADVENTERPRISEK9-M), Version 17.18.2, RELEASE SOFTWARE (fc3)
+Technical Support: http://www.cisco.com/techsupport
+Copyright (c) 1986-2025 by Cisco Systems, Inc.
+Compiled Fri 19-Dec-25 03:28 by mcpre
+
+advertisement version: 2
+Peer Source MAC: 0000.5e00.5306
+Duplex: full
+Management address(es):
+  IP address: 192.0.2.57
+
+
+Total cdp entries displayed : 4

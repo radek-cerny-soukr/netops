@@ -1,0 +1,1 @@
+diagnose server-load-balance session filter 'vs-name LAB_VS_SMTP  source-ip 192.0.2.100'

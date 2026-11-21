@@ -1,0 +1,4 @@
+
+
+
+Line has invalid autocommand "show ip interface Ethernet0/2.80"

@@ -64,15 +64,80 @@ def test_missing_field_is_refused():
 def test_shipped_profiles_load():
     loaded = profiles.load_profiles()
     assert set(loaded) == {("fortios", "firewall address"), ("exos", "vlan"), ("exos", "ports"),
+                           ("exos", "bootprelay"), ("exos", "dhcp-server"),
+                           ("exos", "ospf"), ("exos", "ospf-area"), ("exos", "ospf-interface"),
+                           ("exos", "bgp"), ("exos", "bgp-neighbor"),
                            ("fortios", "firewall addrgrp"), ("fortios", "system dhcp server/reserved-address"),
+                           ("fortios", "system dns-database/dns-entry"),
+                           ("fortios", "vpn ipsec phase2-interface"),
                            ("exos", "vlan-membership"), ("fortios", "firewall policy"),
-                           ("fortios", "firewall service custom"), ("exos", "inline-power"),
-                           ("eos", "interface"), ("eos", "vlan-membership"),
-                           ("ios", "interface"), ("ios", "vlan-membership"),
-                           ("iosxe", "interface"), ("iosxe", "vlan-membership"),
+                           ("fortios", "firewall service custom"), ("fortios", "firewall vip"),
+                           ("fortios", "firewall ippool"), ("exos", "inline-power"), ("exos", "port-bounce"),
+                           ("eos", "interface"), ("eos", "vlan-membership"), ("eos", "vlan"),
+                           ("eos", "port-bounce"), ("eos", "inline-power"),
+                           ("eos", "static-route"), ("eos", "l3-interface"), ("eos", "ip-routing"),
+                           ("eos", "vrrp"), ("eos", "varp"), ("eos", "varp-mac"),
+                           ("eos", "ip-access-list"), ("eos", "interface-access-group"),
+                           ("eos", "port-channel"), ("eos", "port-channel-member"), ("eos", "mlag-port"),
+                           ("eos", "mlag-peer"), ("eos", "stp-port"), ("eos", "stp-vlan"),
+                           ("eos", "ntp-server"), ("eos", "syslog-host"), ("eos", "dns-server"),
+                           ("eos", "system-services"), ("eos", "startup-config"),
+                           ("ruckus", "wlan"), ("ruckus", "dhcp-relay"),
+                           ("eos", "ospf-process"), ("eos", "ospf-network"), ("eos", "ospf-interface"),
+                           ("eos", "ip-prefix-list"), ("eos", "route-map"), ("eos", "bgp-neighbor"),
+                           ("eos", "dhcp-pool"), ("eos", "dhcp-relay"),
+                           ("ios", "interface"), ("ios", "vlan-membership"), ("ios", "vlan"),
+                           ("ios", "static-route"), ("ios", "l3-interface"), ("ios", "etherchannel-member"),
+                           ("ios", "port-bounce"), ("ios", "poe-cycle"), ("ios", "inline-power"),
+                           ("iosxe", "port-bounce"), ("iosxe", "poe-cycle"), ("iosxe", "inline-power"),
+                           ("ios", "ip-access-list"), ("ios", "interface-access-group"),
+                           ("ios", "dhcp-pool"), ("ios", "dhcp-reservation"),
+                           ("ios", "dhcp-exclusion"), ("ios", "dhcp-relay"),
+                           ("ios", "ntp-server"), ("ios", "syslog-host"), ("ios", "static-host"),
+                           ("ios", "system-services"), ("ios", "startup-config"),
+                           ("iosxe", "interface"), ("iosxe", "vlan-membership"), ("iosxe", "vlan"),
+                           ("iosxe", "static-route"), ("iosxe", "l3-interface"), ("iosxe", "etherchannel-member"),
+                           ("iosxe", "ip-access-list"), ("iosxe", "interface-access-group"),
+                           ("iosxe", "dhcp-pool"), ("iosxe", "dhcp-reservation"),
+                           ("iosxe", "dhcp-exclusion"), ("iosxe", "dhcp-relay"),
+                           ("iosxe", "ntp-server"), ("iosxe", "syslog-host"), ("iosxe", "static-host"),
+                           ("iosxe", "system-services"), ("iosxe", "startup-config"),
+                           ("exos", "iproute"), ("exos", "vrrp"),
+                           ("exos", "acl-policy"), ("exos", "acl-attachment"),
+                           ("exos", "ntp-server"), ("exos", "ntp"), ("exos", "sntp-server"),
+                           ("exos", "syslog-target"), ("exos", "dns-server"), ("exos", "dns-suffix"),
+                           ("exos", "system-name"),
+                           ("exos", "port-link"), ("exos", "jumbo-frame-size"), ("exos", "sharing"),
+                           ("exos", "stpd"), ("exos", "stpd-port"), ("exos", "elrp"),
+                           ("exos", "mlag-peer"), ("exos", "mlag-port"),
                            ("fortiadc", "load-balance pool/pool_member"),
-                           ("nxos", "interface"), ("nxos", "vlan-membership"),
-                           ("junos", "interface"), ("junos", "vlan-membership")}
+                           ("fortiadc", "system certificate local_cert_group/group_member"),
+                           ("fortiadc", "load-balance virtual-server"), ("fortiadc", "load-balance real-server"),
+                           ("nxos", "interface"), ("nxos", "vlan-membership"), ("nxos", "vlan"),
+                           ("nxos", "static-route"), ("nxos", "l3-interface"), ("nxos", "dhcp-relay"),
+                           ("nxos", "port-bounce"), ("nxos", "port-channel"), ("nxos", "port-channel-member"),
+                           ("nxos", "vpc-port"), ("nxos", "vpc-peer-link"), ("nxos", "vpc-domain"),
+                           ("nxos", "ip-access-list"), ("nxos", "interface-access-group"),
+                           ("nxos", "ntp-server"), ("nxos", "ntp-source"), ("nxos", "syslog-server"),
+                           ("nxos", "syslog-source"), ("nxos", "dns-server"), ("nxos", "dns-domain"),
+                           ("nxos", "startup-config"),
+                           ("junos", "interface"), ("junos", "vlan-membership"), ("junos", "vlan"),
+                           ("junos", "system"), ("junos", "ntp-server"), ("junos", "syslog-host"),
+                           ("junos", "static-route"), ("junos", "irb"), ("junos", "vrrp"),
+                           ("junos", "poe"), ("junos", "inline-power"), ("junos", "port-bounce"),
+                           ("junos", "lag"), ("junos", "rstp"), ("junos", "rstp-interface"),
+                           ("junos", "ospf-interface"), ("junos", "ospf3-interface"), ("junos", "prefix-list"),
+                           ("junos", "route-policy"), ("junos", "bgp-group"), ("junos", "bgp-neighbor"),
+                           ("junos", "firewall-filter"), ("junos", "filter-binding"),
+                           ("junos", "security-zone"), ("junos", "address-book-address"),
+                           ("junos", "address-book-set"), ("junos", "security-policy"),
+                           ("junos", "nat-source-rule"), ("junos", "nat-destination-pool"),
+                           ("junos", "nat-destination-rule"),
+                           ("junos", "dhcp-pool"), ("junos", "dhcp-reservation"), ("junos", "dhcp-relay-server"),
+                           ("junos", "dhcp-relay-group"),
+                           ("fortios", "system interface"), ("fortios", "router static"),
+                           ("fortios", "switch-controller managed-switch/ports"), ("fortios", "port-bounce"),
+                           ("fortios", "poe-cycle")}
     assert loaded[("fortiadc", "load-balance pool/pool_member")].versions == ("7.6.7 build0676",)
     assert loaded[("fortiadc", "load-balance pool/pool_member")].exact_versions
     assert loaded[("exos", "ports")].implicit_keys and loaded[("exos", "ports")].ops == ("update",)
@@ -84,11 +149,23 @@ def test_shipped_profiles_load():
     assert loaded[("fortios", "firewall addrgrp")].versions == ("8.0.0 build0167", "7.6.8 build3744", "7.6.7 build3704")
     assert loaded[("fortios", "system dhcp server/reserved-address")].versions == ("8.0.0 build0167", "7.6.8 build3744", "7.6.7 build3704")
     assert loaded[("exos", "vlan")].versions == ("33.7.1.6", "33.6.1.14")
-    assert loaded[("exos", "inline-power")].action == "poe-cycle"
-    assert set(loaded[("exos", "ports")].attributes) == {"display-string", "admin-state"}
+    assert loaded[("fortios", "port-bounce")].action == "port-bounce"
+    assert loaded[("fortios", "poe-cycle")].action == "poe-cycle"
+    assert set(loaded[("fortios", "switch-controller managed-switch/ports")].attributes) == {
+        "description", "status", "vlan", "allowed-vlans", "untagged-vlans", "allowed-vlans-all", "poe-status",
+    }
+    assert loaded[("exos", "inline-power")].action is None
+    assert loaded[("exos", "port-bounce")].action == "port-bounce"
+    assert set(loaded[("exos", "ports")].attributes) == {"display-string", "description-string", "admin-state"}
     assert loaded[("eos", "interface")].versions == ("4.36.1F",) and loaded[("eos", "interface")].exact_versions
-    assert set(loaded[("eos", "interface")].attributes) == {"description", "admin-state"}
+    # 1.0.12 G123 (E06/E23): speed, MTU and PoE of an EOS port; bounce and PoE cycle have their own tables
+    assert set(loaded[("eos", "interface")].attributes) == {"description", "admin-state", "speed", "mtu", "poe"}
+    assert loaded[("eos", "port-bounce")].action == "port-bounce"
+    assert loaded[("eos", "inline-power")].action == "poe-cycle"
     assert loaded[("eos", "vlan-membership")].ops == ("update",)
+    assert set(loaded[("eos", "vlan-membership")].attributes) == {"access-vlan", "mode", "allowed-vlans", "native-vlan",
+                                                                  "voice-vlan", "dot1x", "mab"}
+    assert loaded[("eos", "vlan")].ops == ("create", "update", "delete") and loaded[("eos", "vlan")].exact_versions
     assert loaded[("nxos", "interface")].versions == ("9.3(12)",) and loaded[("nxos", "interface")].exact_versions
     assert set(loaded[("nxos", "interface")].attributes) == {"description", "admin-state"}
     assert loaded[("nxos", "vlan-membership")].ops == ("update",)
@@ -99,7 +176,7 @@ def test_shipped_profiles_load():
                for table in ("interface", "vlan-membership"))
     assert loaded[("junos", "interface")].versions == ("26.2R1.7",) and loaded[("junos", "interface")].exact_versions
     assert loaded[("junos", "interface")].implicit_keys and loaded[("junos", "vlan-membership")].implicit_keys
-    assert set(loaded[("junos", "interface")].attributes) == {"description", "admin-state"}
+    assert set(loaded[("junos", "interface")].attributes) == {"description", "admin-state", "speed", "auto-negotiation", "mtu"}
     assert loaded[("junos", "vlan-membership")].attributes["access-vlan"].default == "default"
 
 
@@ -113,7 +190,7 @@ def test_shipped_profile_texts_name_no_internal_documents_or_accounts():
     from importlib import resources
     directory = resources.files("netops_admin") / "profiles"
     names = sorted(entry.name for entry in directory.iterdir() if entry.name.endswith(".json"))
-    assert len(names) == 20
+    assert len(names) == 178
     for name in names:
         text = (directory / name).read_text(encoding="utf-8")
         for marker in ("docs/t167", "not releasable", "netops-test-", " branch "):
@@ -122,14 +199,15 @@ def test_shipped_profile_texts_name_no_internal_documents_or_accounts():
 
 @pytest.mark.parametrize(("mutate", "fragment"), [
     (lambda data: data.update(extra=1), "profile fields differ"),
-    (lambda data: data.update(versions=[]), "at least one measured version"),
+    (lambda data: data.update(versions=[]), "at least one tested version"),
     (lambda data: data.update(ops=["create", "replace"]), "ops must be a subset"),
     (lambda data: data.update(key_pattern="[a-z]+"), "must be anchored"),
     (lambda data: data.update(key_pattern="^([$"), "does not compile"),
     (lambda data: data["attributes"]["comment"].update(type="blob"), "unknown type"),
     (lambda data: data["attributes"]["comment"].pop("max_length"), "needs max_length"),
     (lambda data: data["attributes"]["comment"].update(shell=True), "unknown fields"),
-    (lambda data: data["attributes"]["subnet"].update(unset=True), "both required and unsettable"),
+    (lambda data: data["attributes"]["subnet"].update(required_on_create=True, unset=True),
+     "both required and unsettable"),
     (lambda data: data.update(volatile=["uuid", "comment"]), "listed twice"),
     (lambda data: data.update(inverse_identity_changes={"delete": ["subnet"]}), "must be a volatile"),
     (lambda data: data.update(reserved_values={"color": ["1"]}), "unknown attribute"),

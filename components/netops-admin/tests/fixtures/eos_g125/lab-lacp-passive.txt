@@ -1,0 +1,3 @@
+interface Ethernet12
+   shutdown
+   channel-group 900 mode passive

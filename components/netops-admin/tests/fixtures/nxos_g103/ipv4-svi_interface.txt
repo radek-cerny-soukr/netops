@@ -1,0 +1,11 @@
+
+!Command: show running-config interface Vlan3910
+!Running configuration last done at: Thu Nov 19 17:35:03 2026
+!Time: Thu Nov 19 17:35:22 2026
+
+version 9.3(12) Bios:version
+
+interface Vlan3910
+  no shutdown
+  ip access-group NETOPS-G103-V4 in
+

@@ -1,0 +1,109 @@
+{
+  "platform": "fortios",
+  "table": "firewall vip",
+  "versions": [
+    "7.6.8 build3744"
+  ],
+  "exact_versions": true,
+  "ops": [
+    "create",
+    "update",
+    "delete"
+  ],
+  "key_pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,78}$",
+  "protected_keys": [],
+  "attributes": {
+    "extintf": {
+      "type": "text",
+      "required_on_create": true,
+      "update": true,
+      "unset": false,
+      "referenced_update": false,
+      "max_length": 35
+    },
+    "extip": {
+      "type": "ipv4-address",
+      "required_on_create": true,
+      "update": true,
+      "unset": false,
+      "referenced_update": false
+    },
+    "mappedip": {
+      "type": "ipv4-address",
+      "required_on_create": true,
+      "update": true,
+      "unset": false,
+      "referenced_update": false
+    },
+    "portforward": {
+      "type": "text",
+      "required_on_create": false,
+      "update": true,
+      "unset": true,
+      "referenced_update": false,
+      "default": "disable",
+      "max_length": 7,
+      "pattern": "^(enable|disable)$"
+    },
+    "protocol": {
+      "type": "text",
+      "required_on_create": false,
+      "update": true,
+      "unset": true,
+      "referenced_update": false,
+      "default": "tcp",
+      "max_length": 3,
+      "pattern": "^(tcp|udp)$"
+    },
+    "extport": {
+      "type": "integer",
+      "required_on_create": false,
+      "update": true,
+      "unset": true,
+      "referenced_update": false,
+      "minimum": 1,
+      "maximum": 65535
+    },
+    "mappedport": {
+      "type": "integer",
+      "required_on_create": false,
+      "update": true,
+      "unset": true,
+      "referenced_update": false,
+      "minimum": 1,
+      "maximum": 65535
+    },
+    "arp-reply": {
+      "type": "text",
+      "required_on_create": false,
+      "update": true,
+      "unset": true,
+      "referenced_update": false,
+      "default": "enable",
+      "max_length": 7,
+      "pattern": "^(enable|disable)$"
+    },
+    "comment": {
+      "type": "text",
+      "required_on_create": false,
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "max_length": 255
+    }
+  },
+  "fixed": {
+    "type": "static-nat"
+  },
+  "volatile": [
+    "uuid"
+  ],
+  "reserved_values": {},
+  "inverse_identity_changes": {
+    "delete": [
+      "uuid"
+    ]
+  },
+  "provisional": true,
+  "rollback_evidence": "FortiOS 7.6.8 static NAT object with scoped CLI readback and the FortiOS Admin timed inverse."
+}

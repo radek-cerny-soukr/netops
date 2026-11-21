@@ -1,0 +1,162 @@
+ MST0 is executing the mstp Spanning Tree protocol
+  Bridge Identifier has priority 32768, sysid 0, address 0000.5e00.5301
+  Configured hello time 2.000, max age 20, forward delay 15, transmit hold-count 6
+  We are the root of the spanning tree
+  Number of topology changes 12 last change occurred 751959 seconds ago
+          from Ethernet4
+
+ Port 1 (Ethernet1) of MST0 is designated forwarding
+   Port path cost 20000, Port priority 128, Port Identifier 128.1.
+   Designated root has priority 32768, address 0000.5e00.5301
+   Designated bridge has priority 32768, address 0000.5e00.5301
+   Designated port id is 128.1, designated path cost 0 (Ext) 0 (Int)
+   Timers: message age 0, forward delay 15, hold 20
+   Number of transitions to forwarding state: 1
+   Link type is point-to-point by default, Internal
+   BPDU: sent 373359, received 0, taggedErr 0, otherErr 0, rateLimiterCount 0
+   Rate-Limiter: enabled, Window: 10 sec, Max-BPDU: 400
+
+ Port 2 (Ethernet2) of MST0 is designated forwarding
+   Port path cost 20000, Port priority 128, Port Identifier 128.2.
+   Designated root has priority 32768, address 0000.5e00.5301
+   Designated bridge has priority 32768, address 0000.5e00.5301
+   Designated port id is 128.2, designated path cost 0 (Ext) 0 (Int)
+   Timers: message age 0, forward delay 15, hold 20
+   Number of transitions to forwarding state: 1
+   Link type is point-to-point by default, Internal
+   BPDU: sent 373360, received 0, taggedErr 0, otherErr 0, rateLimiterCount 0
+   Rate-Limiter: enabled, Window: 10 sec, Max-BPDU: 400
+
+ Port 3 (Ethernet3) of MST0 is designated forwarding
+   Port path cost 20000, Port priority 128, Port Identifier 128.3.
+   Designated root has priority 32768, address 0000.5e00.5301
+   Designated bridge has priority 32768, address 0000.5e00.5301
+   Designated port id is 128.3, designated path cost 0 (Ext) 0 (Int)
+   Timers: message age 0, forward delay 15, hold 20
+   Number of transitions to forwarding state: 1
+   Link type is point-to-point by default, Boundary
+   BPDU: sent 373362, received 7, taggedErr 0, otherErr 0, rateLimiterCount 0
+   Rate-Limiter: enabled, Window: 10 sec, Max-BPDU: 400
+
+ Port 4 (Ethernet4) of MST0 is designated forwarding
+   Port path cost 20000, Port priority 128, Port Identifier 128.4.
+   Designated root has priority 32768, address 0000.5e00.5301
+   Designated bridge has priority 32768, address 0000.5e00.5301
+   Designated port id is 128.4, designated path cost 0 (Ext) 0 (Int)
+   Timers: message age 0, forward delay 15, hold 20
+   Number of transitions to forwarding state: 1
+   Link type is point-to-point by default, Boundary
+   BPDU: sent 373361, received 4, taggedErr 0, otherErr 0, rateLimiterCount 0
+   Rate-Limiter: enabled, Window: 10 sec, Max-BPDU: 400
+
+ Port 5 (Ethernet5) of MST0 is designated forwarding
+   Port path cost 20000, Port priority 128, Port Identifier 128.5.
+   Designated root has priority 32768, address 0000.5e00.5301
+   Designated bridge has priority 32768, address 0000.5e00.5301
+   Designated port id is 128.5, designated path cost 0 (Ext) 0 (Int)
+   Timers: message age 0, forward delay 15, hold 20
+   Number of transitions to forwarding state: 1
+   Link type is point-to-point by default, Internal
+   BPDU: sent 373359, received 0, taggedErr 0, otherErr 0, rateLimiterCount 0
+   Rate-Limiter: enabled, Window: 10 sec, Max-BPDU: 400
+
+ Port 6 (Ethernet6) of MST0 is designated forwarding
+   Port path cost 20000, Port priority 128, Port Identifier 128.6.
+   Designated root has priority 32768, address 0000.5e00.5301
+   Designated bridge has priority 32768, address 0000.5e00.5301
+   Designated port id is 128.6, designated path cost 0 (Ext) 0 (Int)
+   Timers: message age 0, forward delay 15, hold 20
+   Number of transitions to forwarding state: 1
+   Link type is point-to-point by default, Internal
+   BPDU: sent 371344, received 0, taggedErr 0, otherErr 0, rateLimiterCount 0
+   Rate-Limiter: enabled, Window: 10 sec, Max-BPDU: 400
+
+ Port 7 (Ethernet7) of MST0 is designated forwarding
+   Port path cost 20000, Port priority 128, Port Identifier 128.7.
+   Designated root has priority 32768, address 0000.5e00.5301
+   Designated bridge has priority 32768, address 0000.5e00.5301
+   Designated port id is 128.7, designated path cost 0 (Ext) 0 (Int)
+   Timers: message age 0, forward delay 15, hold 20
+   Number of transitions to forwarding state: 1
+   Link type is point-to-point by default, Internal
+   BPDU: sent 373360, received 0, taggedErr 0, otherErr 0, rateLimiterCount 0
+   Rate-Limiter: enabled, Window: 10 sec, Max-BPDU: 400
+
+ Port 8 (Ethernet8) of MST0 is designated forwarding
+   Port path cost 20000, Port priority 128, Port Identifier 128.8.
+   Designated root has priority 32768, address 0000.5e00.5301
+   Designated bridge has priority 32768, address 0000.5e00.5301
+   Designated port id is 128.8, designated path cost 0 (Ext) 0 (Int)
+   Timers: message age 0, forward delay 15, hold 20
+   Number of transitions to forwarding state: 1
+   Link type is point-to-point by default, Internal
+   BPDU: sent 373360, received 0, taggedErr 0, otherErr 0, rateLimiterCount 0
+   Rate-Limiter: enabled, Window: 10 sec, Max-BPDU: 400
+
+ Port 9 (Ethernet9) of MST0 is designated forwarding
+   Port path cost 20000, Port priority 128, Port Identifier 128.9.
+   Designated root has priority 32768, address 0000.5e00.5301
+   Designated bridge has priority 32768, address 0000.5e00.5301
+   Designated port id is 128.9, designated path cost 0 (Ext) 0 (Int)
+   Timers: message age 0, forward delay 15, hold 20
+   Number of transitions to forwarding state: 1
+   Link type is point-to-point by default, Internal
+   BPDU: sent 373360, received 0, taggedErr 0, otherErr 0, rateLimiterCount 0
+   Rate-Limiter: enabled, Window: 10 sec, Max-BPDU: 400
+
+ Port 10 (Ethernet10) of MST0 is designated forwarding
+   Port path cost 20000, Port priority 128, Port Identifier 128.10.
+   Designated root has priority 32768, address 0000.5e00.5301
+   Designated bridge has priority 32768, address 0000.5e00.5301
+   Designated port id is 128.10, designated path cost 0 (Ext) 0 (Int)
+   Timers: message age 0, forward delay 15, hold 20
+   Number of transitions to forwarding state: 1
+   Link type is point-to-point by default, Internal
+   BPDU: sent 74857, received 0, taggedErr 0, otherErr 0, rateLimiterCount 0
+   Rate-Limiter: enabled, Window: 10 sec, Max-BPDU: 400
+
+ Port 11 (Ethernet11) of MST0 is designated forwarding
+   Port path cost 20000, Port priority 128, Port Identifier 128.11.
+   Designated root has priority 32768, address 0000.5e00.5301
+   Designated bridge has priority 32768, address 0000.5e00.5301
+   Designated port id is 128.11, designated path cost 0 (Ext) 0 (Int)
+   Timers: message age 0, forward delay 15, hold 20
+   Number of transitions to forwarding state: 1
+   Link type is point-to-point by default, Internal
+   BPDU: sent 373360, received 0, taggedErr 0, otherErr 0, rateLimiterCount 0
+   Rate-Limiter: enabled, Window: 10 sec, Max-BPDU: 400
+
+ Port 12 (Ethernet12) of MST0 is designated forwarding
+   Port path cost 20000, Port priority 128, Port Identifier 128.12.
+   Designated root has priority 32768, address 0000.5e00.5301
+   Designated bridge has priority 32768, address 0000.5e00.5301
+   Designated port id is 128.12, designated path cost 0 (Ext) 0 (Int)
+   Timers: message age 0, forward delay 15, hold 20
+   Number of transitions to forwarding state: 1
+   Link type is point-to-point by default, Internal
+   BPDU: sent 373360, received 0, taggedErr 0, otherErr 0, rateLimiterCount 0
+   Rate-Limiter: enabled, Window: 10 sec, Max-BPDU: 400
+
+ Port 13 (Ethernet13) of MST0 is designated forwarding
+   Port path cost 20000, Port priority 128, Port Identifier 128.13.
+   Designated root has priority 32768, address 0000.5e00.5301
+   Designated bridge has priority 32768, address 0000.5e00.5301
+   Designated port id is 128.13, designated path cost 0 (Ext) 0 (Int)
+   Timers: message age 0, forward delay 15, hold 20
+   Number of transitions to forwarding state: 1
+   Link type is point-to-point by default, Internal
+   BPDU: sent 373360, received 0, taggedErr 0, otherErr 0, rateLimiterCount 0
+   Rate-Limiter: enabled, Window: 10 sec, Max-BPDU: 400
+
+ Port 101 (Port-Channel104) of MST0 is designated forwarding
+   Port path cost 19999, Port priority 128, Port Identifier 128.101.
+   Designated root has priority 32768, address 0000.5e00.5301
+   Designated bridge has priority 32768, address 0000.5e00.5301
+   Designated port id is 128.101, designated path cost 0 (Ext) 0 (Int)
+   Timers: message age 0, forward delay 15, hold 20
+   Number of transitions to forwarding state: 1
+   Link type is point-to-point by default, Internal
+   BPDU: sent 13328, received 0, taggedErr 0, otherErr 0, rateLimiterCount 0
+   Rate-Limiter: enabled, Window: 10 sec, Max-BPDU: 400
+
+

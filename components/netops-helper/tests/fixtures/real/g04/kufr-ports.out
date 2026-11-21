@@ -1,0 +1,146 @@
+config switch-controller managed-switch
+    edit "S000SSSS00000001"
+        config ports
+            edit "port1"
+                set vlan "fixture-vlan-001"
+                set allowed-vlans "fixture-vlan-002"
+                set untagged-vlans "fixture-vlan-002"
+            next
+            edit "port2"
+                set vlan "fixture-vlan-001"
+                set allowed-vlans "fixture-vlan-002"
+                set untagged-vlans "fixture-vlan-002"
+            next
+            edit "port3"
+                set vlan "fixture-vlan-003"
+                set allowed-vlans "fixture-vlan-002"
+                set untagged-vlans "fixture-vlan-002"
+            next
+            edit "port4"
+                set vlan "fixture-vlan-001"
+                set allowed-vlans "fixture-vlan-002"
+                set untagged-vlans "fixture-vlan-002"
+            next
+            edit "port5"
+                set vlan "fixture-vlan-001"
+                set allowed-vlans "fixture-vlan-002"
+                set untagged-vlans "fixture-vlan-002"
+            next
+            edit "port6"
+                set vlan "fixture-vlan-001"
+                set allowed-vlans "fixture-vlan-002"
+                set untagged-vlans "fixture-vlan-002"
+            next
+            edit "port7"
+                set vlan "fixture-vlan-001"
+                set allowed-vlans "fixture-vlan-002"
+                set untagged-vlans "fixture-vlan-002"
+            next
+            edit "port8"
+                set vlan "fixture-vlan-001"
+                set allowed-vlans "fixture-vlan-002"
+                set untagged-vlans "fixture-vlan-002"
+            next
+            edit "port9"
+                set vlan "fixture-vlan-001"
+                set allowed-vlans "fixture-vlan-002"
+                set untagged-vlans "fixture-vlan-002"
+            next
+            edit "port10"
+                set vlan "fixture-vlan-001"
+                set allowed-vlans "fixture-vlan-002"
+                set untagged-vlans "fixture-vlan-002"
+            next
+            edit "port11"
+                set vlan "fixture-vlan-003"
+                set allowed-vlans "fixture-vlan-002"
+                set untagged-vlans "fixture-vlan-002"
+            next
+            edit "port12"
+                set vlan "fixture-vlan-001"
+                set allowed-vlans "fixture-vlan-002"
+                set untagged-vlans "fixture-vlan-002"
+            next
+            edit "port13"
+                set vlan "fixture-vlan-001"
+                set allowed-vlans "fixture-vlan-002"
+                set untagged-vlans "fixture-vlan-002"
+            next
+            edit "port14"
+                set vlan "fixture-vlan-001"
+                set allowed-vlans "fixture-vlan-002"
+                set untagged-vlans "fixture-vlan-002"
+            next
+            edit "port15"
+                set vlan "fixture-vlan-001"
+                set allowed-vlans "fixture-vlan-002"
+                set untagged-vlans "fixture-vlan-002"
+            next
+            edit "port16"
+                set vlan "fixture-vlan-001"
+                set allowed-vlans "fixture-vlan-002"
+                set untagged-vlans "fixture-vlan-002"
+            next
+            edit "port17"
+                set vlan "fixture-vlan-001"
+                set allowed-vlans "fixture-vlan-002"
+                set untagged-vlans "fixture-vlan-002"
+            next
+            edit "port18"
+                set vlan "fixture-vlan-001"
+                set allowed-vlans "fixture-vlan-002"
+                set untagged-vlans "fixture-vlan-002"
+            next
+            edit "port19"
+                set vlan "fixture-vlan-001"
+                set allowed-vlans "fixture-vlan-002"
+                set untagged-vlans "fixture-vlan-002"
+            next
+            edit "port20"
+                set vlan "fixture-vlan-001"
+                set allowed-vlans "fixture-vlan-002"
+                set untagged-vlans "fixture-vlan-002"
+            next
+            edit "port21"
+                set vlan "fixture-vlan-001"
+                set allowed-vlans "fixture-vlan-002"
+                set untagged-vlans "fixture-vlan-002"
+            next
+            edit "port22"
+                set vlan "fixture-vlan-001"
+                set allowed-vlans "fixture-vlan-002"
+                set untagged-vlans "fixture-vlan-002"
+            next
+            edit "port23"
+                set vlan "fixture-vlan-001"
+                set allowed-vlans "fixture-vlan-002"
+                set untagged-vlans "fixture-vlan-002"
+            next
+            edit "port24"
+                set vlan "fixture-vlan-001"
+                set allowed-vlans "fixture-vlan-002"
+                set untagged-vlans "fixture-vlan-002"
+            next
+            edit "port25"
+                set vlan "fixture-vlan-001"
+                set allowed-vlans "fixture-vlan-002"
+                set untagged-vlans "fixture-vlan-002"
+            next
+            edit "port26"
+                set vlan "fixture-vlan-001"
+                set allowed-vlans "fixture-vlan-002"
+                set untagged-vlans "fixture-vlan-002"
+            next
+            edit "port27"
+                set vlan "fixture-vlan-001"
+                set allowed-vlans "fixture-vlan-002"
+                set untagged-vlans "fixture-vlan-002"
+            next
+            edit "port28"
+                set vlan "fixture-vlan-001"
+                set allowed-vlans "fixture-vlan-002"
+                set untagged-vlans "fixture-vlan-002"
+            next
+        end
+    next
+end

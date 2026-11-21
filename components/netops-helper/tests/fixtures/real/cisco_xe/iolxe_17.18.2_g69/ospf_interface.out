@@ -1,0 +1,32 @@
+
+
+
+Ethernet0/1.10 is up, line protocol is up 
+  Internet Address 192.0.2.7/24, Interface ID 20, Area 0
+  Attached via Interface Enable
+  Process ID 29, Router ID 198.51.100.7, Network Type BROADCAST, Cost: 10
+  Topology-MTID    Cost    Disabled    Shutdown      Topology Name
+        0           10        no          no            Base
+  Enabled by interface config, including secondary ip addresses
+  Transmit Delay is 1 sec, State DR, Priority 1
+  Designated Router (ID) 198.51.100.7, Interface address 192.0.2.7
+  Backup Designated router (ID) 198.51.100.3, Interface address 192.0.2.3
+  Timer intervals configured, Hello 10, Dead 40, Wait 40, Retransmit 5
+    oob-resync timeout 40
+    Hello due in 00:00:05
+  Supports Link-local Signaling (LLS)
+  Cisco NSF helper support enabled
+  IETF NSF helper support enabled
+  Can be protected by per-prefix Loop-Free FastReroute
+  Can be used for per-prefix Loop-Free FastReroute repair paths
+  Not Protected by per-prefix TI-LFA
+  Index 1/2/2, flood queue length 0
+  Next 0x0(0)/0x0(0)/0x0(0)
+  Last flood scan length is 0, maximum is 2
+  Last flood scan time is 0 msec, maximum is 1 msec
+  Neighbor Count is 4, Adjacent neighbor count is 4 
+    Adjacent with neighbor 198.51.100.1
+    Adjacent with neighbor 198.51.100.3 (Backup Designated Router)
+    Adjacent with neighbor 198.51.100.5
+    Adjacent with neighbor 198.51.100.6
+  Suppress hello for 0 neighbor(s)

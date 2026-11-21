@@ -1,0 +1,7 @@
+Type escape sequence to abort.
+Tracing the route to 203.0.113.10
+VRF info: (vrf in name/id, vrf out name/id)
+  1 198.51.100.2 2 msec
+  2 198.51.100.16 [MPLS: Labels 16/17 Exp 0] 9 msec
+  3 192.0.2.2 [MPLS: Label 16 Exp 0] 8 msec
+  4 192.0.2.1 9 msec

@@ -1,0 +1,48 @@
+Neighbor 192.0.2.1, instance 29, VRF default, interface address 203.0.113.1
+  In area 0.0.0.0 interface Vlan10
+  Neighbor priority is 1, State is FULL, 6 state changes
+  Adjacency was established 1d13h ago
+  Current state was established 1d13h ago
+  DR IP Address 203.0.113.7 BDR IP Address 203.0.113.3
+  Options is E
+  Dead timer is due in 00:00:38
+  Inactivity timer deferred 0 times
+  LSAs retransmitted 2 times to this neighbor
+  Graceful-restart-helper mode is Inactive
+  Graceful-restart attempts: 0
+Neighbor 192.0.2.5, instance 29, VRF default, interface address 203.0.113.5
+  In area 0.0.0.0 interface Vlan10
+  Neighbor priority is 1, State is FULL, 6 state changes
+  Adjacency was established 1d13h ago
+  Current state was established 1d13h ago
+  DR IP Address 203.0.113.7 BDR IP Address 203.0.113.3
+  Options is E
+  Dead timer is due in 00:00:31
+  Inactivity timer deferred 0 times
+  LSAs retransmitted 3 times to this neighbor
+  Graceful-restart-helper mode is Inactive
+  Graceful-restart attempts: 0
+Neighbor 192.0.2.6, instance 29, VRF default, interface address 203.0.113.6
+  In area 0.0.0.0 interface Vlan10
+  Neighbor priority is 128, State is FULL, 7 state changes
+  Adjacency was established 5d07h ago
+  Current state was established 5d07h ago
+  DR IP Address 203.0.113.7 BDR IP Address 203.0.113.3
+  Options is E
+  Dead timer is due in 00:00:32
+  Inactivity timer deferred 0 times
+  LSAs retransmitted 12 times to this neighbor
+  Graceful-restart-helper mode is Inactive
+  Graceful-restart attempts: 0
+Neighbor 192.0.2.7, instance 29, VRF default, interface address 203.0.113.7
+  In area 0.0.0.0 interface Vlan10
+  Neighbor priority is 1, State is FULL, 8 state changes
+  Adjacency was established 5d22h ago
+  Current state was established 5d22h ago
+  DR IP Address 203.0.113.7 BDR IP Address 203.0.113.3
+  Options is E
+  Dead timer is due in 00:00:31
+  Inactivity timer deferred 0 times
+  LSAs retransmitted 7 times to this neighbor
+  Graceful-restart-helper mode is Inactive
+  Graceful-restart attempts: 0

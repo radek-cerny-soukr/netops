@@ -24,6 +24,7 @@ BAD = 'configuration identity could not be verified'
 HEADER = ('Cisco IOS Software [IOSXE], Linux Software (X86_64BI_LINUX-ADVENTERPRISEK9-M), Version 17.18.2, '
           'RELEASE SOFTWARE (fc3)')
 HW = 'Linux Unix (i686) processor with 536518K bytes of memory.'
+TESTED_RECORD = ('Linux', '17.18.2', 'fc3', 'X86_64BI_LINUX-ADVENTERPRISEK9-M', 'IOSXE')
 
 
 def test_fixture_shape_is_what_the_adapter_reads():
@@ -31,46 +32,77 @@ def test_fixture_shape_is_what_the_adapter_reads():
     assert lines.count(HEADER) >= 1 and lines.count(HW) == 1
 
 
-def test_real_iolxe_admitted():
+def test_real_iolxe_tested():
     firmware, meta = ad.verify_identity(IOLXE)
-    assert firmware == ('Linux', '17.18.2', 'fc3') == ad.SUPPORTED
+    assert firmware == TESTED_RECORD and firmware[:3] == ad.TESTED and ad.firmware_record(firmware)
+    assert ad.firmware_support(firmware) == {
+        'status': 'tested', 'platform': 'Cisco IOS XE',
+        'device_version': '17.18.2 fc3 (X86_64BI_LINUX-ADVENTERPRISEK9-M) [IOSXE]', 'model': 'Linux',
+        'tested_versions': ['Linux 17.18.2 fc3 (X86_64BI_LINUX-ADVENTERPRISEK9-M) [IOSXE]'], 'message': None}
     assert meta['config_scope'] == 'device-account-visible'
     assert meta['configuration_complete'] is False and meta['identity_scope_verified'] is False
     assert meta['visibility_limitations'] == ['account-rights-not-verified', 'formats-not-verified']
-    assert ad.version_identity(IOLXE) == ('Linux', '17.18.2', 'fc3', ad.IMAGE_FAMILY)
+    assert ad.version_identity(IOLXE) == TESTED_RECORD
 
 
 def test_repeated_identical_header_admitted():
     # The same header line repeated verbatim further down is one identity, not a conflict.
     text = IOLXE.replace(HW, HEADER + '\n' + HW)
     assert text.count(HEADER) == IOLXE.count(HEADER) + 1
-    assert ad.verify_identity(text)[0] == ad.SUPPORTED
+    assert ad.verify_identity(text)[0] == TESTED_RECORD
 
 
 def test_crlf_and_prompt_lines():
-    assert ad.verify_identity(IOLXE.replace('\n', '\r\n'))[0] == ad.SUPPORTED
-    assert ad.verify_identity('host07#show version\r\n' + IOLXE + '\r\nhost07#')[0] == ad.SUPPORTED
+    assert ad.verify_identity(IOLXE.replace('\n', '\r\n'))[0] == TESTED_RECORD
+    assert ad.verify_identity('host07#show version\r\n' + IOLXE + '\r\nhost07#')[0] == TESTED_RECORD
 
 
-@pytest.mark.parametrize('old,new', [
-    ('Version 17.18.2,', 'Version 17.18.1,'),                  # other release
-    ('Version 17.18.2,', 'Version 17.9.4a,'),                  # other release train number
-    ('(fc3)', '(fc4)'),                                        # other build
-    ('X86_64BI_LINUX-ADVENTERPRISEK9-M', 'X86_64BI_LINUX-IPBASEK9-M'),  # other image family
-    ('[IOSXE]', '[Dublin]'),                                   # other release train
-], ids=['release', 'release-a', 'build', 'image-family', 'train'])
-def test_derived_foreign_wellformed_refused(old, new):
+@pytest.mark.parametrize('old,new,record', [
+    ('Version 17.18.2,', 'Version 17.18.1,', ('Linux', '17.18.1') + TESTED_RECORD[2:]),        # other release
+    ('Version 17.18.2,', 'Version 17.9.4a,', ('Linux', '17.9.4a') + TESTED_RECORD[2:]),        # other release number
+    ('(fc3)', '(fc4)', TESTED_RECORD[:2] + ('fc4',) + TESTED_RECORD[3:]),                      # other build
+    ('X86_64BI_LINUX-ADVENTERPRISEK9-M', 'X86_64BI_LINUX-IPBASEK9-M',
+     TESTED_RECORD[:3] + ('X86_64BI_LINUX-IPBASEK9-M', 'IOSXE')),                               # other image family
+    ('[IOSXE]', '[Dublin]', TESTED_RECORD[:4] + ('Dublin',)),                                  # other release train
+    (', RELEASE SOFTWARE (fc3)', '', TESTED_RECORD[:2] + (None,) + TESTED_RECORD[3:]),          # header without build
+], ids=['release', 'release-a', 'build', 'image-family', 'train', 'no-build'])
+def test_derived_foreign_wellformed_is_untested(old, new, record):
+    """G00: another release, build, image family or train is read; firmware_support says untested."""
     assert old in IOLXE
-    with pytest.raises(ad.UnsupportedXeFirmware, match='configuration firmware-not-supported'):
-        ad.verify_identity(IOLXE.replace(old, new))
+    identity = IOLXE.replace(old, new)
+    if old == '[IOSXE]':
+        identity = 'Cisco IOS XE Software, Version 17.18.2\n' + identity
+    firmware, meta = ad.verify_identity(identity)
+    assert firmware == record and meta == ad.metadata() and ad.firmware_record(firmware)
+    support = ad.firmware_support(firmware)
+    assert support['status'] == 'untested' and support['model'] == 'Linux'
+    assert support['message'].endswith('is not among the versions config_read was tested on (Linux 17.18.2 fc3 '
+                                       '(X86_64BI_LINUX-ADVENTERPRISEK9-M) [IOSXE]). It may or may not work as '
+                                       'designed and tested; check the result.')
 
 
-def test_real_classic_ios_refused_as_unsupported():
-    with pytest.raises(ad.UnsupportedXeFirmware):
+def test_catalyst_9300_header_and_hardware_are_read_as_untested():
+    """A Catalyst 9300 style show version (derived header and hardware line)."""
+    text = IOLXE.replace(HEADER, 'Cisco IOS Software [Cupertino], Catalyst L3 Switch Software (CAT9K_IOSXE), '
+                                 'Version 17.9.4a, RELEASE SOFTWARE (fc5)').replace(
+        HW, 'cisco C9300-48P (X86) processor with 1419044K/6147K bytes of memory.')
+    firmware = ad.verify_identity(text)[0]
+    assert firmware == ('C9300-48P', '17.9.4a', 'fc5', 'CAT9K_IOSXE', 'Cupertino')
+    assert ad.firmware_support(firmware)['status'] == 'untested'
+
+
+def test_real_ios_and_xe_require_their_own_identity():
+    with pytest.raises(ValueError, match=BAD):
         ad.verify_identity(IOSV)
-    # And the frozen IOS adapter does not admit the IOS XE capture.
     with pytest.raises(ValueError):
         ios_ad.verify_identity(IOLXE)
+
+
+@pytest.mark.parametrize('record', [
+    TESTED_RECORD[:4], list(TESTED_RECORD), ('Linux', None) + TESTED_RECORD[2:],
+    TESTED_RECORD[:3] + (None, 'IOSXE'), ('Linux', '17.18.2', 3, 'X', 'IOSXE'), TESTED_RECORD + ('x',), None])
+def test_firmware_record_shape(record):
+    assert not ad.firmware_record(record)
 
 
 @pytest.mark.parametrize('make', [
@@ -84,7 +116,6 @@ def test_real_classic_ios_refused_as_unsupported():
     lambda t: t.replace('Linux Unix (i686)', 'Solaris Unix (i686)'),                # conflicting model
     lambda t: t.replace(HW, 'Linux Unix (i686) processor with 536518K bytes of'),   # truncated hardware line
     lambda t: t.replace('Linux Software (', 'Linux ('),                             # malformed header
-    lambda t: t.replace(', RELEASE SOFTWARE (fc3)', ''),                            # header without build
     lambda t: '',
     lambda t: '   \n',
     lambda t: 'host07#',
@@ -95,12 +126,12 @@ def test_real_classic_ios_refused_as_unsupported():
     lambda t: None,
     lambda t: t.encode(),
 ], ids=['no-hw', 'no-header', 'two-headers-release', 'two-headers-build', 'two-headers-first',
-        'dup-hw', 'conflicting-hw', 'model-mismatch', 'truncated-hw', 'malformed-header', 'no-build',
+        'dup-hw', 'conflicting-hw', 'model-mismatch', 'truncated-hw', 'malformed-header',
         'empty', 'blank', 'prompt-only', 'bel', 'nul', 'line-separator', 'oversize', 'none', 'bytes'])
 def test_unverifiable_identity(make):
     with pytest.raises(ValueError, match=BAD) as info:
         ad.verify_identity(make(IOLXE))
-    assert not isinstance(info.value, ad.UnsupportedXeFirmware)
+    assert type(info.value) is ValueError
 
 
 def test_identity_ignores_image_file_serial_and_hostname():
@@ -109,7 +140,7 @@ def test_identity_ignores_image_file_serial_and_hostname():
             .replace('Processor board ID 0000006', 'Processor board ID C9300X')
             .replace('host07 uptime', 'cat9k-17-9 uptime'))
     assert text != IOLXE
-    assert ad.version_identity(text) == ('Linux', '17.18.2', 'fc3', ad.IMAGE_FAMILY)
+    assert ad.version_identity(text) == TESTED_RECORD
 
 
 def test_read_command():

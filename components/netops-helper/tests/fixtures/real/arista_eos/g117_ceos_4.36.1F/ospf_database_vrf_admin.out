@@ -1,0 +1,17 @@
+
+            OSPF Router with ID(192.0.2.3) (Instance ID 29) (VRF default)
+
+
+                 Router Link States (Area 0.0.0.0)
+
+Link ID         ADV Router      Age         Seq#         Checksum Link count
+192.0.2.6       192.0.2.6       633         0x80000102   0xce5b   2
+192.0.2.1       192.0.2.1       1197        0x800001a1   0x5845   2
+192.0.2.5       192.0.2.5       1776        0x8000004e   0xca10   2
+192.0.2.7       192.0.2.7       1778        0x800001b1   0xbfac   2
+192.0.2.3       192.0.2.3       612         0x80000195   0x4a45   2
+
+                 Network Link States (Area 0.0.0.0)
+
+Link ID         ADV Router      Age         Seq#         Checksum
+203.0.113.7     192.0.2.7       1778        0x800000f0   0x7588  

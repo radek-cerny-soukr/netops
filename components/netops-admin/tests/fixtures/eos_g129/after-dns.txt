@@ -1,0 +1,13 @@
+{
+    "nameServerConfigs": [
+        {
+            "ipAddr": "192.0.2.31",
+            "vrf": "default",
+            "priority": 0
+        }
+    ],
+    "v4NameServers": [
+        "192.0.2.31"
+    ],
+    "v6NameServers": []
+}

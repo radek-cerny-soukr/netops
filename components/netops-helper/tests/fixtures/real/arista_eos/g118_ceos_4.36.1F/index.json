@@ -1,0 +1,1214 @@
+{
+  "version_ro": {
+    "query": "version",
+    "command": "show version",
+    "parameters": {},
+    "role": "RO",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938284.7,
+    "file": "version_ro.out"
+  },
+  "version_admin": {
+    "query": "version",
+    "command": "show version",
+    "parameters": {},
+    "role": "ADMIN",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938286.7,
+    "file": "version_admin.out"
+  },
+  "interfaces_counters_rates_ro": {
+    "query": "interfaces_counters_rates",
+    "command": "show interfaces counters rates",
+    "parameters": {},
+    "role": "RO",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938288.6,
+    "file": "interfaces_counters_rates_ro.out"
+  },
+  "interfaces_counters_rates_admin": {
+    "query": "interfaces_counters_rates",
+    "command": "show interfaces counters rates",
+    "parameters": {},
+    "role": "ADMIN",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938290.6,
+    "file": "interfaces_counters_rates_admin.out"
+  },
+  "poe_ro": {
+    "query": "poe",
+    "command": "show poe",
+    "parameters": {},
+    "role": "RO",
+    "rc": 1,
+    "target": "cEOS-2253",
+    "captured_at": 1794938292.6,
+    "file": "poe_ro.out"
+  },
+  "poe_admin": {
+    "query": "poe",
+    "command": "show poe",
+    "parameters": {},
+    "role": "ADMIN",
+    "rc": 1,
+    "target": "cEOS-2253",
+    "captured_at": 1794938294.6,
+    "file": "poe_admin.out"
+  },
+  "stp_detail_ro": {
+    "query": "stp_detail",
+    "command": "show spanning-tree detail",
+    "parameters": {},
+    "role": "RO",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938296.5,
+    "file": "stp_detail_ro.out"
+  },
+  "stp_detail_admin": {
+    "query": "stp_detail",
+    "command": "show spanning-tree detail",
+    "parameters": {},
+    "role": "ADMIN",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938298.6,
+    "file": "stp_detail_admin.out"
+  },
+  "stp_counters_ro": {
+    "query": "stp_counters",
+    "command": "show spanning-tree counters",
+    "parameters": {},
+    "role": "RO",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938300.5,
+    "file": "stp_counters_ro.out"
+  },
+  "stp_counters_admin": {
+    "query": "stp_counters",
+    "command": "show spanning-tree counters",
+    "parameters": {},
+    "role": "ADMIN",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938302.6,
+    "file": "stp_counters_admin.out"
+  },
+  "igmp_snooping_ro": {
+    "query": "igmp_snooping",
+    "command": "show ip igmp snooping",
+    "parameters": {},
+    "role": "RO",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938304.5,
+    "file": "igmp_snooping_ro.out"
+  },
+  "igmp_snooping_admin": {
+    "query": "igmp_snooping",
+    "command": "show ip igmp snooping",
+    "parameters": {},
+    "role": "ADMIN",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938306.5,
+    "file": "igmp_snooping_admin.out"
+  },
+  "igmp_snooping_groups_ro": {
+    "query": "igmp_snooping_groups",
+    "command": "show ip igmp snooping groups",
+    "parameters": {},
+    "role": "RO",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938308.5,
+    "file": "igmp_snooping_groups_ro.out"
+  },
+  "igmp_snooping_groups_admin": {
+    "query": "igmp_snooping_groups",
+    "command": "show ip igmp snooping groups",
+    "parameters": {},
+    "role": "ADMIN",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938310.4,
+    "file": "igmp_snooping_groups_admin.out"
+  },
+  "igmp_snooping_mrouter_ro": {
+    "query": "igmp_snooping_mrouter",
+    "command": "show ip igmp snooping mrouter",
+    "parameters": {},
+    "role": "RO",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938312.4,
+    "file": "igmp_snooping_mrouter_ro.out"
+  },
+  "igmp_snooping_mrouter_admin": {
+    "query": "igmp_snooping_mrouter",
+    "command": "show ip igmp snooping mrouter",
+    "parameters": {},
+    "role": "ADMIN",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938314.4,
+    "file": "igmp_snooping_mrouter_admin.out"
+  },
+  "igmp_snooping_counters_ro": {
+    "query": "igmp_snooping_counters",
+    "command": "show ip igmp snooping counters",
+    "parameters": {},
+    "role": "RO",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938316.4,
+    "file": "igmp_snooping_counters_ro.out"
+  },
+  "igmp_snooping_counters_admin": {
+    "query": "igmp_snooping_counters",
+    "command": "show ip igmp snooping counters",
+    "parameters": {},
+    "role": "ADMIN",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938318.3,
+    "file": "igmp_snooping_counters_admin.out"
+  },
+  "interfaces_ro": {
+    "query": "interfaces",
+    "command": "show interfaces status",
+    "parameters": {},
+    "role": "RO",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938320.4,
+    "file": "interfaces_ro.out"
+  },
+  "interfaces_admin": {
+    "query": "interfaces",
+    "command": "show interfaces status",
+    "parameters": {},
+    "role": "ADMIN",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938322.3,
+    "file": "interfaces_admin.out"
+  },
+  "interfaces_trunk_ro": {
+    "query": "interfaces_trunk",
+    "command": "show interfaces trunk",
+    "parameters": {},
+    "role": "RO",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938324.4,
+    "file": "interfaces_trunk_ro.out"
+  },
+  "interfaces_trunk_admin": {
+    "query": "interfaces_trunk",
+    "command": "show interfaces trunk",
+    "parameters": {},
+    "role": "ADMIN",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938326.4,
+    "file": "interfaces_trunk_admin.out"
+  },
+  "interfaces_counters_errors_ro": {
+    "query": "interfaces_counters_errors",
+    "command": "show interfaces counters errors",
+    "parameters": {},
+    "role": "RO",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938328.4,
+    "file": "interfaces_counters_errors_ro.out"
+  },
+  "interfaces_counters_errors_admin": {
+    "query": "interfaces_counters_errors",
+    "command": "show interfaces counters errors",
+    "parameters": {},
+    "role": "ADMIN",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938330.4,
+    "file": "interfaces_counters_errors_admin.out"
+  },
+  "interfaces_counters_discards_ro": {
+    "query": "interfaces_counters_discards",
+    "command": "show interfaces counters discards",
+    "parameters": {},
+    "role": "RO",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938332.4,
+    "file": "interfaces_counters_discards_ro.out"
+  },
+  "interfaces_counters_discards_admin": {
+    "query": "interfaces_counters_discards",
+    "command": "show interfaces counters discards",
+    "parameters": {},
+    "role": "ADMIN",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938334.4,
+    "file": "interfaces_counters_discards_admin.out"
+  },
+  "mlag_interfaces_ro": {
+    "query": "mlag_interfaces",
+    "command": "show mlag interfaces",
+    "parameters": {},
+    "role": "RO",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938336.4,
+    "file": "mlag_interfaces_ro.out"
+  },
+  "mlag_interfaces_admin": {
+    "query": "mlag_interfaces",
+    "command": "show mlag interfaces",
+    "parameters": {},
+    "role": "ADMIN",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938338.5,
+    "file": "mlag_interfaces_admin.out"
+  },
+  "interfaces_errdisabled_ro": {
+    "query": "interfaces_errdisabled",
+    "command": "show interfaces status errdisabled",
+    "parameters": {},
+    "role": "RO",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938340.5,
+    "file": "interfaces_errdisabled_ro.out"
+  },
+  "interfaces_errdisabled_admin": {
+    "query": "interfaces_errdisabled",
+    "command": "show interfaces status errdisabled",
+    "parameters": {},
+    "role": "ADMIN",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938342.4,
+    "file": "interfaces_errdisabled_admin.out"
+  },
+  "ipv6_neighbors_ro": {
+    "query": "ipv6_neighbors",
+    "command": "show ipv6 neighbors",
+    "parameters": {},
+    "role": "RO",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938344.4,
+    "file": "ipv6_neighbors_ro.out"
+  },
+  "ipv6_neighbors_admin": {
+    "query": "ipv6_neighbors",
+    "command": "show ipv6 neighbors",
+    "parameters": {},
+    "role": "ADMIN",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938346.4,
+    "file": "ipv6_neighbors_admin.out"
+  },
+  "ipv6_bgp_summary_ro": {
+    "query": "ipv6_bgp_summary",
+    "command": "show ipv6 bgp summary",
+    "parameters": {},
+    "role": "RO",
+    "rc": 1,
+    "target": "cEOS-2253",
+    "captured_at": 1794938348.4,
+    "file": "ipv6_bgp_summary_ro.out"
+  },
+  "ipv6_bgp_summary_admin": {
+    "query": "ipv6_bgp_summary",
+    "command": "show ipv6 bgp summary",
+    "parameters": {},
+    "role": "ADMIN",
+    "rc": 1,
+    "target": "cEOS-2253",
+    "captured_at": 1794938350.3,
+    "file": "ipv6_bgp_summary_admin.out"
+  },
+  "ospfv3_neighbors_ro": {
+    "query": "ospfv3_neighbors",
+    "command": "show ipv6 ospf neighbor",
+    "parameters": {},
+    "role": "RO",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938352.3,
+    "file": "ospfv3_neighbors_ro.out"
+  },
+  "ospfv3_neighbors_admin": {
+    "query": "ospfv3_neighbors",
+    "command": "show ipv6 ospf neighbor",
+    "parameters": {},
+    "role": "ADMIN",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938354.3,
+    "file": "ospfv3_neighbors_admin.out"
+  },
+  "mac_table_ro": {
+    "query": "mac_table",
+    "command": "show mac address-table",
+    "parameters": {},
+    "role": "RO",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938356.2,
+    "file": "mac_table_ro.out"
+  },
+  "mac_table_admin": {
+    "query": "mac_table",
+    "command": "show mac address-table",
+    "parameters": {},
+    "role": "ADMIN",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938358.2,
+    "file": "mac_table_admin.out"
+  },
+  "interface_counters_rates_ro": {
+    "query": "interface_counters_rates",
+    "command": "show interfaces Ethernet2 counters rates",
+    "parameters": {
+      "interface": "Ethernet2"
+    },
+    "role": "RO",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938360.2,
+    "file": "interface_counters_rates_ro.out"
+  },
+  "interface_counters_rates_admin": {
+    "query": "interface_counters_rates",
+    "command": "show interfaces Ethernet2 counters rates",
+    "parameters": {
+      "interface": "Ethernet2"
+    },
+    "role": "ADMIN",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938362.2,
+    "file": "interface_counters_rates_admin.out"
+  },
+  "mac_table_interface_ro": {
+    "query": "mac_table_interface",
+    "command": "show mac address-table interface Ethernet2",
+    "parameters": {
+      "interface": "Ethernet2"
+    },
+    "role": "RO",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938364.2,
+    "file": "mac_table_interface_ro.out"
+  },
+  "mac_table_interface_admin": {
+    "query": "mac_table_interface",
+    "command": "show mac address-table interface Ethernet2",
+    "parameters": {
+      "interface": "Ethernet2"
+    },
+    "role": "ADMIN",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938366.2,
+    "file": "mac_table_interface_admin.out"
+  },
+  "stp_interface_detail_ro": {
+    "query": "stp_interface_detail",
+    "command": "show spanning-tree interface Ethernet2 detail",
+    "parameters": {
+      "interface": "Ethernet2"
+    },
+    "role": "RO",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938368.1,
+    "file": "stp_interface_detail_ro.out"
+  },
+  "stp_interface_detail_admin": {
+    "query": "stp_interface_detail",
+    "command": "show spanning-tree interface Ethernet2 detail",
+    "parameters": {
+      "interface": "Ethernet2"
+    },
+    "role": "ADMIN",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938370.1,
+    "file": "stp_interface_detail_admin.out"
+  },
+  "interface_qos_ro": {
+    "query": "interface_qos",
+    "command": "show qos interfaces Ethernet2",
+    "parameters": {
+      "interface": "Ethernet2"
+    },
+    "role": "RO",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938372.1,
+    "file": "interface_qos_ro.out"
+  },
+  "interface_qos_admin": {
+    "query": "interface_qos",
+    "command": "show qos interfaces Ethernet2",
+    "parameters": {
+      "interface": "Ethernet2"
+    },
+    "role": "ADMIN",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938374.1,
+    "file": "interface_qos_admin.out"
+  },
+  "interface_queue_counters_ro": {
+    "query": "interface_queue_counters",
+    "command": "show interfaces Ethernet2 counters queue",
+    "parameters": {
+      "interface": "Ethernet2"
+    },
+    "role": "RO",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938376.1,
+    "file": "interface_queue_counters_ro.out"
+  },
+  "interface_queue_counters_admin": {
+    "query": "interface_queue_counters",
+    "command": "show interfaces Ethernet2 counters queue",
+    "parameters": {
+      "interface": "Ethernet2"
+    },
+    "role": "ADMIN",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938378.0,
+    "file": "interface_queue_counters_admin.out"
+  },
+  "lldp_neighbors_interface_ro": {
+    "query": "lldp_neighbors_interface",
+    "command": "show lldp neighbors Ethernet2",
+    "parameters": {
+      "interface": "Ethernet2"
+    },
+    "role": "RO",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938380.0,
+    "file": "lldp_neighbors_interface_ro.out"
+  },
+  "lldp_neighbors_interface_admin": {
+    "query": "lldp_neighbors_interface",
+    "command": "show lldp neighbors Ethernet2",
+    "parameters": {
+      "interface": "Ethernet2"
+    },
+    "role": "ADMIN",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938382.0,
+    "file": "lldp_neighbors_interface_admin.out"
+  },
+  "interface_optics_ro": {
+    "query": "interface_optics",
+    "command": "show interfaces Ethernet2 transceiver",
+    "parameters": {
+      "interface": "Ethernet2"
+    },
+    "role": "RO",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938384.0,
+    "file": "interface_optics_ro.out"
+  },
+  "interface_optics_admin": {
+    "query": "interface_optics",
+    "command": "show interfaces Ethernet2 transceiver",
+    "parameters": {
+      "interface": "Ethernet2"
+    },
+    "role": "ADMIN",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938386.0,
+    "file": "interface_optics_admin.out"
+  },
+  "interface_poe_ro": {
+    "query": "interface_poe",
+    "command": "show poe interface Ethernet2",
+    "parameters": {
+      "interface": "Ethernet2"
+    },
+    "role": "RO",
+    "rc": 1,
+    "target": "cEOS-2253",
+    "captured_at": 1794938387.9,
+    "file": "interface_poe_ro.out"
+  },
+  "interface_poe_admin": {
+    "query": "interface_poe",
+    "command": "show poe interface Ethernet2",
+    "parameters": {
+      "interface": "Ethernet2"
+    },
+    "role": "ADMIN",
+    "rc": 1,
+    "target": "cEOS-2253",
+    "captured_at": 1794938389.9,
+    "file": "interface_poe_admin.out"
+  },
+  "lacp_peer_interface_ro": {
+    "query": "lacp_peer_interface",
+    "command": "show lacp interface Ethernet2 peer",
+    "parameters": {
+      "interface": "Ethernet2"
+    },
+    "role": "RO",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938391.9,
+    "file": "lacp_peer_interface_ro.out"
+  },
+  "lacp_peer_interface_admin": {
+    "query": "lacp_peer_interface",
+    "command": "show lacp interface Ethernet2 peer",
+    "parameters": {
+      "interface": "Ethernet2"
+    },
+    "role": "ADMIN",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938393.9,
+    "file": "lacp_peer_interface_admin.out"
+  },
+  "interface_counters_rates_et14_ro": {
+    "query": "interface_counters_rates",
+    "command": "show interfaces Ethernet14 counters rates",
+    "parameters": {
+      "interface": "Ethernet14"
+    },
+    "role": "RO",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938395.8,
+    "file": "interface_counters_rates_et14_ro.out"
+  },
+  "interface_counters_rates_et14_admin": {
+    "query": "interface_counters_rates",
+    "command": "show interfaces Ethernet14 counters rates",
+    "parameters": {
+      "interface": "Ethernet14"
+    },
+    "role": "ADMIN",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938397.8,
+    "file": "interface_counters_rates_et14_admin.out"
+  },
+  "mac_table_interface_et14_ro": {
+    "query": "mac_table_interface",
+    "command": "show mac address-table interface Ethernet14",
+    "parameters": {
+      "interface": "Ethernet14"
+    },
+    "role": "RO",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938399.8,
+    "file": "mac_table_interface_et14_ro.out"
+  },
+  "mac_table_interface_et14_admin": {
+    "query": "mac_table_interface",
+    "command": "show mac address-table interface Ethernet14",
+    "parameters": {
+      "interface": "Ethernet14"
+    },
+    "role": "ADMIN",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938401.8,
+    "file": "mac_table_interface_et14_admin.out"
+  },
+  "stp_interface_detail_et14_ro": {
+    "query": "stp_interface_detail",
+    "command": "show spanning-tree interface Ethernet14 detail",
+    "parameters": {
+      "interface": "Ethernet14"
+    },
+    "role": "RO",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938403.9,
+    "file": "stp_interface_detail_et14_ro.out"
+  },
+  "stp_interface_detail_et14_admin": {
+    "query": "stp_interface_detail",
+    "command": "show spanning-tree interface Ethernet14 detail",
+    "parameters": {
+      "interface": "Ethernet14"
+    },
+    "role": "ADMIN",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938406.0,
+    "file": "stp_interface_detail_et14_admin.out"
+  },
+  "interface_qos_et14_ro": {
+    "query": "interface_qos",
+    "command": "show qos interfaces Ethernet14",
+    "parameters": {
+      "interface": "Ethernet14"
+    },
+    "role": "RO",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938408.0,
+    "file": "interface_qos_et14_ro.out"
+  },
+  "interface_qos_et14_admin": {
+    "query": "interface_qos",
+    "command": "show qos interfaces Ethernet14",
+    "parameters": {
+      "interface": "Ethernet14"
+    },
+    "role": "ADMIN",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938410.0,
+    "file": "interface_qos_et14_admin.out"
+  },
+  "interface_queue_counters_et14_ro": {
+    "query": "interface_queue_counters",
+    "command": "show interfaces Ethernet14 counters queue",
+    "parameters": {
+      "interface": "Ethernet14"
+    },
+    "role": "RO",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938412.0,
+    "file": "interface_queue_counters_et14_ro.out"
+  },
+  "interface_queue_counters_et14_admin": {
+    "query": "interface_queue_counters",
+    "command": "show interfaces Ethernet14 counters queue",
+    "parameters": {
+      "interface": "Ethernet14"
+    },
+    "role": "ADMIN",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938414.0,
+    "file": "interface_queue_counters_et14_admin.out"
+  },
+  "lldp_neighbors_interface_et14_ro": {
+    "query": "lldp_neighbors_interface",
+    "command": "show lldp neighbors Ethernet14",
+    "parameters": {
+      "interface": "Ethernet14"
+    },
+    "role": "RO",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938415.9,
+    "file": "lldp_neighbors_interface_et14_ro.out"
+  },
+  "lldp_neighbors_interface_et14_admin": {
+    "query": "lldp_neighbors_interface",
+    "command": "show lldp neighbors Ethernet14",
+    "parameters": {
+      "interface": "Ethernet14"
+    },
+    "role": "ADMIN",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938417.9,
+    "file": "lldp_neighbors_interface_et14_admin.out"
+  },
+  "interface_optics_et14_ro": {
+    "query": "interface_optics",
+    "command": "show interfaces Ethernet14 transceiver",
+    "parameters": {
+      "interface": "Ethernet14"
+    },
+    "role": "RO",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938419.9,
+    "file": "interface_optics_et14_ro.out"
+  },
+  "interface_optics_et14_admin": {
+    "query": "interface_optics",
+    "command": "show interfaces Ethernet14 transceiver",
+    "parameters": {
+      "interface": "Ethernet14"
+    },
+    "role": "ADMIN",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938421.9,
+    "file": "interface_optics_et14_admin.out"
+  },
+  "interface_poe_et14_ro": {
+    "query": "interface_poe",
+    "command": "show poe interface Ethernet14",
+    "parameters": {
+      "interface": "Ethernet14"
+    },
+    "role": "RO",
+    "rc": 1,
+    "target": "cEOS-2253",
+    "captured_at": 1794938423.8,
+    "file": "interface_poe_et14_ro.out"
+  },
+  "interface_poe_et14_admin": {
+    "query": "interface_poe",
+    "command": "show poe interface Ethernet14",
+    "parameters": {
+      "interface": "Ethernet14"
+    },
+    "role": "ADMIN",
+    "rc": 1,
+    "target": "cEOS-2253",
+    "captured_at": 1794938425.8,
+    "file": "interface_poe_et14_admin.out"
+  },
+  "lacp_peer_interface_et14_ro": {
+    "query": "lacp_peer_interface",
+    "command": "show lacp interface Ethernet14 peer",
+    "parameters": {
+      "interface": "Ethernet14"
+    },
+    "role": "RO",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938427.8,
+    "file": "lacp_peer_interface_et14_ro.out"
+  },
+  "lacp_peer_interface_et14_admin": {
+    "query": "lacp_peer_interface",
+    "command": "show lacp interface Ethernet14 peer",
+    "parameters": {
+      "interface": "Ethernet14"
+    },
+    "role": "ADMIN",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938429.7,
+    "file": "lacp_peer_interface_et14_admin.out"
+  },
+  "interface_counters_rates_po104_ro": {
+    "query": "interface_counters_rates",
+    "command": "show interfaces Port-Channel104 counters rates",
+    "parameters": {
+      "interface": "Port-Channel104"
+    },
+    "role": "RO",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938431.7,
+    "file": "interface_counters_rates_po104_ro.out"
+  },
+  "interface_counters_rates_po104_admin": {
+    "query": "interface_counters_rates",
+    "command": "show interfaces Port-Channel104 counters rates",
+    "parameters": {
+      "interface": "Port-Channel104"
+    },
+    "role": "ADMIN",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938433.7,
+    "file": "interface_counters_rates_po104_admin.out"
+  },
+  "mac_table_interface_po104_ro": {
+    "query": "mac_table_interface",
+    "command": "show mac address-table interface Port-Channel104",
+    "parameters": {
+      "interface": "Port-Channel104"
+    },
+    "role": "RO",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938435.6,
+    "file": "mac_table_interface_po104_ro.out"
+  },
+  "mac_table_interface_po104_admin": {
+    "query": "mac_table_interface",
+    "command": "show mac address-table interface Port-Channel104",
+    "parameters": {
+      "interface": "Port-Channel104"
+    },
+    "role": "ADMIN",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938437.6,
+    "file": "mac_table_interface_po104_admin.out"
+  },
+  "stp_interface_detail_po104_ro": {
+    "query": "stp_interface_detail",
+    "command": "show spanning-tree interface Port-Channel104 detail",
+    "parameters": {
+      "interface": "Port-Channel104"
+    },
+    "role": "RO",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938439.6,
+    "file": "stp_interface_detail_po104_ro.out"
+  },
+  "stp_interface_detail_po104_admin": {
+    "query": "stp_interface_detail",
+    "command": "show spanning-tree interface Port-Channel104 detail",
+    "parameters": {
+      "interface": "Port-Channel104"
+    },
+    "role": "ADMIN",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938441.6,
+    "file": "stp_interface_detail_po104_admin.out"
+  },
+  "interface_qos_po104_ro": {
+    "query": "interface_qos",
+    "command": "show qos interfaces Port-Channel104",
+    "parameters": {
+      "interface": "Port-Channel104"
+    },
+    "role": "RO",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938443.6,
+    "file": "interface_qos_po104_ro.out"
+  },
+  "interface_qos_po104_admin": {
+    "query": "interface_qos",
+    "command": "show qos interfaces Port-Channel104",
+    "parameters": {
+      "interface": "Port-Channel104"
+    },
+    "role": "ADMIN",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938445.6,
+    "file": "interface_qos_po104_admin.out"
+  },
+  "interface_queue_counters_po104_ro": {
+    "query": "interface_queue_counters",
+    "command": "show interfaces Port-Channel104 counters queue",
+    "parameters": {
+      "interface": "Port-Channel104"
+    },
+    "role": "RO",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938447.6,
+    "file": "interface_queue_counters_po104_ro.out"
+  },
+  "interface_queue_counters_po104_admin": {
+    "query": "interface_queue_counters",
+    "command": "show interfaces Port-Channel104 counters queue",
+    "parameters": {
+      "interface": "Port-Channel104"
+    },
+    "role": "ADMIN",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938449.6,
+    "file": "interface_queue_counters_po104_admin.out"
+  },
+  "mac_table_vlan_ro": {
+    "query": "mac_table_vlan",
+    "command": "show mac address-table vlan 10",
+    "parameters": {
+      "vlan_id": "10"
+    },
+    "role": "RO",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938451.6,
+    "file": "mac_table_vlan_ro.out"
+  },
+  "mac_table_vlan_admin": {
+    "query": "mac_table_vlan",
+    "command": "show mac address-table vlan 10",
+    "parameters": {
+      "vlan_id": "10"
+    },
+    "role": "ADMIN",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938453.5,
+    "file": "mac_table_vlan_admin.out"
+  },
+  "mac_table_vlan_v4000_ro": {
+    "query": "mac_table_vlan",
+    "command": "show mac address-table vlan 4000",
+    "parameters": {
+      "vlan_id": "4000"
+    },
+    "role": "RO",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938455.5,
+    "file": "mac_table_vlan_v4000_ro.out"
+  },
+  "mac_table_vlan_v4000_admin": {
+    "query": "mac_table_vlan",
+    "command": "show mac address-table vlan 4000",
+    "parameters": {
+      "vlan_id": "4000"
+    },
+    "role": "ADMIN",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938457.5,
+    "file": "mac_table_vlan_v4000_admin.out"
+  },
+  "mac_table_address_ro": {
+    "query": "mac_table_address",
+    "command": "show mac address-table address 00:00:5e:00:53:02",
+    "parameters": {
+      "mac": "00:00:5e:00:53:02"
+    },
+    "role": "RO",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938459.5,
+    "file": "mac_table_address_ro.out"
+  },
+  "mac_table_address_admin": {
+    "query": "mac_table_address",
+    "command": "show mac address-table address 00:00:5e:00:53:02",
+    "parameters": {
+      "mac": "00:00:5e:00:53:02"
+    },
+    "role": "ADMIN",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938461.5,
+    "file": "mac_table_address_admin.out"
+  },
+  "mac_table_address_miss_ro": {
+    "query": "mac_table_address",
+    "command": "show mac address-table address 00:00:5e:00:53:08",
+    "parameters": {
+      "mac": "00:00:5e:00:53:08"
+    },
+    "role": "RO",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938463.4,
+    "file": "mac_table_address_miss_ro.out"
+  },
+  "mac_table_address_miss_admin": {
+    "query": "mac_table_address",
+    "command": "show mac address-table address 00:00:5e:00:53:08",
+    "parameters": {
+      "mac": "00:00:5e:00:53:08"
+    },
+    "role": "ADMIN",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938465.4,
+    "file": "mac_table_address_miss_admin.out"
+  },
+  "interfaces_counters_errors_t2_ro": {
+    "query": "interfaces_counters_errors",
+    "command": "show interfaces counters errors",
+    "parameters": {},
+    "role": "RO",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938487.4,
+    "file": "interfaces_counters_errors_t2_ro.out"
+  },
+  "interfaces_counters_errors_t2_admin": {
+    "query": "interfaces_counters_errors",
+    "command": "show interfaces counters errors",
+    "parameters": {},
+    "role": "ADMIN",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938489.3,
+    "file": "interfaces_counters_errors_t2_admin.out"
+  },
+  "interfaces_counters_discards_t2_ro": {
+    "query": "interfaces_counters_discards",
+    "command": "show interfaces counters discards",
+    "parameters": {},
+    "role": "RO",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938511.3,
+    "file": "interfaces_counters_discards_t2_ro.out"
+  },
+  "interfaces_counters_discards_t2_admin": {
+    "query": "interfaces_counters_discards",
+    "command": "show interfaces counters discards",
+    "parameters": {},
+    "role": "ADMIN",
+    "rc": 0,
+    "target": "cEOS-2253",
+    "captured_at": 1794938513.2,
+    "file": "interfaces_counters_discards_t2_admin.out"
+  },
+  "pair_version_ro": {
+    "query": "version",
+    "command": "show version",
+    "parameters": {},
+    "role": "RO",
+    "rc": 0,
+    "target": "cEOS-pair-a",
+    "captured_at": 1794938515.2,
+    "file": "pair_version_ro.out"
+  },
+  "pair_version_admin": {
+    "query": "version",
+    "command": "show version",
+    "parameters": {},
+    "role": "ADMIN",
+    "rc": 0,
+    "target": "cEOS-pair-a",
+    "captured_at": 1794938517.0,
+    "file": "pair_version_admin.out"
+  },
+  "pair_interfaces_counters_rates_ro": {
+    "query": "interfaces_counters_rates",
+    "command": "show interfaces counters rates",
+    "parameters": {},
+    "role": "RO",
+    "rc": 0,
+    "target": "cEOS-pair-a",
+    "captured_at": 1794938518.8,
+    "file": "pair_interfaces_counters_rates_ro.out"
+  },
+  "pair_interfaces_counters_rates_admin": {
+    "query": "interfaces_counters_rates",
+    "command": "show interfaces counters rates",
+    "parameters": {},
+    "role": "ADMIN",
+    "rc": 0,
+    "target": "cEOS-pair-a",
+    "captured_at": 1794938520.5,
+    "file": "pair_interfaces_counters_rates_admin.out"
+  },
+  "pair_stp_detail_ro": {
+    "query": "stp_detail",
+    "command": "show spanning-tree detail",
+    "parameters": {},
+    "role": "RO",
+    "rc": 0,
+    "target": "cEOS-pair-a",
+    "captured_at": 1794938522.3,
+    "file": "pair_stp_detail_ro.out"
+  },
+  "pair_stp_detail_admin": {
+    "query": "stp_detail",
+    "command": "show spanning-tree detail",
+    "parameters": {},
+    "role": "ADMIN",
+    "rc": 0,
+    "target": "cEOS-pair-a",
+    "captured_at": 1794938524.1,
+    "file": "pair_stp_detail_admin.out"
+  },
+  "pair_igmp_snooping_groups_ro": {
+    "query": "igmp_snooping_groups",
+    "command": "show ip igmp snooping groups",
+    "parameters": {},
+    "role": "RO",
+    "rc": 0,
+    "target": "cEOS-pair-a",
+    "captured_at": 1794938525.8,
+    "file": "pair_igmp_snooping_groups_ro.out"
+  },
+  "pair_igmp_snooping_groups_admin": {
+    "query": "igmp_snooping_groups",
+    "command": "show ip igmp snooping groups",
+    "parameters": {},
+    "role": "ADMIN",
+    "rc": 0,
+    "target": "cEOS-pair-a",
+    "captured_at": 1794938527.7,
+    "file": "pair_igmp_snooping_groups_admin.out"
+  },
+  "pair_igmp_snooping_mrouter_ro": {
+    "query": "igmp_snooping_mrouter",
+    "command": "show ip igmp snooping mrouter",
+    "parameters": {},
+    "role": "RO",
+    "rc": 0,
+    "target": "cEOS-pair-a",
+    "captured_at": 1794938529.6,
+    "file": "pair_igmp_snooping_mrouter_ro.out"
+  },
+  "pair_igmp_snooping_mrouter_admin": {
+    "query": "igmp_snooping_mrouter",
+    "command": "show ip igmp snooping mrouter",
+    "parameters": {},
+    "role": "ADMIN",
+    "rc": 0,
+    "target": "cEOS-pair-a",
+    "captured_at": 1794938531.3,
+    "file": "pair_igmp_snooping_mrouter_admin.out"
+  },
+  "pair_poe_ro": {
+    "query": "poe",
+    "command": "show poe",
+    "parameters": {},
+    "role": "RO",
+    "rc": 1,
+    "target": "cEOS-pair-a",
+    "captured_at": 1794938533.1,
+    "file": "pair_poe_ro.out"
+  },
+  "pair_poe_admin": {
+    "query": "poe",
+    "command": "show poe",
+    "parameters": {},
+    "role": "ADMIN",
+    "rc": 1,
+    "target": "cEOS-pair-a",
+    "captured_at": 1794938534.9,
+    "file": "pair_poe_admin.out"
+  },
+  "pair_mac_table_interface_ro": {
+    "query": "mac_table_interface",
+    "command": "show mac address-table interface Port-Channel128",
+    "parameters": {
+      "interface": "Port-Channel128"
+    },
+    "role": "RO",
+    "rc": 0,
+    "target": "cEOS-pair-a",
+    "captured_at": 1794938536.6,
+    "file": "pair_mac_table_interface_ro.out"
+  },
+  "pair_mac_table_interface_admin": {
+    "query": "mac_table_interface",
+    "command": "show mac address-table interface Port-Channel128",
+    "parameters": {
+      "interface": "Port-Channel128"
+    },
+    "role": "ADMIN",
+    "rc": 0,
+    "target": "cEOS-pair-a",
+    "captured_at": 1794938538.5,
+    "file": "pair_mac_table_interface_admin.out"
+  }
+}

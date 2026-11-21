@@ -1,0 +1,5 @@
+Number of APs: 1
+
+Base MAC Ethernet MAC AP Name IP Address Status Last Failure Phase Last Disconnect Reason
+-----------------------------------------------------------------------------------------
+0000.5e00.5305 0000.5e00.5306 host03           198.51.100.5 Joined Join DTLS close alert from peer

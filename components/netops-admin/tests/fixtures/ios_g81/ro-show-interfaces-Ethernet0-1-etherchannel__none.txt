@@ -1,0 +1,3 @@
+
+
+Etherchannel not enabled on this port

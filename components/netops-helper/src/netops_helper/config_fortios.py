@@ -6,19 +6,56 @@ import shlex
 
 from . import configuration
 
+# Tested builds (G00, decision of 2026-11-17), one field policy config-fortios-<version>.json each. They are not a
+# gate: another version or build is read with the nearest policy (policy_firmware) and firmware_support "untested".
+# The redaction stays fail-closed there: a field outside the policy is hidden as <UNVERIFIED:...>.
 _BUILDS = {'7.6.8': '3744', '8.0.2': '0251'}
 _HEADERS = frozenset(('config-version', 'conf_file_ver', 'buildno', 'global_vdom'))
 
 
 def _firmware(firmware):
+    # The product kind and a well-formed version are real boundaries; the version and build are not (G00 §2.4).
     if (type(firmware) is not tuple or len(firmware) != 3 or
             not all(type(value) is str for value in firmware) or
             not re.fullmatch(r'(?:FortiGate|FortiWiFi)-[A-Za-z0-9_.+-]+', firmware[0])):
-        raise configuration.UnsupportedConfigurationFirmware('config_platform_not_supported: unverified FortiOS firmware')
-    if _BUILDS.get(firmware[1]) != firmware[2]:
-        raise configuration.UnsupportedConfigurationFirmware('config_platform_not_supported: unverified FortiOS firmware',
-                    detected=firmware[1:], supported=tuple(_BUILDS.items()))
+        raise configuration.UnsupportedConfigurationFirmware('config_platform_not_supported: not a FortiOS product')
+    if (not re.fullmatch(r'[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,4}', firmware[1]) or
+            not re.fullmatch(r'[0-9]{4,6}', firmware[2]) or len(firmware[0]) > 64):
+        raise ValueError('configuration identity could not be verified')
     return firmware
+
+
+def _version(text):
+    return tuple(int(part) for part in text.split('.'))
+
+
+def policy_firmware(firmware):
+    """The version of the field policy for this firmware: the tested version itself; otherwise the nearest policy
+    of the same major.minor, else the nearest lower version, else the nearest version."""
+    version = _version(_firmware(firmware)[1])
+    if _BUILDS.get(firmware[1]) == firmware[2]:
+        return firmware[1]
+    tested = sorted(_BUILDS, key=_version)
+
+    def distance(candidate):
+        return tuple(abs(a - b) for a, b in zip(_version(candidate), version))
+
+    same = [candidate for candidate in tested if _version(candidate)[:2] == version[:2]]
+    if same:
+        return min(same, key=lambda candidate: (distance(candidate), _version(candidate)))
+    lower = [candidate for candidate in tested if _version(candidate) < version]
+    if lower:
+        return lower[-1]
+    return min(tested, key=lambda candidate: (distance(candidate), _version(candidate)))
+
+
+def firmware_support(firmware, function='config_read and config_snapshot for FortiOS'):
+    """firmware_support (netops_core.tested) of a FortiOS (model, version, build) against the tested builds."""
+    from netops_core import tested
+    firmware = _firmware(firmware)
+    return tested.support('FortiOS', firmware[1] + ' build' + firmware[2],
+                          [version + ' build' + build for version, build in sorted(_BUILDS.items())],
+                          function=function)
 
 
 @lru_cache(maxsize=2)
@@ -34,16 +71,18 @@ def _policy(version):
     opaque = frozenset(prefix + tuple(path) for prefix in prefixes for path in data['opaque'])
     secret_fields = frozenset((prefix + tuple(path), field)
                               for prefix in prefixes for path, field in data['secret_fields'])
+    sibling_headers = ((('system automation-action', 'http-headers'), 'key', 'value'),
+                       (('icap profile', 'icap-headers'), 'name', 'content'))
     return configuration.FullConfigPolicy('fortios', fields, edits, opaque, _HEADERS, True,
                                          secret_fields=secret_fields,
                                          unverified_fields=frozenset((prefix + tuple(path), field)
                                              for prefix in prefixes for path, field in data['unverified_fields']),
-                                         sibling_header_fields=frozenset((prefix + ('system automation-action', 'http-headers'), 'key', 'value')
-                                             for prefix in prefixes))
+                                         sibling_header_fields=frozenset((prefix + path, name, value)
+                                             for prefix in prefixes for path, name, value in sibling_headers))
 
 
 def policy_for(firmware):
-    return _policy(_firmware(firmware)[1])
+    return _policy(policy_firmware(firmware))
 
 
 def verify_identity(status):

@@ -14,6 +14,11 @@ def legacy(root):
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     module.ALLOWED_DOMAINS += ("chatgpt.com", "claude.com", "ghcr.io", "cisecurity.org")
+    # the two public Discord hosts that `netops check-intent --notify` accepts for its webhook (notify.DISCORD_WEBHOOK)
+    module.ALLOWED_DOMAINS += ("discord.com", "discordapp.com")
+    # protocol constants that real device output prints: the Ethernet broadcast address (FortiOS interface and
+    # STP listings) and OSPF AllDRouters, the IANA group next to the already accepted AllSPFRouters (IOS XE)
+    module.ALLOWED_LITERALS = module.ALLOWED_LITERALS | {"ff:ff:ff:ff:ff:ff", "224.0.0.6"}
     return module
 
 VENDORED_SCHEMA_PINS = {

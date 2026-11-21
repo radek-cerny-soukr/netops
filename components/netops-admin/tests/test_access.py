@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import pytest
+
 from netops_admin import access, exec_exos, exec_fortios
 
 
@@ -84,6 +86,25 @@ def test_exos_error_answer_stops_the_session():
     else:
         raise AssertionError("an error answer must stop the session")
     assert shell.sent == ["delete vlan guest"]
+
+
+@pytest.mark.parametrize("send_fails", [False, True])
+def test_line_sent_reports_a_successful_send_even_without_a_reply(send_fails):
+    class WriteShell(Shell):
+        def send(self, line):
+            if send_fails:
+                raise access.session.SessionError("session closed before the line was sent")
+            super().send(line)
+
+    shell = WriteShell([b"sw-lab.1 # "])
+    handle = device_access(shell)
+    sent = []
+    handle.line_sent = sent.append
+    with pytest.raises(access.AccessError) as failure:
+        handle.apply(["delete vlan guest"], exec_exos.prompt_spec("sw-lab"))
+    assert failure.value.accepted_lines == 0
+    assert sent == ([] if send_fails else [1])
+    assert shell.sent == ([] if send_fails else ["delete vlan guest"])
 
 
 def test_fortios_refusal_names_the_object_the_line_and_the_device_answer():
@@ -195,7 +216,7 @@ def test_ssh_client_warning_on_stderr_keeps_the_poe_not_capable_code(monkeypatch
     assert "post-quantum" in handle.last_stderr and "post-quantum" not in text
     plan = {"key": "13", "prechecks": []}
     with pytest.raises(exos.NotInlinePower) as refused:
-        exec_exos._poe_prechecks(handle, None, plan)
+        exec_exos._poe_prechecks(handle, None, plan, "")
     assert refused.value.reason_codes == ["poe_not_capable"]
     assert plan["prechecks"] == []
 
@@ -211,9 +232,48 @@ def test_ssh_client_warning_on_stderr_does_not_reach_the_inline_power_table(monk
 
 
 def test_stderr_only_answers_stay_joined_for_the_readers_that_need_them(monkeypatch):
-    """FortiADC writes the exec answer to stderr (measured 7.6.7 build0676): diagnose_query and own_query keep it."""
-    handle = stderr_access(monkeypatch, {"get load-balance vs_stat x": (0, b"", b"answer on stderr\n"),
-                                         "show system admin x": (0, b"", b"config system admin\n")},
-                           platform="fortiadc")
-    assert "answer on stderr" in handle.diagnose_query("get load-balance vs_stat x")
-    assert "config system admin" in handle.own_query("show system admin x")
+    handle = stderr_access(monkeypatch, {"show switch": (0, b"", b"answer on stderr\n"),
+                                         "show accounts": (0, b"", b"admin\n")})
+    assert "answer on stderr" in handle.diagnose_query("show switch")
+    assert "admin" in handle.own_query("show accounts")
+
+
+# task 441 (B02): the refusal exactly as the runtime engine image received it live on 2026-11-17 from X440 port 13 and
+# X435 port 9 over ai-login (EXOS 33.7.1.6-patch1-11): stdout "Port N is not inline-power capable", exit status 250,
+# and the OpenSSH post-quantum warning on stderr. The replay goes through DeviceAccess._query, as the live call did.
+def _replay(name):
+    from pathlib import Path
+    base = Path(__file__).resolve().parent / "fixtures" / "exos_port_poe" / name
+    return (base.with_suffix(".stdout").read_bytes(), base.with_suffix(".stderr").read_bytes())
+
+
+
+@pytest.mark.parametrize(("name", "port"), [("x440__441-ip-nopoe-exec", "13"), ("x435__441-ip-nopoe-exec", "9")])
+def test_live_refusal_with_ssh_warning_replays_as_poe_not_capable(monkeypatch, name, port):
+    from netops_admin import exos
+    stdout, stderr = _replay(name)
+    assert b"post-quantum" in stderr and stdout.strip() == ("Port %s is not inline-power capable" % port).encode()
+    command = "show inline-power info ports %s" % port
+    handle = stderr_access(monkeypatch, {command: (250, stdout, stderr)})
+    rc, text = handle.query_status(command)
+    assert rc == 250 and exos.poe_not_capable_answer(rc, text, port)
+    plan = {"key": port, "prechecks": []}
+    with pytest.raises(exos.NotInlinePower) as refused:
+        exec_exos._poe_prechecks(handle, None, plan, "")
+    assert refused.value.reason_codes == ["poe_not_capable"] and plan["prechecks"] == []
+    # root cause of N01 (task 184, source 72c1fca): the answer joined with stderr is not the single measured line,
+    # so the detector refused it and the precheck fell through to the generic refusal
+    joined = handle._query(handle.credential, command, any_status=True, with_stderr=True)
+    assert not exos.poe_not_capable_answer(250, joined, port)
+
+
+@pytest.mark.parametrize("name", ["x440__441-ip-nopoe-exec", "x435__441-ip-nopoe-exec"])
+def test_live_refusal_with_another_exit_status_keeps_the_generic_refusal(monkeypatch, name):
+    from netops_admin import exos
+    stdout, stderr = _replay(name)
+    port = stdout.split()[1].decode()
+    command = "show inline-power info ports %s" % port
+    handle = stderr_access(monkeypatch, {command: (254, stdout, stderr)})
+    with pytest.raises(Exception) as caught:
+        exec_exos._poe_prechecks(handle, None, {"key": port, "prechecks": []}, "")
+    assert not isinstance(caught.value, exos.NotInlinePower)

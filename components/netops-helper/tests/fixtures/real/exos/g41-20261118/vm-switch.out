@@ -1,0 +1,8 @@
+SysName:          host06
+System Type:      EXOS-VM
+Image Booted:     primary
+Primary ver:      33.6.1.14
+Secondary ver:    33.6.1.14
+Config Selected:  primary.cfg
+Config Booted:    primary.cfg
+Config Automatic: NONE (Disabled)

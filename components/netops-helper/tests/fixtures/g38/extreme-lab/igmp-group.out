@@ -1,0 +1,8 @@
+Group Address     Ver Vlan            Port     Age  
+224.0.0.2         2   Default         1        178  
+224.0.0.2         2   Default         7        173  
+239.255.255.250   2   Default         11       49   
+224.0.0.251       2   Default         11       45   
+224.0.0.2         2   VLAN100         1        151  
+
+Total: 4 

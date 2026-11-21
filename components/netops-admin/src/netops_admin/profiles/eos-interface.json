@@ -14,8 +14,8 @@
   "attributes": {
     "description": {
       "type": "text",
-      "max_length": 64,
-      "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9 ._:/()+-]{0,62}[A-Za-z0-9._:/()+-])?$",
+      "max_length": 240,
+      "pattern": "^[^\\s?](?:[^?\\x00-\\x1f\\x7f-\\x9f]{0,238}[^\\s?])?$",
       "update": true,
       "unset": true,
       "referenced_update": true,
@@ -31,11 +31,40 @@
       "referenced_update": true,
       "required_on_create": false,
       "undo_to_default": true
+    },
+    "speed": {
+      "type": "text",
+      "max_length": 16,
+      "pattern": "^(auto|auto (?:10mhalf|10mfull|100mhalf|100mfull|1g|10g|25g|40g\\-4|50g\\-1|50g\\-2|100g\\-1|100g\\-2|100g\\-4|200g\\-1|200g\\-2|200g\\-4|400g\\-2|400g\\-4|400g\\-8|800g\\-4|800g\\-8|1\\.6t\\-8|2\\.5g|5g)|10mhalf|10mfull|100mhalf|100mfull|1g|10g|25g|40g\\-4|50g\\-1|50g\\-2|100g\\-1|100g\\-2|100g\\-4|200g\\-1|200g\\-2|200g\\-4|400g\\-2|400g\\-4|400g\\-8|800g\\-4|800g\\-8|1\\.6t\\-8)$",
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "required_on_create": false
+    },
+    "mtu": {
+      "type": "integer",
+      "minimum": 68,
+      "maximum": 65535,
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "required_on_create": false
+    },
+    "poe": {
+      "type": "text",
+      "max_length": 8,
+      "pattern": "^(enabled|disabled)$",
+      "default": "enabled",
+      "update": true,
+      "unset": false,
+      "referenced_update": true,
+      "required_on_create": false,
+      "undo_to_default": true
     }
   },
   "fixed": {},
   "volatile": [],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "Measured on cEOSLab 4.36.1F-48405728.4361F (GNS3 lab, task netops-provoz-20261116-301, ref/c7-mereni) and repeated end to end through Admin in task netops-20261116-304. Safeguard first: Admin commits an empty configuration session netops-<id> with 'commit timer HH:MM:SS' before the change, so its checkpoint is the configuration before the change; the change then runs line by line through 'configure terminal' (EOS accepts it while the timer is pending, and refuses every other commit timer and the commit of any other session). Confirmation is 'configure session netops-<id> commit' and 'no configure session netops-<id>'; write memory runs only after it, because write memory during the pending timer saves the unconfirmed state. An expired timer returns the WHOLE running configuration to the checkpoint of the session, so a change of someone else made in the timer window is reverted too; the session then disappears and only the log proves the revert (CONFIG_SESSION_COMMIT_TIMER_TIMEDOUT and CONFIG_SESSION_COMMIT_REVERTED within 1 s of the expiry). EOS creates a missing VLAN or interface without an error; Admin refuses both before any write. The timer state after a reload of the switch is not measured. The write account must log in with privilege 15 (aaa authorization exec default local); the check account (privilege 1) reads show interfaces N status, description and switchport. Interface lines: 'description TEXT' / 'no description', 'shutdown' / 'no shutdown' (show running-config shows 'shutdown' only for a disabled port)."
+  "rollback_evidence": "Measured on cEOSLab 4.36.1F-48405728.4361F (GNS3 lab, task netops-provoz-20261116-301, ref/c7-mereni) and repeated end to end through Admin in task netops-20261116-304. Safeguard first: Admin commits an empty configuration session netops-<id> with 'commit timer HH:MM:SS' before the change, so its checkpoint is the configuration before the change; the change then runs line by line through 'configure terminal' (EOS accepts it while the timer is pending, and refuses every other commit timer and the commit of any other session). Confirmation is 'configure session netops-<id> commit' and 'no configure session netops-<id>'; write memory runs only after it, because write memory during the pending timer saves the unconfirmed state. An expired timer returns the WHOLE running configuration to the checkpoint of the session, so a change of someone else made in the timer window is reverted too; the session then disappears and only the log proves the revert (CONFIG_SESSION_COMMIT_TIMER_TIMEDOUT and CONFIG_SESSION_COMMIT_REVERTED within 1 s of the expiry). EOS creates a missing VLAN or interface without an error; Admin refuses both before any write. The timer state after a reload of the switch is not measured. The write account must log in with privilege 15 (aaa authorization exec default local); the check account (privilege 1) reads show interfaces N status, description and switchport. Interface lines: 'description TEXT' / 'no description', 'shutdown' / 'no shutdown' (show running-config shows 'shutdown' only for a disabled port). 1.0.12 G122 (EP19, measured on cEOSLab 4.36.1F, task-evidence/g122): a description of up to 240 printable characters, diacritics and symbols included, is stored and shown literally (show running-config, show interfaces N description and status, also for the check account); EOS drops '?' (help of the CLI), tabs and control characters and cuts a trailing space, so Admin refuses them before any write. 1.0.12 G123 (E06/E23, measured on cEOSLab 4.36.1F, task-evidence/g123/raw/probe1 and probe2): 'speed V' / 'no speed' with the values of 'speed ?' and 'speed auto ?' (forced speeds such as 1g or 100mfull, auto, auto SPEED) is stored as 'speed V'; Admin checks forced speeds and advertised speeds against show interfaces N hardware for the port (EOS refused 'speed auto 1g' on a port without autonegotiation with '% Cannot advertise desired speeds and duplex settings'). Plain 'speed auto' is accepted without a matching hardware speed entry. 'mtu N' / 'no mtu' (68..65535 in 'mtu ?') is stored as 'mtu N'; EOS refuses more than the Ethernet MTU of show interfaces N ('% Max MTU for Ethernet12 is 9214'), so Admin refuses it before any write; on a switchport the value is the IP MTU of the port, show interfaces still shows the Ethernet MTU 9214. 'poe disabled' / 'no poe disabled' (Interface-Ethernet Configuration, Arista EOS manual, Ethernet Ports) is not measured: the lab cEOS answers '% Unavailable command (not supported on this hardware platform)' for poe and show poe, which Admin reads with the write account (show poe is Privileged EXEC) and turns into poe_not_capable before any write. The check account reads none of speed, MTU and PoE (operational speed only, Ethernet MTU only, show poe refused), the postcheck of the write account reads them in show running-config."
 }

@@ -24,6 +24,9 @@ All URLs use HTTPS on the enrolled target address and `helper.fortios_rest_port`
 | `/api/v2/monitor/wifi/ap_status` | `wifi_aps_live`: AP session/active/down/rebooted counts and the current client count. |
 | `/api/v2/monitor/wifi/rogue_ap` | `wifi_rogue` and `wifi_triage`: observed SSID/MAC, channel/band, signal/noise, security/encryption, vendor, first/last seen, detecting APs and managed flag. Observation does not establish malicious activity. |
 | `/api/v2/monitor/wifi/interfering_ap` | `wifi_rogue` and `wifi_triage`: MAC and detecting AP/radio/signal observations. No containment operation. |
+| `/api/v2/monitor/switch-controller/managed-switch/status` | `fortiswitch_overview`: every managed FortiSwitch of the root VDOM with serial, connection status and state, connecting IP, version, FortiLink interface, join time (FortiGate wall clock) and config-sync error flag; the per-port lists are not returned. Measured with the RO token on 80F 8.0.2 build0251, 2026-11-17. |
+| `/api/v2/monitor/switch-controller/managed-switch/health-status` | `fortiswitch_overview`: uptime in seconds and overall health per switch serial. Failure leaves both null with `health_missing`; the connection view stays. |
+| `/api/v2/monitor/firewall/policy` | Root VDOM firewall policy hit, byte, packet and last-used counters |
 
 For client history the Helper builds exactly the fixed log path above followed by
 `&filter=stamac%3D%3D<percent-encoded-canonical-MAC>`. The two repeated `filter=`
@@ -40,13 +43,14 @@ subtype; otherwise `invalid_response` is reported. No free-form filter is accept
 
 ## Security boundary
 
-- GET only and an exact allowlist of the seven fixed paths in the table above; only the wireless log request has its fixed row count, subtype and optional typed MAC filter; no redirects, ambient HTTP proxies, arbitrary destinations or configurable HTTP headers.
-- Bearer token lives in the existing private role vault as kind `api-token`. Inventory holds its record name, never the token. Only the trusted proxy injects it into the ephemeral internal authentication envelope for the three tools and `wifi_triage`. Clients cannot supply that envelope.
+- GET only and an exact allowlist of the ten fixed paths in the table above; only the wireless log request has its fixed row count, subtype and optional typed MAC filter; no redirects, ambient HTTP proxies, arbitrary destinations or configurable HTTP headers.
+- Bearer token lives in the existing private role vault as kind `api-token`. Inventory holds its record name, never the token. Only the trusted proxy injects it into the ephemeral internal authentication envelope for the three tools, `wifi_triage`, `fortiswitch_overview` and `firewall_policy_hits`. Clients cannot supply that envelope.
 - Mandatory exact SHA-256 pin of the DER certificate, or a configured CA with hostname/SAN verification. A pin is checked on the same TLS connection **before** sending Authorization. With both CA and pin configured, both must pass. TLS 1.2 minimum. There is no insecure enrollment mode.
 - Target address and the selected `fortios_rest_port` must satisfy the existing egress policy; DNS is resolved once to permitted IPv4 addresses and the connection uses that address. NetOps 1.0 does not install a host firewall: restrict egress on the host as needed.
 - Each GET has a ten-second connection/read deadline and a 2 MiB response cap, including unknown-length/chunked responses; compressed responses are refused. Calls use the enrolled target rate budget (default 30 requests/60 seconds). Triage reserves seven SSH reads plus eight REST reads when enabled (one client/AP/identity read, two station-only snapshots, one log GET and rogue/interfering GETs). `wifi_clients` reserves three reads, `wifi_aps_live` two, and `wifi_rogue` four (two observations plus client/AP context). The REST transport also limits actual GETs per target, but that counter lives in the memory of one Helper worker process; it is not shared between workers or sessions served by different workers. The proxy budget above is the cross-session limit.
 - Audit preflight is mandatory before device access. Each REST read records the fixed GET endpoint, status, operation correlation and sanitized result hash; neither body, Authorization header nor token is audited. Errors expose no response body or exception text from the device. Explicit secret redaction and sensitive-key redaction protect returned data, with proxy redaction as another boundary. Device data remains untrusted input.
 - A read-only API profile and narrow trusthosts are device-side defenses in addition to the client allowlist. Never use a super_admin token for this feature.
+- This token and path are Helper-only. Admin never uses them: Admin has no FortiOS Wi-Fi, WLAN or FortiAP write operation in 1.0.12 (also no restart of a managed FortiAP), and its FortiSwitch port changes run over SSH with the Admin write account, which needs Read/Write for WiFi & Switch Controller ([FortiSwitch ports](admin-configuration.md#fortiswitch-ports-through-fortilink)). The private global backup `admin backup` uses its own HTTPS credential from the operator environment, not this vault entry ([Private global backup](admin-configuration.md#private-global-backup)).
 
 ## Create access on FortiGate
 

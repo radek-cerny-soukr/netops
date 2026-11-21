@@ -1,0 +1,2 @@
+execute waf block-ip list
+ip	vs-name	expire

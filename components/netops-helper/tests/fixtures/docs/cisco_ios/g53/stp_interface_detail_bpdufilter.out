@@ -1,0 +1,11 @@
+ Port 196 (GigabitEthernet4/4) of VLAN0010 is forwarding 
+ Port path cost 1000, Port priority 160, Port Identifier 160.196.
+ Designated root has priority 32768, address 00d0.00b8.140a
+ Designated bridge has priority 32768, address 00d0.00b8.140a
+ Designated port id is 160.196, designated path cost 0
+ Timers:message age 0, forward delay 0, hold 0
+ Number of transitions to forwarding state:1
+ The port is in the portfast mode by portfast trunk configuration
+ Link type is point-to-point by default
+ Bpdu filter is enabled
+ BPDU:sent 0, received 0

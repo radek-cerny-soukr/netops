@@ -1,0 +1,50 @@
+{
+  "utc": "2026-11-18T10:00:30.699064+00:00",
+  "captures": {
+    "2255-lldp-mgmt-compact": {
+      "command": "show lldp neighbors interface mgmt0 detail",
+      "rc": 0,
+      "lines": 22
+    },
+    "2255-lldp-mgmt-spaced": {
+      "command": "show lldp neighbors interface mgmt 0 detail",
+      "rc": 0,
+      "lines": 22
+    },
+    "2255-lldp-port-compact": {
+      "command": "show lldp neighbors interface Ethernet1/2 detail",
+      "rc": 244,
+      "lines": 4
+    },
+    "2255-lldp-uplink": {
+      "command": "show lldp neighbors interface Ethernet1/1 detail",
+      "rc": 244,
+      "lines": 4
+    },
+    "2255-cdp-port-compact": {
+      "command": "show cdp neighbors interface Ethernet1/1 detail",
+      "rc": 0,
+      "lines": 1
+    },
+    "2255-stp-tree": {
+      "command": "show spanning-tree",
+      "rc": 0,
+      "lines": 33
+    },
+    "2261-lacp-port-compact": {
+      "command": "show lacp interface Ethernet1/4",
+      "rc": 0,
+      "lines": 36
+    },
+    "2261-vpc-interface-compact": {
+      "command": "show vpc consistency-parameters interface port-channel128",
+      "rc": 0,
+      "lines": 30
+    },
+    "2261-vpc-global": {
+      "command": "show vpc consistency-parameters global",
+      "rc": 0,
+      "lines": 35
+    }
+  }
+}

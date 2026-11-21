@@ -156,13 +156,17 @@ def test_line_prefix_regexes_preserve_fixture_and_whitespace_results():
     from netops_helper import normalization
     from support.classification_fixtures import real_captures
     root = Path(__file__).parent / 'fixtures'
-    # Freeze the previous spelling independently of the production constants.
+    # Freeze the whitespace spelling independently of production constants.
+    # Keep measured notices in both expressions so the comparison isolates whitespace behavior.
     patterns = [
         (normalization._PERMISSION, re.compile(
             r'(?mi)^\s*(?:%\s*(?:Authorization failed|Authorization denied|Permission denied|Access denied)'
             r'|This user does not have permissions for this command|error:\s*permission denied'
             r'|Line has invalid autocommand|Error:\s*(?:Permission denied|You do not have))')),
         (normalization._IOS_INVALID_INPUT, re.compile(r'(?mi)^\s*%\s*Invalid input')),
+        (normalization._EOS_UNAVAILABLE, re.compile(
+            r'(?mi)^\s*%\s*Unavailable command(?: \(not supported on this hardware platform\))?'
+            r'(?: at line [0-9]+)?\s*?$')),
         (normalization._UNSUPPORTED, re.compile(
             r'(?mi)^\s*(?:Method is not implemented on this platform\.'
             r'|%{1,2}\s*(?:Unrecognized command|Incomplete command|Ambiguous command|Invalid command|Invalid input)'
@@ -170,7 +174,10 @@ def test_line_prefix_regexes_preserve_fixture_and_whitespace_results():
             r'|Syntax error while parsing)')),
         (normalization._NOT_CONFIGURED, re.compile(
             r'(?mi)^\s*(?:%\s*BGP (?:not active|inactive)\b|!\s*IPv6 routing not enabled\b|BGP is not running\b'
+            r'|%\s*OSPF3 process does not exist in vrf [A-Za-z0-9_.:-]+ at line [0-9]+[ \t]*$'
+            r'|%\s*(?:No VRF named [A-Za-z0-9_.:-]+|IP routing table vrf [A-Za-z0-9_.:-]+ does not exist)\.?[ \t]*$'
             r'|Spanning-tree is not enabled at global level\b'
+            r'|%\s*Switch is not in mst mode\b'
             r'|warning: [a-z0-9-]+ subsystem not running - not needed by configuration\b)')),
     ]
     health = Path(normalization.__file__).with_name('triage_health.py')

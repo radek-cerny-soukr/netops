@@ -1,0 +1,11 @@
+status                        : enable
+rotation-size                 : 200
+disk-full                     : overwrite
+loglevel                      : information
+event-log-status              : enable
+event-log-category            : configuration admin health_check system 
+traffic-log-status            : disable
+attack-log-status             : disable
+script-log-status             : disable
+event-log-cached-lines        : 0
+rate_limit                    : 0

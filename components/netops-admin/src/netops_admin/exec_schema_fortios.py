@@ -78,4 +78,5 @@ def observe(access,plan):
 
 
 def plan_prechecks(access, device, plan, snapshot_text=""):
+    fortios.check_cli_inverse(plan["inverse"])
     return []

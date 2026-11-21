@@ -1,0 +1,19 @@
+Switch 1 FAN 1 is OK
+Switch 1 FAN 2 is OK
+Switch 1 FAN 3 is OK
+FAN PS-1 is NOT PRESENT
+FAN PS-2 is OK
+Switch 1: SYSTEM TEMPERATURE is OK
+Inlet Temperature Value: 25 Degree Celsius
+Temperature State: GREEN
+Yellow Threshold : 46 Degree Celsius
+Red Threshold    : 56 Degree Celsius
+
+Hotspot Temperature Value: 35 Degree Celsius
+Temperature State: GREEN
+Yellow Threshold : 105 Degree Celsius
+Red Threshold    : 125 Degree Celsius
+SW  PID                 Serial#     Status           Sys Pwr  PoE Pwr  Watts
+--  ------------------  ----------  ---------------  -------  -------  -----
+1A  Unknown             Unknown      No Input Power  Bad      Bad      235
+1B  PWR-C1-350WAC       SSS0000S01S  OK              Good     Good     350

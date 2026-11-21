@@ -1,0 +1,8 @@
+show dhcp all
+DHCP servers for DHCP relay agent:
+  ID:
+    1:
+      Name= relay-1
+      Description=
+      IP Address= 192.0.2.1
+      IP Address=

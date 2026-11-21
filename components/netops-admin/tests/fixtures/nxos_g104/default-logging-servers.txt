@@ -1,0 +1,7 @@
+Logging server:			enabled
+{198.51.100.20}
+	This server is temporarily unreachable
+	server severity:	notifications
+	server facility:	local7
+	server VRF:     	default
+	server port:    	514

@@ -107,7 +107,7 @@ def test_a_refused_ping_source_is_reported_with_its_reason() -> None:
 
 def test_the_engine_passes_the_traceroute_reason_to_the_caller(wire, audit_log, monkeypatch) -> None:
     shell = engine._FortiosDiagnosticShell(_Replay(TRACEROUTE, "secondary"))
-    monkeypatch.setattr(engine.core_session, "Session", _OpenSession)
+    monkeypatch.setattr(engine.core_session, "fortinet_session", _OpenSession)
     monkeypatch.setattr(engine, "_FortiosDiagnosticShell", lambda opened: shell)
     target = _diagnostic_target()
     target = replace(target, read_inventory={**target.read_inventory, "diagnostic_recipes": ("traceroute",),

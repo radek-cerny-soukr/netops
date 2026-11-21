@@ -1,0 +1,46 @@
+{
+  "platform": "ios",
+  "table": "static-route",
+  "versions": [
+    "15.9(3)M12",
+    "15.2(20200924:215240)"
+  ],
+  "exact_versions": true,
+  "ops": [
+    "create",
+    "update",
+    "delete"
+  ],
+  "table_scoped_key": true,
+  "key_pattern": "^(?:vrf:[A-Za-z][A-Za-z0-9_-]{0,31}:)?(?:[0-9]{1,3}(?:\\.[0-9]{1,3}){3}/[0-9]{1,2}|[0-9a-f:]{2,39}/[0-9]{1,3})$",
+  "protected_keys": [
+    "0.0.0.0/0",
+    "::/0"
+  ],
+  "attributes": {
+    "next-hop": {
+      "type": "text",
+      "max_length": 39,
+      "default": null,
+      "update": true,
+      "unset": false,
+      "referenced_update": true,
+      "required_on_create": true
+    },
+    "distance": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 255,
+      "default": "1",
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "required_on_create": false
+    }
+  },
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "G62 (IOS-M025), measured on IOSv 15.9(3)M12 (router, d-iosv, global table and VRF blue) and IOSvL2 15.2(20200924:215240) (switch, d-iosvl2, global table) in the GNS3 lab, task netops-20261118-517 (task-evidence/g62). Key: [vrf:<name>:]<network>/<length> in the canonical form (IPv6 lower case, compressed). Lines: 'ip route [vrf V] NET MASK HOP [DISTANCE]' and 'ipv6 route [vrf V] PREFIX HOP [DISTANCE]' (IPv6 accepted without ipv6 unicast-routing, then not installed: the row of show ipv6 static has no '*'); the same next hop with another distance replaces the route, a new next hop is added before 'no ... OLD-HOP' removes the old route; delete is 'no ... HOP'. One next hop per destination: a destination with a second next hop (ECMP or floating route), an interface next hop or a further option (name, tag, permanent, track) is outside the profile and refused. The safeguard is the revert timer of the interface profile (configure terminal revert timer, configure confirm; an expired timer replaces the whole running configuration with the archive). Refused before any write: default routes, a destination that overlaps the management interface subnet or the SSH client address in the management VRF (show tcp brief, show ip interface brief), an undefined VRF or a VRF without the address family, a management VRF. The check account (privilege 1) reads show ip static route [vrf V] and show ipv6 static [vrf V]; a VRF whose last static route was removed answers 'Static local RIB for V' without rows, a VRF without static routes only the code legend."
+}

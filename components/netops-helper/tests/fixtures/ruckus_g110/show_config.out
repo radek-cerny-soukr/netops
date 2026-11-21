@@ -1,0 +1,564 @@
+show config
+Protocol Mode= IPv4-Only
+Device IP Address:
+  Mode= Manual
+  IP Address= 192.0.2.5
+  Netmask= 255.255.255.0
+  Gateway Address= 192.0.2.1
+  Primary DNS= 192.0.2.1
+  Secondary DNS=
+
+Country Code:
+  Code= Czech Republic
+
+Internet Check:
+Company = apple, Enable = 1
+
+Internet Check:
+Company = microsoft, Enable = 1
+
+Internet Check:
+Company = ruckus, Enable = 1
+
+Identity:
+  Name= host01
+
+Session Statistics:
+  Enable= false
+  Limited Unauthorized Session= true
+
+ARC Data Transmission:
+  Enable= true
+
+NTP:
+  Status= Enabled
+  Address= tik.cesnet.cz
+  Timezone= GMT+1
+  DST= true
+
+Log:
+  Status= Enabled
+  Address= 192.0.2.34
+  Type= all
+  Facility= keep
+  Priority= warning
+  AP Facility= keep
+  AP Priority= warning
+  event log level= 2
+
+Bonjour Service:
+  Status= Enabled
+
+Telnet Server:
+  Status= Disabled
+
+FTP Server:
+  Status= Disabled
+  Anonynous Status= Disabled
+
+Unleashed Multi-Site Manager:
+  Status= Disabled
+  Address=
+  Interval= 3
+
+login warning:
+  Status= Disabled
+  content= "Warning, you are logging into device for authorized user only. If you are not an authorized user, please click Quit; otherwise click Continue to login."
+
+LWAPP:
+  MGMT queue length threshold to drop AUTH frame = 100
+  MGMT queue length threshold to resume processing AUTH frame = 25
+
+EAPoL Key no Retry:
+  Status= Disabled
+
+Unleashed Network:
+  Token= FAKE-SECRET-01
+
+
+AAA:
+  ID:
+    1:
+      Name= Local Database
+      Type= Local
+
+    2:
+      Name= Guest Accounts
+      Type= Guest
+
+
+DHCP servers for DHCP relay agent:
+
+Administrator Name/Password:
+  Name= host02
+  Password= FAKE-SECRET-02
+  Authenticate:
+    Mode= Authenticate using the host02 name and password
+
+Management ACL:
+
+AP:
+  ID:
+    1:
+      MAC Address= 00:00:5e:00:53:01
+      Model= r610
+      Approved= Yes
+      Device Name= ap01
+      Device Role= Master
+      Description= ap-description01
+      Location= site-location01
+      GPS=
+      CERT = Normal
+      Bonjour-policy=
+      Bonjour-fencing=
+      Group Name= System Default
+      Channel Range:
+        A/N= 36,40,44,48,52,56,60,64,100,104 (Disallowed= 108,112,116,120,124,128,132,136)
+        B/G/N= 1,6,11 (Disallowed= 2,3,4,5,7,8,9,10,12,13)
+      Radio a/n:
+        Channelization= 40
+        Channel= 56
+        WLAN Services enabled= Yes
+        Tx. Power= Full
+        WLAN Group Name= System Default
+        Call Admission Control= 10% airtime usage limit
+        Protection Mode= 2
+      Radio b/g/n:
+        Channelization= 20
+        Channel= 11
+        WLAN Services enabled= Yes
+        Tx. Power= Full
+        WLAN Group Name= System Default
+        Call Admission Control= 20% airtime usage limit
+        Protection Mode= rts-cts
+      Override global ap-model port configuration= No
+      Network Setting:
+        Protocol mode= IPv4-Only
+        Device IP Settings= Manual
+        IP Address= 192.0.2.5
+        Netmask= 255.255.255.0
+        Gateway= 192.0.2.1
+        Primary DNS Server= 192.0.2.1
+        Secondary DNS Server=
+      Mesh:
+        Status= Disabled
+      LLDP:
+        Status = Use Parent Setting
+      Venue Name List:
+      LAN Port:
+        0:
+          Interface= eth0
+          Dot1x= None
+          LogicalLink= Up
+          PhysicalLink= Up 1000Mbps full
+          Label= 10/100/1000 PoE Port1
+        1:
+          Interface= eth1
+          Dot1x= None
+          LogicalLink= Down
+          PhysicalLink= Down
+          Label= 10/100/1000 Port2
+      PoE Mode= 802.3at
+      802.3af PoE Tx. chain= 2
+      LACP State= false
+
+
+Smart Redundancy:
+  Status= Disabled
+  Peer IP/IPv6 Address=
+  Shared Secret=
+
+IPv4 Management Interface:
+  Status= Disabled
+  IP Address=
+  Netmask=
+  VLAN= 1
+
+L2/MAC ACL:
+  ID:
+    1:
+      Name= System
+      Description= System
+      Restriction= Deny only the stations listed below
+      Stations:
+
+    2:
+      Name= blacklist
+      Description=
+      Restriction= Deny only the stations listed below
+      Stations:
+        MAC Address= 00:00:5e:00:53:02
+        MAC Address= 00:00:5e:00:53:03
+        MAC Address= 00:00:5e:00:53:04
+        MAC Address= 00:00:5E:00:53:02
+        MAC Address= 00:00:5E:00:53:05
+        MAC Address= 00:00:5E:00:53:06
+        MAC Address= 00:00:5e:00:53:07
+        MAC Address= 00:00:5e:00:53:08
+        MAC Address= 00:00:5e:00:53:09
+        MAC Address= 00:00:5e:00:53:0a
+        MAC Address= 00:00:5E:00:53:0B
+        MAC Address= 00:00:5E:00:53:0C
+        MAC Address= 00:00:5E:00:53:0D
+        MAC Address= 00:00:5E:00:53:0E
+
+    3:
+      Name= allow
+      Description=
+      Restriction= Allow only the stations listed below
+      Stations:
+        MAC Address= 00:00:5e:00:53:0f
+        MAC Address= 00:00:5e:00:53:10
+        MAC Address= 00:00:5e:00:53:11
+        MAC Address= 00:00:5e:00:53:12
+        MAC Address= 00:00:5e:00:53:13
+        MAC Address= 00:00:5e:00:53:14
+        MAC Address= 00:00:5e:00:53:15
+        MAC Address= 00:00:5e:00:53:16
+        MAC Address= 00:00:5e:00:53:17
+        MAC Address= 00:00:5e:00:53:18
+        MAC Address= 00:00:5e:00:53:19
+        MAC Address= 00:00:5E:00:53:1A
+        MAC Address= 00:00:5E:00:53:1B
+        MAC Address= 00:00:5E:00:53:1C
+        MAC Address= 00:00:5E:00:53:1D
+        MAC Address= 00:00:5E:00:53:1E
+        MAC Address= 00:00:5E:00:53:1F
+        MAC Address= 00:00:5e:00:53:20
+        MAC Address= 00:00:5e:00:53:21
+        MAC Address= 00:00:5E:00:53:22
+        MAC Address= 00:00:5e:00:53:23
+        MAC Address= 00:00:5e:00:53:24
+        MAC Address= 00:00:5e:00:53:25
+        MAC Address= 00:00:5e:00:53:26
+        MAC Address= 00:00:5e:00:53:23
+        MAC Address= 00:00:5e:00:53:27
+        MAC Address= 00:00:5E:00:53:28
+        MAC Address= 00:00:5e:00:53:29
+        MAC Address= 00:00:5e:00:53:2a
+        MAC Address= 00:00:5E:00:53:2B
+        MAC Address= 00:00:5e:00:53:2c
+        MAC Address= 00:00:5E:00:53:0B
+        MAC Address= 00:00:5e:00:53:2d
+        MAC Address= 00:00:5e:00:53:2e
+        MAC Address= 00:00:5e:00:53:2f
+        MAC Address= 00:00:5e:00:53:30
+
+
+
+SNMP Agent:
+  Status= Disabled
+  Contact=
+  Location=
+  RO Community= FAKE-SECRET-03
+  RW Community= FAKE-SECRET-04
+
+SNMP Trap:
+  Format= Version2
+  Status= Disabled
+
+SNMPV3 Agent:
+  Status= Disabled
+  Ro:
+    User= snmpuser
+    Authentication Type= MD5
+    Authentication Pass Phrase= FAKE-SECRET-05
+    Privacy Type= DES
+    Privacy Phrase= FAKE-SECRET-06
+  Rw:
+    User= snmpuser
+    Authentication Type= MD5
+    Authentication Pass Phrase= FAKE-SECRET-07
+    Privacy Type= DES
+    Privacy Phrase= FAKE-SECRET-08
+
+SNMP Trap:
+  Format= Version3
+  Status= Disabled
+
+WLAN Service:
+  ID:
+    1:
+      NAME = ssid01
+      Tx. Rate of Management Frame(2.4GHz) = 12.0Mbps
+      Tx. Rate of Management Frame(5GHz)   = 12.0Mbps
+      Beacon Interval = 100ms
+      SSID = ssid01
+      Description = ssid01
+      Type = Standard Usage
+      Authentication = open
+      Encryption = wpa2
+      Algorithm = aes
+      Passphrase = FAKE-SECRET-09
+      FT Roaming = Disabled
+      802.11k Neighbor report = Enabled
+      Web Authentication = Disabled
+      Authentication Server = Disabled
+      Called-Station-Id type = wlan-bssid
+      Tunnel Mode = Disabled
+      Background Scanning = Enabled
+      Max. Clients = 100
+      Isolation per AP = Disabled
+      Isolation across AP = Disabled
+      Zero-IT Activation = Disabled
+      Priority = Low
+      Load Balancing = Disabled
+      Band Balancing = Disabled
+      Wifi6 = Disabled
+      Service = Enabled
+      Dynamic PSK = Disabled
+      Rate Limiting Uplink = Disabled
+      PerSSID Rate Limiting Uplink = 0
+      Rate Limiting Downlink = Disabled
+      PerSSID Rate Limiting Downlink = 0
+      Auto-Proxy configuration:
+        Status = Disabled
+      Inactivity Timeout:
+          Status = Enabled
+          Timeout = 120 Minutes
+      VLAN-ID = 1
+      Dynamic VLAN = Disabled
+      Closed System = Disabled
+      Https Redirection = Disabled
+      OFDM-Only State = Enabled
+      Multicast Filter State = Disabled
+      Directed Multicast= Enabled
+      802.11d State = Disabled
+      Force DHCP State = Enabled
+      Force DHCP Timeout = 30
+      DHCP Option82:
+          Status = Disabled
+          Option82 sub-Option1 = Disabled
+          Option82 sub-Option2 = Disabled
+          Option82 sub-Option150 = Disabled
+          Option82 sub-Option151 = Disabled
+      Ignore unauthorized client statistic = Disabled
+      STA Info Extraction State = Enabled
+      BSS Minrate = 12.0 Mbps
+      DTIM period = 1
+      Directed MC/BC Threshold = 1
+      Call Admission Control State = Enabled
+      PMK Cache Timeout= 720 minutes
+      PMK Cache for Reconnect= Enabled
+      NAS-ID Type= wlan-bssid
+      Roaming Acct-Interim-Update= Disabled
+      PAP Message Authenticator = Enabled
+      Send EAP-Failure = Disabled
+      L2/MAC = No ACLS
+      L3/L4/IP Address = No ACLS
+      L3/L4/IPv6 Address = No ACLS
+      Precedence = Default
+      Proxy ARP = Disabled
+      Device Policy = No ACLS
+      Vlan Pool = No Pools
+      Role based Access Control Policy = Disabled
+      SmartRoam = Disabled  Roam-factor = 1
+      Allow List = No ACLS
+      URL Filtering = Disabled
+      Application Recognition & Control = Enabled
+      Apply ARC Policy = NO POLICY
+      WIFICalling Enabled= Disabled
+      WIFICalling Profile= 0
+      Client Flow Data Logging = Disabled
+      Wlan Bind = 5g
+      Client Connection Data = Disabled
+      Transient Client Management = Disabled
+      80211w-pmf = Disabled
+
+    2:
+      NAME = ssid02
+      Tx. Rate of Management Frame(2.4GHz) = 5.5Mbps
+      Tx. Rate of Management Frame(5GHz)   = 6.0Mbps
+      Beacon Interval = 100ms
+      SSID = ssid02
+      Description = ssid02
+      Type = Guest Access
+      Guest Authentication = Guest Pass and Social Login
+      Guest Friendly Key = Disabled
+      Authentication = open
+      Encryption = none
+      FT Roaming = Disabled
+      802.11k Neighbor report = Enabled
+      Web Authentication = Enabled
+      Grace Period:
+          Status = Enabled
+          Period = 600 Minutes
+      Authentication Server = Guest Accounts
+      Called-Station-Id type = wlan-bssid
+      Tunnel Mode = Disabled
+      Background Scanning = Enabled
+      Max. Clients = 100
+      Isolation per AP = Enabled
+      Isolation across AP = Disabled
+      Zero-IT Activation = Disabled
+      Priority = High
+      Load Balancing = Disabled
+      Band Balancing = Disabled
+      Wifi6 = Enabled
+      Service = Disabled
+      Rate Limiting Uplink = Disabled
+      PerSSID Rate Limiting Uplink = 0
+      Rate Limiting Downlink = Disabled
+      PerSSID Rate Limiting Downlink = 0
+      Auto-Proxy configuration:
+        Status = Disabled
+      Inactivity Timeout:
+          Status = Enabled
+          Timeout = 60 Minutes
+      Web Authentication Timeout = 5 Minutes
+      VLAN-ID = 30
+      Dynamic VLAN = Disabled
+      Closed System = Disabled
+      Https Redirection = Enabled
+      OFDM-Only State = Disabled
+      Multicast Filter State = Disabled
+      Directed Multicast= Enabled
+      802.11d State = Enabled
+      Force DHCP State = Enabled
+      Force DHCP Timeout = 30
+      DHCP Option82:
+          Status = Disabled
+          Option82 sub-Option1 = Disabled
+          Option82 sub-Option2 = Disabled
+          Option82 sub-Option150 = Disabled
+          Option82 sub-Option151 = Disabled
+      Ignore unauthorized client statistic = Disabled
+      STA Info Extraction State = Enabled
+      BSS Minrate = 5.5 Mbps
+      DTIM period = 1
+      Directed MC/BC Threshold = 1
+      Call Admission Control State = Disabled
+      PMK Cache Timeout= 720 minutes
+      PMK Cache for Reconnect= Enabled
+      NAS-ID Type= wlan-bssid
+      Roaming Acct-Interim-Update= Disabled
+      PAP Message Authenticator = Enabled
+      Send EAP-Failure = Disabled
+      L2/MAC = No ACLS
+      L3/L4/IP Address = No ACLS
+      L3/L4/IPv6 Address = No ACLS
+      Precedence = Default
+      Proxy ARP = Disabled
+      Device Policy = No ACLS
+      Vlan Pool = No Pools
+      Role based Access Control Policy = Disabled
+      SmartRoam = Disabled  Roam-factor = 1
+      Allow List = No ACLS
+      URL Filtering = Disabled
+      Application Recognition & Control = Enabled
+      Apply ARC Policy = NO POLICY
+      WIFICalling Enabled= Disabled
+      WIFICalling Profile= 0
+      Client Flow Data Logging = Disabled
+      Wlan Bind = 2g
+      Client Connection Data = Disabled
+      Bypass Apple CNA Feature = Disabled
+      Transient Client Management = Disabled
+      80211w-pmf = Disabled
+
+    3:
+      NAME = ssid03
+      Tx. Rate of Management Frame(2.4GHz) = 5.5Mbps
+      Tx. Rate of Management Frame(5GHz)   = 6.0Mbps
+      Beacon Interval = 100ms
+      SSID = ssid03
+      Description = ssid03
+      Type = Standard Usage
+      Authentication = open
+      Encryption = wpa2
+      Algorithm = aes
+      Passphrase = FAKE-SECRET-11
+      FT Roaming = Disabled
+      802.11k Neighbor report = Enabled
+      Web Authentication = Disabled
+      Authentication Server = Disabled
+      Called-Station-Id type = wlan-bssid
+      Tunnel Mode = Disabled
+      Background Scanning = Enabled
+      Max. Clients = 100
+      Isolation per AP = Disabled
+      Isolation across AP = Disabled
+      Zero-IT Activation = Disabled
+      Priority = High
+      Load Balancing = Disabled
+      Band Balancing = Disabled
+      Wifi6 = Enabled
+      Service = Enabled
+      Dynamic PSK = Disabled
+      Rate Limiting Uplink = Disabled
+      PerSSID Rate Limiting Uplink = 0
+      Rate Limiting Downlink = Disabled
+      PerSSID Rate Limiting Downlink = 0
+      Auto-Proxy configuration:
+        Status = Disabled
+      Inactivity Timeout:
+          Status = Enabled
+          Timeout = 60 Minutes
+      VLAN-ID = 20
+      Dynamic VLAN = Disabled
+      Closed System = Disabled
+      Https Redirection = Disabled
+      OFDM-Only State = Disabled
+      Multicast Filter State = Disabled
+      Directed Multicast= Enabled
+      802.11d State = Enabled
+      Force DHCP State = Enabled
+      Force DHCP Timeout = 30
+      DHCP Option82:
+          Status = Disabled
+          Option82 sub-Option1 = Disabled
+          Option82 sub-Option2 = Disabled
+          Option82 sub-Option150 = Disabled
+          Option82 sub-Option151 = Disabled
+      Ignore unauthorized client statistic = Disabled
+      STA Info Extraction State = Enabled
+      BSS Minrate = 5.5 Mbps
+      DTIM period = 1
+      Directed MC/BC Threshold = 1
+      Call Admission Control State = Enabled
+      PMK Cache Timeout= 720 minutes
+      PMK Cache for Reconnect= Enabled
+      NAS-ID Type= wlan-bssid
+      Roaming Acct-Interim-Update= Disabled
+      PAP Message Authenticator = Enabled
+      Send EAP-Failure = Disabled
+      L2/MAC = No ACLS
+      L3/L4/IP Address = No ACLS
+      L3/L4/IPv6 Address = No ACLS
+      Precedence = Default
+      Proxy ARP = Disabled
+      Device Policy = No ACLS
+      Vlan Pool = No Pools
+      Role based Access Control Policy = Disabled
+      SmartRoam = Disabled  Roam-factor = 1
+      Allow List = No ACLS
+      URL Filtering = Disabled
+      Application Recognition & Control = Enabled
+      Apply ARC Policy = NO POLICY
+      WIFICalling Enabled= Enabled
+      WIFICalling Profile= 2,5
+      Client Flow Data Logging = Disabled
+      Wlan Bind = 2g
+      Client Connection Data = Disabled
+      Transient Client Management = Disabled
+      80211w-pmf = Disabled
+
+
+WLAN Group:
+  ID:
+    1:
+      Name= System Default
+      Description= System Default
+      WLAN Service:
+        WLAN1:
+          NAME= ssid01
+          VLAN=
+        WLAN2:
+          NAME= ssid02
+          VLAN=
+        WLAN3:
+          NAME= ssid03
+          VLAN=
+
+
+Venue:

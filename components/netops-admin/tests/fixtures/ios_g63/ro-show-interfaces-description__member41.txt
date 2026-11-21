@@ -1,0 +1,13 @@
+Interface                      Status         Protocol Description
+Gi0/0                          up             up       
+Gi0/1                          up             up       
+Gi0/2                          up             up       
+Gi0/3                          up             up       
+Gi1/0                          admin down     down     
+Gi1/1                          down           down     
+Gi1/2                          down           down     
+Gi1/3                          down           down     
+Po41                           down           down     
+Vl10                           up             up       
+Vl20                           up             up       
+Vl99                           up             up       

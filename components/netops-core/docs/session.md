@@ -65,3 +65,50 @@ holds for anything a caller keeps out of a transcript itself (`docs/ssh.md`).
 ## Platform contract
 
 Ruckus Unleashed uses an interactive session and may request a second password inside the shell. The session discards authentication-phase transcript data and returns only the selected command answer. Password-prompt handling matches the documented `assword` suffix and prompt index rather than assuming one capitalization or exact surrounding punctuation. The credential's device privileges remain governed by the component's explicit role boundary; a console prompt does not establish a read-only account.
+
+## Fortinet command series
+
+```python
+from netops_core.session import fortinet_session
+
+with fortinet_session(device, credential) as cli:
+    status = cli.run("get system status")
+    if status.rc == 0:
+        configuration = cli.run("show", stdout_consumer=bounded_consumer)
+```
+
+The factory accepts an inventory `Device` or an object with `platform`, `address`,
+`port`, `host_key`, `host_key_fingerprint` and optional `legacy_ssh` attributes.
+Pass the resolved vault credential. The optional `address`, `port` and `login`
+override the endpoint and the credential's login. The connection uses the
+[enrollment pin](ssh.md#fortinet-host-key-from-enrollment) and one `ssh -tt`.
+
+`run` returns `FortinetResult` with `rc=0` for a completed response, `rc=1`
+with `refusal="device_cli_error"` for a recognized CLI refusal, and `rc=2` with
+`continuation=True` for the FortiOS `> ` prompt. Supply the next line with `run`
+or close the session. `context` is the parenthesized CLI context or `None`,
+also available on the session after login. Check context and product identity
+where the operation requires them. The CLI status is assigned by Core.
+
+`stdout` is a byte string with the command echo, pager and final prompt removed,
+and terminal CRLF normalized to LF. `stderr` and `said` are empty. An optional
+synchronous `stdout_consumer` receives bounded byte chunks and leaves `stdout`
+empty. Send the bytes to the caller's redactor or bounded consumer. Treat
+streamed bytes as provisional until `rc=0` and discard them on an exception
+or refusal. A CLI refusal withholds its text from the result.
+
+Login waits up to `connect_timeout_seconds` (20). Each `run` defaults to
+`timeout_seconds` (120), `idle_timeout_seconds` (15), `capture_max_bytes`
+(16 MiB including terminal framing) and `max_pages` (128). Set defaults on the
+factory or override them per command. A pager receives one space per page.
+The prompt must start a new line and match the prompt of the current context
+exactly. Commands that navigate may change its context while keeping the login
+prompt's identity and ending. Core sends an empty line at a candidate prompt
+and accepts the response once two identical prompts delimit the empty reply.
+A prompt-shaped line followed by more output stays in the response. Continuation
+and password prompts are handled without sending an empty line.
+
+Before login, OpenSSH diagnostics distinguish `auth`, `host_key`, `negotiation`
+and `disconnected`. Limits or loss of framing raise a coded `SessionError` and close the session.
+Pin problems raise `HostKeyError` before opening. Consumer failure raises
+`OutputConsumerError` or `OutputLimitError` and closes the session.

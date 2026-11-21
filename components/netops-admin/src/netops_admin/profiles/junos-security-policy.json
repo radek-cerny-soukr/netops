@@ -1,0 +1,59 @@
+{
+  "platform": "junos",
+  "table": "security-policy",
+  "versions": [
+    "26.2R1.7"
+  ],
+  "exact_versions": true,
+  "ops": [
+    "create",
+    "update",
+    "delete"
+  ],
+  "table_scoped_key": true,
+  "key_pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,62}@[A-Za-z0-9][A-Za-z0-9_.-]{0,62}@[A-Za-z0-9][A-Za-z0-9_.-]{0,62}$",
+  "protected_keys": [],
+  "attributes": {
+    "source-addresses": {
+      "type": "text",
+      "required_on_create": true,
+      "update": true,
+      "unset": false,
+      "referenced_update": false,
+      "max_length": 1500,
+      "pattern": "^[A-Za-z0-9_. -]+$"
+    },
+    "destination-addresses": {
+      "type": "text",
+      "required_on_create": true,
+      "update": true,
+      "unset": false,
+      "referenced_update": false,
+      "max_length": 1500,
+      "pattern": "^[A-Za-z0-9_. -]+$"
+    },
+    "applications": {
+      "type": "text",
+      "required_on_create": true,
+      "update": true,
+      "unset": false,
+      "referenced_update": false,
+      "max_length": 1500,
+      "pattern": "^[A-Za-z0-9_. -]+$"
+    },
+    "action": {
+      "type": "text",
+      "required_on_create": true,
+      "update": true,
+      "unset": false,
+      "referenced_update": false,
+      "max_length": 6,
+      "pattern": "^(permit|deny|reject)$"
+    }
+  },
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "Uses the Junos commit confirmed safeguard and scoped inverse (G132). SRX only: the preview is refused on a device without the security hierarchy. Verified against Juniper documentation outputs only (no SRX in the lab). Policy FROM@TO@NAME of two zones with source, destination, applications and a plain action; a new policy is appended after the others and an inverse restores the position. A change of an existing policy needs endpoint_impact."
+}

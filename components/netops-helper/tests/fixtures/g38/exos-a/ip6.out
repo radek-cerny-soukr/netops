@@ -1,0 +1,18 @@
+    Route Sharing               : Disabled
+    Route Compression           : Enabled
+    Ignore ICMP Multicasts      : Disabled
+    Ignore ICMP Anycasts        : Disabled
+    ICMP Redirect for Fast Path : Disabled
+    Max Shared Gateways         : Current: 16  Configured: 16
+    Route Sharing Hash          : N/A
+    Ping Protection             : Enabled for static routes   Interval: 2   Misses: 3
+    IPv6 Anycast MAC : None 
+
+Interface              IPv6 Prefix                                        Flags 
+
+
+Flags : D - Duplicate address detected on VLAN, T - Tentative address 
+        E - Interface enabled, U - Interface up, f - IPv6 forwarding enabled, 
+        i - Accept received router advertisements enabled, 
+        R - Send redirects enabled, r - Accept redirects enabled 
+        P - Prefix address 

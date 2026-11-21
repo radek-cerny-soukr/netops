@@ -1,0 +1,9 @@
+config vpn ipsec phase2-interface
+    edit "netops-g26-direct"
+        set phase1name "netops-g14"
+        set proposal aes256-sha256
+        set dhgrp 14
+        set src-subnet 192.0.2.91    255.255.255.255
+        set dst-subnet 203.0.113.91 255.255.255.255
+    next
+end

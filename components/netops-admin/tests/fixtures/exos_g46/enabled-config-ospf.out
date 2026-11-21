@@ -1,0 +1,7 @@
+#
+# Module ospf configuration.
+#
+enable ospf
+create ospf area 0.0.0.15
+configure ospf add vlan netops-g46 area 0.0.0.15 passive
+configure ospf vlan netops-g46 cost 42

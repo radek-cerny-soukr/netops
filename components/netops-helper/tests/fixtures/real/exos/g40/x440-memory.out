@@ -1,0 +1,98 @@
+
+System Memory Information
+-------------------------
+ Total DRAM (KB): 1048576
+ System     (KB): 67264
+ User       (KB): 286084
+ Free       (KB): 695228
+
+Memory Utilization Statistics
+-----------------------------
+
+ Process Name     Memory (KB)
+-----------------------------
+ aaa              4377
+ acl              1882
+ bfd              1197
+ bgp              12017
+ brm              604
+ cfgmgr           3133
+ cli              46573
+ devmgr           1408
+ dirser           520
+ dnsAnalytics     1413
+ dosprotect       834
+ dot1ag           1588
+ eaps             1810
+ edp              1894
+ elrp             1767
+ elsm             691
+ ems              3348
+ epm              2414
+ erps             1552
+ esrp             1266
+ ethoam           662
+ etmon            2199
+ exacl            0
+ exdhcpsnoop      0
+ exdos            0
+ exnasnoop        0
+ exosq            0
+ expolicy         0
+ exprocfs         0
+ exsflow          0
+ exsnoop          0
+ exsshd           4426
+ exvlan           0
+ fdb              2897
+ gptp             973
+ hal              76373
+ hclag            701
+ idMgr            3368
+ ipSecurity       1564
+ ipfix            735
+ iqagent          893
+ isis             0
+ kcm              607
+ lacp             1620
+ licMgr           1291
+ lldp             2296
+ macsec           1187
+ mcmgr            2384
+ mrp              1331
+ msdp             1144
+ netDb            816
+ netLogin         2286
+ netTools         3774
+ nettx            0
+ nodealias        1723
+ nodemgr          554
+ ntp              909
+ ospf             1903
+ ospfv3           6050
+ otm              962
+ pim              2466
+ poe              1164
+ polMgr           538
+ policy           11003
+ pwmib            821
+ rip              1357
+ ripng            778
+ rtmgr            3249
+ snmpMaster       2909
+ stp              2226
+ techSupport      869
+ telemetry        730
+ telnetd          700
+ tftpd            359
+ throw            7353
+ thttpd           15837
+ twamp            495
+ upm              1902
+ vlan             3335
+ vmt              1605
+ vpex             2596
+ vrrp             1311
+ vsm              1492
+ xmlc             1146
+ xmld             3780

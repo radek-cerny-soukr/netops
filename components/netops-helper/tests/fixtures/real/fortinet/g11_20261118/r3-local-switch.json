@@ -1,0 +1,5 @@
+{
+  "stp-active": "bridge 'lab-bridge' prio 21524 mac 00:00:5e:00:53:01 vd 'lab-vdom'\nroot prio 21524 mac 00:00:5e:00:53:01 cost 0\nport 'port1' role designated state forward cost 2000 edge yes rx 3 tx 136\n",
+  "virtual-switch": "config system virtual-switch\n    edit \"VLAN10\"\n        set physical-switch \"sw0\"\n        set vlan 10\n        config port\n            edit \"internal1\"\n            next\n            edit \"internal2\"\n            next\n        end\n    next\nend\n",
+  "switch-interfaces": "name: internal1   type: physical   trunk: disable\nname: internal2   type: physical   trunk: disable\nname: internal5   type: physical   trunk: enable\n"
+}

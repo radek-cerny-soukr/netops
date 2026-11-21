@@ -26,7 +26,7 @@ class ComposeStateIdentity(unittest.TestCase):
                         NETOPS_SERVER_NAME="localhost")
 
     def resolve(self, directory, project=None, env=None, check=True):
-        directory.mkdir()
+        directory.mkdir(exist_ok=True)
         shutil.copy2(ROOT / "compose.yaml", directory / "compose.yaml")
         command = ["docker", "compose", "--project-directory", str(directory)]
         if project:
@@ -65,6 +65,20 @@ class ComposeStateIdentity(unittest.TestCase):
         result = self.resolve(self.base / "missing-bind", env=env, check=False)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("NETOPS_BIND_IP", result.stderr)
+
+    def test_fortiadc_backup_key_path_from_install_dotenv(self):
+        variable = "NETOPS_FORTIADC_BACKUP_KEY_FILE"
+        key_path = "/var/lib/netops/helper/fortiadc-backup.key"
+        default = self.resolve(self.base / "default-archive")["services"]["netops"]
+        self.assertFalse(default["environment"].get(variable))
+
+        install = self.base / "configured-archive"
+        install.mkdir()
+        (install / ".env").write_text(f"{variable}={key_path}\n")
+        service = self.resolve(install)["services"]["netops"]
+        self.assertEqual(service["environment"].get(variable), key_path)
+        self.assertTrue(any(volume["source"] == "netops-state" and volume["target"] == "/var/lib/netops"
+                            for volume in service["volumes"]))
 
     def test_no_new_privileges_uses_current_security_opt_syntax(self):
         config = self.resolve(self.base / "security-opt")

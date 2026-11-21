@@ -109,7 +109,7 @@ def _transport(monkeypatch):
     monkeypatch.setattr(engine, "_paced_connection", lambda *a: nullcontext())
     monkeypatch.setattr(engine, "DeviceCredential", lambda auth: None)
     monkeypatch.setattr(engine, "_FortiosDiagnosticShell", lambda *a, **k: None)
-    monkeypatch.setattr(engine.core_session, "Session",
+    monkeypatch.setattr(engine.core_session, "fortinet_session",
                         lambda *a, **k: nullcontext(SimpleNamespace(close=lambda: None)))
     return engine
 
@@ -155,7 +155,7 @@ def _fortiadc_logs(monkeypatch, raw, max_bytes):
     monkeypatch.setattr(adc, "authorize", lambda *a, **k: None)
     result = {"raw_output": raw, "output": raw, "state": "data", "cleanup": "verified", "timed_out": False,
               "identity": ("FortiADC-KVM", "7.6.7", "0676"), "loaded_records": 1, "returned_records": 1,
-              "count_truncated": False, "unrecognized_body": False}
+              "count_truncated": False, "next_start_line": None, "unrecognized_body": False}
     monkeypatch.setattr(adc, "run", lambda *a, **k: result)
     return engine.fortios_diagnostics.__wrapped__(_auth("fortiadc"), "system_event_logs", "", "", 3, 1, max_bytes)
 

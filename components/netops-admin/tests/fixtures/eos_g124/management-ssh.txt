@@ -1,0 +1,6 @@
+User certificate authentication methods: none (neither trusted CA nor SSL profile configured)
+SSHD status for Default VRF: enabled
+SSH connection limit: 50
+SSH per host connection limit: 20
+FIPS status: disabled
+eAPI subsystem: enabled

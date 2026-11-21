@@ -1,0 +1,29 @@
+<rpc-reply xmlns:junos="http://xml.juniper.net/junos/26.2R1.7/junos">
+    <configuration junos:commit-seconds="1795008117" junos:commit-localtime="2026-11-18 13:21:57 UTC" junos:commit-user="user01">
+            <system>
+                <syslog>
+                    <file>
+                        <name>interactive-commands</name>
+                        <contents>
+                            <name>interactive-commands</name>
+                            <any/>
+                        </contents>
+                    </file>
+                    <file>
+                        <name>messages</name>
+                        <contents>
+                            <name>any</name>
+                            <notice/>
+                        </contents>
+                        <contents>
+                            <name>authorization</name>
+                            <info/>
+                        </contents>
+                    </file>
+                </syslog>
+            </system>
+    </configuration>
+    <cli>
+        <banner></banner>
+    </cli>
+</rpc-reply>

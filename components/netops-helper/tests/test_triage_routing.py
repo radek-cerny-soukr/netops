@@ -333,18 +333,31 @@ def test_accepted_802_identities_run_full_chain_on_simulated_output(product):
     "Version: FortiGate-60F v7.6.7,build3700,250101 (GA.M)\n",
     "Version: FortiGate-80F v8.0.2,build0250,260101 (GA.F)\n",
     "Version: FortiGate-VM64 v8.0.2,build0250,260101 (GA.F)\n",
-    "Version: FortiGate-VM64 v8.0.2,build0251,260101 (GA.F)\n",      # not measured, so not qualified
+    "Version: FortiGate-VM64 v8.0.2,build0251,260101 (GA.F)\n",      # untested model
     "Version: FortiGate-VM64-KVM v8.0.2,build0251,260101 (GA.F)\n",
     "Version: FortiGate-60F v8.0.2,build0251,260101 (GA.F)\n",
     "Version: FortiGate-80F v7.6.8,build3744,260115 (GA.M)\n",
-    "no version here\n",
 ])
-def test_unqualified_identity_stops_before_any_other_read(status):
+def test_untested_identity_runs_the_full_chain_with_a_warning(status):
+    result, calls = run(outputs(system_status=status + "Virtual domain configuration: disable\n"))
+    assert [query for query, _ in calls] == list(t.STEPS)
+    assert result["ok"] is True and result["verdict"] == "no_fault_in_checked_data"
+    assert result["firmware_support"]["status"] == "untested"
+    assert result["warnings"] == [{"code": "firmware_untested", "message": result["firmware_support"]["message"]}]
+    assert "triage_routing was tested on" in result["firmware_support"]["message"]
+
+
+def test_tested_identity_has_no_warning():
+    result, _ = run(outputs())
+    assert result["firmware_support"]["status"] == "tested" and "warnings" not in result
+
+
+def test_unreadable_identity_stops_before_any_other_read():
     calls = []
 
     def read(query, parameters):
         calls.append(query)
-        return {"ok": True, "text": status, "content_sha256": "0" * 64}
+        return {"ok": True, "text": "no version here\n", "content_sha256": "0" * 64}
 
     with pytest.raises(t.UnsupportedPlatform, match="config_platform_not_supported"):
         t.run(read, lambda: NOW, ADDRESS, "fw-1")

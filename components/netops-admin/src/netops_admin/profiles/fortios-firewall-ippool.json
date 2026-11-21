@@ -1,0 +1,65 @@
+{
+  "platform": "fortios",
+  "table": "firewall ippool",
+  "versions": [
+    "7.6.8 build3744"
+  ],
+  "exact_versions": true,
+  "ops": [
+    "create",
+    "update",
+    "delete"
+  ],
+  "key_pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,78}$",
+  "protected_keys": [],
+  "attributes": {
+    "startip": {
+      "type": "ipv4-address",
+      "required_on_create": true,
+      "update": true,
+      "unset": false,
+      "referenced_update": false
+    },
+    "endip": {
+      "type": "ipv4-address",
+      "required_on_create": true,
+      "update": true,
+      "unset": false,
+      "referenced_update": false
+    },
+    "associated-interface": {
+      "type": "text",
+      "required_on_create": false,
+      "update": true,
+      "unset": true,
+      "referenced_update": false,
+      "max_length": 35
+    },
+    "arp-reply": {
+      "type": "text",
+      "required_on_create": false,
+      "update": true,
+      "unset": true,
+      "referenced_update": false,
+      "default": "enable",
+      "max_length": 7,
+      "pattern": "^(enable|disable)$"
+    },
+    "comments": {
+      "type": "text",
+      "required_on_create": false,
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "max_length": 255
+    }
+  },
+  "fixed": {
+    "type": "overload"
+  },
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "provisional": true,
+  "rollback_evidence": "FortiOS 7.6.8 static NAT object with scoped CLI readback and the FortiOS Admin timed inverse."
+}

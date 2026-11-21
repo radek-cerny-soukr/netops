@@ -1,0 +1,13 @@
+
+     Peer                                    AS         Weight State        InMsgs OutMsgs(InQ)  Up/Down
+------------------------------------------------------------------------------------------------------------
+Ed-- 198.51.100.2                            65146      1      IDLE         0      0     (0    ) 0:0:00:04
+
+Flags: (d) disabled, (e) enabled, (E) external peer, (I) internal peer
+       (m) EBGP multihop, (r) route reflector client
+
+BGP Peer Statistics
+  Total Peers       : 1
+  EBGP Peers        : 1                 IBGP Peers          : 0
+  RR Client         : 0                 EBGP Multihop       : 0
+  Enabled           : 0                 Disabled            : 1

@@ -361,20 +361,43 @@ def test_existing_60f_tuple_range_grammar_keeps_prefix_support(recipe):
     assert not shell.enabled and shell.filter == "any"
 
 
+UNTESTED_PREFIX_IDENTITIES = sorted(diag.IDENTITIES - diag.PREFIX_RANGE_IDENTITIES) + [("FortiGate-80F", "8.0.2", "0250")]
+
+
 @pytest.mark.parametrize("recipe", ["sessions", "flow"])
-@pytest.mark.parametrize("prefix_field", ["address", "source_address"])
-@pytest.mark.parametrize("identity", sorted(diag.IDENTITIES - diag.PREFIX_RANGE_IDENTITIES) + [("FortiGate-80F", "8.0.2", "0250")])
-def test_unmeasured_prefix_is_refused_before_diagnostic_state_changes(recipe, prefix_field, identity):
+@pytest.mark.parametrize("identity", UNTESTED_PREFIX_IDENTITIES)
+def test_untested_prefix_runs_with_the_range_and_reports_untested(recipe, identity):
+    # G00 (2026-11-17): a prefix on an identity where filter ranges were not tested is not refused (T3 is a
+    # syntax variant, not a gate); the range is sent and the run reports firmware_support "untested".
+    shell = GrammarShell(recipe)
+    shell.status_line = "Version: %s v%s,build%s,240101" % identity
+    support = []
+    diag.run(shell, recipe, PREFIX, INTERFACE, 2, 1, support=support)
+    assert shell.applied["dst" if recipe == "sessions" else "addr"] == ("198.51.100.0", "198.51.100.255")
+    assert support[0]["status"] == "untested" and "with a prefix filter" in support[0]["message"]
+    assert not shell.enabled and shell.filter == "any"
+
+
+@pytest.mark.parametrize("recipe", ["sessions", "flow"])
+@pytest.mark.parametrize("identity", UNTESTED_PREFIX_IDENTITIES)
+def test_untested_prefix_refused_by_the_device_is_cleaned_up(recipe, identity):
+    # A device that does not take the range answers `command parse error` (REFUSAL): the run stops and the filter
+    # is cleared and verified as before.
     shell = GrammarShell(recipe, ranges=False)
     shell.status_line = "Version: %s v%s,build%s,240101" % identity
-    options = dict(source_address="192.0.2.184", source_port=1024, destination_port=443, protocol=6)
-    address = PREFIX if prefix_field == "address" else "192.0.2.183"
-    if prefix_field == "source_address":
-        options["source_address"] = PREFIX
-    with pytest.raises(diag.OptionRefused, match="prefix_not_supported_on_identity"):
-        diag.run(shell, recipe, address, INTERFACE, 2, 1, **options)
-    assert shell.commands == ["get system status"]
+    with pytest.raises(diag.StepRefused):
+        diag.run(shell, recipe, PREFIX, INTERFACE, 2, 1)
+    assert any(command.endswith("filter clear") for command in shell.commands)
+    assert "diagnose sys session list" not in shell.commands
+    assert "diagnose debug enable" not in shell.commands
     assert not shell.enabled and shell.filter == "any"
+
+
+def test_tested_prefix_identity_reports_tested():
+    shell = GrammarShell("sessions")
+    support = []
+    diag.run(shell, "sessions", PREFIX, INTERFACE, 2, 1, support=support)
+    assert support[0]["status"] == "tested" and support[0]["message"] is None
 
 
 @pytest.mark.parametrize("recipe", ["sessions", "flow"])

@@ -1,0 +1,61 @@
+{
+  "platform": "exos",
+  "table": "stpd-port",
+  "versions": [
+    "33.6.1.14",
+    "33.7.1.6"
+  ],
+  "ops": [
+    "update"
+  ],
+  "table_scoped_key": true,
+  "key_pattern": "^[A-Za-z][A-Za-z0-9_-]{0,31}:[1-9][0-9]*(?::[1-9][0-9]*)?$",
+  "protected_keys": [],
+  "attributes": {
+    "link-type": {
+      "type": "text",
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "required_on_create": false,
+      "pattern": "^(auto|broadcast|point-to-point|edge)$",
+      "max_length": 32,
+      "default": "auto"
+    },
+    "cost": {
+      "type": "integer",
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "required_on_create": false,
+      "minimum": 1,
+      "maximum": 200000000
+    },
+    "edge-safeguard": {
+      "type": "text",
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "required_on_create": false,
+      "pattern": "^(enabled|disabled)$",
+      "max_length": 32,
+      "default": "disabled"
+    },
+    "bpdu-restrict": {
+      "type": "text",
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "required_on_create": false,
+      "pattern": "^(enabled|disabled)$",
+      "max_length": 32,
+      "default": "disabled"
+    }
+  },
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "The port must already participate in the STPD. Undo restores the previous configured link type, protections and path cost.",
+  "implicit_keys": true
+}

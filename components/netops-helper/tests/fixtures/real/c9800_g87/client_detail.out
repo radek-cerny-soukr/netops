@@ -1,0 +1,28 @@
+Client MAC Address : 0000.5e00.5303
+Client IPv4 Address : 192.0.2.214
+Client IPv6 Addresses : fe80::10
+2001:db8:1::10
+Client Username: N/A
+Voice Client Type   : Unknown
+AP MAC Address : 0000.5e00.5305
+AP Name: host01
+Device Type: N/A
+Device Version: N/A
+AP slot : 0
+Client State : Associated
+Policy Profile : default-policy-profile
+Flex Profile : default-flex-profile
+Wireless LAN Id : 1
+Wireless LAN Name: SSS_OPEN
+BSSID : 0000.5e00.5306
+Connected For : 23 seconds
+Protocol : 802.11ax - 5 GHz
+Channel : 8
+Client IIF-ID : 0xa0000001
+Association Id : 1
+Authentication Algorithm : Open System
+Client CCX version : No CCX support
+Session Timeout : 86400 sec (Remaining time: 86378 sec)
+.
+.
+.

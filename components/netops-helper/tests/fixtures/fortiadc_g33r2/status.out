@@ -1,0 +1,30 @@
+Version:                  FortiADC-KVM v7.6.7,build0676,260522 (GA.M)
+VM Registration:          Valid: License has been successfully authenticated with registration servers.
+VM License File:          License file and resources are valid.
+VM Resources:             4 CPU/4 allowed, 7859 MB RAM, 29 GB Disk
+Serial-Number:            SSSSSSSS00000001
+WAF Signature DB:         00001.00074 (Expire: 2027-1-3)
+IP Reputation DB:         00005.00042 (Expire: 2027-1-3)
+Geography IP DB:          00002.00358
+Geography Regions:        00002.00024 (CN)
+Credential Stuffing DB:   00001.00604 (Expire: 2027-1-3)
+Certificate DB:           00001.00067
+DLP Signature DB:         00001.00060 (Expire: 2027-1-3)
+Regular Virus DB:         00093.08287 (Expire: 2027-1-3)
+Extended Virus DB:        00093.08282 (Expire: 2027-1-3)
+Extreme Virus DB:         00093.08284 (Expire: 2027-1-3)
+AV Engine:                00007.00027 (Expire: 2027-1-3)
+IPS-DB:                   00037.00334 (Expire: 2027-1-3)
+IPS-ETDB:                 00037.00334 (Expire: 2027-1-3)
+IPS Engine:               00004.00021 (Expire: 2027-1-3)
+Bootloader Version:       n/a
+Hard Disk:                Capacity 29 GB, Used 665 MB ( 2.22%), Free 28 GB
+Log Size:                 1 MB, 0%
+Hostname:                 host01
+HA Configured Mode:       standalone
+HA Effective Mode:        Standalone 
+Distribution:             International
+CM Agent status:          (Disabled)
+Uptime:                   5 days  20 hours  52 minutes
+Last Reboot:              Wed Nov 11 09:59:39 PST 2026
+System Time:              Tue Nov 17 06:51:45 PST 2026

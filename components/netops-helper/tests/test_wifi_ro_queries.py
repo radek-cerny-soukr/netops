@@ -149,7 +149,7 @@ def test_no_other_catalogue_query_can_run_execute_log():
     }
     assert executes == {
         "execute ping-options view-settings", "execute traceroute-options view-settings",
-        "execute dhcp lease-list {interface}", *LOG_SEQUENCE,
+        "execute dhcp lease-list {interface}", "execute dhcp lease-list", "execute sensor detail", *LOG_SEQUENCE,
     }
 
 
@@ -182,10 +182,10 @@ def test_a_sequence_template_must_be_the_reviewed_shape(commands):
         read_policy._validate_query_catalogs(_sequence(commands))
 
 
-def test_sequences_are_reserved_for_fortios_exec_queries():
-    with pytest.raises(RuntimeError, match="reserved for FortiOS"):
+def test_sequences_require_a_reviewed_exec_shape():
+    with pytest.raises(RuntimeError, match="FortiADC command sequence is outside the reviewed shape"):
         read_policy._validate_query_catalogs(_sequence(LOG_SEQUENCE, platform="fortiadc"))
-    with pytest.raises(RuntimeError, match="reserved for FortiOS"):
+    with pytest.raises(RuntimeError, match="reserved for reviewed Fortinet queries"):
         read_policy._validate_query_catalogs(_sequence(LOG_SEQUENCE, pty=True))
     with pytest.raises(RuntimeError, match="display form"):
         read_policy._validate_query_catalogs(_sequence(LOG_SEQUENCE, command="execute log display"))

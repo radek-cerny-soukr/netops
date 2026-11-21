@@ -1,0 +1,3 @@
+
+> show running-config interfaces Ethernet12
+% Invalid input (privileged mode required) at line 1

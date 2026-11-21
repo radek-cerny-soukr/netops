@@ -1,0 +1,9 @@
+Physical interface: irb, Unit: 3920, Address: 198.51.100.1/24
+  Index: 368, SNMP ifIndex: 538, VRRP-Traps: disabled, VRRP-Version: 2
+  Interface state: down, Group: 139, State: bringup, VRRP Mode: Active
+  Priority: 120, Advertisement interval: 1, Authentication type: none
+  Advertisement threshold: 3, Computed send rate: 0
+  Preempt: no, Accept-data mode: no, VIP count: 1, VIP: 198.51.100.2
+  Master router: N/A
+  Preferred: yes
+  Tracking: disabled

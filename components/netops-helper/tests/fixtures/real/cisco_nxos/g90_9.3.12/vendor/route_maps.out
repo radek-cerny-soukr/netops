@@ -1,0 +1,10 @@
+route-map pbr-sample, permit, sequence 10
+Match clauses:
+ip address (access-lists): pbr-sample_1
+Set clauses:
+ip next-hop 203.0.113.243
+route-map pbr-sample, permit, sequence 20
+Match clauses:
+ip address (access-lists): pbr-sample_2
+Set clauses:
+ip next-hop 203.0.113.242

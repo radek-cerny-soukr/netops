@@ -13,8 +13,22 @@ from netops_admin.errors import Rejected
 from netops_admin.request import parse_request
 
 
+DHCP = "system dhcp server/reserved-address"
+
+
 def request(table, key, changes, op="update", request_id="operation-example"):
-    return parse_request(request_bytes(table=table, op=op, key=key, changes=changes, request_id=request_id))
+    # 1.0.12 G20: a DHCP reservation change names its impact (checklist 20b)
+    extra = {"endpoint_impact": key} if table == DHCP else {}
+    return parse_request(request_bytes(table=table, op=op, key=key, changes=changes, request_id=request_id, **extra))
+
+
+def apply_checked(runtime, name, request_):
+    """Checklist 20a: a DHCP reservation is applied only from an approved preview."""
+    if request_.table != DHCP:
+        return execute.apply(runtime, name, request_)
+    preview = execute.preview(runtime, name, request_)
+    assert preview["result"] == "ready", preview
+    return execute.apply(runtime, name, request_, expected_plan_sha256=preview["plan_sha256"])
 
 
 def runtime_for(tmp_path, platform):
@@ -49,7 +63,7 @@ CASES = [
 def test_execute_and_undo_restore_independent_device_model(tmp_path, platform, table, key, changes, op):
     runtime, target, name = runtime_for(tmp_path, platform)
     before = target.snapshot()
-    record = execute.apply(runtime, name, request(table, key, changes, op))
+    record = apply_checked(runtime, name, request(table, key, changes, op))
     assert record["result"] == "confirmed"
     assert target.snapshot() != before
     undone = execute.undo(runtime, record["change_id"], "restore example")
@@ -65,7 +79,7 @@ def test_lost_control_read_triggers_real_simulated_timer_inverse(tmp_path, platf
         if len(fake.applied_blocks) == 2:
             fake.check_unreadable = True
     target.on_apply = fail_after_change
-    record = execute.apply(runtime, name, request(table, key, changes, op))
+    record = apply_checked(runtime, name, request(table, key, changes, op))
     assert record["result"] == "reverted"
     assert engine.verify(record["plan"], target.snapshot().encode(), expect="before")["result"] == "match"
 
@@ -84,15 +98,16 @@ def test_last_group_member_is_refused_before_any_write(tmp_path):
 def test_bad_reservation_is_refused_before_any_write(tmp_path, changes):
     runtime, target, name = runtime_for(tmp_path, "fortios")
     with pytest.raises(Rejected):
-        execute.apply(runtime, name, request("system dhcp server/reserved-address", "1:1", changes))
+        execute.apply(runtime, name, request("system dhcp server/reserved-address", "1:1", changes),
+                      expected_plan_sha256="0" * 64)
     assert not target.applied_blocks
 
 
 def test_conflicting_reservation_is_refused_by_predicted_audit(tmp_path):
     runtime, target, name = runtime_for(tmp_path, "fortios")
-    with pytest.raises(Rejected, match="audit"):
-        execute.apply(runtime, name, request("system dhcp server/reserved-address", "1:2",
-                      {"ip": "192.0.2.101", "mac": "00:00:5e:00:53:02"}, "create"))
+    preview = execute.preview(runtime, name, request("system dhcp server/reserved-address", "1:2",
+                              {"ip": "192.0.2.101", "mac": "00:00:5e:00:53:02"}, "create"))
+    assert preview["result"] == "rejected" and "audit" in " ".join(preview["reasons"])
     assert not target.applied_blocks
 
 

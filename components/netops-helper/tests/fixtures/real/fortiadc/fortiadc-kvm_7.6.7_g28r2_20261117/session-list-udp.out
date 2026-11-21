@@ -1,0 +1,9 @@
+diagnose server-load-balance session list
+client-ip/port virtual-server-ip/port local-ip/port real-server-ip/port protocol service state in-bytes out-bytes expire virtual-server-name real-server-name
+203.0.113.100 51890 203.0.113.10 53 203.0.113.100 51890 203.0.113.254 53 17 udp UDP 84 94 50 LAB_VS_DNS RS_A
+203.0.113.100 36947 203.0.113.10 53 203.0.113.100 36947 203.0.113.252 53 17 udp UDP 84 94 50 LAB_VS_DNS RS_B
+203.0.113.100 55032 203.0.113.10 53 203.0.113.100 55032 203.0.113.254 53 17 udp UDP 84 94 50 LAB_VS_DNS RS_A
+203.0.113.100 53822 203.0.113.10 53 203.0.113.100 53822 203.0.113.252 53 17 udp UDP 84 94 50 LAB_VS_DNS RS_B
+203.0.113.100 56267 203.0.113.10 53 203.0.113.100 56267 203.0.113.252 53 17 udp UDP 81 85 50 LAB_VS_DNS RS_B
+
+FortiADC-KVM # 

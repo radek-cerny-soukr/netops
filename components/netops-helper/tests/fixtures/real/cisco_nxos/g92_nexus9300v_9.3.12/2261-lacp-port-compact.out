@@ -1,0 +1,36 @@
+Interface Ethernet1/4 is up
+  Channel group is 128 port channel is Po128
+  PDUs sent: 2772
+  PDUs rcvd: 2810
+  Markers sent: 0
+  Markers rcvd: 0
+  Marker response sent: 0
+  Marker response rcvd: 0
+  Unknown packets rcvd: 0
+  Illegal packets rcvd: 0
+Lag Id: [ [(7f9b, 00-00-5e-0-53-4, 8080, 8000, 104), (8000, 00-00-5e-0-53-5, 80, 8000, 4)] ]
+Operational as aggregated link since Tue Nov 17 10:57:19 2026
+
+Local Port: Eth1/4   MAC Address= 0-0-5e-0-53-6
+  System Identifier=0x8000,  Port Identifier=0x8000,0x104
+  Operational key=32896
+  LACP_Activity=active
+  LACP_Timeout=Long Timeout (30s)
+  Synchronization=IN_SYNC
+  Collecting=true
+  Distributing=true
+  Partner information refresh timeout=Long Timeout (90s)
+Actor Admin State=61
+Actor Oper State=61
+Neighbor: 0x4
+  MAC Address= 00-00-5e-0-53-5
+  System Identifier=0x8000,  Port Identifier=0x8000,0x4
+  Operational key=128
+  LACP_Activity=active
+  LACP_Timeout=Long Timeout (30s)
+  Synchronization=IN_SYNC
+  Collecting=true
+  Distributing=true
+Partner Admin State=61
+Partner Oper State=61
+Aggregate or Individual(True=1)= 1

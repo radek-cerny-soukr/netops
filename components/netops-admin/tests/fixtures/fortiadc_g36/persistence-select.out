@@ -1,0 +1,1 @@
+diagnose server-load-balance persistence filter 'vs-name LAB_VS_S MTP source-ip 192.0.2.100'

@@ -1,0 +1,13 @@
+{
+    "interfaces": {
+        "128": {
+            "localInterface": "Port-Channel128",
+            "localInterfaceDescription": "port-desc-02",
+            "localInterfaceStatus": "up",
+            "peerInterface": "Port-Channel128",
+            "peerInterfaceStatus": "up",
+            "status": "active-full",
+            "timeoutCount": 0
+        }
+    }
+}

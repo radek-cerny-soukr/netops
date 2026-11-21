@@ -1,0 +1,6 @@
+set system syslog host 192.0.2.10 any notice
+set system syslog host 192.0.2.10 port 5514
+set system syslog host 192.0.2.10 facility-override local7
+set system syslog file interactive-commands interactive-commands any
+set system syslog file messages any notice
+set system syslog file messages authorization info

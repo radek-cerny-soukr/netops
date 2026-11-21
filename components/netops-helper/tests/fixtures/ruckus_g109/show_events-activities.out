@@ -1,0 +1,27 @@
+show events-activities
+Last 300 Events/Activities:
+  Activity:
+    Date/Time= 2026/10/08 08:34:48
+    Severity= High
+    User=
+    Activities= Radio [5G] of AP[host-event 00:00:5e:00:53:01] is ON
+  Activity:
+    Date/Time= 2026/10/08 08:34:48
+    Severity= High
+    User=
+    Activities= Radio [2.4G] of AP[host-event 00:00:5e:00:53:01] is ON
+  Activity:
+    Date/Time= 2026/10/08 08:33:43
+    Severity= High
+    User=
+    Activities= AP[host-event 00:00:5e:00:53:01] warm boot successfully,last reboot reason [power cycle detect].
+  Activity:
+    Date/Time= 2026/10/08 08:33:41
+    Severity= High
+    User=
+    Activities= AP[host-event 00:00:5e:00:53:01] joins with uptime [160] s and last disconnected reason [AP Restart : power cycle detect]
+  Activity:
+    Date/Time= 2026/10/08 08:33:35
+    Severity= Medium
+    User=
+    Activities= System warm restarted with [application reboot].

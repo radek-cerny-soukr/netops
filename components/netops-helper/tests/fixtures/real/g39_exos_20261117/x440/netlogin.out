@@ -1,0 +1,44 @@
+
+NetLogin Authentication Mode : web-based DISABLED;  802.1x DISABLED;  MAC-based DISABLED
+NetLogin VLAN                : <Not Configured>
+NetLogin move-fail-action    : Deny
+NetLogin Client Aging Time   : 5 minutes
+Dynamic VLAN Creation        : Disabled
+Dynamic VLAN Uplink Ports    : None
+Authentication Protocol Order: 802.1x, web-based, mac-based (default)
+Maximum Number Of Users      : 1536 (Policy Enabled only)
+
+------------------------------------------------
+        Web-based Mode Global Configuration
+------------------------------------------------
+Base-URL                 : network-access.com
+Default-Redirect-Page    : ENABLED; http://www.extremenetworks.com
+Logout-privilege         : YES
+Netlogin Session-Refresh : ENABLED; 3 minute(s) 0 second(s)
+Refresh failures allowed : 0
+Reauthenticate on refresh: Disabled
+Authentication Database  : Radius, Local-User database
+Proxy Ports              : 80(http),443(https)
+------------------------------------------------
+
+------------------------------------------------
+        802.1x Mode Global Configuration
+------------------------------------------------
+EAPOL MPDU version to transmit	: v1
+Tag EAPOL on tagged ports      	: Off
+Authentication Database		: Radius
+RADIUS Accounting               : On
+------------------------------------------------
+
+------------------------------------------------
+          MAC Mode Global Configuration
+------------------------------------------------
+
+Re-authentication period	: 0 (disabled)
+Authentication Database		: Radius, Local-User database
+Authentication Username Format  : None
+Authentication Username Case    : Upper
+------------------------------------------------
+
+
+Number of Clients Authenticated  : 0

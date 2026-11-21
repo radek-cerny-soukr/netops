@@ -1,0 +1,20 @@
+
+Routes:
+     Destination         Peer                                    Next-Hop        LPref Weight MED        AS-Path
+----------------------------------------------------------------------------------------------------------------
+
+Flags: (*) Preferred BGP route, (>) Active, (d) Suppressed, (h) History
+       (s) Stale, (m) Multipath, (u) Unfeasible
+
+Origin: (?) Incomplete, (e) EGP, (i) IGP
+
+BGP Route Statistics 
+  Total Rxed Routes : 0
+  Feasible Routes   : 0
+  Active Routes     : 0
+  Rejected Routes   : 0
+  Unfeasible Routes : 0
+Route Statistics on Session Type 
+  Routes from Int Peer: 0 
+  Routes from Ext Peer: 0 
+

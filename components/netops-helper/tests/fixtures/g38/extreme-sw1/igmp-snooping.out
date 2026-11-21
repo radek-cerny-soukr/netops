@@ -1,0 +1,10 @@
+Igmp Snooping Flag                   : forward-all-router
+Igmp Snooping Flood List Policy      : none 
+Igmp Snooping Flood List Address(es) : none
+Igmp Snooping Proxy                  : Enable 
+Igmp Snooping Filters                : per-port 
+
+Vlan             Vid  Port   #Senders #Receivers Router Enable
+--------------------------------------------------------------
+Default          1           5                           Yes 
+                      1                0          Yes

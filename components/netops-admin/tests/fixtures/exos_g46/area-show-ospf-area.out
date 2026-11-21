@@ -1,0 +1,4 @@
+ AREA ID        Type Summ  Def   Num  Num  SPF  Num    LSA
+                          Metric ABR  ASBR Runs LSAs   Checksum
+0.0.0.0         NORM ---- ------ 0    0    0    0      0x0
+0.0.0.15        NORM ---- ------ 0    0    0    0      0x0

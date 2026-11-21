@@ -1,0 +1,3 @@
+
+> show vrrp | json
+% Invalid input (privileged mode required) at line 1

@@ -1,0 +1,8 @@
+Port Tx Error Monitor
+Port      Link      Tx          Tx          Tx          Tx       Tx       Tx
+          State     Coll        Late coll   Deferred    Errors   Lost     Parity
+================================================================================
+1         A         0            0           0         0         0         0
+================================================================================
+          > indicates Port Display Name truncated past 8 characters
+          Link State: A-Active, R-Ready, NP-Port Not Present L-Loopback

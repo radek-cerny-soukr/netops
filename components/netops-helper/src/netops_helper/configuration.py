@@ -2,9 +2,13 @@ from array import array
 from dataclasses import dataclass, replace
 from collections import OrderedDict, deque
 import codecs
+import fcntl
+import os
+import stat
 import sys
 from pathlib import Path
 from contextlib import contextmanager
+from contextvars import ContextVar
 from itertools import zip_longest
 from .config_buffers import CHUNK, Content, ContentBuilder, HiddenRecords, ChangedRecords, ContentLimitError
 import hashlib
@@ -14,7 +18,7 @@ import re
 import secrets
 import shlex
 from netops_core import prompt, ssh as core_ssh
-from .config_limits import ConfigurationLimits
+from .config_limits import ConfigurationLimits, BASELINE_FILE_BYTES
 import threading
 import time
 
@@ -27,9 +31,11 @@ _ACTIVE_BUDGET = _BYTE_BUDGET
 _ACTIVE_TARGET = None
 _TARGET_BUDGET = _BYTE_BUDGET
 _CAPTURE_LOCK = threading.Lock()
+_HISTORY_STAGED_BYTES = ContextVar('configuration_history_staged_bytes', default=0)
 _DIFFS = OrderedDict()
 _TTL = 86400
 PROFILE = 'fortios-minimal-4'
+RUCKUS_PROFILE = 'ruckus_unleashed-allowlisted-1'
 SECTIONS = frozenset(('system interface', 'firewall policy', 'firewall address',
                       'router static', 'vpn ipsec phase1-interface'))
 _FORTIADC_REFUSAL = re.compile(
@@ -147,6 +153,18 @@ def response_content(content, secrets):
     finally:
         out.close()
 
+
+def _redaction_tag(response_secrets):
+    return hmac.digest(_KEY, json.dumps(tuple(response_secrets)).encode(), 'sha256')
+
+
+def snapshot_redaction_current(snapshot, response_secrets):
+    # A cached capture already passed response_content with these exact inputs.
+    # Recheck in full when the inputs change or the capture has no in-memory tag.
+    return (snapshot.redaction_tag == _redaction_tag(response_secrets) or
+            response_content(snapshot.text, response_secrets) is snapshot.text)
+
+
 def _quoted_value(value):
     return value if re.fullmatch(r'[A-Za-z0-9_./:@%+*-]+', value) else json.dumps(value, ensure_ascii=True)
 
@@ -180,6 +198,16 @@ def _snapshot_profile(profile, platform):
         if type(profile) is not str or profile != config_arista_eos_adapter.PROFILE:
             raise ValueError('invalid configuration profile')
         return
+    if platform == 'ruckus_unleashed':
+        if profile != RUCKUS_PROFILE:
+            raise ValueError('invalid configuration profile')
+        return
+    if platform in ('juniper_junos', 'juniper_junos_els'):
+        # Only the exact Junos read profile (config_junos_adapter.PROFILE, G136); no family pattern.
+        from . import config_junos_adapter
+        if type(profile) is not str or profile != config_junos_adapter.PROFILE:
+            raise ValueError('invalid configuration profile')
+        return
     if platform not in ('fortios', 'fortiadc'):
         raise ValueError('invalid configuration profile')
     if profile == PROFILE and platform == 'fortios':
@@ -202,6 +230,7 @@ class ConfigurationBudgetError(ValueError):
 
 
 def _budget(staged=0):
+    staged += _HISTORY_STAGED_BYTES.get()
     with _LOCK:
         retained = sum(s.memory_bytes for s in _SNAPSHOTS.values())
         retained += sum(t.memory_bytes + c.memory_bytes for t,c,i in _DIFFS.values())
@@ -285,6 +314,8 @@ class Snapshot:
     include_defaults: bool = False
     metadata: tuple = ()
     filtered: tuple | None = None
+    historical: bool = False
+    redaction_tag: bytes | None = None
 
     @property
     def memory_bytes(self):
@@ -305,9 +336,10 @@ def require(auth, platform, permission):
             raise ValueError('config access is not enabled for this target')
         auth.require_tcp_port(auth.port)
         return
-    if platform in ('cisco_ios', 'cisco_xe', 'cisco_nxos', 'arista_eos'):
-        # IOS/IOS XE/NX-OS/EOS: read, and compare (config_diff, task 157) only together with read, and only for
-        # a target enrolled as exactly that platform.
+    if platform in ('cisco_ios', 'cisco_xe', 'cisco_nxos', 'arista_eos', 'ruckus_unleashed',
+                    'juniper_junos', 'juniper_junos_els'):
+        # Read and compare are allowed only for a target enrolled as exactly that platform.
+        # Compare requires read access as well.
         if permission not in ('read', 'compare'):
             raise ValueError('config_platform_not_supported')
         if auth.ssh_platform != platform:
@@ -351,7 +383,8 @@ def scope(auth, platform='fortios'):
     if platform == 'extreme_exos':
         if auth.ssh_platform != 'extreme_exos':
             raise ValueError('configuration platform is outside target policy')
-    elif platform in ('cisco_ios', 'cisco_xe', 'cisco_nxos', 'arista_eos'):
+    elif platform in ('cisco_ios', 'cisco_xe', 'cisco_nxos', 'arista_eos', 'ruckus_unleashed',
+                      'juniper_junos', 'juniper_junos_els'):
         if auth.ssh_platform != platform:
             raise ValueError('configuration platform is outside target policy')
     elif platform not in ('fortios', 'fortiadc') or auth.ssh_platform != ('fortinet' if platform == 'fortios' else 'fortiadc'):
@@ -935,7 +968,7 @@ def redact(raw, forbidden, section, *, policy=None):
         capture.close()
 
 def store(auth, text, hidden, count, section, firmware, *, platform='fortios', profile=PROFILE,
-          include_defaults=False, metadata=None):
+          include_defaults=False, metadata=None, response_secrets=None):
     _snapshot_profile(profile, platform)
     if type(include_defaults) is not bool or (profile == PROFILE and (include_defaults or metadata is not None)):
         raise ValueError('invalid configuration capture options')
@@ -957,31 +990,34 @@ def store(auth, text, hidden, count, section, firmware, *, platform='fortios', p
         while identity in _SNAPSHOTS:
             identity = 'cfg_' + secrets.token_hex(16)
         _prune()
-        snapshot = Snapshot(target, text, hidden, now, count, section, tuple(firmware), profile, include_defaults, metadata)
+        snapshot = Snapshot(target, text, hidden, now, count, section, tuple(firmware), profile, include_defaults,
+                            metadata, redaction_tag=None if response_secrets is None else _redaction_tag(response_secrets))
         _budget(snapshot.memory_bytes)
         _SNAPSHOTS[identity] = snapshot
     return identity
 
 INCOMPARABLE = 'configuration snapshot section, firmware or profile mismatch'
+FORTIADC_VISIBILITY_MISMATCH = 'configuration snapshot account visibility mismatch'
 
 # config_diff of the ExtremeXOS, Cisco IOS, IOS XE, NX-OS and Arista EOS snapshots (task 186) and, since
-# 1.0.10 (task 298), of the FortiOS snapshots (minimal and full redaction profile): a line diff along a
+# 1.0.10 (task 298), of the FortiOS snapshots (minimal and full profiles), now also used by FortiADC: a line diff along a
 # shortest edit script (Myers 1986, greedy forward pass with a stored furthest-reaching trace), not a
 # positional comparison, so one inserted line is one '+' line and a device-rewritten header line is one '-'/'+'
 # pair without shifting the rest.  In the FortiOS minimal profile the hidden values stay outside the text
 # (constant '<REDACTED>' markers; their changes are the secrets_changed records, computed apart from the text).
-# In the FortiOS full profile the hidden values are numbered '<REDACTED:credential#N>' markers (StreamRedactor
+# In the FortiOS and FortiADC full profiles the hidden values are numbered '<REDACTED:credential#N>' markers (StreamRedactor
 # ._credential), and an added or removed hidden line renumbers every later marker; there (task 298-r2) the lines
 # are matched with the marker number left out ('<REDACTED:credential>', only the marker is normalized, never a
 # value) while the diff writes the real lines of each snapshot, numbers included.  So the full profile shows an
 # added or removed hidden line, not a changed hidden value: it keeps no secrets_changed records (only the
 # minimal profile reports a changed value).  The output builder keeps its serialized-marker check, so the
-# redaction is unchanged.  Only FortiADC keeps the positional comparison.  The inputs are the stored
+# redaction is unchanged.  The inputs are the stored
 # snapshots (bounded by the configuration capture limits); the line tables and the trace are charged to the
 # same configuration memory budget, and the edit script has fixed bounds: more than LINE_DIFF_MAX_EDITS
 # changed lines between the common head and tail, or more than LINE_DIFF_MAX_WORK steps, refuses the diff
 # with DiffLimitExceeded instead of running without bound.
-LINE_DIFF_PLATFORMS = frozenset(('extreme_exos', 'cisco_ios', 'cisco_xe', 'cisco_nxos', 'arista_eos', 'fortios'))
+LINE_DIFF_PLATFORMS = frozenset(('extreme_exos', 'cisco_ios', 'cisco_xe', 'cisco_nxos', 'arista_eos',
+                                 'fortios', 'fortiadc', 'ruckus_unleashed', 'juniper_junos', 'juniper_junos_els'))
 LINE_DIFF_MAX_EDITS = 3000
 LINE_DIFF_MAX_WORK = 20_000_000
 DIFF_LIMIT_EXCEEDED = ('configuration diff exceeds its comparison limit (at most %d changed lines); output withheld'
@@ -1215,42 +1251,73 @@ def _line_diff(left, right, out, changed, normalize_credentials=False):
 # unverified_fields, unverified_truncated, configuration_complete and the visibility_limitations they imply),
 # which change with every added or removed hidden line; only the identity keys below take part, so such a
 # change is a diff (a redacted marker line), not a false config_snapshot_incomparable.  Section, firmware,
-# redaction profile (name and rule hash) and include_defaults still have to match.  FortiOS/FortiADC compare
-# the whole metadata as before (FortiOS also after its move to the line diff, task 298), except that a FortiOS
-# full-profile pair ignores credential_redactions: that count changes with every added or removed secret line,
-# which the line diff shows as one +/- line (task 298-r3).  The stored metadata itself is unchanged and is still
+# redaction profile (name and rule hash) and include_defaults still have to match. FortiADC also compares
+# account visibility. FortiOS compares the whole metadata except that a full-profile pair ignores
+# credential_redactions, which changes with every added or removed secret line (task 298-r3).
+# The stored metadata itself is unchanged and is still
 # returned per capture in base_capture/other_capture.
 _IDENTITY_METADATA = frozenset(('config_scope', 'identity_scope_verified'))
-_IDENTITY_METADATA_PLATFORMS = frozenset(('extreme_exos', 'cisco_ios', 'cisco_xe', 'cisco_nxos', 'arista_eos'))
-_FORTIOS_FULL_CONTENT_METADATA = frozenset(('credential_redactions',))
+_IDENTITY_METADATA_PLATFORMS = frozenset(('extreme_exos', 'cisco_ios', 'cisco_xe', 'cisco_nxos', 'arista_eos',
+                                          'juniper_junos', 'juniper_junos_els'))
+_FORTINET_FULL_CONTENT_METADATA = frozenset(('credential_redactions',))
+_FORTIADC_NON_ACCOUNT_LIMITATIONS = frozenset(('requested-section-only', 'schema-fields-unverified',
+                                             'formats-not-verified'))
 
 
 def _comparable_identity(snapshot, platform):
     metadata = snapshot.metadata
-    if platform in _IDENTITY_METADATA_PLATFORMS:
+    if platform == 'fortiadc' or platform in _IDENTITY_METADATA_PLATFORMS:
         metadata = tuple((key, value) for key, value in metadata if key in _IDENTITY_METADATA)
     elif platform == 'fortios' and snapshot.profile != PROFILE:
-        metadata = tuple((key, value) for key, value in metadata if key not in _FORTIOS_FULL_CONTENT_METADATA)
-    return snapshot.section, snapshot.firmware, snapshot.profile, snapshot.include_defaults, metadata
+        metadata = tuple((key, value) for key, value in metadata if key not in _FORTINET_FULL_CONTENT_METADATA)
+    identity = snapshot.section, snapshot.firmware, snapshot.profile, snapshot.include_defaults, metadata
+    if platform == 'fortiadc':
+        limitations = dict(snapshot.metadata).get('visibility_limitations', ())
+        visibility = tuple(sorted(set(limitations) - _FORTIADC_NON_ACCOUNT_LIMITATIONS))
+        return (*identity, visibility)
+    if platform in ('arista_eos', 'cisco_nxos', 'cisco_ios', 'cisco_xe'):
+        normalized_comparison = 'comparison_view' in dict(snapshot.metadata)
+        return (*identity, normalized_comparison)
+    return identity
 
 
 def compare(auth, base, other, *, platform='fortios', with_metadata=False, admit=None):
+    approved = None
+    if base == 'baseline':
+        base, approved = load_baseline(auth, other, platform=platform)
     if not all(isinstance(i, str) and re.fullmatch('cfg_[0-9a-f]{32}', i) for i in (base, other)):
         raise ValueError('configuration snapshot not found or expired')
     with _LOCK:
         _prune()
-        pair = [_SNAPSHOTS.get(i) for i in (base, other)]
+        left = _comparison_snapshot(auth, base, platform)
+        staged = left.memory_bytes if left is not None and left.historical and base not in _SNAPSHOTS else 0
+        right = _comparison_snapshot(auth, other, platform, staged=staged)
+        pair = (left, right)
         if any(s is None for s in pair):
             raise ValueError('configuration snapshot not found or expired')
         if any(s.scope != scope(auth, platform) for s in pair):
             raise ValueError('configuration snapshot scope mismatch')
+        if right.historical and other not in _SNAPSHOTS:
+            staged += right.memory_bytes
+    mark = _HISTORY_STAGED_BYTES.set(staged)
+    try:
+        return _compare_pair(auth, base, other, pair, platform, approved, with_metadata, admit)
+    finally:
+        _HISTORY_STAGED_BYTES.reset(mark)
+
+
+def _compare_pair(auth, base, other, pair, platform, approved, with_metadata, admit):
     left, right = pair
     if admit is not None:
-        # Caller check of each stored snapshot (EXOS/IOS family: the session redaction guard of config_read);
+        # Apply the same session redaction guard as config_read to each snapshot.
         # it runs before the diff cache, so a cached diff never bypasses it.
         for snapshot in pair:
             admit(snapshot)
-    if _comparable_identity(left, platform) != _comparable_identity(right, platform):
+    left_identity = _comparable_identity(left, platform)
+    right_identity = _comparable_identity(right, platform)
+    if left_identity != right_identity:
+        if platform == 'fortiadc' and left_identity[-1] != right_identity[-1]:
+            raise ValueError(FORTIADC_VISIBILITY_MISMATCH)
         raise ValueError(INCOMPARABLE)
     metadata = {}
     if with_metadata and left.profile != PROFILE:
@@ -1260,23 +1327,30 @@ def compare(auth, base, other, *, platform='fortios', with_metadata=False, admit
             'redaction_profile': snapshot.profile, 'include_defaults': snapshot.include_defaults,
             **snapshot_metadata(snapshot),
         } for name, snapshot in (('base_capture', left), ('other_capture', right))}
-    if (base,other) in _DIFFS:
+    compare_hidden = approved is None and not (left.historical or right.historical)
+    if compare_hidden and (base,other) in _DIFFS:
         value = _DIFFS[base,other]
         return (*value, metadata) if with_metadata else value
+    if approved is not None:
+        metadata.update(baseline_snapshot=base, baseline_approved_at=approved)
+    if not compare_hidden:
+        metadata['hidden_lines_compared'] = False
     changed = ChangedRecords()
-    for key, value in left.hidden.records():
-        if right.hidden.get(key) != value:
+    left_hidden = left.hidden if compare_hidden else HiddenRecords()
+    right_hidden = right.hidden if compare_hidden else HiddenRecords()
+    for key, value in left_hidden.records():
+        if right_hidden.get(key) != value:
             changed.add(key)
-    for key, value in right.hidden.records():
-        if left.hidden.get(key) is None:
+    for key, value in right_hidden.records():
+        if left_hidden.get(key) is None:
             changed.add(key)
     out = ContentBuilder(512*1024*1024, serialized_markers=left.profile == PROFILE)
     equal = left.text == right.text
-    order_changed = left.hidden.order.digest() != right.hidden.order.digest()
+    order_changed = left_hidden.order.digest() != right_hidden.order.digest()
     if not equal and platform in LINE_DIFF_PLATFORMS:
         try:
             _line_diff(left.text, right.text, out, changed,
-                       normalize_credentials=platform == 'fortios' and left.profile != PROFILE)
+                       normalize_credentials=platform in ('fortios', 'fortiadc') and left.profile != PROFILE)
         except ConfigurationBudgetError:
             # The line tables, trace or output of the new diff path exceed the memory budget (task 186-r2):
             # the same controlled refusal code as the edit bound, not an internal error.
@@ -1303,7 +1377,8 @@ def compare(auth, base, other, *, platform='fortios', with_metadata=False, admit
     value = response_content(out.finish(), auth.secrets), changed, equal and not len(changed) and not order_changed
     _budget(value[0].memory_bytes + changed.memory_bytes)
     with _LOCK:
-        _DIFFS[base,other] = value
+        if compare_hidden:
+            _DIFFS[base,other] = value
     return (*value, metadata) if with_metadata else value
 
 def page_arguments(offset, limit):
@@ -1315,7 +1390,8 @@ def _capture_metadata(metadata):
     if metadata is None:
         return ()
     allowed = {'config_scope', 'configuration_complete', 'identity_scope_verified', 'visibility_limitations',
-               'credential_redactions', 'unverified_count', 'unsupported_format_count', 'unverified_fields', 'unverified_truncated'}
+               'credential_redactions', 'unverified_count', 'unsupported_format_count', 'unverified_fields',
+               'unverified_truncated', 'comparison_view'}
     limitations = frozenset(('system', 'networking', 'load-balance', 'log', 'link-load-balance',
                              'global-load-balance', 'security', 'share-resource', 'user',
                              'access-profile-unverified', 'vdom-unverified', 'vdom-override-unverified', 'vdom-coverage-not-verified',
@@ -1335,6 +1411,8 @@ def _capture_metadata(metadata):
             raise ValueError('invalid configuration visibility metadata')
     if 'unverified_truncated' in metadata and type(metadata['unverified_truncated']) is not bool:
         raise ValueError('invalid configuration visibility metadata')
+    if 'comparison_view' in metadata and metadata['comparison_view'] not in ('startup', 'running'):
+        raise ValueError('invalid configuration capture view')
     if 'unverified_fields' in metadata:
         fields = metadata['unverified_fields']
         if (type(fields) is not list or len(fields) > 32 or
@@ -1480,3 +1558,390 @@ def discard_snapshot(identity):
     with _LOCK:
         _SNAPSHOTS.pop(identity, None)
         _prune()
+
+
+class ConfigurationBaselineError(ValueError):
+    """Fixed safe refusal of durable baseline storage or approval."""
+
+
+def _baseline_directory():
+    # The bootstrap sets the audit path inside the persistent, private Helper state volume.
+    directory = Path(os.environ.get('NETOPS_CONFIG_BASELINE_DIR',
+        str(Path(os.environ.get('NETOPS_HELPER_AUDIT_PATH', '/var/lib/netops-helper/audit.jsonl')).parent /
+            'config-baselines')))
+    return _private_directory(directory)
+
+
+def _private_directory(directory, *, create=True):
+    if create:
+        directory.mkdir(mode=0o700, exist_ok=True)
+    info = directory.lstat()
+    if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) != 0o700:
+        raise ConfigurationBaselineError('configuration storage is not private')
+    return directory
+
+
+def _baseline_target(auth, platform, *capture_options):
+    # Public identity only: password rotations retain the same approved baseline. Never persist credentials,
+    # session keys, hidden-line HMACs or the process-local snapshot scope.
+    material = (auth.alias, auth.host, auth.port, auth.login, auth.host_key_fingerprint,
+                auth.credential_kind, platform, *capture_options)
+    return hashlib.sha256(json.dumps(material, separators=(',', ':')).encode()).hexdigest()
+
+
+def _baseline_safe(snapshot, auth):
+    platform = snapshot.scope[1]
+    forbidden = auth.redaction_secrets if platform in ('fortios', 'fortiadc') or platform in _IDENTITY_METADATA_PLATFORMS else auth.secrets
+    if response_content(snapshot.text, forbidden) is not snapshot.text:
+        raise ConfigurationBaselineError('configuration baseline redaction changed; fresh capture required')
+
+
+def _encode_saved_snapshot(snapshot, target, identity, approved):
+    # JSON encoding is bounded before constructing the serialized copy.
+    _budget(8 * snapshot.text.total + 65536)
+    record = dict(version=1, target=target, snapshot_id=identity, approved_at=approved,
+                  section=snapshot.section, firmware=list(snapshot.firmware), profile=snapshot.profile,
+                  include_defaults=snapshot.include_defaults, metadata=snapshot_metadata(snapshot),
+                  redacted_count=snapshot.redacted_count, content_sha256=snapshot.text.sha256,
+                  text=snapshot.text.page(0, snapshot.text.total)[0])
+    data = json.dumps(record, ensure_ascii=True, separators=(',', ':')).encode('ascii')
+    if len(data) > BASELINE_FILE_BYTES:
+        raise ConfigurationBaselineError('configuration baseline exceeds storage limit')
+    return data
+
+
+def approve_baseline(auth, identity, section, expected_sha256, *, platform='fortios'):
+    """Explicit approval of an existing completed, unfiltered capture; no device writes.
+
+    Latest approval replaces only this target/section/defaults baseline. The redacted text survives
+    cache eviction, TTL and process restart. Hidden records deliberately never go to disk.
+    """
+    from netops.files import write_private
+    require(auth, platform, 'read')
+    require(auth, platform, 'compare')
+    with _LOCK:
+        snapshot = _scoped_snapshot(auth, identity, section, platform)
+        if type(expected_sha256) is not str or not hmac.compare_digest(snapshot.text.sha256, expected_sha256):
+            raise ConfigurationBaselineError('configuration baseline content fingerprint mismatch')
+        _baseline_safe(snapshot, auth)
+        target = _baseline_target(auth, platform, section, snapshot.include_defaults)
+        approved = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
+        data = _encode_saved_snapshot(snapshot, target, identity, approved)
+        try:
+            path = _baseline_directory() / (target + '.json')
+            write_private(path, data, owner=os.getuid(), replace=True)
+        except (OSError, RuntimeError) as exc:
+            raise ConfigurationBaselineError('configuration baseline could not be saved') from None
+        return dict(baseline_approved=True, baseline_snapshot=identity, baseline_approved_at=approved,
+                    baseline_sha256=snapshot.text.sha256, hidden_lines_compared=False)
+
+
+def _decode_saved_snapshot(path, target, auth, platform, *, staged=0, key=None):
+    from netops.files import read_private
+
+    # Bound allocation by this target's current limits, including JSON escaping.
+    maximum = min(BASELINE_FILE_BYTES, 2 * auth.configuration_limits.all_bytes + 65536)
+    maximum += _ADC_ARCHIVE_OVERHEAD if key is not None else 0
+    _budget(staged + 8 * min(path.lstat().st_size, maximum))
+    raw = read_private(path, maximum, owner=os.getuid())
+    if key is not None:
+        from cryptography.exceptions import InvalidTag
+        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
+        start = len(_ADC_ARCHIVE_MAGIC)
+        if len(raw) < _ADC_ARCHIVE_OVERHEAD or not raw.startswith(_ADC_ARCHIVE_MAGIC):
+            raise ValueError()
+        try:
+            raw = AESGCM(key).decrypt(raw[start:start + 12], raw[start + 12:], _ADC_ARCHIVE_MAGIC)
+        except InvalidTag:
+            raise ValueError() from None
+    record = json.loads(raw)
+    if (type(record) is not dict or set(record) != {
+            'version', 'target', 'snapshot_id', 'approved_at', 'section', 'firmware', 'profile',
+            'include_defaults', 'metadata', 'redacted_count', 'content_sha256', 'text'} or
+            type(record['version']) is not int or record['version'] != 1 or
+            record['target'] != target or type(record['section']) is not str or
+            type(record['include_defaults']) is not bool or
+            type(record['snapshot_id']) is not str or re.fullmatch('cfg_[0-9a-f]{32}', record['snapshot_id']) is None or
+            type(record['approved_at']) is not str or
+            re.fullmatch(r'[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z', record['approved_at']) is None or
+            type(record['firmware']) is not list or
+            type(record['redacted_count']) is not int or record['redacted_count'] < 0 or
+            type(record['text']) is not str):
+        raise ValueError()
+    _snapshot_profile(record['profile'], platform)
+    if platform in ('cisco_ios', 'cisco_xe'):
+        # G00 stores image family (and XE train) in addition to the public firmware fields.
+        # Validate with the same authority as cached config_read; optional fields may be None.
+        from . import config_cisco_ios_adapter, config_cisco_xe_adapter
+        adapter = config_cisco_ios_adapter if platform == 'cisco_ios' else config_cisco_xe_adapter
+        if not adapter.firmware_record(tuple(record['firmware'])):
+            raise ValueError()
+    elif (not 2 <= len(record['firmware']) <= 3 or
+          any(type(v) is not str or len(v) > 256 for v in record['firmware'])):
+        raise ValueError()
+    if platform == 'fortios' and record['profile'] != PROFILE:
+        from . import config_fortios
+        # An older full policy may have saved credentials in otherwise valid records.
+        if record['profile'] != config_fortios.policy_for(tuple(record['firmware'])).identifier:
+            raise ValueError()
+    if key is not None:
+        from . import config_fortiadc
+
+        if (record['section'] != 'all' or not record['include_defaults'] or
+                len(record['firmware']) != 3 or
+                record['profile'] != config_fortiadc.policy_for(tuple(record['firmware'])).identifier):
+            raise ValueError()
+    metadata = _capture_metadata(record['metadata'] if record['profile'] != PROFILE else None)
+    maximum = auth.configuration_limits.all_bytes if record['section'] == 'all' else auth.configuration_limits.section_bytes
+    builder = ContentBuilder(maximum, serialized_markers=False)
+    try:
+        builder.add(record['text'])
+        content = builder.finish()
+    finally:
+        builder.close()
+    if content.sha256 != record['content_sha256']:
+        raise ValueError()
+    loaded = Snapshot(scope(auth, platform), content, HiddenRecords(), time.monotonic(),
+                      record['redacted_count'], record['section'], tuple(record['firmware']),
+                      record['profile'], record['include_defaults'], metadata, historical=True)
+    _baseline_safe(loaded, auth)
+    return record, loaded
+
+
+def load_baseline(auth, other, *, platform='fortios'):
+    """Load the latest approval into the bounded cache, bound to today's authenticated target.
+
+    The original capture ID is returned; no cached diff can bypass a newly loaded approval.
+    """
+    require(auth, platform, 'read')
+    require(auth, platform, 'compare')
+    with _LOCK:
+        if type(other) is not str or re.fullmatch('cfg_[0-9a-f]{32}', other) is None:
+            raise ValueError('configuration snapshot not found or expired')
+        current = _SNAPSHOTS.get(other)
+        if current is None:
+            raise ValueError('configuration snapshot not found or expired')
+        current = _scoped_snapshot(auth, other, current.section, platform)
+        target = _baseline_target(auth, platform, current.section, current.include_defaults)
+        try:
+            path = _baseline_directory() / (target + '.json')
+            record, loaded = _decode_saved_snapshot(path, target, auth, platform)
+            if (loaded.section, loaded.include_defaults) != (current.section, current.include_defaults):
+                raise ValueError()
+        except FileNotFoundError:
+            raise ConfigurationBaselineError('configuration baseline not found; approve a completed snapshot first') from None
+        except (OSError, ValueError, TypeError, KeyError, RuntimeError, UnicodeError):
+            raise ConfigurationBaselineError('configuration baseline is invalid or unavailable; output withheld') from None
+        identity = record['snapshot_id']
+        existing = _SNAPSHOTS.get(identity)
+        if existing is not None and (existing.scope != loaded.scope or existing.text != loaded.text):
+            raise ConfigurationBaselineError('configuration baseline snapshot collision')
+        if existing is None:
+            _prune()
+            while len(_SNAPSHOTS) >= 16:
+                key = next(key for key in _SNAPSHOTS if key != other)
+                del _SNAPSHOTS[key]
+            _budget(loaded.memory_bytes)
+            _SNAPSHOTS[identity] = loaded
+        return identity, record['approved_at']
+
+
+_HISTORY_STEM = r'(cfg_[0-9a-f]{32})-([0-9a-f]{64})'
+_HISTORY_NAME = re.compile(_HISTORY_STEM + r'\.json')
+_ADC_HISTORY_NAME = re.compile(_HISTORY_STEM + r'\.aesgcm')
+_ADC_ARCHIVE_MAGIC = b'NETOPS-FORTIADC-HISTORY\x00\x01'
+_ADC_ARCHIVE_OVERHEAD = len(_ADC_ARCHIVE_MAGIC) + 12 + 16
+_ADC_KEY_FILE = 'NETOPS_FORTIADC_BACKUP_KEY_FILE'
+_HISTORY_COUNT = 16
+_HISTORY_BYTES = 128 * 1024 * 1024
+
+
+def fortiadc_history_enabled(auth):
+    rights = auth.read_inventory.get('config_access', ())
+    return bool(os.environ.get(_ADC_KEY_FILE)) and 'read' in rights and 'compare' in rights
+
+
+def _fortiadc_archive_key():
+    from netops.files import read_private
+
+    key = read_private(os.environ[_ADC_KEY_FILE], 32, owner=os.getuid())
+    if len(key) != 32:
+        raise ConfigurationBaselineError('invalid FortiADC archive key size')
+    return key
+
+
+def _history_directory(auth, platform, *, create):
+    directory = os.environ.get('NETOPS_CONFIG_HISTORY_DIR')
+    if directory is None:
+        audit_path = os.environ.get('NETOPS_HELPER_AUDIT_PATH')
+        if audit_path is None:
+            return None
+        directory = Path(audit_path).parent / 'config-history'
+    # A persisted capture follows the same configuration-limit scope as a cached capture.
+    target = _baseline_target(auth, platform, auth.configuration_limits.identity())
+    directory = Path(directory)
+    if platform == 'fortiadc':
+        for path in (directory.absolute(), directory.resolve()):
+            if any((parent / '.git').exists() for parent in (path, *path.parents)):
+                raise ConfigurationBaselineError('FortiADC archive directory must be outside a Git worktree')
+    try:
+        root = _private_directory(directory, create=create)
+        return _private_directory(root / target, create=create)
+    except FileNotFoundError:
+        if create:
+            raise
+        return None
+
+
+def _history_shape(snapshot, *, legacy_fortiadc=False):
+    platform = snapshot.scope[1]
+    identity = _comparable_identity(snapshot, platform)
+    if platform == 'fortiadc':
+        # Preserve existing filename hashes. Pair archives using their authenticated capture metadata.
+        identity = identity[:-1]
+    if legacy_fortiadc:
+        # Authenticate filenames of existing FortiADC archives written before the identity fix.
+        metadata = tuple((key, value) for key, value in snapshot.metadata
+                         if key not in _FORTINET_FULL_CONTENT_METADATA)
+        identity = (*identity[:-1], metadata)
+    material = json.dumps(identity, separators=(',', ':'))
+    return hashlib.sha256(material.encode()).hexdigest()
+
+
+def retain_history(auth, identity, section, *, platform='fortios'):
+    """Retain completed redacted text and return IDs for comparisons of the same capture scope."""
+    if 'compare' not in auth.read_inventory.get('config_access', ()):
+        return {}
+    if platform == 'fortiadc' and not fortiadc_history_enabled(auth):
+        return {}
+    snapshot = _scoped_snapshot(auth, identity, section, platform)
+    try:
+        key = _fortiadc_archive_key() if platform == 'fortiadc' else None
+        directory = _history_directory(auth, platform, create=True)
+        if directory is None:
+            return {'history_retained': False} if key is not None else {}
+        _baseline_safe(snapshot, auth)
+        captured = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
+        data = _encode_saved_snapshot(snapshot, directory.name, identity, captured)
+        if key is not None:
+            from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
+            nonce = os.urandom(12)
+            data = _ADC_ARCHIVE_MAGIC + nonce + AESGCM(key).encrypt(nonce, data, _ADC_ARCHIVE_MAGIC)
+        if len(data) > _HISTORY_BYTES:
+            raise ValueError()
+        fd = os.open(directory, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX)
+            return _publish_history(auth, platform, directory, identity, snapshot, captured, data, key)
+        finally:
+            os.close(fd)
+    except (OSError, ValueError, RuntimeError, KeyError):
+        return {'history_retained': False}
+
+
+def _publish_history(auth, platform, directory, identity, snapshot, captured, data, key):
+    from netops.files import sync_directory, write_private
+    from . import config_fortiadc
+
+    shape = _history_shape(snapshot)
+    comparable_identity = _comparable_identity(snapshot, platform) if key is not None else None
+    pattern, suffix = (_ADC_HISTORY_NAME, '.aesgcm') if key is not None else (_HISTORY_NAME, '.json')
+    entries, unavailable_count, unavailable_bytes = [], 0, 0
+    for previous in directory.iterdir():
+        match = pattern.fullmatch(previous.name)
+        if match is None:
+            continue
+        info = previous.lstat()
+        if not stat.S_ISREG(info.st_mode):
+            continue
+        comparable = match[2] == shape
+        if key is not None:
+            try:
+                loaded = _verify_history_file(auth, platform, directory, previous, match, key=key)
+            except (OSError, ValueError, TypeError, KeyError, RuntimeError):
+                # An unreadable file could belong to an earlier key. Preserve it.
+                unavailable_count += 1
+                unavailable_bytes += info.st_size
+                continue
+            comparable = (_comparable_identity(loaded, platform) == comparable_identity and
+                          config_fortiadc.full_capture_complete(loaded.text))
+        entries.append((info.st_mtime_ns, previous, info.st_size, match, comparable))
+    if unavailable_count >= _HISTORY_COUNT or unavailable_bytes + len(data) > _HISTORY_BYTES:
+        raise ConfigurationBaselineError('FortiADC archive capacity is occupied by unreadable captures')
+    retained_bytes = unavailable_bytes + len(data) + sum(entry[2] for entry in entries)
+    entries.sort(reverse=True)
+    expired_paths = []
+    while len(entries) + unavailable_count >= _HISTORY_COUNT or retained_bytes > _HISTORY_BYTES:
+        _, expired, size, _, _ = entries.pop()
+        expired_paths.append(expired)
+        retained_bytes -= size
+    write_private(directory / f'{identity}-{shape}{suffix}', data, owner=os.getuid())
+    try:
+        for expired in expired_paths:
+            expired.unlink()
+        if expired_paths:
+            sync_directory(directory)
+        retention_ok = True
+    except OSError:
+        retention_ok = False
+    recent = [{'snapshot_id': identity, 'captured_at': captured}]
+    for modified, path, _, match, comparable in entries:
+        if not comparable:
+            continue
+        if key is None:
+            try:
+                _verify_history_file(auth, platform, directory, path, match)
+            except (OSError, ValueError, TypeError, KeyError, RuntimeError):
+                continue
+        recent.append({'snapshot_id': match[1],
+                       'captured_at': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime(modified // 10**9))})
+    result = {'history_retained': True, 'recent_snapshots': recent}
+    if not retention_ok:
+        result['history_retention_ok'] = False
+    if unavailable_count:
+        result['history_unavailable_count'] = unavailable_count
+    return result
+
+
+def _verify_history_file(auth, platform, directory, path, match, *, staged=0, key=None):
+    record, loaded = _decode_saved_snapshot(path, directory.name, auth, platform, staged=staged, key=key)
+    if record['snapshot_id'] != match[1]:
+        raise ValueError()
+    if match[2] != _history_shape(loaded) and (key is None or match[2] != _history_shape(loaded, legacy_fortiadc=True)):
+        raise ValueError()
+    return loaded
+
+
+def _read_history_snapshot(auth, platform, directory, identity, *, staged=0, key=None):
+    from . import config_fortiadc
+
+    pattern, suffix = (_ADC_HISTORY_NAME, '.aesgcm') if key is not None else (_HISTORY_NAME, '.json')
+    paths = list(directory.glob(identity + '-*' + suffix))
+    if not paths:
+        return None
+    path, *duplicates = paths
+    if duplicates or not (match := pattern.fullmatch(path.name)):
+        raise ValueError()
+    loaded = _verify_history_file(auth, platform, directory, path, match, staged=staged, key=key)
+    if key is not None and not config_fortiadc.full_capture_complete(loaded.text):
+        raise ValueError()
+    return loaded
+
+
+def _comparison_snapshot(auth, identity, platform, *, staged=0):
+    current = _SNAPSHOTS.get(identity)
+    if current is not None or platform not in ('fortios', 'fortiadc'):
+        return current
+    if 'read' not in auth.read_inventory.get('config_access', ()):
+        return None
+    if platform == 'fortiadc' and not fortiadc_history_enabled(auth):
+        return None
+    try:
+        directory = _history_directory(auth, platform, create=False)
+        if directory is not None:
+            key = _fortiadc_archive_key() if platform == 'fortiadc' else None
+            return _read_history_snapshot(auth, platform, directory, identity, staged=staged, key=key)
+    except (OSError, ValueError, TypeError, KeyError, RuntimeError):
+        raise ValueError('configuration history is invalid or unavailable; output withheld') from None

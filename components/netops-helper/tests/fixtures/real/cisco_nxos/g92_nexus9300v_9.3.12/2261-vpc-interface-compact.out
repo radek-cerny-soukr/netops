@@ -1,0 +1,30 @@
+    Legend:
+        Type 1 : vPC will be suspended in case of mismatch
+
+Name                        Type  Local Value            Peer Value
+-------------               ----  ---------------------- -----------------------
+delayed-lacp                1     disabled               disabled
+mode                        1     active                 active
+Switchport Isolated         1     0                      0
+Interface type              1     port-channel           port-channel
+LACP Mode                   1     on                     on
+Virtual-ethernet-bridge     1     Disabled               Disabled
+Speed                       1     1000 Mb/s              1000 Mb/s
+Duplex                      1     full                   full
+MTU                         1     1500                   1500
+Port Mode                   1     access                 access
+Native Vlan                 1     1                      1
+Admin port mode             1     access                 access
+STP Port Guard              1     Default                Default
+STP Port Type               1     Default                Default
+STP MST Simulate PVST       1     Default                Default
+lag-id                      1     [(7f9b,                [(7f9b,
+                                  00-00-5e-0-53-4, 8080, 00-00-5e-0-53-4, 8080,
+                                   0, 0), (8000,          0, 0), (8000,
+                                  00-00-5e-0-53-5, 80,   00-00-5e-0-53-5, 80,
+                                  0, 0)]                 0, 0)]
+Allow-Multi-Tag             1     Disabled               Disabled
+Vlan xlt mapping            1     Disabled               Disabled
+vPC card type               1     N9K EOR LC             N9K EOR LC
+Allowed VLANs               -     428                    428
+Local suspended VLANs       -     -                      -

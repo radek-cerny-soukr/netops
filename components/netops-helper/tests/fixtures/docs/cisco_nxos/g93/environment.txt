@@ -1,0 +1,20 @@
+Fan:
+---------------------------------------------------------------------------
+Fan             Model                Hw     Direction       Status
+---------------------------------------------------------------------------
+Fan1(sys_fan1)  N9K-C9508-FAN        1.0    front-to-back   Ok
+
+Power Supply:
+Voltage: 12 Volts
+Power                      Actual             Actual        Total
+Supply    Model            Output             Input      Capacity       Status
+                           (Watts )           (Watts )     (Watts )
+-------  ----------  ---------------  ------  ----------  --------------------
+1        N9K-PAC-3000W-B       805 W              834 W      3000 W      Ok
+
+Temperature:
+--------------------------------------------------------------------
+Module   Sensor        MajorThresh   MinorThres   CurTemp     Status
+                       (Celsius)     (Celsius)    (Celsius)
+--------------------------------------------------------------------
+1        FRONT           70              42          32         Ok

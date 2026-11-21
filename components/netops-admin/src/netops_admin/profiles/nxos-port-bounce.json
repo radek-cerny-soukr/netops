@@ -1,0 +1,32 @@
+{
+  "platform": "nxos",
+  "table": "port-bounce",
+  "versions": [
+    "9.3(12)"
+  ],
+  "exact_versions": true,
+  "ops": [
+    "update"
+  ],
+  "table_scoped_key": true,
+  "key_pattern": "^Ethernet[1-9][0-9]{0,2}/[1-9][0-9]{0,2}(?:/[1-9][0-9]{0,2})?$",
+  "protected_keys": [],
+  "attributes": {
+    "admin-state": {
+      "type": "text",
+      "update": true,
+      "unset": false,
+      "referenced_update": true,
+      "pattern": "^(enabled|disabled)$",
+      "max_length": 8,
+      "default": "enabled",
+      "required_on_create": false
+    }
+  },
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "Shuts down one Ethernet port, observes it down, waits five seconds and restores its administrative state under the scheduler checkpoint. A bounce restores its own configuration.",
+  "action": "port-bounce"
+}

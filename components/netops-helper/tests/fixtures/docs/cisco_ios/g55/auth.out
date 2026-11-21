@@ -1,0 +1,8 @@
+            Interface:  GigabitEthernet3/0/2
+          MAC Address:  0000.5e00.5301
+         IPv4 Address:  198.51.100.1
+               Status:  Authorized
+               Domain:  DATA
+Method status list:
+       Method           State
+       dot1x            Authc Failed

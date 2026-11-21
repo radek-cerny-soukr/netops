@@ -1,0 +1,98 @@
+{
+  "unavailable_poe_admin": {
+    "command": "show poe",
+    "parameters": {},
+    "role": "ADMIN",
+    "rc": 1,
+    "target": "cEOS-2253",
+    "captured_at": 1794989651.9,
+    "file": "unavailable_poe_admin.out"
+  },
+  "unavailable_interface_poe_admin": {
+    "command": "show poe interface Ethernet2",
+    "parameters": {
+      "interface": "Ethernet2"
+    },
+    "role": "ADMIN",
+    "rc": 1,
+    "target": "cEOS-2253",
+    "captured_at": 1794989652.3,
+    "file": "unavailable_interface_poe_admin.out"
+  },
+  "pair_interfaces_ro": {
+    "command": "show interfaces status",
+    "parameters": {},
+    "role": "RO",
+    "rc": 0,
+    "target": "cEOS-pair-a-2263",
+    "captured_at": 1794989713.2,
+    "file": "pair_interfaces_ro.out"
+  },
+  "pair_interfaces_trunk_ro": {
+    "command": "show interfaces trunk",
+    "parameters": {},
+    "role": "RO",
+    "rc": 0,
+    "target": "cEOS-pair-a-2263",
+    "captured_at": 1794989713.4,
+    "file": "pair_interfaces_trunk_ro.out"
+  },
+  "pair_interfaces_counters_errors_ro": {
+    "command": "show interfaces counters errors",
+    "parameters": {},
+    "role": "RO",
+    "rc": 0,
+    "target": "cEOS-pair-a-2263",
+    "captured_at": 1794989713.6,
+    "file": "pair_interfaces_counters_errors_ro.out"
+  },
+  "pair_interfaces_counters_discards_ro": {
+    "command": "show interfaces counters discards",
+    "parameters": {},
+    "role": "RO",
+    "rc": 0,
+    "target": "cEOS-pair-a-2263",
+    "captured_at": 1794989713.8,
+    "file": "pair_interfaces_counters_discards_ro.out"
+  },
+  "pair_mlag_interfaces_ro": {
+    "command": "show mlag interfaces",
+    "parameters": {},
+    "role": "RO",
+    "rc": 0,
+    "target": "cEOS-pair-a-2263",
+    "captured_at": 1794989714.0,
+    "file": "pair_mlag_interfaces_ro.out"
+  },
+  "pair_interfaces_errdisabled_ro": {
+    "command": "show interfaces status errdisabled",
+    "parameters": {},
+    "role": "RO",
+    "rc": 0,
+    "target": "cEOS-pair-a-2263",
+    "captured_at": 1794989714.2,
+    "file": "pair_interfaces_errdisabled_ro.out"
+  },
+  "pair_stp_interface_detail_po128_ro": {
+    "command": "show spanning-tree interface Port-Channel128 detail",
+    "parameters": {
+      "interface": "Port-Channel128"
+    },
+    "role": "RO",
+    "rc": 0,
+    "target": "cEOS-pair-a-2263",
+    "captured_at": 1794989714.3,
+    "file": "pair_stp_interface_detail_po128_ro.out"
+  },
+  "pair_mac_table_interface_po128_ro": {
+    "command": "show mac address-table interface Port-Channel128",
+    "parameters": {
+      "interface": "Port-Channel128"
+    },
+    "role": "RO",
+    "rc": 0,
+    "target": "cEOS-pair-a-2263",
+    "captured_at": 1794989714.5,
+    "file": "pair_mac_table_interface_po128_ro.out"
+  }
+}

@@ -23,13 +23,17 @@ PROBES = {
     "iosxe": lambda key, probe: ("interface", "update", {"description": key}),
     "nxos": lambda key, probe: ("interface", "update", {"description": key}),
     "junos": lambda key, probe: ("interface", "update", {"description": key}),
+    # 1.0.12 G111: Unleashed creates the selected WLAN named by the probe, disabled, and returns it in the same run
+    "ruckus": lambda key, probe: ("wlan", "create", {"ssid": probe, "service": "disabled"}),
 }
 # platforms whose probe argument names the interface whose description the self-test changes
-INTERFACE_PROBES = ("eos", "ios", "iosxe", "nxos", "junos")
+INTERFACE_PROBES = ("eos", "ios", "iosxe", "nxos", "junos", "ruckus")
 
 
 def binding(device, accounts, firmware, config):
     fields = asdict(device)
+    # The existing fingerprint already binds this public key.
+    fields.pop("host_key", None)
     profiles = resources.files("netops_admin") / "profiles"
     profile_hashes = {p.name: hashlib.sha256(p.read_bytes()).hexdigest()
                       for p in profiles.iterdir() if p.name.endswith(".json")}
@@ -69,8 +73,13 @@ def run(runtime, device_name, probe):
                               "operator enrollment self-test","operator enrollment self-test","enroll-"+secrets.token_hex(12))
         return execute._apply(runtime, device_name, request, execute.ANY_STATE, enrolling=True)
     if device.platform == "fortiadc":
-        table, key, changes = fortiadc_probe(probe)
-        op = "create"
+        if isinstance(probe, str) and probe.startswith("certificate/"):
+            from netops_admin.fortiadc import CERT_MEMBER
+            key, _, replacement = probe.removeprefix("certificate/").rpartition(":")
+            table, op, changes = CERT_MEMBER, "update", {"local-cert": replacement}
+        else:
+            table, key, changes = fortiadc_probe(probe)
+            op = "create"
     else:
         key = PROBE_PREFIX + secrets.token_hex(6)
         table, op, changes = PROBES.get(device.platform, PROBES["exos"])(key, probe)
@@ -106,11 +115,12 @@ def complete(runtime, device, access, record):
     from netops_admin import schema_runtime
     adapter = execute._adapter(device.platform, schema_runtime.is_plan(plan))
     try:
-        text = access.snapshot()
+        text = execute._snapshot(access, adapter, plan["table"])
         if engine.verify(plan, text.encode(), expect="before")["result"] != "match":
             raise Rejected(["enrollment cleanup did not restore the initial configuration"])
         observed = engine.observed_state(plan, adapter.observe(access, plan))
-        expected = plan["predicted"]["before"] if schema_runtime.is_plan(plan) or plan["op"] == "update" else None
+        expected = engine.check_view(plan, plan["predicted"]["before"]) if schema_runtime.is_plan(plan) \
+            or plan["op"] == "update" else None
         if observed != expected:
             raise Rejected(["the check account still sees the enrollment probe"])
         accounts = adapter.accounts_check(access, device, text)

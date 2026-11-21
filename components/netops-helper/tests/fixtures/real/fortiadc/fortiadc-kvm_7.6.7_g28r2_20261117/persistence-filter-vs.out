@@ -1,0 +1,9 @@
+diagnose server-load-balance persistence filter show
+filter flag:1000
+source ip range: any
+source port range: any
+dest ip range: any
+dest port range: any
+virtual server: LAB_VS_HTTPS
+
+FortiADC-KVM # 

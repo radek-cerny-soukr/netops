@@ -234,13 +234,20 @@ class ManagedSwitchBridge(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(row['vlan_membership'],{'carries_vlan':True,'tagging':'untagged','source':'configuration'})
 
     async def test_unsupported_table_is_explained_without_device_access(self):
-        result = await self.call('ospf_neighbor')
+        result = await self.call('stp_port_counters')
+        self.assertFalse(result['isError'], result)
         data = result['structuredContent']
         self.assertEqual(data['status'], 'unsupported')
         self.assertEqual(data['data']['field'], 'table')
         self.assertIn('mac_entry', data['data']['supported_tables'])
-        self.assertNotIn('ospf_neighbor', data['data']['supported_tables'])
+        self.assertIn('ospf_neighbor', data['data']['supported_tables'])
+        self.assertNotIn('stp_port_counters', data['data']['supported_tables'])
         self.assertEqual(data['sources'], [])
+
+        result = await self.call('ospf_neighbor')
+        self.assertTrue(result['isError'], result)
+        refusal = json.loads(result['content'][0]['text'])
+        self.assertEqual((refusal['code'], refusal['data']['field']), (-32009, 'enabled_queries'))
         self.read.assert_not_called()
 
     async def test_mac_filter_and_empty_lldp_preserve_semantics(self):

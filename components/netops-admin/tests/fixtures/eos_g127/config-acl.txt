@@ -1,0 +1,6 @@
+ipv6 access-list netops-g127-v6
+   10 deny tcp host 2001:db8:1::1   host 2001:db8:1::2   eq 8443
+   30 permit ipv6 any any
+ip access-list netops-g127-v4
+   10 deny tcp host 192.0.2.1    host 192.0.2.2    eq https
+   30 permit ip any any

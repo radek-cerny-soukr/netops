@@ -1,0 +1,9 @@
+Number of Policy Profiles: 12
+
+Policy Profile Name               Description                             Status
+-----------------------------------------------------------------------------------------
+pp-open                                                                                    ENABLED
+pp-dot1x                                                                                   ENABLED
+asim43-policy                                                                           ENABLED
+guest-policy-tag                                                                       DISABLED
+default-flex-profile                                                                  DISABLED

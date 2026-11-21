@@ -1,0 +1,23 @@
+session info: proto=6 proto_state=01 duration=6 expire=3593 timeout=3600 refresh_dir=both flags=00000000 socktype=0 sockport=0 av_idx=0 use=3
+origin-shaper=
+reply-shaper=
+per_ip_shaper=
+class_id=0 ha_id=0 policy_dir=0 tunnel=/ vlan_cos=0/255
+state=log may_dirty npu src-vis f00
+statistic(bytes/packets/allow_err): org=112/2/1 reply=60/1/1 tuples=2
+tx speed(Bps/kbps): 17/0 rx speed(Bps/kbps): 9/0
+orgin->sink: org pre->post, reply pre->post dev=30->5/5->30 gwy=203.0.113.1/192.0.2.20
+hook=post dir=org act=snat 192.0.2.20:62531->198.51.100.1:443(203.0.113.100:62531)
+hook=pre dir=reply act=dnat 198.51.100.1:443->203.0.113.100:62531(192.0.2.20:62531)
+pos/(before,after) 0/(0,0), 0/(0,0)
+src_mac=00:00:5e:00:53:01
+misc=0 policy_id=5 pol_uuid_idx=660 auth_info=0 chk_client_info=0 vd=0
+serial=00013100 tos=ff/ff app_list=0 app=0 url_cat=0
+route_policy_id=1
+rpdb_link_id=00000001 ngfwid=n/a
+npu_state=00000000
+npu info: flag=0x00/0x00, offload=0/0, ips_offload=0/0, epid=0/0, ipid=0/0, vlan=0x0000/0x0000
+vlifid=0/0, vtag_in=0x0000/0x0000 in_npu=0/0, out_npu=0/0, fwd_en=0/0, qid=0/0, ha_divert=0/0
+no_ofld_reason:  mac-host-check
+hrx info: valid=1/1, qid=1/4, npuid=1/1, sublink=0/0
+total session: 1

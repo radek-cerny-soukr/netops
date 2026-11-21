@@ -1,25 +1,10 @@
-"""One connection queue per device: Fortinet/FortiADC pacing and the cached host key line.
-
-Twenty-six SSH-family connections in a row (one `ssh-keyscan` plus one `ssh`
-per query) made a real FortiGate refuse further connections. `engine.py`
-answers with two mechanisms exercised here:
-
-- every SSH-family connection to one (address, port) - a keyscan, an `ssh`
-  exec, a PTY session, an `sftp` call - goes through that device's one lane,
-  which waits `_CONNECTION_SPACING_SECONDS[platform]` seconds since the lane's
-  previous connection started before starting the next one;
-- the host key line a keyscan returns is cached for
-  `_HOST_KEY_CACHE_TTL_SECONDS`, so a query after the first against the same
-  device usually needs only the `ssh`/`sftp` connection, not the keyscan too.
-
-`_now`/`_sleep` are swapped for a fake clock throughout, so an asserted wait
-of several seconds costs no real time; `sleep` on that fake clock advances it,
-the way a real wait would.
-"""
+"""Fortinet spaces authenticated operations, and other platforms retain the scan cache."""
 
 from __future__ import annotations
 
 import asyncio
+from contextlib import nullcontext
+from types import SimpleNamespace
 import threading
 
 from dataclasses import replace
@@ -36,6 +21,7 @@ from conftest import (
     PORT,
     READ_QUERIES,
     _calls,
+    _fortinet_wire,
     _plain_query,
     _ruckus_wire,
     _target,
@@ -74,11 +60,17 @@ def _keyscans(wire) -> list[dict]:
     return [call for call in _calls(wire) if "stdin_isatty" not in call]
 
 
-def _fortios_wire(wire) -> None:
-    _write_client(
-        wire["binaries"], "ssh",
-        EXEC_CLIENT.format(log=str(wire["log"]), output=FORTIOS_STATUS, code=0),
-    )
+def _fortios_wire(wire):
+    _fortinet_wire(wire, {engine._IDENTITY_COMMAND: FORTIOS_STATUS})
+
+
+def _commands(wire):
+    return wire["transcript"].read_text().splitlines()
+
+
+def _answer(command, status=FORTIOS_STATUS):
+    return SimpleNamespace(rc=0, stdout=status.encode() if command == engine._IDENTITY_COMMAND else b"",
+                           continuation=False)
 
 
 def test_fortinet_and_fortiadc_reads_are_spaced_five_seconds_apart(wire, monkeypatch, clock_start) -> None:
@@ -101,10 +93,7 @@ def test_fortinet_and_fortiadc_reads_are_spaced_five_seconds_apart(wire, monkeyp
 
     adc_host = "127.0.0.7"
     _warm_host_key_cache(clock, host=adc_host)
-    _write_client(
-        wire["binaries"], "ssh",
-        EXEC_CLIENT.format(log=str(wire["log"]), output=FORTIADC_STATUS, code=0),
-    )
+    _fortinet_wire(wire, {engine._IDENTITY_COMMAND: FORTIADC_STATUS})
     adc_target = _target("fortiadc", query_name, host=adc_host)
     sleeps_before_adc = len(clock.sleeps)
     first_adc = engine.ssh_read(adc_target, "fortiadc", query_name, {}, 0, 16_000)
@@ -118,7 +107,7 @@ def test_fortinet_and_fortiadc_reads_are_spaced_five_seconds_apart(wire, monkeyp
     assert clock.sleeps[-1] == pytest.approx(5.0 - 1.5)
 
 
-def test_a_fortinet_query_other_than_system_status_takes_a_second_connection_after_five_seconds(
+def test_a_fortinet_query_shares_one_connection_with_status_without_a_wait(
     wire, monkeypatch, clock_start,
 ) -> None:
     clock = _install_clock(monkeypatch, clock_start)
@@ -132,8 +121,9 @@ def test_a_fortinet_query_other_than_system_status_takes_a_second_connection_aft
 
     result = engine.ssh_read(target, "fortinet", query_name, {}, 0, 16_000)
     assert result["ok"] is True
-    assert [call["argv"][-1] for call in _calls(wire)] == [engine._IDENTITY_COMMAND, command]
-    assert clock.sleeps == [pytest.approx(5.0)]
+    assert _commands(wire) == [engine._IDENTITY_COMMAND, command]
+    assert len(_calls(wire)) == 1 and not _keyscans(wire)
+    assert clock.sleeps == []
 
 
 def _two_plain_fortinet_queries():
@@ -150,14 +140,15 @@ def test_fortinet_identity_is_checked_before_every_fresh_read(wire, monkeypatch,
 
     for query in (first, second, first, "system_status", second):
         assert engine.ssh_read(target, "fortinet", query, {}, 0, 16_000)["ok"] is True
-    assert [call["argv"][-1] for call in _calls(wire)] == [
+    assert _commands(wire) == [
         engine._IDENTITY_COMMAND, first_command,
         engine._IDENTITY_COMMAND, second_command,
         engine._IDENTITY_COMMAND, first_command,
         engine._IDENTITY_COMMAND,
         engine._IDENTITY_COMMAND, second_command,
     ]
-    assert clock.sleeps == [pytest.approx(5.0)] * 8
+    assert clock.sleeps == [pytest.approx(5.0)] * 4
+    assert len(_calls(wire)) == 5
 
 
 @pytest.mark.parametrize("changed_status", [FORTIADC_STATUS, "invalid identity\n"])
@@ -219,7 +210,8 @@ def test_the_fortinet_system_status_query_is_one_connection_without_a_wait(
 
     result = engine.ssh_read(target, "fortinet", "system_status", {}, 0, 16_000)
     assert result["ok"] is True
-    assert [call["argv"][-1] for call in _calls(wire)] == [engine._IDENTITY_COMMAND]
+    assert _commands(wire) == [engine._IDENTITY_COMMAND]
+    assert len(_calls(wire)) == 1
     assert clock.sleeps == []
 
 
@@ -269,18 +261,17 @@ def test_three_threads_on_one_fortinet_device_serialize_with_spacing(
     monkeypatch.setattr(engine, "_lane_for", lane_for)
     recordings_lock = threading.Lock()
 
-    def fake_run_command(*args, **kwargs):
+    def fake_session(*args, **kwargs):
         fake_started = clock.monotonic()
         clock.sleep(0.05)
         finished = clock.monotonic()
         with recordings_lock:
             fake_starts.append(fake_started)
             windows.append((fake_started, finished))
-        return engine.core_ssh.Result(
-            rc=0, stdout=FORTIOS_STATUS.encode(), said="", started_at="", finished_at="",
-        )
+        return nullcontext(SimpleNamespace(run=lambda command, **kwargs: _answer(command)))
 
-    monkeypatch.setattr(engine.core_ssh, "run_command", fake_run_command)
+    monkeypatch.setattr(engine.core_session, "fortinet_session", fake_session)
+
 
     results: list[dict] = []
     results_lock = threading.Lock()
@@ -390,7 +381,7 @@ def test_sftp_and_pty_reads_are_paced_through_the_lane(wire, monkeypatch, clock_
     assert clock.sleeps[-1] == pytest.approx(5.0)
 
 
-def test_the_first_keyscan_of_a_device_is_paced_like_any_other_connection(
+def test_first_fortinet_operation_uses_the_pin_without_waiting_for_a_scan(
     wire, monkeypatch, clock_start,
 ) -> None:
     clock = _install_clock(monkeypatch, clock_start)
@@ -400,9 +391,9 @@ def test_the_first_keyscan_of_a_device_is_paced_like_any_other_connection(
 
     first = engine.ssh_read(target, "fortinet", query_name, {}, 0, 16_000)
     assert first["ok"] is True
-    assert len(_keyscans(wire)) == 1
-    assert len(clock.sleeps) == 1
-    assert clock.sleeps[0] == pytest.approx(5.0)
+    assert _keyscans(wire) == []
+    assert len(_calls(wire)) == 1
+    assert clock.sleeps == []
 
 
 def test_a_populated_platform_preamble_is_paced_like_the_query_itself(wire, monkeypatch, clock_start) -> None:
@@ -446,14 +437,13 @@ def test_locate_and_other_process_share_spacing_and_serialization(duration, seco
         engine.record = lambda *a, **k: None
         target = replace(_target("fortinet", "system_status"), device_types=("firewall",),
                          enabled_queries=("system_status", "arp_table"))
-        def command(*args, **kwargs):
+        def session(*args, **kwargs):
             began = now()
             pause(duration)
             ended = now()
             events.put((role, began, ended))
-            output = FORTIOS_STATUS if args[5] == engine._IDENTITY_COMMAND else ""
-            return engine.core_ssh.Result(rc=0, stdout=output.encode(), said="", started_at="", finished_at="")
-        engine.core_ssh.run_command = command
+            return nullcontext(SimpleNamespace(run=lambda command, **kwargs: _answer(command)))
+        engine.core_session.fortinet_session = session
         assert start.wait(30)
         if role.startswith("locate"):
             result = engine._locate_endpoint_run([target], "192.0.2.10")
@@ -469,7 +459,7 @@ def test_locate_and_other_process_share_spacing_and_serialization(duration, seco
         for process in processes:
             process.join(30)
         assert all(process.exitcode == 0 for process in processes)
-        count = 4 if second_role == "locate" else 3
+        count = 2
         windows = sorted([events.get(timeout=5) for _ in range(count)], key=lambda item: item[1])
         assert len({role for role, _, _ in windows}) == 2
         for previous, current in zip(windows, windows[1:]):

@@ -1,0 +1,8 @@
+set version /* ACCESS-DENIED */;
+set system /* ACCESS-DENIED */;
+set interfaces /* ACCESS-DENIED */;
+set multi-chassis /* ACCESS-DENIED */;
+set firewall /* ACCESS-DENIED */;
+set routing-options /* ACCESS-DENIED */;
+set protocols /* ACCESS-DENIED */;
+set vlans /* ACCESS-DENIED */;

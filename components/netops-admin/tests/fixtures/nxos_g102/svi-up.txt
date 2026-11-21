@@ -1,0 +1,1 @@
+Vlan20 is up, line protocol is up, autostate enabled

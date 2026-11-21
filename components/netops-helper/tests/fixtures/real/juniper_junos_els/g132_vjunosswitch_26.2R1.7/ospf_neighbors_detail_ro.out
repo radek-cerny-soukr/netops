@@ -1,0 +1,13 @@
+Address          Interface              State           ID               Pri  Dead
+192.0.2.1        irb.10                 2Way            203.0.113.254      1    39
+  Area 0.0.0.0, opt 0x12, DR 192.0.2.7, BDR 192.0.2.3
+  Up 1d 18:30:40
+192.0.2.5        irb.10                 2Way            203.0.113.252      1    34
+  Area 0.0.0.0, opt 0x2, DR 192.0.2.7, BDR 192.0.2.3
+  Up 1d 19:09:32
+192.0.2.3        irb.10                 Full            203.0.113.253      1    33
+  Area 0.0.0.0, opt 0x42, DR 192.0.2.7, BDR 192.0.2.3
+  Up 5d 12:55:06, adjacent 5d 12:55:06
+192.0.2.7        irb.10                 Full            203.0.113.250      1    32
+  Area 0.0.0.0, opt 0x52, DR 192.0.2.7, BDR 192.0.2.3
+  Up 5d 12:55:09, adjacent 5d 12:55:04

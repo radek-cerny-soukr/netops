@@ -1,0 +1,3 @@
+
+> show running-config diffs
+% Invalid input (privileged mode required) at line 1

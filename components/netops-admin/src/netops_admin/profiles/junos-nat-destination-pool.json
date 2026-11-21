@@ -1,0 +1,32 @@
+{
+  "platform": "junos",
+  "table": "nat-destination-pool",
+  "versions": [
+    "26.2R1.7"
+  ],
+  "exact_versions": true,
+  "ops": [
+    "create",
+    "update",
+    "delete"
+  ],
+  "table_scoped_key": true,
+  "key_pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,62}$",
+  "protected_keys": [],
+  "attributes": {
+    "address": {
+      "type": "text",
+      "required_on_create": true,
+      "update": true,
+      "unset": false,
+      "referenced_update": false,
+      "max_length": 50,
+      "pattern": "^[0-9A-Fa-f:./]+$"
+    }
+  },
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "Uses the Junos commit confirmed safeguard and scoped inverse (G132). SRX only: the preview is refused on a device without the security hierarchy. Verified against Juniper documentation outputs only (no SRX in the lab). Destination NAT pool with one address. Changing a pool that a rule uses needs endpoint_impact."
+}

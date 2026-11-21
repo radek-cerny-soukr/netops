@@ -3,21 +3,18 @@
 The device is the substituted OpenSSH client of tests/conftest.py, answering
 each remote command from a table, so the stream passes through the real
 netops_core SSH runner, the real stream redactor and the real FortiADC pager
-normalizer. Only the three outcomes that this wire cannot produce (a transport
-that already names the failure category, a streaming runner that also
-accumulates stdout, and running out of memory while storing the snapshot) are
-injected at the engine seam. Each test checks the exact error the caller
-receives and whether a snapshot was kept.
+normalizer. Outcomes such as a transport that already names a failure, a malformed
+terminal frame or an exhausted snapshot store are injected at their boundaries.
+Each test checks the caller-facing error and whether a snapshot was kept.
 """
 
 from __future__ import annotations
 
 from dataclasses import replace
-import json
 
 import pytest
 
-from conftest import FORTIADC_STATUS, PORT, _calls, _target, _write_client
+from conftest import FORTIADC_STATUS, PORT, _fortinet_wire, _target
 from netops_helper import configuration
 from netops_helper.auth import EgressPolicy
 from netops_helper.config_limits import ConfigurationLimits
@@ -28,23 +25,11 @@ STATUS = ("Version: FortiGate-VM64-KVM v7.6.8,build3744,260101 (GA)\n"
 CONFIG = ("config system interface\n edit port1\n set ip 192.0.2.1 255.255.255.0\n next\nend\n")
 SMALL = ConfigurationLimits(section_bytes=4096, all_bytes=4096, physical_line_bytes=1024,
                             logical_record_bytes=4096)
-OVERSIZED = "config system global\n" + " set alias fixture-value\n" * 400 + "end\n"
+OVERSIZED = ("config system interface\n"
+             + "".join(f" edit port{i}\n set alias fixture-value\n next\n" for i in range(400))
+             + "end\n")
 TIGHT = ConfigurationLimits(memory_bytes=1024 * 1024)
 WITHHELD = "; output withheld"
-
-ANSWER_CLIENT = '''#!/usr/bin/env python3
-import json, sys
-
-with open({log!r}, "a") as handle:
-    handle.write(json.dumps({{"argv": sys.argv[1:]}}) + "\\n")
-with open({answers!r}) as handle:
-    answers = json.load(handle)
-code, output = answers[sys.argv[-1]]
-sys.stdout.buffer.write(output.encode("utf-8"))
-sys.stdout.flush()
-sys.exit(code)
-'''
-
 
 @pytest.fixture(autouse=True)
 def _no_snapshots():
@@ -56,9 +41,15 @@ def _no_snapshots():
 
 
 def _device(wire, answers: dict) -> None:
-    path = wire["log"].parent / "answers.json"
-    path.write_text(json.dumps(answers), encoding="utf-8")
-    _write_client(wire["binaries"], "ssh", ANSWER_CLIENT.format(log=str(wire["log"]), answers=str(path)))
+    typed = {}
+    for command, (code, output) in answers.items():
+        if code == 255:
+            typed[command] = {"partial": output} if output else None
+        elif code == 1:
+            typed[command] = output + "Command fail. Return code -61\n"
+        else:
+            typed[command] = output + ("\n" if output and not output.endswith("\n") else "")
+    _fortinet_wire(wire, typed)
 
 
 def _fortios(limits: ConfigurationLimits = ConfigurationLimits()):
@@ -90,13 +81,13 @@ def _refused(call, message, kind=ValueError):
 
 
 def _lost(platform):
-    """A configuration read whose SSH client failed (exit 255, no message): its class, no device text."""
+    """A configuration read whose terminal disconnected before a prompt."""
     return {"ok": False, "target": "wire-test", "platform": platform, "section": "all",
-            "error_code": "transport_failure", "error": engine._TRANSPORT_ADVICE["transport_failure"]}
+            "error_code": "disconnected", "error": engine._TRANSPORT_ADVICE["disconnected"]}
 
 
 def _sent(wire) -> list[str]:
-    return [call["argv"][-1] for call in _calls(wire) if "env" not in call]
+    return wire["transcript"].read_text().splitlines()
 
 
 # minimal redaction
@@ -171,12 +162,24 @@ def test_full_identity_read_that_the_transport_loses_names_the_stage(wire) -> No
     assert _sent(wire) == ["get system status"]
 
 
-def test_full_read_of_unsupported_firmware_names_detected_and_supported_builds(wire) -> None:
+def test_full_read_of_untested_firmware_returns_data_with_a_warning(wire) -> None:
+    # G00 (2026-11-17): an untested build is read with the nearest field policy and a warning, not refused.
     status = STATUS.replace("v7.6.8,build3744", "v7.4.1,build2463")
+    _device(wire, {"get system status": [0, status], "show": [0, CONFIG]})
+    result = _full(_fortios())
+    assert result["ok"] is True and "edit port1" in result["untrusted_device_output"]
+    assert _sent(wire) == ["get system status", "show"]
+    assert result["firmware_support"]["status"] == "untested"
+    assert result["firmware_support"]["device_version"] == "7.4.1 build2463"
+    assert result["firmware_support"]["tested_versions"] == ["7.6.8 build3744", "8.0.2 build0251"]
+    assert result["policy_firmware"] == "7.6.8"
+    assert result["warnings"] == [{"code": "firmware_untested", "message": result["firmware_support"]["message"]}]
+
+
+def test_full_read_of_another_product_is_unverifiable(wire) -> None:
+    status = STATUS.replace("FortiGate-VM64-KVM", "FortiADC-KVM")
     _device(wire, {"get system status": [0, status]})
-    _refused(lambda: _full(_fortios()),
-             "configuration firmware-not-supported for fortios; detected 7.4.1 build 2463; "
-             "supported 7.6.8 build 3744, 8.0.2 build 0251" + WITHHELD)
+    _refused(lambda: _full(_fortios()), "configuration identity-unverifiable" + WITHHELD)
     assert _sent(wire) == ["get system status"]
 
 
@@ -212,7 +215,7 @@ def test_full_capture_the_device_refuses_with_an_exit_code_names_the_stage(wire)
 
 def test_fortiadc_capture_that_ends_inside_a_pager_prompt_is_incomplete(wire) -> None:
     _device(wire, {"get system status": [0, FORTIADC_STATUS],
-                   "show": [0, "config system global\n    set hostname ADC-LAB\nend\n--Mo"]})
+                   "show": [255, "config system global\n    set hostname ADC-LAB\nend\n--Mo"]})
     _refused(lambda: _full(_fortiadc(), "fortiadc"), "configuration stream-incomplete" + WITHHELD)
     assert configuration._SNAPSHOTS == {}
 
@@ -267,3 +270,74 @@ def test_full_capture_that_runs_out_of_memory_while_storing_is_not_kept(wire, mo
     monkeypatch.setattr(configuration, "store", store)
     _refused(lambda: _full(_fortios()), "configuration capture-failed" + WITHHELD)
     assert configuration._SNAPSHOTS == {}
+
+
+def test_minimal_capture_keeps_a_budget_refusal_raised_by_the_transport(wire, monkeypatch):
+    refusal = configuration.ConfigurationBudgetError("configuration memory budget exhausted" + WITHHELD)
+    monkeypatch.setattr(engine, "read_from_device", _identity_then(refusal))
+    caught = _refused(lambda: _minimal(_fortios()), str(refusal), configuration.ConfigurationBudgetError)
+    assert caught is refusal
+    assert not configuration._SNAPSHOTS
+
+
+def test_full_capture_unexpected_transport_error_withholds_exception_text(wire, monkeypatch):
+    monkeypatch.setattr(engine, "read_from_device", _identity_then(RuntimeError("fixture private detail")))
+    _refused(lambda: _full(_fortios()), "configuration transport-failed during capture" + WITHHELD)
+    assert not configuration._SNAPSHOTS
+
+
+def test_fortiadc_stream_that_ends_inside_pager_is_incomplete_after_successful_transport(wire, monkeypatch):
+    def read(auth, platform, command, *, stdout_consumer=None):
+        if command == "get system status":
+            return 0, FORTIADC_STATUS
+        stdout_consumer(CONFIG.encode() + b"--Mor")
+        return 0, ""
+
+    monkeypatch.setattr(engine, "read_from_device", read)
+    with pytest.raises(ValueError, match=r"configuration stream-incomplete.*output withheld"):
+        _full(_fortiadc(), "fortiadc")
+    assert not configuration._SNAPSHOTS
+
+
+@pytest.mark.parametrize("closing_prompt, expected", [
+    (b"fixture-fortinet # ", "capture-limit-exceeded"),
+    (b"fixture-fortinet # \r", "redaction-unverifiable"),
+])
+def test_adc_capture_checks_final_transport_frame(wire, monkeypatch, closing_prompt, expected):
+    from contextlib import contextmanager
+    from pathlib import Path
+
+    sample = Path(__file__).parent / "fixtures/fortiadc_g31/profile.out"
+    lines = sample.read_text().splitlines(keepends=True)
+    data = lines[0].partition("# ")[2].encode() + "".join(lines[1:-1]).encode()
+    opening_prompt = b"fixture-fortinet # "
+    if expected == "capture-limit-exceeded":
+        remaining = SMALL.all_bytes - len(opening_prompt) - len(data)
+        data += b"\n" * remaining
+
+    class Terminal:
+        _last_prompt = opening_prompt
+
+        def run(self, command, *, stdout_consumer, **kwargs):
+            if command == "get system status":
+                return engine.core_session.FortinetResult(0, FORTIADC_STATUS.encode(), "", "", "")
+            assert command == "show full-configuration load-balance profile LB_PROF_TCP"
+            stdout_consumer(data)
+            self._last_prompt = closing_prompt
+            return engine.core_session.FortinetResult(0, b"", "", "", "")
+
+    closed = []
+
+    @contextmanager
+    def open_terminal(*args, **kwargs):
+        try:
+            yield Terminal()
+        finally:
+            closed.append(True)
+
+    monkeypatch.setattr(engine.core_session, "fortinet_session", open_terminal)
+    auth = replace(_fortiadc(), configuration_limits=SMALL)
+    with pytest.raises(ValueError, match=expected + WITHHELD):
+        engine.config_read(auth, "fortiadc", "load-balance profile LB_PROF_TCP",
+                           redaction="full", include_defaults=True)
+    assert closed == [True] and not configuration._SNAPSHOTS

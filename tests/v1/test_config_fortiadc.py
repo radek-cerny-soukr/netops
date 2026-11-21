@@ -32,14 +32,21 @@ def admin_lines(name='netops-read', profile='netops-read', extra=('    set accpr
             '    set password ENC SECRET-FIXTURE\n  next\n' % (name, profile, ''.join(extra)))
 
 
-def config(profiles=None, admins=None, vdom='config system vdom\n  edit root\n  next\nend\n'):
+def config(profiles=None, admins=None, vdom='config system vdom\n  edit root\n  next\nend\n',
+           *, include_defaults=False):
     profiles = profile_lines() if profiles is None else profiles
     admins = admin_lines() if admins is None else admins
-    return ('config system global\n    set hostname ADC-LAB\nend\n'
+    body = ('config system global\n    set hostname ADC-LAB\nend\n'
             'config system accprofile\n' + profiles +
             '  edit "other"\n    set system read-write\n  next\nend\n'
             'config system admin\n  edit "admin"\n    set access-profile super_admin_prof\n'
             '    set password ENC ADMIN-FIXTURE\n  next\n' + admins + 'end\n' + vdom)
+    if include_defaults:
+        # Top-level extent from the VM220 7.6.7 show full-configuration export fixture.
+        body += ('config system interface\nend\n'
+                 'config security web-vulnerability-scanner task\nend\n'
+                 'config security web-vulnerability-scanner integration\nend\n')
+    return body
 
 
 def live(text):
@@ -76,7 +83,8 @@ class FortiADCConfiguration(TestCase):
         admins = admin_lines(extra=('    set accprofile-override disable\n',) + extra)
         if other:
             admins += admin_lines(name='another-account', extra=other)
-        raw = live(config(profiles=profile_lines(rights=READ), admins=admins))
+        body = config(profiles=profile_lines(rights=READ), admins=admins, include_defaults=defaults)
+        raw = live(body)
         expected = capture(raw, 1)[1]
         command = 'show full-configuration' if defaults else 'show'
         def wire(auth, platform, requested, **kwargs):
@@ -253,13 +261,18 @@ class FortiADCConfiguration(TestCase):
         with self.assertRaises(ValueError):
             normalizer.feed(b'end\n')
 
-    def test_identity_accepts_only_the_verified_build(self):
+    def test_identity_accepts_any_build_of_one_verified_fortiadc_identity(self):
         firmware, metadata = f.verify_identity(STATUS)
         self.assertEqual(firmware, f.SUPPORTED)
         self.assertEqual(metadata, {'product': 'FortiADC-KVM', 'version': '7.6.7', 'build': '0676'})
         self.assertEqual(f.verify_identity(STATUS.replace('\n', '\r\n'))[0], f.SUPPORTED)
-        cases = (STATUS.replace('v7.6.7', 'v7.6.6'), STATUS.replace('build0676', 'build0677'),
-                 STATUS.replace('FortiADC-KVM v', 'FortiGate-VM64 v'),
+        self.assertEqual(f.firmware_support(f.SUPPORTED)['status'], 'tested')
+        # G00 (2026-11-17): another version or build is read and reported as untested, not refused.
+        for status, firmware in ((STATUS.replace('v7.6.7', 'v7.6.6'), ('FortiADC-KVM', '7.6.6', '0676')),
+                                 (STATUS.replace('build0676', 'build0677'), ('FortiADC-KVM', '7.6.7', '0677'))):
+            self.assertEqual(f.verify_identity(status)[0], firmware)
+            self.assertEqual(f.firmware_support(firmware)['status'], 'untested')
+        cases = (STATUS.replace('FortiADC-KVM v', 'FortiGate-VM64 v'),
                  STATUS.replace('Version:       n/a', 'Version: FortiADC-KVM v7.6.7,build0676,260522 (GA.M)'),
                  STATUS.replace('Version:       n/a', 'version: FortiGate-VM64 v7.6.8,build3744'),
                  STATUS.replace('Hostname', 'Host\x07name'), STATUS.replace('Version: Forti', 'Release: Forti'),
@@ -277,12 +290,14 @@ class FortiADCConfiguration(TestCase):
                 with self.assertRaises(ValueError):
                     f.read_command(*arguments)
 
-    def test_policy_exists_only_for_the_verified_build(self):
+    def test_the_tested_policy_is_the_nearest_policy_of_every_fortiadc_build(self):
         selected = f.policy_for(f.SUPPORTED)
         self.assertEqual(selected.platform, 'fortiadc')
         self.assertFalse(selected.allow_vdom)
         self.assertTrue(selected.identifier.startswith('fortiadc-full-2:'))
-        for firmware in (('FortiADC-KVM', '7.6.6', '0676'), ('FortiGate-VM64', '7.6.8', '3744'), None, list(f.SUPPORTED)):
+        self.assertIs(f.policy_for(('FortiADC-KVM', '7.6.6', '0676')), selected)
+        self.assertEqual(f.policy_firmware(('FortiADC-KVM', '7.6.6', '0676')), '7.6.7')
+        for firmware in (('FortiGate-VM64', '7.6.8', '3744'), None, list(f.SUPPORTED)):
             with self.subTest(firmware=firmware):
                 with self.assertRaises(ValueError):
                     f.policy_for(firmware)

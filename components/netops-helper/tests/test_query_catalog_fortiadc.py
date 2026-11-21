@@ -5,6 +5,7 @@ from netops_helper.query_catalog.fortiadc import QUERIES
 
 
 EXPECTED = {
+    "certificate_inventory": ("get system certificate local", {}, False),
     "system_status": ("get system status", {}, False),
     "system_performance": ("get system performance", {}, False),
     "vm_license": ("diagnose system vm", {}, False),
@@ -13,6 +14,10 @@ EXPECTED = {
         {"interface": ("interfaces", "fortiadc_interface")},
         False,
     ),
+    "interface_list": ("get system interface", {}, True),
+    "interface_state_all": ("diagnose netlink interface list", {}, True),
+    "nic_detail_all": ("diagnose hardware get deviceinfo nic-detail", {}, True),
+    "interface_summary": ("get system interface; diagnose hardware get deviceinfo nic-detail", {}, True),
     "interface_counters": ("diagnose netlink device", {}, False),
     "routing_table": ("get router info routing-table all", {}, True),
     "arp_table": ("diagnose netlink neighbor list", {}, True),
@@ -52,6 +57,16 @@ EXPECTED = {
         },
         True,
     ),
+    "slb_vs_overview": (
+        "diagnose server-load-balance vs_stat vdom {vdom}",
+        {"vdom": ("adc_vdoms", "fortiadc_vdom")}, True,
+    ),
+    "slb_rs_stat": (
+        "diagnose server-load-balance vs_stat vdom {vdom} vs {virtual_server} rs {real_server}",
+        {"vdom": ("adc_vdoms", "fortiadc_vdom"),
+         "virtual_server": ("adc_virtual_servers", "fortiadc_virtual_server"),
+         "real_server": (None, "fortiadc_member_id")}, True,
+    ),
     "cpu_info": ("diagnose hardware get sysinfo cpu", {}, True),
     "slb_sessions": ("diagnose server-load-balance session list", {}, True),
     "persistence_sessions": ("diagnose server-load-balance persistence list", {}, True),
@@ -70,6 +85,7 @@ EXPECTED = {
     "bgp_summary": ("get router info bgp summary", {}, False),
     "bgp_neighbors": ("get router info bgp neighbors", {}, True),
     "ospf_neighbors": ("get router info ospf neighbor", {}, True),
+    "ha_standby_status": ("execute ha force failover-standby status", {}, False),
     "ha_status": ("get system ha-status", {}, False),
     "traffic_group_status": ("get system traffic-group-status brief", {}, False),
     "llb_policy": ("diagnose llb policy list", {}, True),
@@ -79,7 +95,7 @@ INVENTORY = {
     "adc_vdoms": ("root",),
     "adc_virtual_servers": ("VS_APP_HTTP",),
 }
-PARAMETERS = {"interface": "port1", "vdom": "root", "virtual_server": "VS_APP_HTTP"}
+PARAMETERS = {"interface": "port1", "vdom": "root", "virtual_server": "VS_APP_HTTP", "real_server": "1"}
 
 
 def _rejected(parameters, inventory=INVENTORY) -> bool:
@@ -99,29 +115,46 @@ def test_exact_commands_slots_and_volume() -> None:
         )
         for name, query in QUERIES.items()
     } == EXPECTED
-    assert read_policy._FORTIADC_COMMANDS == {query.command for query in QUERIES.values()}
+    assert read_policy._FORTIADC_COMMANDS == {
+        query.command for name, query in QUERIES.items() if not read_policy.is_read_sequence("fortiadc", name)
+    }
 
 
 def test_only_the_qualified_adc_reads_use_a_terminal() -> None:
     assert {name for name, query in QUERIES.items() if query.pty} == {
-        "routing_table", "slb_load", "slb_vs_stat", "tls_handshake_stats", "tls_session_reuse",
+        "routing_table", "slb_load", "slb_vs_stat", "slb_vs_overview", "slb_rs_stat", "tls_handshake_stats", "tls_session_reuse",
         "bgp_summary", "bgp_neighbors", "ospf_neighbors",
         "dos_access_limit", "dos_conn_limit", "dos_req_limit",
         "lldp_neighbors", "traffic_group_status", "llb_policy",
+    }
+    ios_probes = {
+        "ping", "ping_source", "ping_vrf", "ping_vrf_source", "ping_ipv6", "ping_ipv6_source",
+        "traceroute", "traceroute_source", "traceroute_vrf", "traceroute_vrf_source",
+    }
+    xe_probes = ios_probes | {
+        "ping_ipv6_vrf", "ping_ipv6_vrf_source", "traceroute_ipv6", "traceroute_ipv6_source",
+        "traceroute_ipv6_vrf", "traceroute_ipv6_vrf_source",
     }
     assert {
         (platform, name)
         for platform, queries in read_policy.READ_QUERIES.items() if platform != "fortiadc"
         for name, query in queries.items() if query.pty
-    } == {("fortinet", "dns_cache"), ("fortinet", "fqdn_cache")}
+    } == ({("fortinet", "dns_cache"), ("fortinet", "fqdn_cache")}
+          | {("cisco_ios", name) for name in ios_probes}
+          | {("cisco_xe", name) for name in xe_probes})
 
 
 def test_every_query_renders_its_exact_allowed_command() -> None:
     for name, (command, slots, _) in EXPECTED.items():
         parameters = {slot: PARAMETERS[slot] for slot in slots}
-        assert read_policy.render_read_query("fortiadc", name, parameters, INVENTORY) == (
-            "fortiadc", command.format(**parameters),
-        )
+        if name == "interface_summary":
+            assert read_policy.render_read_sequence("fortiadc", name, parameters, INVENTORY) == (
+                "fortiadc", tuple(command.split("; ")), {},
+            )
+        else:
+            assert read_policy.render_read_query("fortiadc", name, parameters, INVENTORY) == (
+                "fortiadc", command.format(**parameters),
+            )
 
 
 def test_interface_state_accepts_only_an_enrolled_interface() -> None:
@@ -197,6 +230,7 @@ def test_nic_detail_accepts_only_an_enrolled_interface() -> None:
 def test_execute_reads_are_only_the_exact_list_views() -> None:
     executes = {query.command for query in QUERIES.values() if query.command.startswith("execute ")}
     assert executes == {
+        "execute ha force failover-standby status",
         "execute waf block-ip list",
         "execute log list-type tlog",
         "execute log list-type alog",

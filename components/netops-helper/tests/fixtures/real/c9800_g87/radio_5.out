@@ -1,0 +1,4 @@
+AP Name MAC Address       Admin State Operation State Channel TxPower
+------- ----------------- ----------- --------------- ------- -------
+CJ-1240 00:00:5e:00:53:07 ENABLED     UP              161     1( )
+CJ-1130 00:00:5e:00:53:08 ENABLED     UP              56*     1(*)

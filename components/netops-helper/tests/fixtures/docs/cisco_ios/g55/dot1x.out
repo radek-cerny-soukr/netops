@@ -1,0 +1,23 @@
+Dot1x Info for GigabitEthernet1/0/1
+-----------------------------------
+PAE = AUTHENTICATOR
+PortControl = AUTO
+ControlDirection = Both
+HostMode = SINGLE_HOST
+ReAuthentication = Enabled
+QuietPeriod = 60
+ServerTimeout = 30
+SuppTimeout = 30
+ReAuthPeriod = 3600 (Locally configured)
+ReAuthMax = 2
+MaxReq = 2
+TxPeriod = 30
+RateLimitPeriod = 0
+Guest-Vlan = 182
+
+Dot1x Authenticator Client List Empty
+
+Port Status = AUTHORIZED
+Authorized By = Guest-Vlan
+Operational HostMode = MULTI_HOST
+Vlan Policy = 182

@@ -1,0 +1,5 @@
+router ospf 126
+   router-id 192.0.2.126
+   no passive-interface Loopback126
+   network 192.0.2.0/24 area 198.51.100.126
+   max-lsa 12000

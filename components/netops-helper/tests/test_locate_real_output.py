@@ -79,12 +79,13 @@ def test_exos_endpoint_behind_a_phone_is_the_edge_at_the_phone_port(device):
     assert finding['lldp_neighbors'][0]['capabilities'] == 'B,T'
 
 
-def test_exos_endpoint_behind_an_access_point_is_the_edge_at_the_ap_port(device):
+def test_exos_endpoint_behind_an_access_point_requires_station_evidence(device):
     auths, _ = device(exos('floor1', HOME_1))
     r = engine._locate_endpoint_run(auths, '192.0.2.14')            # LLDP on port 3: "Bridge, WLAN AP"
     finding = only(r, 'findings')
-    assert r['verdict'] == 'located', r['missing']
-    assert (finding['port'], finding['role'], finding['behind']) == ('3', 'edge_behind_ap', 'ap')
+    assert r['verdict'] == 'incomplete'
+    assert (finding['port'], finding['role'], finding['behind'], finding['edge']) == ('3', 'behind_ap', 'ap', False)
+    assert any(item['reason'] == 'client_ap_association_unverified' for item in r['missing'])
     assert finding['lldp_neighbors'][0]['capabilities'] == 'B,W'
 
 

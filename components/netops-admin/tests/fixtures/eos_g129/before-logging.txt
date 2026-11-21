@@ -1,0 +1,18 @@
+Syslog logging: enabled
+Buffer logging: level debugging
+Console logging: level informational
+Persistent logging: disabled
+Monitor logging: level informational
+Synchronous logging: disabled
+Trap logging: level informational
+Sequence numbers: disabled
+Syslog facility: local4
+Hostname format: Hostname only
+Syslog prefix: Hostname
+Repeat logging interval: disabled
+Repeat messages: disabled
+Root login logging: disabled
+
+External configuration:
+    active:
+    inactive:

@@ -1,0 +1,62 @@
+{
+    "interface": "Ethernet12",
+    "spanningTreeInstances": {
+        "MST0": {
+            "role": "designated",
+            "state": "forwarding",
+            "cost": 20000,
+            "priority": 128,
+            "portNumber": 12,
+            "linkType": "p2p",
+            "boundaryType": "none",
+            "isEdgePort": true,
+            "edgePortType": "auto",
+            "inconsistentFeatures": {
+                "bridgeAssurance": false,
+                "loopGuard": false,
+                "rootGuard": false,
+                "mstPvstBorder": false
+            },
+            "detail": {
+                "designatedRootPriority": 32768,
+                "designatedRootAddress": "00:00:5e:00:53:03",
+                "designatedBridgePriority": 32768,
+                "designatedBridgeAddress": "00:00:5e:00:53:03",
+                "designatedPortPriority": 128,
+                "designatedPortNumber": 12,
+                "designatedPathCost": {
+                    "internalCost": 0,
+                    "externalCost": 0
+                },
+                "features": {
+                    "linkType": {
+                        "default": true,
+                        "value": "p2p"
+                    },
+                    "bpduGuard": {
+                        "default": false,
+                        "value": "disabled"
+                    },
+                    "bpduFilter": {
+                        "default": false,
+                        "value": "disabled"
+                    }
+                },
+                "messageAge": 0,
+                "forwardDelay": 15,
+                "maxAge": 20,
+                "transitionsToForwarding": 1,
+                "counters": {
+                    "bpduSent": 18892,
+                    "bpduReceived": 0,
+                    "bpduTaggedError": 0,
+                    "bpduOtherError": 0,
+                    "bpduRateLimitCount": 0
+                },
+                "rateLimitEnabled": true,
+                "rateLimitInterval": 10.0,
+                "rateLimitMaxCount": 400
+            }
+        }
+    }
+}

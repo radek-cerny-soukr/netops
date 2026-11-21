@@ -1,0 +1,4 @@
+
+Port    State           Class      Volts    Curr    Power     Fault
+                                            (mA)   (Watts)
+1       disabled        ------      0.0       0      0.000    None

@@ -31,7 +31,7 @@ A populated physical X440G2 33.7.1.6 sharing group with members was captured on 
 
 ## Accepted Phase-1 queries
 
-The table is the conservative Phase-1 whitelist. A template slot is accepted only from matching enrolled inventory. `high-volume` follows the generated catalogue definition: it is a scheduling advisory for variable collections or histories that can require continuation, and changes no authorization or runtime limit. `normal` is not a bounded-output promise.
+The table is the conservative Phase-1 whitelist. Inventory-bound template slots require matching enrolled inventory; literal slots use their fixed syntax rules, described in the parameter scope of `docs/helper-configuration.md`. `high-volume` follows the generated catalogue definition: it is a scheduling advisory for variable collections or histories that can require continuation, and changes no authorization or runtime limit. `normal` is not a bounded-output promise.
 
 The fixed `no-refresh` token requests a one-shot display. It is part of the reviewed command template, not a caller-supplied argument and not a persistent configuration change.
 
@@ -97,9 +97,36 @@ The fixed `no-refresh` token requests a one-shot display. It is part of the revi
 | `mlag_ports` | `show mlag ports` | none | high-volume | E-INDEX |
 | `inline_power_stats` | `show inline-power stats` | none | normal | E-INDEX |
 | `ntp_association` | `show ntp association` | none | normal | E-INDEX |
+| `log_history` | `show log messages {source} severity {severity} starting date {begin_date} time {begin_time} ending date {end_date} time {end_time}` | `begin_date -> None.log_date, begin_time -> None.log_time, end_date -> None.log_date, end_time -> None.log_time, interface -> interfaces.extreme_physical_port, severity -> None.exos_log_severity, source -> None.exos_log_source` | high-volume | E-LOG |
 | `log_messages` | `show log messages memory-buffer` | none | high-volume | E-INDEX |
 | `log_warnings` | `show log messages memory-buffer severity warning` | none | high-volume | E-INDEX |
 | `log_configuration` | `show log configuration` | none | high-volume | E-INDEX |
+
+NetOps 1.0.12 adds these templates:
+
+| Query name | Exact command template | Inventory slot | Volume | Primary references |
+| --- | --- | --- | --- | --- |
+| `access_lists` | `show access-list` | none | high-volume | E-INDEX |
+| `policies` | `show policy detail` | none | high-volume | E-INDEX |
+| `policy_details` | `show policy {policy}` | `None.acl_policy` | high-volume | E-INDEX |
+| `dhcp_server` | `show dhcp-server vlan {vlan}` | `vlans.vlan_name` | high-volume | E-INDEX |
+| `bootprelay` | `show bootprelay` | none | normal | E-INDEX |
+| `bootprelay_configuration` | `show bootprelay configuration` | none | high-volume | E-INDEX |
+| `radius` | `show radius` | none | high-volume | E-INDEX |
+| `tacacs` | `show tacacs` | none | high-volume | E-INDEX |
+| `accounts` | `show accounts` | none | high-volume | E-INDEX |
+| `netlogin` | `show netlogin` | none | high-volume | E-INDEX |
+| `netlogin_port` | `show netlogin port {interface}` | `interfaces.extreme_physical_port` | high-volume | E-INDEX |
+| `dns_client` | `show dns-client` | none | normal | E-INDEX |
+| `dns_lookup` | `nslookup {name}` | `None.diagnostic_dns_name` | normal | E-INDEX |
+| `management` | `show management` | none | high-volume | E-INDEX |
+| `snmp_engine` | `show snmpv3 engine-info` | none | normal | E-INDEX |
+| `snmp_targets` | `show snmpv3 target-addr` | none | high-volume | E-INDEX |
+| `dhcp_snooping` | `show ip-security dhcp-snooping {vlan}` | `vlans.vlan_name` | high-volume | E-INDEX |
+| `dhcp_snooping_violations` | `show ip-security dhcp-snooping violations vlan {vlan}` | `vlans.vlan_name` | high-volume | E-INDEX |
+| `mac_address` | `show fdb {mac}` | `None.mac_literal` | high-volume | E-INDEX |
+| `mac_vlan` | `show fdb vlan {vlan_id}` | `None.vlan_id` | high-volume | E-INDEX |
+| `arp_vlan` | `show iparp vlan {vlan_id}` | `None.vlan_id` | high-volume | E-INDEX |
 
 ### Source-backed port syntax decisions
 
@@ -128,7 +155,7 @@ Measured refusals from the same session, recorded as facts rather than candidate
 - `show stacking configuration` is answered with `%% Unrecognized command` on 33.7.1; only `show stacking` and `show stacking-support` exist there.
 - `show accounts` is refused for a user-level account. That is a property of the read-only boundary, not of the catalogue, and the command stays out.
 - `show ip-security dhcp-snooping entries` is answered with `%% Incomplete command`; the binding database can only be asked for one VLAN, and Phase 1 has no VLAN inventory type.
-- `show log configuration` was first left out as configuration and log content. NetOps 1.0.7 adds it and the two fixed buffer templates (see below); `show log` with a time window, `match`, `events`, `nvram` or any other variant stays refused by the show-family policy.
+- `show log configuration` was first left out as configuration and log content. NetOps 1.0.7 adds it and the two fixed buffer templates (see below), and NetOps 1.0.12 adds `log_history`, one fixed template whose source (`memory-buffer` or `nvram`), severity and time window are validated literals; `show log` with `match`, `events` or any other variant stays refused by the show-family policy.
 
 ### EXOS-VM 33.6.1.14 compatibility
 
@@ -153,7 +180,7 @@ The ExtremeXOS 33.6.1.14 virtual-image profile differs from the 33.7.1 hardware 
 | --- | --- | --- |
 | Full or general configuration reading or export | `show configuration`, saved configuration, backup/export/upload of configuration | Complete configuration can expose credentials, management settings, topology, and policy. Phase 1 intentionally has no complete configuration-reading capability; the fixed `show ports configuration no-refresh` table is only a bounded port-state view. |
 | Support and bulk collection | `show tech-support`, support bundles, full diagnostic collections | These can aggregate configuration and logs, generate very large output, and add meaningful device load. |
-| Logs, monitoring, and packet capture | `show log`, live monitor streams, packet capture, debug output | The output can be secret-bearing or unbounded, and no safe time/filter contract exists in Phase 1. |
+| Logs, monitoring, and packet capture | `show log` variants other than the fixed `log_messages`, `log_warnings`, `log_configuration` and `log_history` templates, live monitor streams, packet capture, debug output | The output can be secret-bearing or unbounded; only the fixed templates, with the validated source, severity and time window of `log_history`, have a safe contract. |
 | Debug and tracing | debug/trace enable, filter, or state-changing diagnostic commands | Debug state can persist and can affect performance or runtime behavior. |
 | Mutation or lifecycle control | configure/create/delete/enable/disable, clear, reset, restart, reboot, test, save, or upload operations | These alter persistent configuration or live state and are outside the read-only server. |
 | Free-form CLI | arbitrary `show` suffixes, output pipes, caller-provided refresh mode | A caller-controlled command defeats the named-template and typed-inventory boundary. |
@@ -177,6 +204,7 @@ All links are first-party Extreme Networks Switch Engine command-reference pages
 | ID | Official document title and version | Query-name mapping | URL |
 | --- | --- | --- | --- |
 | E-INDEX | Switch Engine v33.7.1 Command References | baseline and command index for all accepted Extreme query names; chapter source for `stacking`, `stacking_support`, `inline_power`, `inline_power_port`, `access_list_counters`, `qos_profiles`, `licenses`, `ntp`, `sntp_client`, `sessions`, `elrp`, `mcast_cache_summary`, `mirror` and `edp_neighbors` | https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/ |
+| E-LOG | ExtremeXOS Command Reference Guide: show log | `log_history` | https://documentation.extremenetworks.com/exos_commands_22.5/GUID-7A4531BF-8FAE-467D-8EC1-DB655E06C04B.shtml |
 | E-SWITCH | Switch Engine v33.7.1 Command References: `show switch` | `switch` | https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_switch.shtml |
 | E-VERSION | Switch Engine v33.7.1 Command References: `show version` | `version` | https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_version.shtml |
 | E-MEMORY | Switch Engine v33.7.1 Command References: `show memory` | `memory` | https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_memory.shtml |
@@ -215,6 +243,21 @@ These opt-in templates are included in NetOps 1.0. The 20-21 September 2026 resu
 | `vlan_details` | [E-VLAN](https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_vlan.shtml) | Switch Engine 33.7.1 returned complete details with status 250 on three VLANs; interactive comparison confirmed the output. The existing exec contract preserves this status. |
 | `dhcp_snooping_entries` | [E-INDEX](https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/) | Switch Engine 33.7.1 returned a binding table with exit status 0. |
 
+NetOps 1.0.12 adds the following scoped templates; the September 2026 results above do not cover them:
+
+| Query name | Exact command template | Inventory slot | Volume | Primary references |
+| --- | --- | --- | --- | --- |
+| `port_utilization` | `show ports {interface} utilization bandwidth` | `interfaces.extreme_physical_port` | normal | E-INDEX |
+| `port_packets` | `show ports {interface} utilization packets` | `interfaces.extreme_physical_port` | normal | E-INDEX |
+| `lacp_member` | `show lacp member-port {interface} detail` | `interfaces.extreme_physical_port` | normal | E-INDEX |
+| `stp_domain_ports` | `show stpd {domain} ports` | `services.service` | high-volume | E-STPD |
+| `stp_port_detail` | `show stpd {domain} ports {interface} detail` | `domain -> services.service, interface -> interfaces.extreme_physical_port` | normal | E-STPD |
+| `port_qos` | `show ports {interface} qosmonitor no-refresh` | `interfaces.extreme_physical_port` | normal | E-INDEX |
+| `port_qos_drops` | `show ports {interface} qosmonitor congestion no-refresh` | `interfaces.extreme_physical_port` | normal | E-INDEX |
+| `igmp_snooping` | `show igmp snooping` | none | high-volume | E-INDEX |
+| `igmp_groups` | `show igmp group` | none | high-volume | E-INDEX |
+| `ipconfig_ipv6` | `show ipconfig ipv6` | none | high-volume | E-INDEX |
+
 ### Exact query templates
 
 Acceptance here describes the code whitelist only. The live-result limitations above still apply.
@@ -225,3 +268,38 @@ Acceptance here describes the code whitelist only. The live-result limitations a
 | `dhcp_snooping_entries` | `show ip-security dhcp-snooping entries vlan {vlan}` | `vlans.vlan_name` | high-volume | E-INDEX |
 
 The slot-free `vlan_detail` (`show vlan detail`) follow-up was captured read-only on 2026-11-09 on EXOS-VM 33.6.1.14, X435 31.7.3.37 and three X440G2 33.7.1.6 switches; see `tests/fixtures/real/extreme_exos/*_pty*`. It supplies Tag/Untag port membership for `port_vlan`, without terminal-setting changes or new privileges.
+
+## Additional exact query templates
+
+| Query name | Exact command template | Inventory slot | Volume | Primary references |
+| --- | --- | --- | --- | --- |
+| `ping` | `ping count 5 vr {vr} {address}` | `address -> addresses.ipv4_address, vr -> virtual_routers.vr` | normal | E-G37-PING |
+| `ping_source` | `ping count 5 vr {vr} {address} from {source}` | `address -> addresses.ipv4_address, source -> addresses.ipv4_address, vr -> virtual_routers.vr` | normal | E-G37-PING |
+| `traceroute` | `traceroute vr {vr} {address}` | `address -> addresses.ipv4_address, vr -> virtual_routers.vr` | normal | E-G37-TRACE |
+| `traceroute_source` | `traceroute vr {vr} {address} from {source}` | `address -> addresses.ipv4_address, source -> addresses.ipv4_address, vr -> virtual_routers.vr` | normal | E-G37-TRACE |
+| `ospf_neighbors` | `show ospf neighbor` | none | high-volume | E-G37-OSPF-NEIGHBOR |
+| `ospf_interfaces` | `show ospf interfaces` | none | high-volume | E-G37-OSPF-INTERFACES |
+| `ospf_lsdb` | `show ospf lsdb` | none | high-volume | E-G37-OSPF-LSDB |
+| `ospfv3_neighbors` | `show ospfv3 neighbor` | none | high-volume | E-G37-OSPFV3-NEIGHBOR |
+| `ospfv3_interfaces` | `show ospfv3 interfaces` | none | high-volume | E-G37-OSPFV3-INTERFACES |
+| `bgp_summary` | `show bgp neighbor` | none | high-volume | E-G37-BGP-NEIGHBOR |
+| `bgp_neighbor` | `show bgp neighbor {address}` | `addresses.ipv4_address` | high-volume | E-G37-BGP-NEIGHBOR |
+| `bgp_routes` | `show bgp routes all` | none | high-volume | E-G37-BGP-ROUTES |
+| `vrrp` | `show vrrp` | none | high-volume | E-G37-VRRP |
+| `bfd_sessions` | `show bfd session vr all` | none | high-volume | E-G37-BFD |
+| `route_table_vr` | `show iproute vr {vr}` | `virtual_routers.vr` | high-volume | E-IPROUTE |
+| `ipv6_route_table_vr` | `show iproute ipv6 vr {vr}` | `virtual_routers.vr` | high-volume | E-IPROUTE6 |
+| `arp_table_vr` | `show iparp vr {vr}` | `virtual_routers.vr` | high-volume | E-IPARP |
+| `ipv6_neighbors_vr` | `show neighbor-discovery cache ipv6 vr {vr}` | `virtual_routers.vr` | high-volume | E-ND6 |
+
+- [E-G37-BFD](https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_bfd_session_vr_all.shtml)
+- [E-G37-BGP-NEIGHBOR](https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_bgp_neighbor.shtml)
+- [E-G37-BGP-ROUTES](https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_bgp_routes.shtml)
+- [E-G37-OSPF-INTERFACES](https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_ospf_interfaces.shtml)
+- [E-G37-OSPF-LSDB](https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_ospf_lsdb.shtml)
+- [E-G37-OSPF-NEIGHBOR](https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_ospf_neighbor.shtml)
+- [E-G37-OSPFV3-INTERFACES](https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_ospfv3_interfaces.shtml)
+- [E-G37-OSPFV3-NEIGHBOR](https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_ospfv3_neighbor.shtml)
+- [E-G37-PING](https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/ping.shtml)
+- [E-G37-TRACE](https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/traceroute.shtml)
+- [E-G37-VRRP](https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_vrrp.shtml)

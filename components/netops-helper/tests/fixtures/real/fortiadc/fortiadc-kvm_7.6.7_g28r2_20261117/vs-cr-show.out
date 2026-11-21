@@ -1,0 +1,18 @@
+show load-balance virtual-server LAB_VS_HTTPS
+config load-balance virtual-server
+  edit "LAB_VS_HTTPS"
+    set type l7-load-balance
+    set interface port2
+    set ip 203.0.113.10
+    set port 443 
+    set load-balance-profile LB_PROF_HTTPS
+    set client-ssl-profile LB_CLIENT_SSL_PROF_DEFAULT
+    set content-routing enable
+    set content-routing-list NETOPS_TEST_CR1 NETOPS_TEST_CR2 
+    set load-balance-persistence LB_PERSIS_SRC_ADDR
+    set load-balance-method LB_METHOD_ROUND_ROBIN
+    set traffic-log enable
+  next
+end
+
+FortiADC-KVM # 

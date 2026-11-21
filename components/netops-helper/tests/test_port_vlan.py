@@ -129,8 +129,8 @@ def test_composite_read_filters_after_capture_and_checks_enabled_queries(monkeyp
         return 0, (REAL / profile / directory / (query + '.txt')).read_text()
     monkeypatch.setattr(engine, 'read_from_device', device)
     result = engine.switch_read(auth, 'port_vlan', interface='Gi0/0')
-    assert result['records'] == [port_vlan.row('GigabitEthernet0/0', 'access', access=99, tagged=[], status='up')]
-    assert result['coverage']['complete']
+    assert result['records'] == [port_vlan.row('GigabitEthernet0/0', 'access', access=99, status='up')]
+    assert not result['coverage']['complete'] and 'port_vlan_voice_unverified' in result['warnings']
     assert calls == ['show interfaces trunk', 'show interfaces status']
     calls.clear()
     result = engine.switch_read(replace(auth, enabled_queries=('interfaces_trunk',)), 'port_vlan')
@@ -238,6 +238,9 @@ def test_proxy_interface_schema_permission_and_read_cost():
             Proxy._validate_tool_arguments('switch_read', {'target': 'sw1', 'table': 'port_vlan', 'interface': interface})
     section = SimpleNamespace(catalog_platform=lambda: 'cisco_ios', enabled_queries=('interfaces_trunk', 'interfaces'))
     assert Proxy._rate_cost('switch_read', None, section, args) == 2
+    section.enabled_queries += ('interface_switchport',)
+    assert Proxy._rate_cost('switch_read', None, section, args) == 3
+    assert Proxy._rate_cost('switch_read', None, section, {'table': 'port_vlan'}) == 2
     section.enabled_queries = ('interfaces_trunk',)
     assert Proxy._rate_cost('switch_read', None, section, args) == 1
 

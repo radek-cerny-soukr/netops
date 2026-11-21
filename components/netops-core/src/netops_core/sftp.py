@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import tempfile
 from dataclasses import dataclass
@@ -46,6 +47,10 @@ TIME_FIELDS = 3
 
 SftpError = ssh_module.SshError
 SIZE_MAX_DIGITS = 20
+EXOS_CONFIG_FILE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,31}\.cfg")
+EXOS_CONFIG_MAX_BYTES = 16 * 1024 * 1024
+EXOS_POLICY_NAME = re.compile(r"[A-Za-z][A-Za-z0-9_-]{0,31}")
+EXOS_POLICY_MAX_BYTES = 8192
 
 
 @dataclass(frozen=True)
@@ -244,6 +249,119 @@ def _final(result) -> str:
     if len(lines) > 1 and lines[-1].rstrip(b".") == CLOSED_LINE:
         lines.pop()
     return ssh_module.final_said(b"\n".join(lines))
+
+
+def _exos_batch(host, port, credential, host_key_line, legacy_ssh, command, *, descriptor=None):
+    kind = ssh_module._checked_credential(credential)
+    ssh_module._abandoned_removed()
+    workspace = tempfile.mkdtemp(prefix=WORKSPACE_PREFIX)
+    owner = None
+    try:
+        owner = ssh_module._claimed(workspace)
+        known_hosts = hostkey.known_hosts_file(workspace, host_key_line)
+        identity, environment = ssh_module._prepared(workspace, kind, credential)
+        call = argv(host, port, credential.login, known_hosts, identity=identity, legacy=legacy_ssh)
+        # Explicit BatchMode from argv must precede -b so that the pinned password transport also works.
+        call[-1:-1] = ["-q", "-b", "-"]
+        return subprocess.run(call, input=command.encode("ascii"), capture_output=True,
+                              timeout=DEFAULT_TIMEOUT_SECONDS, env=environment,
+                              pass_fds=() if descriptor is None else (descriptor,))
+    except (OSError, subprocess.TimeoutExpired):
+        raise SftpError("ExtremeXOS configuration transfer is unavailable") from None
+    finally:
+        ssh_module._released(workspace, owner)
+
+
+def read_exos_configuration(host, port, credential, host_key_line, filename, *, legacy_ssh=None):
+    """Download one named EXOS XML configuration into an anonymous file."""
+    if not isinstance(filename, str) or not EXOS_CONFIG_FILE.fullmatch(filename):
+        raise SftpError("invalid ExtremeXOS backup filename")
+    target = (host, port, credential, host_key_line, legacy_ssh)
+    listing = _exos_batch(*target, f"ls -ln {filename}\n")
+    if listing.returncode:
+        raise SftpError("ExtremeXOS did not list the requested configuration")
+    rows = _listing(listing.stdout)
+    entry = _listed(rows[0]) if len(rows) == 1 else None
+    if entry is None or entry[0] != KIND_FILE or entry[4] != filename:
+        raise SftpError("ExtremeXOS configuration listing is unverified")
+    expected = entry[2]
+    if not 0 < expected <= EXOS_CONFIG_MAX_BYTES:
+        raise SftpError("ExtremeXOS configuration size is out of bounds")
+    fd = os.memfd_create("netops-exos-backup", os.MFD_CLOEXEC)
+    try:
+        os.fchmod(fd, 0o600)
+        # The second connection needs its own one-attempt askpass workspace.
+        result = _exos_batch(*target, f"get {filename} /proc/self/fd/{fd}\n", descriptor=fd)
+        if result.returncode or os.fstat(fd).st_size != expected:
+            raise SftpError("ExtremeXOS configuration transfer failed or was incomplete")
+        with os.fdopen(os.dup(fd), "rb") as source:
+            data = source.read(expected + 1)
+        if len(data) != expected:
+            raise SftpError("ExtremeXOS configuration transfer size changed")
+        return data
+    finally:
+        os.close(fd)
+
+
+def _exos_policy_file(name):
+    if not isinstance(name, str) or not EXOS_POLICY_NAME.fullmatch(name):
+        raise SftpError("invalid ExtremeXOS policy name")
+    return name + ".pol"
+
+
+def read_exos_policy(host, port, credential, host_key_line, legacy_ssh, name):
+    filename = _exos_policy_file(name)
+    target = (host, port, credential, host_key_line, legacy_ssh)
+    listing = _exos_batch(*target, f"ls -ln {filename}\n")
+    rows = _listing(listing.stdout)
+    if listing.returncode:
+        if not rows and _reported(listing, host) == [f'Can\'t ls: "/config/{filename}" not found']:
+            return None
+        raise SftpError("ExtremeXOS policy listing failed")
+    entry = _listed(rows[0]) if len(rows) == 1 else None
+    if entry is None or entry[0] != KIND_FILE or entry[4] != filename or entry[2] > EXOS_POLICY_MAX_BYTES:
+        raise SftpError("ExtremeXOS policy listing is unverified")
+    with _policy_buffer() as buffer:
+        fd = buffer.fileno()
+        os.fchmod(fd, 0o600)
+        result = _exos_batch(*target, f"get {filename} /proc/self/fd/{fd}\n", descriptor=fd)
+        if result.returncode or os.fstat(fd).st_size != entry[2]:
+            raise SftpError("ExtremeXOS policy transfer failed or was incomplete")
+        buffer.seek(0)
+        return buffer.read(EXOS_POLICY_MAX_BYTES + 1)
+
+
+def _policy_buffer():
+    return os.fdopen(os.memfd_create("netops-exos-policy", os.MFD_CLOEXEC), "w+b")
+
+
+def put_exos_policy(host, port, credential, host_key_line, legacy_ssh, name, data):
+    filename = _exos_policy_file(name)
+    if not isinstance(data, bytes) or not 0 < len(data) <= EXOS_POLICY_MAX_BYTES:
+        raise SftpError("invalid ExtremeXOS policy size")
+    with _policy_buffer() as buffer:
+        fd = buffer.fileno()
+        os.fchmod(fd, 0o600)
+        buffer.write(data)
+        buffer.flush()
+        result = _exos_batch(host, port, credential, host_key_line, legacy_ssh,
+                             f"put /proc/self/fd/{fd} {filename}\n", descriptor=fd)
+    if result.returncode:
+        raise SftpError("ExtremeXOS policy upload failed")
+
+
+def rename_exos_policy(host, port, credential, host_key_line, legacy_ssh, source, destination):
+    src, dst = _exos_policy_file(source), _exos_policy_file(destination)
+    result = _exos_batch(host, port, credential, host_key_line, legacy_ssh, f"rename {src} {dst}\n")
+    if result.returncode:
+        raise SftpError("ExtremeXOS policy replacement failed")
+
+
+def remove_exos_policy(host, port, credential, host_key_line, legacy_ssh, name):
+    filename = _exos_policy_file(name)
+    result = _exos_batch(host, port, credential, host_key_line, legacy_ssh, f"rm {filename}\n")
+    if result.returncode:
+        raise SftpError("ExtremeXOS policy removal failed")
 
 
 def stat(

@@ -1,0 +1,9 @@
+ Number of  sessions           : 0
+ Sessions in Init State        : 0
+ Sessions in Down State        : 0
+ Sessions in Admin Down State  : 0
+ Sessions in Up State          : 0
+
+ SNMP Traps for session-down   : Disabled 
+ SNMP Traps for session-up     : Disabled 
+ SNMP Traps for Batch Delay    : 1000 ms 

@@ -1,0 +1,4 @@
+no interface Port-channel42
+                                          ^
+% Invalid input detected at '^' marker.
+host08(config)#

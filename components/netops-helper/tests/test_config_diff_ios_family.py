@@ -14,8 +14,10 @@ changed variants below edit one line of those synthetic texts.  Nothing here is 
 """
 
 import asyncio
+from contextlib import nullcontext
 from dataclasses import replace
 import json
+from types import SimpleNamespace
 from unittest import mock
 
 import pytest
@@ -28,6 +30,7 @@ from netops_helper import audit as helper_audit, config_cisco_ios, config_exos, 
 from netops_helper import proxy as proxy_module
 from netops_helper.auth import EgressPolicy, TargetAuth
 from netops_helper.config_indented import EOS_MARKER, NXOS_MARKER
+from conftest import HOST_KEY_BLOB, HOST_KEY_PIN
 from test_proxy import DEVICE_PIN, _section
 import test_config_arista_eos_public as eos_fixture
 import test_config_cisco_ios_public as ios_fixture
@@ -125,6 +128,48 @@ class Wire:
         return core_ssh.Result(rc=self.config_rc, stdout=b'', said='', started_at='t0', finished_at='t1')
 
 
+    def fortinet_session(self, device, credential, **options):
+        from netops_core import prompt, session
+        cli = SimpleNamespace(_last_prompt=b"fixture-adc # ")
+        is_adc = device.platform == "fortiadc"
+
+        def run(command, *, stdout_consumer=None, **limits):
+            def feed(chunk):
+                chunks.append(chunk)
+
+            chunks = []
+            result = self(device.address, device.port, credential.login, credential, None, command,
+                          stdout_consumer=feed if stdout_consumer is not None else None, **limits)
+            if stdout_consumer is None:
+                text = prompt.cleaned(result.stdout.decode(), "fortiadc").encode() if is_adc else result.stdout
+            else:
+                text = b"".join(chunks)
+                incomplete = False
+                if is_adc and (frame := prompt.prefix("fortiadc").match(text.decode())) is not None:
+                    marker = frame.group(1).rstrip().encode()
+                    text = text[len(frame.group(1).encode()):]
+                    body, separator, final = text.rstrip().rpartition(b"\n")
+                    if separator and final == marker:
+                        text = body + b"\n"
+                    else:
+                        incomplete = True
+                if result.rc == 0:
+                    for start in range(0, len(text), 7):
+                        try:
+                            stdout_consumer(text[start:start + 7])
+                        except core_ssh.OutputLimitError:
+                            raise
+                        except Exception:
+                            raise core_ssh.OutputConsumerError() from None
+                if incomplete:
+                    raise session.SessionError("unclosed fixture command", code="disconnected")
+                text = b""
+            return session.FortinetResult(result.rc, text, "", "t0", "t1")
+
+        cli.run = run
+        return nullcontext(cli)
+
+
 def _family_section(spec, alias, access):
     section = _section()
     section.pop('snmp_credential')
@@ -139,8 +184,10 @@ def _family_section(spec, alias, access):
 def _inventory(helper, spec, b_access=('read', 'compare')):
     devices = []
     for alias, access in (('router-a', ('read',)), ('router-b', b_access)):
+        key = ({'host_key': 'ssh-ed25519 ' + HOST_KEY_BLOB, 'host_key_fingerprint': HOST_KEY_PIN}
+               if spec['enrolled'] in {'fortiadc', 'fortios'} else {'host_key_fingerprint': DEVICE_PIN})
         devices.append({'name': alias, 'platform': spec['enrolled'], 'address': ADDRESS[alias], 'port': 22,
-                        'role': 'internal', 'credential': alias + '-account', 'host_key_fingerprint': DEVICE_PIN,
+                        'role': 'internal', 'credential': alias + '-account', **key,
                         'legacy_ssh': None, 'auditor': None, 'helper': _family_section(spec, alias, access)})
     write_private(helper / 'inventory.json', json.dumps({'version': 2, 'devices': devices}).encode(), replace=True)
 
@@ -148,7 +195,7 @@ def _inventory(helper, spec, b_access=('read', 'compare')):
 def _vault(helper, spec, a_secret, replace=False):
     write_private(helper / 'vault.json', json.dumps({'version': 2, 'credentials': {
         'router-a-account': {'kind': 'password', 'login': 'a-user', 'value': a_secret},
-        'router-b-account': {'kind': 'password', 'login': 'b-user', 'value': spec['b_secret']},
+        'router-b-account': {'kind': 'password', 'login': spec.get('b_login', 'b-user'), 'value': spec['b_secret']},
     }}).encode(), replace=replace)
 
 
@@ -174,6 +221,8 @@ def env(request, tmp_path, monkeypatch):
     monkeypatch.setattr(engine.core_hostkey, 'scan', scan)
     wire = Wire(spec)
     monkeypatch.setattr(engine.core_ssh, 'run_command', wire)
+    if platform in {'fortiadc', 'fortios'}:
+        monkeypatch.setattr(engine.core_session, 'fortinet_session', wire.fortinet_session)
     paged = []
     original = server._paged_auth
 

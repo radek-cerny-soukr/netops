@@ -1,0 +1,19 @@
+Last clearing of QFP drops statistics : never
+
+-------------------------------------------------------------------------
+Global Drop Stats                         Packets                  Octets
+-------------------------------------------------------------------------
+BFDoffload                               23944858              1904416850
+IpTtlExceeded                              184211                28644972
+IpsecIkeIndicate                              175                   26744
+IpsecInput                                 686112               171458640
+IpsecInvalidSa                                  1                      80
+Ipv4Martian                                     4                     392
+Ipv4NoAdj                                   19776                 6587643
+Ipv4NoRoute                                    75                   10950
+Ipv6NoRoute                                 27068                 1515808
+ReassDrop                                 3489529               450382594
+ReassNoFragInfo                           4561070              6387610348
+ReassOverlap                                    3                     198
+ReassTimeout                              7408271              2631950860
+TailDrop                                193769387            157113756882

@@ -1,0 +1,460 @@
+{
+  "version_admin": {
+    "query": "version",
+    "command": "show version | no-more",
+    "parameters": {},
+    "role": "ADMIN",
+    "rc": 0,
+    "file": "version_admin.out"
+  },
+  "version_ro": {
+    "query": "version",
+    "command": "show version | no-more",
+    "parameters": {},
+    "role": "RO",
+    "rc": 0,
+    "file": "version_ro.out"
+  },
+  "arp_table_instance_admin": {
+    "query": "arp_table_instance",
+    "command": "show arp no-resolve vpn g132 | no-more",
+    "parameters": {
+      "instance": "g132"
+    },
+    "role": "ADMIN",
+    "rc": 0,
+    "file": "arp_table_instance_admin.out"
+  },
+  "arp_table_instance_ro": {
+    "query": "arp_table_instance",
+    "command": "show arp no-resolve vpn g132 | no-more",
+    "parameters": {
+      "instance": "g132"
+    },
+    "role": "RO",
+    "rc": 0,
+    "file": "arp_table_instance_ro.out"
+  },
+  "arp_table_instance_unknown_admin": {
+    "query": "arp_table_instance",
+    "command": "show arp no-resolve vpn nonexist | no-more",
+    "parameters": {
+      "instance": "nonexist"
+    },
+    "role": "ADMIN",
+    "rc": 0,
+    "file": "arp_table_instance_unknown_admin.out"
+  },
+  "arp_table_instance_unknown_ro": {
+    "query": "arp_table_instance",
+    "command": "show arp no-resolve vpn nonexist | no-more",
+    "parameters": {
+      "instance": "nonexist"
+    },
+    "role": "RO",
+    "rc": 0,
+    "file": "arp_table_instance_unknown_ro.out"
+  },
+  "bgp_peer_admin": {
+    "query": "bgp_peer",
+    "command": "show bgp neighbor 192.0.2.1 | no-more",
+    "parameters": {
+      "address": "192.0.2.1"
+    },
+    "role": "ADMIN",
+    "rc": 0,
+    "file": "bgp_peer_admin.out"
+  },
+  "bgp_peer_advertised_routes_admin": {
+    "query": "bgp_peer_advertised_routes",
+    "command": "show route advertising-protocol bgp 192.0.2.1 | no-more",
+    "parameters": {
+      "address": "192.0.2.1"
+    },
+    "role": "ADMIN",
+    "rc": 0,
+    "file": "bgp_peer_advertised_routes_admin.out"
+  },
+  "bgp_peer_advertised_routes_ro": {
+    "query": "bgp_peer_advertised_routes",
+    "command": "show route advertising-protocol bgp 192.0.2.1 | no-more",
+    "parameters": {
+      "address": "192.0.2.1"
+    },
+    "role": "RO",
+    "rc": 0,
+    "file": "bgp_peer_advertised_routes_ro.out"
+  },
+  "bgp_peer_received_routes_admin": {
+    "query": "bgp_peer_received_routes",
+    "command": "show route receive-protocol bgp 192.0.2.1 | no-more",
+    "parameters": {
+      "address": "192.0.2.1"
+    },
+    "role": "ADMIN",
+    "rc": 0,
+    "file": "bgp_peer_received_routes_admin.out"
+  },
+  "bgp_peer_received_routes_ro": {
+    "query": "bgp_peer_received_routes",
+    "command": "show route receive-protocol bgp 192.0.2.1 | no-more",
+    "parameters": {
+      "address": "192.0.2.1"
+    },
+    "role": "RO",
+    "rc": 0,
+    "file": "bgp_peer_received_routes_ro.out"
+  },
+  "bgp_peer_ro": {
+    "query": "bgp_peer",
+    "command": "show bgp neighbor 192.0.2.1 | no-more",
+    "parameters": {
+      "address": "192.0.2.1"
+    },
+    "role": "RO",
+    "rc": 0,
+    "file": "bgp_peer_ro.out"
+  },
+  "bgp_summary_instance_admin": {
+    "query": "bgp_summary_instance",
+    "command": "show bgp summary exact-instance g132 | no-more",
+    "parameters": {
+      "instance": "g132"
+    },
+    "role": "ADMIN",
+    "rc": 0,
+    "file": "bgp_summary_instance_admin.out"
+  },
+  "bgp_summary_instance_ro": {
+    "query": "bgp_summary_instance",
+    "command": "show bgp summary exact-instance g132 | no-more",
+    "parameters": {
+      "instance": "g132"
+    },
+    "role": "RO",
+    "rc": 0,
+    "file": "bgp_summary_instance_ro.out"
+  },
+  "ipv6_neighbors_instance_admin": {
+    "query": "ipv6_neighbors_instance",
+    "command": "show ipv6 neighbors vpn g132 | no-more",
+    "parameters": {
+      "instance": "g132"
+    },
+    "role": "ADMIN",
+    "rc": 0,
+    "file": "ipv6_neighbors_instance_admin.out"
+  },
+  "ipv6_neighbors_instance_ro": {
+    "query": "ipv6_neighbors_instance",
+    "command": "show ipv6 neighbors vpn g132 | no-more",
+    "parameters": {
+      "instance": "g132"
+    },
+    "role": "RO",
+    "rc": 0,
+    "file": "ipv6_neighbors_instance_ro.out"
+  },
+  "ospf_database_admin": {
+    "query": "ospf_database",
+    "command": "show ospf database | no-more",
+    "parameters": {},
+    "role": "ADMIN",
+    "rc": 0,
+    "file": "ospf_database_admin.out"
+  },
+  "ospf_database_ro": {
+    "query": "ospf_database",
+    "command": "show ospf database | no-more",
+    "parameters": {},
+    "role": "RO",
+    "rc": 0,
+    "file": "ospf_database_ro.out"
+  },
+  "ospf_interface_detail_admin": {
+    "query": "ospf_interface_detail",
+    "command": "show ospf interface irb.10 detail | no-more",
+    "parameters": {
+      "interface": "irb.10"
+    },
+    "role": "ADMIN",
+    "rc": 0,
+    "file": "ospf_interface_detail_admin.out"
+  },
+  "ospf_interface_detail_empty_admin": {
+    "query": "ospf_interface_detail",
+    "command": "show ospf interface irb.20 detail | no-more",
+    "parameters": {
+      "interface": "irb.20"
+    },
+    "role": "ADMIN",
+    "rc": 0,
+    "file": "ospf_interface_detail_empty_admin.out"
+  },
+  "ospf_interface_detail_empty_ro": {
+    "query": "ospf_interface_detail",
+    "command": "show ospf interface irb.20 detail | no-more",
+    "parameters": {
+      "interface": "irb.20"
+    },
+    "role": "RO",
+    "rc": 0,
+    "file": "ospf_interface_detail_empty_ro.out"
+  },
+  "ospf_interface_detail_ro": {
+    "query": "ospf_interface_detail",
+    "command": "show ospf interface irb.10 detail | no-more",
+    "parameters": {
+      "interface": "irb.10"
+    },
+    "role": "RO",
+    "rc": 0,
+    "file": "ospf_interface_detail_ro.out"
+  },
+  "ospf_neighbors_detail_admin": {
+    "query": "ospf_neighbors_detail",
+    "command": "show ospf neighbor detail | no-more",
+    "parameters": {},
+    "role": "ADMIN",
+    "rc": 0,
+    "file": "ospf_neighbors_detail_admin.out"
+  },
+  "ospf_neighbors_detail_ro": {
+    "query": "ospf_neighbors_detail",
+    "command": "show ospf neighbor detail | no-more",
+    "parameters": {},
+    "role": "RO",
+    "rc": 0,
+    "file": "ospf_neighbors_detail_ro.out"
+  },
+  "ospfv3_database_admin": {
+    "query": "ospfv3_database",
+    "command": "show ospf3 database | no-more",
+    "parameters": {},
+    "role": "ADMIN",
+    "rc": 0,
+    "file": "ospfv3_database_admin.out"
+  },
+  "ospfv3_database_ro": {
+    "query": "ospfv3_database",
+    "command": "show ospf3 database | no-more",
+    "parameters": {},
+    "role": "RO",
+    "rc": 0,
+    "file": "ospfv3_database_ro.out"
+  },
+  "ospfv3_interface_detail_admin": {
+    "query": "ospfv3_interface_detail",
+    "command": "show ospf3 interface irb.10 detail | no-more",
+    "parameters": {
+      "interface": "irb.10"
+    },
+    "role": "ADMIN",
+    "rc": 0,
+    "file": "ospfv3_interface_detail_admin.out"
+  },
+  "ospfv3_interface_detail_ro": {
+    "query": "ospfv3_interface_detail",
+    "command": "show ospf3 interface irb.10 detail | no-more",
+    "parameters": {
+      "interface": "irb.10"
+    },
+    "role": "RO",
+    "rc": 0,
+    "file": "ospfv3_interface_detail_ro.out"
+  },
+  "ospfv3_neighbors_detail_admin": {
+    "query": "ospfv3_neighbors_detail",
+    "command": "show ospf3 neighbor detail | no-more",
+    "parameters": {},
+    "role": "ADMIN",
+    "rc": 0,
+    "file": "ospfv3_neighbors_detail_admin.out"
+  },
+  "ospfv3_neighbors_detail_ro": {
+    "query": "ospfv3_neighbors_detail",
+    "command": "show ospf3 neighbor detail | no-more",
+    "parameters": {},
+    "role": "RO",
+    "rc": 0,
+    "file": "ospfv3_neighbors_detail_ro.out"
+  },
+  "ping_admin": {
+    "query": "ping",
+    "command": "ping 192.0.2.1 count 5 source 192.0.2.6 | no-more",
+    "parameters": {
+      "address": "192.0.2.1",
+      "source": "192.0.2.6"
+    },
+    "role": "ADMIN",
+    "rc": 0,
+    "file": "ping_admin.out"
+  },
+  "ping_instance_admin": {
+    "query": "ping_instance",
+    "command": "ping 198.51.100.132 count 5 source 198.51.100.132 routing-instance g132 | no-more",
+    "parameters": {
+      "address": "198.51.100.132",
+      "source": "198.51.100.132",
+      "instance": "g132"
+    },
+    "role": "ADMIN",
+    "rc": 0,
+    "file": "ping_instance_admin.out"
+  },
+  "ping_instance_loss_admin": {
+    "query": "ping_instance",
+    "command": "ping 203.0.113.1 count 5 source 198.51.100.132 routing-instance g132 | no-more",
+    "parameters": {
+      "address": "203.0.113.1",
+      "source": "198.51.100.132",
+      "instance": "g132"
+    },
+    "role": "ADMIN",
+    "rc": 0,
+    "file": "ping_instance_loss_admin.out"
+  },
+  "ping_instance_loss_ro": {
+    "query": "ping_instance",
+    "command": "ping 203.0.113.1 count 5 source 198.51.100.132 routing-instance g132 | no-more",
+    "parameters": {
+      "address": "203.0.113.1",
+      "source": "198.51.100.132",
+      "instance": "g132"
+    },
+    "role": "RO",
+    "rc": 0,
+    "file": "ping_instance_loss_ro.out"
+  },
+  "ping_instance_ro": {
+    "query": "ping_instance",
+    "command": "ping 198.51.100.132 count 5 source 198.51.100.132 routing-instance g132 | no-more",
+    "parameters": {
+      "address": "198.51.100.132",
+      "source": "198.51.100.132",
+      "instance": "g132"
+    },
+    "role": "RO",
+    "rc": 0,
+    "file": "ping_instance_ro.out"
+  },
+  "ping_ro": {
+    "query": "ping",
+    "command": "ping 192.0.2.1 count 5 source 192.0.2.6 | no-more",
+    "parameters": {
+      "address": "192.0.2.1",
+      "source": "192.0.2.6"
+    },
+    "role": "RO",
+    "rc": 0,
+    "file": "ping_ro.out"
+  },
+  "route_lookup_instance_admin": {
+    "query": "route_lookup_instance",
+    "command": "show route table g132.inet.0 198.51.100.132 detail | no-more",
+    "parameters": {
+      "instance": "g132",
+      "address": "198.51.100.132"
+    },
+    "role": "ADMIN",
+    "rc": 0,
+    "file": "route_lookup_instance_admin.out"
+  },
+  "route_lookup_instance_ro": {
+    "query": "route_lookup_instance",
+    "command": "show route table g132.inet.0 198.51.100.132 detail | no-more",
+    "parameters": {
+      "instance": "g132",
+      "address": "198.51.100.132"
+    },
+    "role": "RO",
+    "rc": 0,
+    "file": "route_lookup_instance_ro.out"
+  },
+  "route_lookup_instance_static_admin": {
+    "query": "route_lookup_instance",
+    "command": "show route table g132.inet.0 203.0.113.1 detail | no-more",
+    "parameters": {
+      "instance": "g132",
+      "address": "203.0.113.1"
+    },
+    "role": "ADMIN",
+    "rc": 0,
+    "file": "route_lookup_instance_static_admin.out"
+  },
+  "route_lookup_instance_static_ro": {
+    "query": "route_lookup_instance",
+    "command": "show route table g132.inet.0 203.0.113.1 detail | no-more",
+    "parameters": {
+      "instance": "g132",
+      "address": "203.0.113.1"
+    },
+    "role": "RO",
+    "rc": 0,
+    "file": "route_lookup_instance_static_ro.out"
+  },
+  "route_lookup_instance_unknown_admin": {
+    "query": "route_lookup_instance",
+    "command": "show route table nonexist.inet.0 198.51.100.132 detail | no-more",
+    "parameters": {
+      "instance": "nonexist",
+      "address": "198.51.100.132"
+    },
+    "role": "ADMIN",
+    "rc": 0,
+    "file": "route_lookup_instance_unknown_admin.out"
+  },
+  "route_lookup_instance_unknown_ro": {
+    "query": "route_lookup_instance",
+    "command": "show route table nonexist.inet.0 198.51.100.132 detail | no-more",
+    "parameters": {
+      "instance": "nonexist",
+      "address": "198.51.100.132"
+    },
+    "role": "RO",
+    "rc": 0,
+    "file": "route_lookup_instance_unknown_ro.out"
+  },
+  "traceroute_admin": {
+    "query": "traceroute",
+    "command": "traceroute 192.0.2.1 no-resolve ttl 15 wait 1 | no-more",
+    "parameters": {
+      "address": "192.0.2.1"
+    },
+    "role": "ADMIN",
+    "rc": 0,
+    "file": "traceroute_admin.out"
+  },
+  "traceroute_instance_admin": {
+    "query": "traceroute_instance",
+    "command": "traceroute 198.51.100.132 no-resolve routing-instance g132 ttl 15 wait 1 | no-more",
+    "parameters": {
+      "address": "198.51.100.132",
+      "instance": "g132"
+    },
+    "role": "ADMIN",
+    "rc": 0,
+    "file": "traceroute_instance_admin.out"
+  },
+  "traceroute_instance_ro": {
+    "query": "traceroute_instance",
+    "command": "traceroute 198.51.100.132 no-resolve routing-instance g132 ttl 15 wait 1 | no-more",
+    "parameters": {
+      "address": "198.51.100.132",
+      "instance": "g132"
+    },
+    "role": "RO",
+    "rc": 0,
+    "file": "traceroute_instance_ro.out"
+  },
+  "traceroute_ro": {
+    "query": "traceroute",
+    "command": "traceroute 192.0.2.1 no-resolve ttl 15 wait 1 | no-more",
+    "parameters": {
+      "address": "192.0.2.1"
+    },
+    "role": "RO",
+    "rc": 0,
+    "file": "traceroute_ro.out"
+  }
+}

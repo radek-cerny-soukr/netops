@@ -1,0 +1,8 @@
+Filter: test
+Counters:
+Name                            Bytes             Packets
+Counter-1                           0                   0
+Counter-2                           0                   0
+Policers:
+Name                            Bytes             Packets
+Policer-1                        2770                  70

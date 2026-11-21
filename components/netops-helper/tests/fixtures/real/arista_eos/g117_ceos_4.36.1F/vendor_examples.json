@@ -1,0 +1,52 @@
+{
+  "bgp_peer": {
+    "source": "https://www.arista.com/en/um-eos/eos-border-gateway-protocol-bgp",
+    "excerpt": true,
+    "text": "BGP neighbor is 192.0.2.100, remote AS 64496, external link\n  BGP version 4, remote router ID 198.51.100.100, VRF default\n  Inherits configuration from and member of peer-group EXTERNAL\n  Negotiated BGP version 4\n  Member of update group 3\n  Last read 00:00:17, last write 00:00:18\n  Hold time is 180, keepalive interval is 60 seconds\n  Configured hold time is 180, keepalive interval is 60 seconds\n  Connect timer is inactive\n  Idle-restart timer is inactive\n  BGP state is Established, up for 00:05:17\n  Number of transitions to established: 1\n  Last state was OpenConfirm\n  Last event was RecvKeepAlive\n"
+  },
+  "bgp_peer_advertised_routes": {
+    "source": "https://www.arista.com/en/um-eos/eos-border-gateway-protocol-bgp",
+    "excerpt": true,
+    "text": "         Network                Next Hop            Metric  LocPref Weight  Path\n * >     192.0.2.0/24            203.0.113.102         -       100     -       i\n * >     203.0.113.254/24            203.0.113.102         -       100     -       i\n"
+  },
+  "ospfv3_neighbors": {
+    "source": "https://www.arista.com/en/um-eos/eos-open-shortest-path-first-version-3",
+    "excerpt": true,
+    "text": "Routing Process \"ospf 9\":\nNeighbor 203.0.113.253 VRF default priority is 1, state is Full\n In area 0.0.0.0 interface et12\n DR is 203.0.113.253 BDR is 203.0.113.252\n Options is 0\n Dead timer is due in 37 seconds\n"
+  },
+  "ospfv3_interface_detail": {
+    "source": "https://www.arista.com/en/um-eos/eos-open-shortest-path-first-version-3",
+    "excerpt": true,
+    "text": "Ethernet17 is up\n Interface Address fe80::10, VRF default, Area 0.0.0.0\n Network Type Broadcast, Cost 10\n Transmit Delay is 1 sec, State Backup DR, Priority 1\n Designated Router is 203.0.113.253\n Backup Designated Router is 203.0.113.252\n Timer intervals configured, Hello 10, Dead 40, Retransmit 5\n Neighbor Count is 1\n Options are R E V6\n"
+  },
+  "ospfv3_database": {
+    "source": "https://www.arista.com/en/um-eos/eos-open-shortest-path-first-version-3",
+    "excerpt": true,
+    "text": "Routing Process \"ospf 9\":\n\n  AS Scope LSDB\n\nType        Link ID     ADV Router  Age       Seq#   Checksum\n AEX        203.0.113.251 203.0.113.253 15 0x80000005   0x00be82\n AEX        203.0.113.250 203.0.113.249 1747 0x8000002b   0x00df56\n"
+  },
+  "vrrp": {
+    "source": "https://www.arista.com/en/um-eos/eos-vrrp-and-varp",
+    "excerpt": true,
+    "text": "Vlan1006 - Group 2\n  VRRP Version 2\n  State is Master\n  Virtual IPv4 address is 127.38.10.2\n  Virtual MAC address is 0000.5e00.5301\n  Mac Address Advertisement interval is 30s\n  VRRP Advertisement interval is 1s\n  Preemption is enabled\n  Preemption delay is 0s\n  Preemption reload delay is 0s\n  Priority is 100\n"
+  },
+  "varp": {
+    "source": "https://www.arista.com/en/um-eos/eos-vrrp-and-varp",
+    "excerpt": true,
+    "text": "IP virtual router is configured with MAC address: 0000.5e00.5302\nInterface  IP Address        Virtual IP Address   Status            Protocol\nVlan15     203.0.113.248/24       203.0.113.247        up                up\nVlan15     203.0.113.248/24       203.0.113.246        up                up\nVlan15     203.0.113.248/24       203.0.113.245        up                up\n"
+  },
+  "bfd_peers": {
+    "source": "https://www.arista.com/en/um-eos/eos-bidirectional-forwarding-detection",
+    "excerpt": true,
+    "text": "DstAddr MyDisc YoDisc If LUp LDown Ldiag S\ntate\n203.0.113.244 16 13 et52_1(81) 17151450 0 No\nDiagnostic Up\n203.0.113.243 17 14 et52_2(65) 17151883 0 No\nDiagnostic Up\n"
+  },
+  "ipv6_route_table": {
+    "source": "https://www.arista.com/en/um-eos/eos-ipv6",
+    "excerpt": true,
+    "text": "IPv6 Routing Table - 77 entries\nCodes: C - connected, S - static, K - kernel, O - OSPF, B - BGP, R - RIP, A -\nAggregate\n\nO   2001:db8:1::0/64 [10/20]\n     via fe80::11, Vlan3601\n     via fe80::11, Vlan3602\n     via fe80::11, Vlan3608\n     via fe80::12, Vlan3610\n     via fe80::11, Vlan3611\n"
+  },
+  "ipv6_rib": {
+    "source": "https://www.arista.com/en/um-eos/eos-ipv6",
+    "excerpt": true,
+    "text": "VRF name: default, VRF ID: 0xfe, Protocol: connected\nCodes: C - Connected, S - Static, P - Route Input\n       B - BGP, O - Ospf, O3 - Ospf3, I - Isis\n       > - Best Route, * - Unresolved Nexthop\n       L - Part of a recursive route resolution loop\n>C    2001:db8:2::0/64 [0/1]\n         via 2001:db8:2::102, Ethernet1\n>C    2001:db8:3::0/64 [0/1]\n         via 2001:db8:3::102, Ethernet2\n>C    2001:db8:4::0/64 [0/1]\n         via 2001:db8:4::102, Ethernet3\n"
+  }
+}

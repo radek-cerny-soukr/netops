@@ -1,0 +1,41 @@
+Physical interface: ge-0/0/5, Administratively down, Physical link is Down
+  Interface index: 148, SNMP ifIndex: 526, Generation: 178
+  Link-level type: Ethernet, MTU: 1514, LAN-PHY mode, Speed: 1000mbps, BPDU Error: None, Loop Detect PDU Error: None, Ethernet-Switching Error: None, Remote Bounce: None, MAC-REWRITE Error: None, Loopback: Disabled, Source filtering: Disabled, Flow control: Enabled, Auto-negotiation: Enabled, Remote fault: Online, Media type: Fiber
+  Device flags   : Present Running Down
+  Interface Specific flags: Internal: 0x101200
+  Interface flags: Hardware-Down Down SNMP-Traps Internal: 0x4000
+  Link flags     : None
+  CoS queues     : 8 supported, 8 maximum usable queues
+  Hold-times     : Up 0 ms, Down 0 ms
+  Current address: 00:00:5e:00:53:01, Hardware address: 00:00:5e:00:53:01
+  Last flapped   : 2026-11-12 05:05:01 UTC (5d 17:24 ago)
+  Statistics last cleared: Never
+  Traffic statistics:
+   Input  bytes  :                    0                    0 bps
+   Output bytes  :                    0                    0 bps
+   Input  packets:                    0                    0 pps
+   Output packets:                    0                    0 pps
+  Active alarms  : LINK
+  Active defects : LINK
+  PCS statistics                      Seconds
+    Bit errors                             0
+    Errored blocks                         0
+  Interface transmit statistics: Disabled
+
+  Logical interface ge-0/0/5.16386 (Index 373) (SNMP ifIndex 536) (Generation 183)
+    Flags: Device-Down SNMP-Traps 0x4004000 Encapsulation: ENET2
+    Traffic statistics:
+     Input  bytes  :                    0
+     Output bytes  :                    0
+     Input  packets:                    0
+     Output packets:                    0
+   Local statistics:
+    Input  bytes  :                    0
+    Output bytes  :                    0
+    Input  packets:                    0
+    Output packets:                    0
+   Transit statistics:
+    Input  bytes  :                    0                    0 bps
+    Output bytes  :                    0                    0 bps
+    Input  packets:                    0                    0 pps
+    Output packets:                    0                    0 pps

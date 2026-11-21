@@ -1,0 +1,14 @@
+Group ID: 1
+Mode: active-passive
+State: Primary
+Config-Sync Source: Y
+Config-Sync: Not Sync
+Init Done: Yes
+Serial-Number: SSSSSSSSSSSSSS01
+IP Address: 192.0.2.125
+Peer Count: 1
+State: Secondary
+Config-Sync Source: N
+Serial-number: FADVMSTMXXXXXX25
+Node-id: 0
+IP Address: 198.51.100.24

@@ -1,0 +1,4 @@
+interface Port-Channel128
+   description port-desc-02
+   switchport access vlan 428
+   mlag 128

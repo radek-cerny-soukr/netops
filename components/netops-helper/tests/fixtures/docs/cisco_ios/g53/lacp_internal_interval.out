@@ -1,0 +1,10 @@
+
+Flags:  S - Device sends PDUs at slow rate. F - Device sends PDUs at fast rate.
+        A - Device is in Active mode.       P - Device is in Passive mode. 
+Channel group 1
+                            LACPDUs     LACP Port    Admin   Oper    Port     Port
+Port      Flags    State    Interval    Priority     Key     Key     Number   State
+Fa4/1     saC      bndl     30s         32768        100     100     0xc1     0x75
+Fa4/2     saC      bndl     30s         32768        100     100     0xc2     0x75
+Fa4/3     saC      bndl     30s         32768        100     100     0xc3     0x75
+Fa4/4     saC      bndl     30s         32768        100     100     0xc4     0x75

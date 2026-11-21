@@ -1,0 +1,10 @@
+is_manage_primary()=1, is_root_primary()=1
+debugzone
+global: c1 82 15 55 5a df ad 76 8b a3 4b 8c 8f 12 c0 ed
+root: d1 17 7b e0 38 44 d6 b7 dd 7e 25 90 59 51 49 86
+all: 02 25 c7 fb 73 3a bc 4b f2 af 77 13 f8 47 9b 51
+
+checksum
+global: c1 82 15 55 5a df ad 76 8b a3 4b 8c 8f 12 c0 ed
+root: d1 17 7b e0 38 44 d6 b7 dd 7e 25 90 59 51 49 86
+all: 02 25 c7 fb 73 3a bc 4b f2 af 77 13 f8 47 9b 51

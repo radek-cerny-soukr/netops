@@ -1,0 +1,2 @@
+%% Unrecognized command:  "show inline-power info ports 16"
+%% Invalid port number detected.

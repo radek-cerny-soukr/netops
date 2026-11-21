@@ -1,0 +1,49 @@
+{
+    "vrfs": {
+        "default": {
+            "ipv4Server": {
+                "ipv4ServerActive": false,
+                "ipv4ActiveLeases": 0,
+                "ipv4Interfaces": {},
+                "ipv4Subnets": {
+                    "192.0.2.0/24": {
+                        "subnet": "192.0.2.0/24",
+                        "activeLeases": 0,
+                        "name": "",
+                        "leaseDuration": 5400.0,
+                        "ranges": [
+                            {
+                                "startRangeAddress": "192.0.2.100",
+                                "endRangeAddress": "192.0.2.150",
+                                "assignedLeases": 0,
+                                "totalLeases": 51
+                            }
+                        ],
+                        "dnsServers": [],
+                        "defaultGateway": "192.0.2.1",
+                        "reservationsMacAddress": {
+                            "00:00:5e:00:53:01": {
+                                "macAddress": "00:00:5e:00:53:01",
+                                "ipv4Address": "192.0.2.35"
+                            }
+                        }
+                    }
+                },
+                "ipv4DnsServers": [],
+                "ipv4DomainName": "",
+                "ipv4LeaseDuration": 7200.0,
+                "ipv4EchoClientId": true
+            },
+            "ipv6Server": {
+                "ipv6ServerActive": false,
+                "ipv6ActiveLeases": 0,
+                "ipv6Interfaces": {},
+                "ipv6Subnets": {},
+                "ipv6DnsServers": [],
+                "ipv6DomainName": "",
+                "ipv6LeaseDuration": 7200.0
+            },
+            "addressFamily": "ipv4"
+        }
+    }
+}

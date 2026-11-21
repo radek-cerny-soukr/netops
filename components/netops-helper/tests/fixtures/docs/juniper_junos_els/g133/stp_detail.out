@@ -1,0 +1,6 @@
+Spanning tree interface parameters for instance 0
+Interface name     : ge-1/0/0.0
+Port cost          : 20000
+Port state         : Blocking
+Port role          : Disabled
+Link type          : Pt-Pt/EDGE

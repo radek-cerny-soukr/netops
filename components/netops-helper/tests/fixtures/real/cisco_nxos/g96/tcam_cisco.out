@@ -1,0 +1,154 @@
+
+slot  1
+=======
+
+
+
+INSTANCE 0x0
+-------------
+
+
+         ACL Hardware Resource Utilization (Mod 1)
+         ----------------------------------------------------------
+                                        Used    Free    Percent
+                                                        Utilization
+-------------------------------------------------------------------
+Ingress L2 QOS                          2       254     0.78
+ Ingress L2 QOS IPv4                    0               0.00
+ Ingress L2 QOS IPv6                    0               0.00
+ Ingress L2 QOS MAC                     0               0.00
+ Ingress L2 QOS ALL                     2               0.78
+ Ingress L2 QOS OTHER                   0               0.00
+Ingress L2 SPAN ACL                     0       256     0.00
+ Ingress L2 SPAN ACL IPv4               0               0.00
+ Ingress L2 SPAN ACL IPv6               0               0.00
+ Ingress L2 SPAN ACL MAC                0               0.00
+ Ingress L2 SPAN ACL ALL                0               0.00
+ Ingress L2 SPAN ACL OTHER              0               0.00
+Ingress RACL                            2       2302    0.08
+ Ingress RACL IPv4                      0               0.00
+ Ingress RACL IPv6                      0               0.00
+ Ingress RACL MAC                       0               0.00
+ Ingress RACL ALL                       2               0.08
+ Ingress RACL OTHER                     0               0.00
+Ingress L3/VLAN QOS                     8       504     1.56
+ Ingress L3/VLAN QOS IPv4               1               0.19
+ Ingress L3/VLAN QOS IPv6               2               0.39
+ Ingress L3/VLAN QOS MAC                1               0.19
+ Ingress L3/VLAN QOS ALL                4               0.78
+ Ingress L3/VLAN QOS OTHER              0               0.00
+Ingress L3/VLAN SPAN ACL                0       256     0.00
+ Ingress L3/VLAN SPAN ACL IPv4          0               0.00
+ Ingress L3/VLAN SPAN ACL IPv6          0               0.00
+ Ingress L3/VLAN SPAN ACL MAC           0               0.00
+ Ingress L3/VLAN SPAN ACL ALL           0               0.00
+ Ingress L3/VLAN SPAN ACL OTHER         0               0.00
+Ingress SUP                             446     10      97.80
+ Ingress SUP IPv4                       140             30.70
+ Ingress SUP IPv6                       180             39.47
+ Ingress SUP MAC                        38              8.33
+ Ingress SUP ALL                        12              2.63
+ Ingress SUP OTHER                      76              16.66
+SPAN                                    0       512     0.00
+ SPAN IPv4                              0               0.00
+ SPAN IPv6                              0               0.00
+ SPAN MAC                               0               0.00
+ SPAN ALL                               0               0.00
+ SPAN OTHER                             0               0.00
+Egress RACL                             2       1790    0.11
+ Egress RACL IPv4                       0               0.00
+ Egress RACL IPv6                       0               0.00
+ Egress RACL MAC                        0               0.00
+ Egress RACL ALL                        2               0.11
+ Egress RACL OTHER                      0               0.00
+Egress SUP                              128     128     50.00
+ Egress SUP IPv4                        0               0.00
+ Egress SUP IPv6                        0               0.00
+ Egress SUP MAC                         0               0.00
+ Egress SUP ALL                         0               0.00
+ Egress SUP OTHER                       128             50.00
+Feature BFD                             3       13      18.75
+ Feature BFD IPv4                       0               0.00
+ Feature BFD IPv6                       0               0.00
+ Feature BFD MAC                        0               0.00
+ Feature BFD ALL                        2               12.50
+ Feature BFD OTHER                      0               0.00
+Feature DHCP SNOOP                      0       16      0.00
+ Feature DHCP SNOOP IPv4                0               0.00
+ Feature DHCP SNOOP IPv6                0               0.00
+ Feature DHCP SNOOP MAC                 0               0.00
+ Feature DHCP SNOOP ALL                 0               0.00
+ Feature DHCP SNOOP OTHER               0               0.00
+Feature ARP SNOOP                       0       2       0.00
+ Feature ARP SNOOP IPv4                 0               0.00
+ Feature ARP SNOOP IPv6                 0               0.00
+ Feature ARP SNOOP MAC                  0               0.00
+ Feature ARP SNOOP ALL                  0               0.00
+ Feature ARP SNOOP OTHER                0               0.00
+Feature VxLAN OAM                       0       2       0.00
+ Feature VxLAN OAM IPv4                 0               0.00
+ Feature VxLAN OAM IPv6                 0               0.00
+ Feature VxLAN OAM MAC                  0               0.00
+ Feature VxLAN OAM ALL                  0               0.00
+ Feature VxLAN OAM OTHER                0               0.00
+Feature DHCPv6 RELAY                    0       8       0.00
+ Feature DHCPv6 RELAY IPv4              0               0.00
+ Feature DHCPv6 RELAY IPv6              0               0.00
+ Feature DHCPv6 RELAY MAC               0               0.00
+ Feature DHCPv6 RELAY ALL               0               0.00
+ Feature DHCPv6 RELAY OTHER             0               0.00
+Feature DHCP SNOOP FHS                  0       4       0.00
+ Feature DHCP SNOOP FHS IPv4            0               0.00
+ Feature DHCP SNOOP FHS IPv6            0               0.00
+ Feature DHCP SNOOP FHS MAC             0               0.00
+ Feature DHCP SNOOP FHS ALL             0               0.00
+ Feature DHCP SNOOP FHS OTHER           0               0.00
+Feature DOT1X                           0       2       0.00
+ Feature DOT1X IPv4                     0               0.00
+ Feature DOT1X IPv6                     0               0.00
+ Feature DOT1X MAC                      0               0.00
+ Feature DOT1X ALL                      0               0.00
+ Feature DOT1X OTHER                    0               0.00
+Feature DOT1X Multi Auth                0       2       0.00
+ Feature DOT1X Multi Auth IPv4          0               0.00
+ Feature DOT1X Multi Auth IPv6          0               0.00
+ Feature DOT1X Multi Auth MAC           0               0.00
+ Feature DOT1X Multi Auth ALL           0               0.00
+ Feature DOT1X Multi Auth OTHER         0               0.00
+Netflow/Analytics Filter TCAM           0       512     0.00
+ Netflow/Analytics Filter TCAM IPv4     0               0.00
+ Netflow/Analytics Filter TCAM IPv6     0               0.00
+ Netflow/Analytics Filter TCAM MAC      0               0.00
+ Netflow/Analytics Filter TCAM ALL      0               0.00
+ Netflow/Analytics Filter TCAM OTHER    0               0.00
+
+LOU                                     4       12      25.00
+Both LOU Operands                       4
+Single LOU Operands                     0
+LOU L4 src port:                        2
+LOU L4 dst port:                        2
+LOU L3 packet len:                      0
+LOU IP tos:                             0
+LOU IP dscp:                            0
+LOU ip precedence:                      0
+LOU ip TTL:                             0
+TCP Flags                               0       16      0.00
+
+Protocol CAM                            2       244     0.81
+Mac Etype/Proto CAM                     0       14      0.00
+
+L4 op labels, Tcam 0                    0       30      0.00
+L4 op labels, Tcam 1                    1       61      1.61
+L4 op labels, Tcam 7                    0       1023    0.00
+L4 op labels, Tcam 8                    0       254     0.00
+L4 op labels, Tcam 11                   0       1023    0.00
+L4 op labels, Tcam 12                   0       1023    0.00
+L4 op labels, Tcam 13                   0       1023    0.00
+L4 op labels, Tcam 14                   0       1023    0.00
+L4 op labels, Tcam 16                   0       1023    0.00
+L4 op labels, Tcam 17                   0       1023    0.00
+
+Ingress Dest info table                 0       512     0.00
+Egress Dest info table                  0       512     0.00
+Note: Ingress SUP region includes the Redirect region
+

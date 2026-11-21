@@ -1,0 +1,16 @@
+diagnose server-load-balance session filter show
+filter flag: 10
+type: any
+protocol: any
+source ip range: 203.0.113.100 - 203.0.113.110
+source port range: any
+dest ip range: any
+dest port range: any
+trans source ip range: any
+trans source port range: any
+trans dest ip range: any
+trans dest port range: any
+virtual server: any
+real server: any
+
+FortiADC-KVM # 

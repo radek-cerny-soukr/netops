@@ -65,7 +65,9 @@ def test_snapshot_of_the_lab_configuration():
     entries = snapshot.entries("vlan-membership")
     assert entries["ge-0/0/2"].attributes == {"access-vlan": "default"}
     assert entries["ge-0/0/1"].attributes == {"access-vlan": "D20"}
-    assert entries["ge-0/0/0"].attributes == {} and entries["ge-0/0/0"].unsupported == []
+    # 1.0.12 G137 (J07): a trunk lists its mode and tagged VLANs instead of nothing
+    assert entries["ge-0/0/0"].attributes == {"mode": "trunk", "trunk-vlans": "D10 D20"}
+    assert entries["ge-0/0/0"].unsupported == []
     assert snapshot.entries("interface")["ge-0/0/2"].attributes == {}
 
 
@@ -111,7 +113,7 @@ def test_access_vlan_plan_deletes_the_member_before_it_sets_the_new_one():
     members = "interfaces ge-0/0/2 unit 0 family ethernet-switching vlan members"
     assert plan["commands"] == [SCREEN, ENTER, EMPTY, "delete " + members, "set %s D10" % members, COMPARE, CHANGE, LEAVE]
     assert plan["inverse"][3:5] == ["delete " + members, "set %s default" % members]
-    assert plan["predicted"] == {"before": {}, "after": {"access-vlan": "D10"}}
+    assert plan["predicted"] == {"before": {"access-vlan": "default"}, "after": {"access-vlan": "D10"}}
     after = BASELINE.replace("vlan members default", "vlan members D10")
     assert verify(plan, after.encode())["result"] == "match"
     assert verify(plan, BASELINE.encode(), expect="before")["result"] == "match"
@@ -132,7 +134,6 @@ def test_an_unconfigured_port_is_an_implicit_key():
     ({"key": "em0"}, "port_management_interface"),
     ({"key": "lo0"}, "port_unsupported_interface"),
     ({"key": "ge-0/0/0", "changes": {"admin-state": "disabled"}}, "port_uplink"),
-    ({"key": "ge-0/0/0", "table": "vlan-membership", "changes": {"access-vlan": "D20"}}, "port_uplink"),
     ({"key": "ge-0/0/5", "table": "vlan-membership", "changes": {"access-vlan": "D20"}}, "port_not_access"),
 ])
 def test_plan_refusals_carry_codes(fields, code):
@@ -165,15 +166,23 @@ def test_enabling_a_disabled_trunk_is_refused_in_the_plan():
 
 
 def test_shared_configuration_of_the_port_is_outside_the_profile():
-    for extra in ("set interfaces interface-range access member ge-0/0/2\n",
-                  "set groups lab interfaces <ge-*> description x\n",
+    # 1.0.12 G137 (JP12): an inherited description, a deactivated statement and apply-groups-except are refused;
+    # inheritance that does not touch the description (an empty interface-range, a group that is not applied)
+    # no longer blocks the description of the port
+    for extra in ("set interfaces interface-range access member ge-0/0/2\n"
+                  "set interfaces interface-range access description x\n",
+                  "set groups lab interfaces <ge-*> description x\nset apply-groups lab\n",
+                  "set groups lab interfaces ge-0/0/2 description x\nset interfaces ge-0/0/2 apply-groups-except lab\n",
                   "deactivate interfaces ge-0/0/2 unit 0\n"):
         with pytest.raises(Rejected) as caught:
             build_plan("junos", (BASELINE + extra).encode(), request(), firmware=FIRMWARE)
-        assert "outside the profile" in caught.value.reasons[0]
+        assert "outside the profile" in caught.value.reasons[0], extra
+    for extra in ("set interfaces interface-range access member ge-0/0/2\n",
+                  "set groups lab interfaces <ge-*> description x\n"):
+        assert build_plan("junos", (BASELINE + extra).encode(), request(), firmware=FIRMWARE)["commands"]
 
 
-@pytest.mark.parametrize("value", ['a"b', "a\\b", "a?b", "  lead", "x" * 65])
+@pytest.mark.parametrize("value", ['a"b', "a\\b", "a?b", "  lead", "x" * 241, "a\tb", "a\u00a0b", "end "])
 def test_a_description_that_the_cli_would_read_differently_is_refused(value):
     with pytest.raises(Rejected):
         build_plan("junos", BASELINE.encode(), request(changes={"description": value}), firmware=FIRMWARE)
@@ -633,7 +642,18 @@ def test_doctor_is_ready_after_enrollment(tmp_path):
     statuses = {item["check"]: item["status"] for item in report["checks"]}
     assert statuses["check account"] == "ok" and statuses["leftover safeguards"] == "ok"
     assert statuses["device prechecks"] == "ok" and statuses["enrollment"] == "ok", report
-    assert report["operations"] == {"interface": "update", "vlan-membership": "update"}
+    assert report["operations"] == {"interface": "update", "vlan-membership": "update", "vlan": "create update delete",
+                                    "system": "update", "ntp-server": "create update delete",
+                                    "syslog-host": "create update delete",
+                                    "static-route": "create update delete", "irb": "create update delete",
+                                    "vrrp": "create update delete",
+                                    **{table: "create update delete" for table in (*junos.routing.TABLES, *junos.fltr.TABLES)},
+                                    "poe": "update (untested on %s)" % FIRMWARE,
+                                    "inline-power": "poe-cycle (untested on %s)" % FIRMWARE,
+                                    "port-bounce": "port-bounce",
+                                    "lag": "create update delete", "rstp": "update", "rstp-interface": "update",
+                                    **{table: "create update delete" for table in junos.srx.TABLES},
+                                    **{table: "create update delete" for table in junos.dhcp.TABLES}}
 
 
 def _device_data(**fields):
@@ -1023,16 +1043,15 @@ def test_recover_waits_for_a_rollback_pending_above_the_own_safeguard_and_never_
 
 # ---- task 319-r3: the change commit is adopted as the head after a failed read, before the immediate return ----
 
-def _fail_first_history_after_change(device):
-    """The first read of show system commit after the change commit of this operation fails once (an SSH error);
-    every later read answers."""
+def _fail_first_history_after_change(device, failures=1):
+    """Fail the given number of initial commit-history reads after the change commit."""
     from netops_admin.access import AccessError
 
     original = device.query
     state = {"failed": 0}
 
     def query(command):
-        if command == exec_junos.QUERY_COMMITS and not state["failed"] and device.history[0]["comment"] == \
+        if command == exec_junos.QUERY_COMMITS and state["failed"] < failures and device.history[0]["comment"] == \
                 "netops-change" and device.history[0]["pending"]:
             state["failed"] += 1
             raise AccessError("query failed: ssh: connection reset")
@@ -1066,6 +1085,24 @@ def test_a_failed_read_after_the_change_commit_adopts_it_and_returns_at_once(tmp
     assert record["reason"] == "safeguard not verified after the change" and state["failed"] == 1
     assert "safeguard_rearm_unverified" in steps(record) and "safeguard_rearmed" not in steps(record)
     _returned_at_once(device, record)
+
+
+def test_failed_junos_change_head_reread_leaves_the_return_to_its_timer(tmp_path):
+    device = FakeJunos()
+    runtime = make_runtime(tmp_path, device)
+    state = _fail_first_history_after_change(device, failures=2)
+
+    record = execute.apply(runtime, NAME, request())
+
+    assert (record["result"], record["reason"]) == ("reverted", "safeguard not verified after the change")
+    names = steps(record)
+    assert state["failed"] == 2 and "change_head_unverified" in names and "change_head_adopted" not in names
+    assert "revert_now_unverified" in names and "safeguard_removed" in names
+    assert device.lines == BASELINE.rstrip("\n").split("\n") and not device.pending()
+    label = record["safeguard"]["name"]
+    assert not any(label + "-revert" in line or label + "-ok" in line
+                   for block in device.applied_blocks for line in block)
+    assert runtime.store.blocked(NAME) is None
 
 
 def test_a_failed_exit_after_the_change_commit_adopts_it_and_returns_at_once(tmp_path):

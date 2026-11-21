@@ -1,0 +1,5 @@
+Bindings from all pools not associated with VRF:
+IP address      Client-ID/ 		Lease expiration 	Type       State      Interface
+		Hardware address/
+		User name
+192.0.2.41      0000.5e00.5301          Infinite                Manual     Selecting  Unknown

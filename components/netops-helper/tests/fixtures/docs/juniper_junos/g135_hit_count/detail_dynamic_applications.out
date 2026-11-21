@@ -1,0 +1,8 @@
+Logical system: root-logical-system
+Index  From zone        To zone          Name                  Policy count  Action  Redirect
+1      junos-global    junos-global       policy1                5202        Permit    0
+Dynamic-applications
+Name	Application Count
+Junos:SSH         2234
+Junos:HTTP        2502
+Junos:TWITTER      529

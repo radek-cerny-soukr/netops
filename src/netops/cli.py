@@ -80,7 +80,7 @@ def pending_entries(chains):
 
 def main():
     parser = argparse.ArgumentParser(prog="netops")
-    commands = parser.add_subparsers(dest="command", required=True, metavar="{version,selftest,serve,connection,health,init,configure,admin,auditor,ca,token,audit}")
+    commands = parser.add_subparsers(dest="command", required=True, metavar="{version,selftest,serve,connection,health,init,configure,admin,auditor,ca,token,audit,check-intent}")
     for name in ("version", "selftest", "serve", "connection", "health"):
         commands.add_parser(name)
     worker = commands.add_parser("worker")
@@ -107,6 +107,13 @@ def main():
     audit.add_argument("action", choices=("show", "tail", "export", "pending", "stats", "recover", "reassemble"), default="show", nargs="?")
     audit.add_argument("--lines", type=int, default=100)
     audit.add_argument("--record-id")
+    intent = commands.add_parser("check-intent", help="run one read-only inventory intent check")
+    intent.add_argument("plan", help="plan name in each device's helper.intent inventory")
+    intent.add_argument("--inventory", required=True, help="path to the NetOps inventory JSON")
+    intent.add_argument("--endpoint", required=True, help="HTTPS NetOps MCP endpoint ending in /mcp")
+    intent.add_argument("--ca", required=True, help="path to the NetOps instance CA certificate")
+    intent.add_argument("--token-file", required=True, help="path to the MCP access token file")
+    intent.add_argument("--notify", action="store_true", help="send mismatches using NETOPS_DISCORD_WEBHOOK")
     args = parser.parse_args()
     if args.command == "audit":
         if args.action == "reassemble" and args.record_id is None:
@@ -114,6 +121,9 @@ def main():
         if args.action != "reassemble" and args.record_id is not None:
             parser.error("--record-id is only valid for audit reassemble")
     try:
+        if args.command == "check-intent":
+            from .intent import main as check_intent
+            return check_intent(args)
         if args.command == "version":
             print(__version__)
             return 0

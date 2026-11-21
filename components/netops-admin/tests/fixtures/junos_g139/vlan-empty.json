@@ -1,0 +1,9 @@
+{
+    "l2ng-l2ald-vlan-instance-information" : [
+    {
+        "attributes" : {"xmlns" : "http://xml.juniper.net/junos/26.2R0/junos-l2al",
+                        "junos:style" : "detail"
+                       }
+    }
+    ]
+}

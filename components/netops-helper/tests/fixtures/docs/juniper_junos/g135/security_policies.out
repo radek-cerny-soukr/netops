@@ -1,0 +1,59 @@
+
+Default policy: deny-all
+Policy: p1, action-type: permit, services-offload:enabled , State: enabled, Index: 4, Scope Policy: 0
+  Policy Type: Configured
+  Description: The policy p1 is for the sales team
+  Sequence number: 1
+  From zone: trust, To zone: untrust
+  Source addresses:
+    any-ipv4(global):  0.0.0.0/0
+    any-ipv6(global): ::/0
+  Destination addresses:
+    any-ipv4(global):  0.0.0.0/0
+    any-ipv6(global): ::/0
+	Source identities:
+		role1
+		role2
+		role4
+  Application: any
+    IP protocol: 0, ALG: 0, Inactivity timeout: 0
+      Source port range: [0-0]
+      Destination port range: [0-0]
+  Per policy TCP Options: SYN check: No, SEQ check: No
+  Policy statistics:
+    Input  bytes       :                18144                  545 bps
+      Initial direction:                 9072              	  272 bps
+      Reply direction  :                 9072                  272 bps
+    Output bytes       :                18144                  545 bps
+      Initial direction:                 9072                  272 bps
+      Reply direction  :                 9072                  272 bps
+    Input  packets     :                  216                    6 pps
+      Initial direction:                  108                    3 bps
+      Reply direction  :                  108                    3 bps
+    Output packets     :                  216                    6 pps
+      Initial direction:                  108                    3 bps
+      Reply direction  :                  108                    3 bps
+    Session rate       :                  108                    3 sps
+    Active sessions    :                   93
+    Session deletions  :                   15
+    Policy lookups     :                  108
+Policy: p2, action-type: permit, services-offload:enabled , State: enabled, Index: 5, Scope Policy: 0
+  Policy Type: Configured
+  Description: The policy p2 is for the sales team
+  Sequence number: 1
+  From zone: untrust, To zone: trust
+  Source addresses:
+    any-ipv4(global):  0.0.0.0/0
+    any-ipv6(global): ::/0
+  Destination addresses:
+    any-ipv4(global):  0.0.0.0/0
+    any-ipv6(global): ::/0
+	Source identities:
+		role1
+		role2
+		role4
+  Application: any
+    IP protocol: 0, ALG: 0, Inactivity timeout: 0
+      Source port range: [0-0]
+      Destination port range: [0-0]
+  Per policy TCP Options: SYN check: No, SEQ check: No

@@ -1,0 +1,11 @@
+host01         # config load-balance persistence
+  edit "LB_PERSIS_SRC_ADDR"
+    set type source-address
+    set match-across-servers disable
+    set timeout 300
+    set ipv4-maskbits 32
+    set ipv6-maskbits 128
+    set persistent-ippool disable
+  next
+end
+host01         #

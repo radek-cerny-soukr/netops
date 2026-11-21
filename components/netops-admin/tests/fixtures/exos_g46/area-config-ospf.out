@@ -1,0 +1,4 @@
+#
+# Module ospf configuration.
+#
+create ospf area 0.0.0.15

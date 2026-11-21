@@ -1,0 +1,27 @@
+BGP routing table information for VRF default, address family L2VPN EVPN
+Route Distinguisher: 198.51.100.14:115
+BGP routing table entry for [5]:[0]:[0]:[24]:[203.0.113.0]:[0.0.0.0]/224, version 17369591
+Paths: (1 available, best #1)
+Flags: (0x000002) on xmit-list, is not in l2rib/evpn, is not in HW
+
+  Advertised path-id 1
+  Path type: external, path is valid, received and used, is best path
+             Imported to 2 destination(s)
+  AS-Path: 11 , path sourced external to AS
+    198.51.100.9 (metric 0) from 198.51.100.9 (198.51.100.14)
+      Origin incomplete, MED 0, localpref 100, weight 0
+      Received label 492529
+      Extcommunity: RT:2:20
+
+  Path-id 1 not advertised to any peer
+
+Route Distinguisher: 198.51.100.3:113
+BGP routing table entry for [5]:[0]:[0]:[24]:[203.0.113.0]:[0.0.0.0]/224, version 17369595
+Paths: (1 available, best #1)
+Flags: (0x000002) on xmit-list, is not in l2rib/evpn, is not in HW
+
+  Advertised path-id 1
+  Path type: external, path is valid, is best path
+             Imported from 198.51.100.14:115:[5]:[0]:[0]:[24]:[203.0.113.0]:[0.0.0.0]/224 
+  AS-Path: 11 , path sourced external to AS
+    198.51.100.9 (metric 0) from 198.51.100.9 (198.51.100.14)

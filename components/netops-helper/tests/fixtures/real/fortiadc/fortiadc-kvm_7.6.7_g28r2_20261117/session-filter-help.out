@@ -1,0 +1,19 @@
+diagnose server-load-balance session filter 
+<show>		show filter options
+<clear>		clear filter options
+<'filters'>	flexible filters options for sessions, multiple filters should be same cmd line
+Filter examples are below:
+'source-ip 192.0.2.1 198.51.100.2'	Filter client ip range from 192.0.2.1 to 198.51.100.2, it can filter a single ip or an ip range
+'source-port 22220 22229'	Filter client port range from 22220 to 22229 , it can filter a single port or a port range
+'dest-ip 192.0.2.1 198.51.100.2'	Filter virtual server ip range from 192.0.2.1 to 198.51.100.2, it can filter a single ip or an ip range
+'dest-port 22220 22229'		Filter virtual server port range from 22220 to 22229 , it can filter a single port or a port range
+'trans-source-ip 192.0.2.1 198.51.100.2'	Filter transfer ip range from 192.0.2.1 to 198.51.100.2, it can filter a single ip or an ip range
+'trans-source-port 22220 22229'	Filter transfer port range from 22220 to 22229 , it can filter a single port or a port range
+'trans-dest-ip 192.0.2.1 198.51.100.2'	Filter real server ip range from 192.0.2.1 to 198.51.100.2, it can filter a single ip or an ip range
+'trans-dest-port 22220 22229'	Filter real server port range from 22220 to 22229 , it can filter a single port or a port range
+'type ipv4v6'			Filter ip address with type ipv4 in client and ipv6 in real server, it can filter with ipv4/ipv6/ipv4v6/ipv6v4
+'protocol tcp'			Filter protocol with type tcp, it can filter with tcp/udp
+'vs-name vs1 vs2'		Filter with virtual server name vs1 and vs2, it can filter total up to 8 names
+'rs-name rs1 rs2'		Filter with real server name rs1 and rs2, it can filter total up to 8 names
+
+FortiADC-KVM # 

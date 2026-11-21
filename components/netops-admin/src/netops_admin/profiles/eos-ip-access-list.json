@@ -1,0 +1,25 @@
+{
+  "platform": "eos",
+  "table": "ip-access-list",
+  "versions": ["4.36.1F"],
+  "exact_versions": true,
+  "ops": ["create", "update", "delete"],
+  "table_scoped_key": true,
+  "key_pattern": "^(?:ipv4|ipv6):[A-Za-z][A-Za-z0-9_.-]{0,63}$",
+  "protected_keys": [],
+  "attributes": {
+    "rules": {
+      "type": "text",
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "required_on_create": false,
+      "max_length": 8192
+    }
+  },
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "G127 on cEOSLab 4.36.1F uses the EOS timed safeguard and scoped ACL JSON readback. The key is ipv4:<name> or ipv6:<name>. Rules are comma-separated, explicitly sequenced permit or deny entries for IP, TCP, UDP or ICMP of the selected family. Addresses are any, host addresses or CIDR prefixes. TCP and UDP also accept one destination eq port."
+}

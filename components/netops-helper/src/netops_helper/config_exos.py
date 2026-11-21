@@ -6,7 +6,7 @@ integration that follows decides that from rc, raw identity and flags.
 
 Policy (explicit and conservative, not a claim of full EXOS knowledge):
 
-* Only a short list of VLAN and physical-port sentences is verified as safe.  A line is copied
+* Only a short list of VLAN, physical-port and service state sentences is verified as safe. A line is copied
   unchanged (original ASCII text, original order, including trailing blanks) only when the whole
   sentence matches one of those shapes; there is no prefix pass.
 * Empty lines are kept.  Every other line -- comments, unknown commands, credential statements,
@@ -53,6 +53,7 @@ _IPV4 = re.compile(_OCTET + r'(?:\.' + _OCTET + '){3}')
 _PREFIX = re.compile(r'(?:3[0-2]|[12]?[0-9])')
 _SPEEDS = frozenset(('10', '100', '1000', '2500', '5000', '10000', '25000', '40000', '50000',
                      '100000', '400000'))
+_SERVICE_STATES = frozenset(('enable ssh2', 'disable ssh2', 'enable telnet', 'disable telnet'))
 
 _COMMENT, _UNSUPPORTED, _MULTILINE, _BLOCK, _RESERVED = (
     'exos / comment', 'exos / unsupported-statement', 'exos / multiline-record',
@@ -117,9 +118,11 @@ def _port_options(words):
 
 
 def verified_sentence(line):
-    """True only when the whole ASCII line is one of the verified VLAN/port sentences."""
+    """True only when the whole ASCII line matches a verified configuration statement."""
     if not line.isascii() or _CONTROL.search(line) or line[:1] in (' ', '\t'):
         return False
+    if line.rstrip(' \t') in _SERVICE_STATES:
+        return True
     words = line.split()
     if not words:
         return False

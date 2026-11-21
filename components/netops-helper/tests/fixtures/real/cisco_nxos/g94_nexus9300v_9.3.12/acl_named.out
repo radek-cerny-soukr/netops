@@ -1,0 +1,4 @@
+
+IP access list copp-system-p-acl-ssh
+	10 permit tcp any any eq 22
+	20 permit tcp any eq 22 any

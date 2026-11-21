@@ -89,7 +89,7 @@ def wire(tmp_path, monkeypatch):
     monkeypatch.setattr(engine, "_paced_connection", lambda *a: nullcontext())
     monkeypatch.setattr(engine, "DeviceCredential", lambda auth: None)
     monkeypatch.setattr(engine, "_FortiosDiagnosticShell", lambda session: Shell())
-    monkeypatch.setattr(engine.core_session, "Session",
+    monkeypatch.setattr(engine.core_session, "fortinet_session",
                         lambda *a, **k: nullcontext(SimpleNamespace(close=lambda: None)))
 
     def call(arguments, **changes):
@@ -318,5 +318,9 @@ def test_server_tool_takes_an_optional_source_port_and_keeps_the_old_order():
     function = getattr(server.triage_flow, "fn", server.triage_flow)
     parameters = list(inspect.signature(function).parameters.values())
     assert [p.name for p in parameters][:6] == ["target", "src", "dst", "port", "proto", "auth_context"]
-    assert parameters[-1].name == "source_port" and parameters[-1].default is None
+    source_port, interface = parameters[6:]
+    assert source_port.name == "source_port" and source_port.default is None
+    assert source_port.kind is inspect.Parameter.POSITIONAL_OR_KEYWORD
+    assert interface.name == "interface" and interface.default is None
+    assert interface.kind is inspect.Parameter.KEYWORD_ONLY
     assert all(p.default is inspect.Parameter.empty for p in parameters[:5])

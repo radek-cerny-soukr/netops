@@ -1,6 +1,8 @@
 from dataclasses import replace
+from tempfile import TemporaryDirectory
 from unittest import TestCase, mock
 import json
+import os
 from netops_helper import engine, configuration as c, config_fortiadc as adc
 from netops_helper.proxy import Proxy, ToolArgumentsError, PolicyScopeError
 from test_config_block import enrolled, fixture
@@ -232,8 +234,11 @@ class FullConfigurationEngine(TestCase):
             with self.subTest(extra=extra),self.assertRaises(ToolArgumentsError):
                 Proxy._validate_tool_arguments('config_read',{**args,**extra})
     def test_cache_scope_rejects_other_account_without_ssh(self):
+        history = self.enterContext(TemporaryDirectory())
+        self.enterContext(mock.patch.dict(os.environ, NETOPS_CONFIG_HISTORY_DIR=history))
         with mock.patch.object(engine,'read_from_device',side_effect=self.wire()):
             first=self.read()
+        self.assertTrue(first['history_retained'])
         with mock.patch.object(engine,'read_from_device',side_effect=AssertionError('no SSH')):
             with self.assertRaises(ValueError):
                 self.read(auth=replace(enrolled(),login='another-reader'),snapshot_id=first['snapshot_id'])
@@ -441,16 +446,18 @@ class FullConfigurationEngine(TestCase):
         auth=enrolled()
         tool=getattr(server.config_read,'fn',server.config_read)
         with mock.patch.object(server,'_auth',return_value=auth) as decode, mock.patch.object(server,'engine_config_read',return_value={'ok':True}) as read:
-            self.assertEqual(tool('fixture','fortios','all',True,'',0,48000,'context',redaction='full',include_defaults=True),{'ok':True})
+            self.assertEqual(tool('fixture','fortios','all',True,'',0,48000,'context',redaction='full',include_defaults=True,
+                                  redaction_context=['fixture-session-redaction']),{'ok':True})
             decode.assert_called_once_with('fixture','context')
-            read.assert_called_once_with(auth,'fortios','all',True,'',0,48000,'full',True,
-                                         contains=None,context=0,content_sha256=None,filter_sha256=None)
+            paged_auth = replace(auth, output_secrets=('context', 'fixture-session-redaction'))
+            read.assert_called_once_with(paged_auth,'fortios','all',True,'',0,48000,'full',True,
+                                         contains=None,context=0,content_sha256=None,filter_sha256=None,
+                                         approve_baseline=False)
 
     def test_read_failure_categories_are_distinct_and_do_not_echo_values(self):
         cases=((FW_CONFIG,STATUS,1,'device-refused'),
                ('config system interface\n edit port1\n',STATUS,0,'stream-incomplete'),
                ('fixture-private-error-value\n',STATUS,0,'redaction-unverifiable'),
-               (FW_CONFIG,STATUS.replace('build3744','build9999'),0,'firmware-not-supported'),
                (FW_CONFIG,'fixture-private-identity-value\n',0,'identity-unverifiable'))
         for raw,status,rc,category in cases:
             with self.subTest(category=category),mock.patch.object(engine,'read_from_device',side_effect=self.wire(raw,status,rc)):
@@ -479,10 +486,11 @@ class FullConfigurationEngine(TestCase):
                 self.read()
         self.assertEqual(len(c._SNAPSHOTS),0)
         auth=replace(enrolled(),ssh_platform='fortiadc')
-        with mock.patch.object(engine,'read_from_device',side_effect=self.wire(status=ADC_STATUS.replace('build0676','build9999'))):
+        # G00 (2026-11-17): an untested FortiADC build is no failure category; another product still is.
+        with mock.patch.object(engine,'read_from_device',side_effect=self.wire(status=ADC_STATUS.replace('FortiADC-KVM v','FortiGate-VM64 v'))):
             with self.assertRaises(ValueError) as error:
                 engine.config_read(auth,'fortiadc','all',True,redaction='full')
-            self.assertIn('firmware-not-supported',str(error.exception))
+            self.assertIn('identity-unverifiable',str(error.exception))
 
     def test_failure_reports_physical_line_and_known_config_without_edit_values(self):
         raw = ('config system interface\nedit fixture-private-object\n'

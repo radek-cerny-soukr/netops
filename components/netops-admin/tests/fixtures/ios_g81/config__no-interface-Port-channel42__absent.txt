@@ -1,0 +1,5 @@
+no interface Port-channel42
+                                            ^
+% Invalid input detected at '^' marker.
+
+host11(config)#

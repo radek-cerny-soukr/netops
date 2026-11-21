@@ -27,9 +27,14 @@ from .wifi_common import phy_band as _phy_band
 MONITOR = "/api/v2/monitor/wifi/"
 DEVICES = "/api/v2/monitor/user/device/query"
 WIRELESS_LOG = "/api/v2/log/memory/event/wireless?rows=200&filter=subtype%3D%3Dwireless"
+# FortiLink managed switches of the root VDOM (measured with an RO token on 80F / FortiOS 8.0.2 build0251,
+# fixtures g08_20261117); the status view has no uptime, health-status has it.
+SWITCH_STATUS = "/api/v2/monitor/switch-controller/managed-switch/status"
+SWITCH_HEALTH = "/api/v2/monitor/switch-controller/managed-switch/health-status"
+POLICY_HITS = "/api/v2/monitor/firewall/policy"
 PATHS = frozenset(MONITOR + name for name in (
     "client", "managed_ap", "ap_status", "rogue_ap", "interfering_ap"
-)) | {DEVICES, WIRELESS_LOG}
+)) | {DEVICES, WIRELESS_LOG, SWITCH_STATUS, SWITCH_HEALTH, POLICY_HITS}
 _CLIENT_LOG_PREFIX = WIRELESS_LOG + "&filter=stamac%3D%3D"
 
 
@@ -459,6 +464,13 @@ def parse_counted(path, document):
             or document.get("http_method") != "GET" or document.get("vdom") != "root":
         raise RestError("unparsed_envelope", "fortios_rest_unparsed: expected successful root VDOM GET envelope")
     value = document.get("results")
+    if path == POLICY_HITS:
+        from .fortigate_tables import policy_hits
+        if (document.get('path') != 'firewall' or document.get('name') != 'policy'
+                or not isinstance(value, list) or any(not isinstance(row, dict) for row in value)):
+            raise RestError('unparsed_envelope', 'fortios_rest_unparsed: expected firewall policy list')
+        records = policy_hits(value)
+        return records, sum(row['state'] == 'incomplete' for row in records)
     log_mac = _log_mac(path)
     if path == WIRELESS_LOG or log_mac is not None:
         from .wifi_parse import event_record, UndatedEvent
@@ -487,6 +499,12 @@ def parse_counted(path, document):
             raise RestError("unparsed_envelope", "fortios_rest_unparsed: expected device list")
         return [{k: row[k] for k in ("mac", "hostname", "os", "hardware_vendor", "hardware_type", "os_name") if k in row}
                 for row in value], 0
+    if path in (SWITCH_STATUS, SWITCH_HEALTH):
+        if not isinstance(value, list) or any(not isinstance(row, dict) for row in value):
+            raise RestError("unparsed_envelope", "fortios_rest_unparsed: expected managed switch list")
+        if path == SWITCH_STATUS:
+            return [switch_status(row) for row in value], 0
+        return [switch_health(row) for row in value], 0
     if path == MONITOR + "ap_status":
         if not isinstance(value, dict):
             raise RestError("unparsed_envelope", "fortios_rest_unparsed: expected AP summary")
@@ -554,3 +572,49 @@ def enrich_identity(client, devices):
                 client[field] = _identity_text(matches[0][source])
                 if client[field] != "unknown":
                     client["identity_sources"][field] = DEVICES
+
+
+def _text(row, key):
+    return _identity_text(row.get(key)) if row.get(key) is not None else None
+
+
+def switch_status(row):
+    """One managed switch from managed-switch/status; the per-port lists stay out of the overview."""
+    serial, status = row.get("serial"), row.get("status")
+    if any(not isinstance(value, str) or not value.strip() or _identity_text(value) != value
+           for value in (serial, status)):
+        raise RestError("invalid_response", "fortios_rest_unparsed: invalid managed switch identity or status")
+    ip = row.get("connecting_from")
+    try:
+        ip = str(ipaddress.ip_address(ip))
+    except (TypeError, ValueError):
+        ip = None
+    sync_error = row.get("config_sync_error")
+    return {"serial": serial, "switch_id": _text(row, "switch-id"),
+            "status": status, "state": _text(row, "state"), "ip": ip,
+            "os_version": _text(row, "os_version"), "fortilink_interface": _text(row, "fgt_peer_intf_name"),
+            "join_time_local": _text(row, "join_time"),
+            "config_sync_error": sync_error if type(sync_error) is bool else None}
+
+
+def switch_health(row):
+    summary = row.get("summary") if isinstance(row.get("summary"), dict) else {}
+    uptime = summary.get("uptime") if isinstance(summary.get("uptime"), dict) else {}
+    value = uptime.get("value")
+    overall = summary.get("overall")
+    return {"serial": _text(row, "serial"),
+            "uptime_seconds": value if type(value) is int and value >= 0 else None,
+            "health": overall if isinstance(overall, str) and overall in ("good", "fair", "poor", "unknown") else None}
+
+
+def switch_overview(status_rows, health_rows):
+    """Join the health view (uptime) to each managed switch by serial; a missing join leaves uptime null."""
+    health = {}
+    for row in health_rows or ():
+        health.setdefault(row.get("serial"), []).append(row)
+    records = []
+    for row in status_rows:
+        matches = health.get(row["serial"], []) if row["serial"] is not None else []
+        joined = matches[0] if len(matches) == 1 else {}
+        records.append({**row, "uptime_seconds": joined.get("uptime_seconds"), "health": joined.get("health")})
+    return records

@@ -1,0 +1,10 @@
+
+
+
+Processor Pool Total:  549395184 Used:  158655760 Free:  390739424
+
+ PID TTY  Allocated      Freed    Holding    Getbufs    Retbufs Process
+   0   0  148326688   20168048  113819392        377     319482 *Init*
+   0   0       2016  307526424       2016          0          0 *Sched*
+   0   0 6458751000 6431303840   10776136      25621      19980 *Dead*
+   0   0          0          0     460992          0          0 *MallocLite*

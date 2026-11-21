@@ -1,0 +1,18 @@
+{
+    "unicastTable": {
+        "tableEntries": [
+            {
+                "vlanId": 3931,
+                "macAddress": "00:00:5e:00:53:02",
+                "entryType": "dynamic",
+                "interface": "Ethernet5",
+                "moves": 1,
+                "lastMove": 1795158569.610709
+            }
+        ]
+    },
+    "multicastTable": {
+        "tableEntries": []
+    },
+    "disabledMacLearningVlans": []
+}

@@ -1,0 +1,12 @@
+interface Loopback126
+   ip address 192.0.2.126/24
+   ip ospf cost 126
+router ospf 126
+   passive-interface Loopback126
+   network 192.0.2.0/24 area 198.51.100.126
+   max-lsa 12000
+ip prefix-list NETOPS-G126-P seq 10 permit 192.0.2.0/24
+route-map NETOPS-G126-M permit 10
+   match ip address prefix-list NETOPS-G126-P
+route-map NETOPS-G126-M permit 10
+   match ip address prefix-list NETOPS-G126-P

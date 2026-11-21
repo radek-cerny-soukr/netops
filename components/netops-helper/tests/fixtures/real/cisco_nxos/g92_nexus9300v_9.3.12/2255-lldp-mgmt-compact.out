@@ -1,0 +1,22 @@
+Capability codes:
+  (R) Router, (B) Bridge, (T) Telephone, (C) DOCSIS Cable Device
+  (W) WLAN Access Point, (P) Repeater, (S) Station, (O) Other
+Device ID            Local Intf      Hold-time  Capability  Port ID
+
+Chassis id: 0000.5e00.5301
+Port id: Gi0/0
+Local Port id: mgmt0
+Port Description: GigabitEthernet0/0
+System Name: host01
+System Description: Cisco IOS Software, IOSv Software (VIOS-ADVENTERPRISEK9-M), Version 15.9(3)M12, RELEASE SOFTWARE (fc1)
+Technical Support: http://www.cisco.com/techsupport
+Copyright (c) 1986-2025 by Cisco Systems, Inc.
+Compiled Fri 19-Sep-25 07:49 by user01
+Time remaining: 111 seconds
+System Capabilities: B, R
+Enabled Capabilities: R
+Management Address: 192.0.2.51
+Management Address IPV6: 2001:db8:1::1
+Vlan ID: not advertised
+
+Total entries displayed: 1

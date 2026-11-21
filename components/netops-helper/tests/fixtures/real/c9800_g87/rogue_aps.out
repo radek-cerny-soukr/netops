@@ -1,0 +1,17 @@
+Rogue Location Discovery Protocol : Disabled
+Validate rogue APs against AAA : Disabled
+Rogue Security Level : Custom
+Rogue on wire Auto-Contain : Disabled
+Rogue using our SSID Auto-Contain : Disabled
+Valid client on rogue AP Auto-Contain : Disabled
+Rogue AP timeout : 1200
+Rogue init timer : 180
+
+Total Number of Rogue APs : 137
+MAC Address Classification State #APs #Clients Last Heard Highest-RSSI-Det-AP RSSI Channel Ch.Width GHz
+-----------------------------------------------------------------------------------------------------------------------------------
+0000.5e00.5313 Unclassified Alert 1 0 01/31/2024 21:28:09 0000.5e00.5314 -85 1 20 2.4
+0000.5e00.5315 Unclassified Alert 1 0 01/31/2024 21:17:39 0000.5e00.5314 -54 36 80 5
+0000.5e00.5316 Unclassified Alert 1 0 01/31/2024 21:17:39 0000.5e00.5314 -60 36 40 5
+0000.5e00.5317 Unclassified Alert 1 0 01/31/2024 21:26:29 0000.5e00.5314 -86 1 20 2.4
+0000.5e00.5318 Unclassified Alert 1 2 01/31/2024 21:27:20 0000.5e00.5314 -49 11 20 2.4

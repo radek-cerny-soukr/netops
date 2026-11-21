@@ -655,7 +655,7 @@ def test_preview_shows_the_plan_the_apply_will_run(tmp_path):
     plan = record["plan"]
     assert shown == {
         "result": "ready", "reasons": [], "reason_codes": [], "reason_details": [], "device": "lab", "platform": "fortios", "firmware": plan["firmware"],
-        "table": "firewall address", "op": "create", "key": "new-host", "predicted": plan["predicted"],
+        "firmware_support": plan["firmware_support"], "table": "firewall address", "op": "create", "key": "new-host", "predicted": plan["predicted"],
         "commands": plan["commands"], "inverse_commands": len(plan["inverse"]), "prechecks": plan["prechecks"],
         "rollback_evidence": plan["rollback_evidence"], "plan_sha256": plan["plan_sha256"],
         "audit_findings_before": execute.audit_gate.finding_count(record["audit_before"]),
@@ -663,6 +663,7 @@ def test_preview_shows_the_plan_the_apply_will_run(tmp_path):
         "safeguard_seconds": 180,
     }
     assert shown["firmware"] is not None and shown["audit_findings_before"] == 8
+    assert shown["firmware_support"]["status"] == "tested"
     again = execute.preview(runtime, "lab", request())
     assert again == {"result": "known-request", "device": "lab", "change_id": record["change_id"],
                      "reasons": ["request_id already started an operation; apply returns it without running again"]}

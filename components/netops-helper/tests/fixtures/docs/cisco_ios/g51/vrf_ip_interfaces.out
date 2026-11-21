@@ -1,0 +1,15 @@
+Interface              IP-Address      VRF                              Protocol
+
+
+Gi0/2.4294967291       unassigned      v1                               down
+
+
+Gi0/2.4294967293       unassigned      v1                               down
+
+
+Gi0/2.4294967294       unassigned      v1                               down
+Gi0/2.4294967295       unassigned      v1                               down
+
+
+Lo1                    203.0.113.242   vpn152-1                         up
+

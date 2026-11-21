@@ -12,6 +12,7 @@ from pathlib import Path
 
 from netops_admin.errors import Rejected
 from netops_admin.jsontext import parse
+from netops_admin.request import list_items
 from netops_core.inputs import InputError, read_regular
 
 MAX_EVENT_BYTES = 8192
@@ -24,13 +25,14 @@ EVENT_FIELDS = {
     "start": frozenset((
         "change_id", "request_id", "device", "platform", "firmware", "table", "op", "key", "request_sha256",
         "plan_sha256", "snapshot_sha256", "reason_characters", "user_request_characters", "changes",
-        "commands", "inverse_commands", "safeguard",
+        "commands", "inverse_commands", "safeguard", "firmware_tested",
     )),
     "step": frozenset(("change_id", "device", "step", "detail")),
     "result": frozenset((
         "change_id", "request_id", "device", "status", "result", "reason", "differences", "notification",
         "audit_delivery", "safeguard",
     )),
+    "certificate-import": frozenset(("device", "key", "plan_sha256", "status", "error_code", "change_id")),
     "administrative": frozenset(("device", "action", "reason_characters", "change_id")),
     "delivery": frozenset(("change_id", "device", "notification", "audit_delivery")),
 }
@@ -63,8 +65,10 @@ def summarized_changes(profile, changes: dict) -> dict:
         elif attribute.type == "text":
             summary[name] = "text of %d characters" % len(value)
         elif attribute.type == "name-list":
-            summary[name] = "%d object names" % len(value.split())
-        elif attribute.type in ("ipv4-network", "ipv4-address", "mac-address"):
+            summary[name] = "%d object names" % len(list_items(attribute, value, profile.platform))
+        elif attribute.type == "mac-address-list":
+            summary[name] = "%d MAC addresses or ranges" % len(value.split())
+        elif attribute.type in ("ipv4-network", "ipv4-address", "ipv4-interface", "mac-address"):
             summary[name] = attribute.type + " changed"
         else:
             summary[name] = value

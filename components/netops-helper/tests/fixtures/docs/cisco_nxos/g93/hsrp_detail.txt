@@ -1,0 +1,13 @@
+Ethernet4/1 - Group 1 (HSRP-V2) (IPv4)
+  Local state is Active, priority 100 (Cfged 100), may preempt
+  Hellotime 1 sec, holdtime 3 sec
+  Virtual IP address is 192.0.2.100 (Cfged)
+  Active router is local
+  Standby router is 192.0.2.1 , priority 50 expires in 2.516000 sec(s)
+  5 state changes, last state change 00:04:56
+ ----- Detailed information -----
+ State History
+------------------------------------------------------------
+  Time          Prev State      State          Event
+------------------------------------------------------------
+  (02)-16:04:02 Standby         Active          Rx Hello-Lo Pri Act P.

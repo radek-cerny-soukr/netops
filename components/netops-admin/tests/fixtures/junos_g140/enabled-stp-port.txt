@@ -1,0 +1,12 @@
+
+Spanning tree interface parameters for instance 0
+
+Interface name                 : ge-0/0/9
+Port identifier                : 128.1
+Designated port ID             : 128.1
+Port cost                      : 12345
+Port state                     : Blocking
+Designated bridge ID           : 4096.00:00:5e:00:53:01
+Port role                      : Disabled
+Link type                      : Pt-Pt/EDGE
+Boundary port                  : NA

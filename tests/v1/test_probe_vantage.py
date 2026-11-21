@@ -13,7 +13,7 @@ class Egress:
 
 def make_auth():
     return types.SimpleNamespace(
-        alias="fw-1", host="192.0.2.1", port=22, ssh_platform="fortinet", legacy_ssh=None, secrets=(),
+        alias="fw-1", host="192.0.2.1", port=22, ssh_platform="fortinet", legacy_ssh=None, secrets=(), read_inventory={},
         egress=Egress(), tls_ca_certificate=None, fortios_rest_certificate_sha256=None, snmp_credential=None,
         require_snmp_usm=lambda: None, require_udp_port=lambda port: None, require_dns=lambda: None, require_icmp=lambda: None, require_tcp_port=lambda port: None,
         require_tls_server_name=lambda name: name or "fw-1.example.invalid")

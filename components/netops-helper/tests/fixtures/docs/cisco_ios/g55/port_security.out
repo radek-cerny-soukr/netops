@@ -1,0 +1,10 @@
+Port Security              : Enabled
+Port status                : SecureUp
+Violation mode             : Shutdown
+Maximum MAC Addresses      : 1
+Total MAC Addresses        : 0
+Configured MAC Addresses   : 0
+Aging time                 : 0 mins
+Aging type                 : Absolute
+SecureStatic address aging : Disabled
+Security Violation count   : 0

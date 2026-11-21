@@ -1,0 +1,39 @@
+FortiADC-KVM # config system certificate local_cert_group
+  edit "LOCAL_CERT_GROUP"
+    unset vdom
+    config  group_member
+      edit 1
+        set local-cert Factory
+        unset OCSP-stapling
+        unset intermediate-ca-group
+        unset local-cert-extra
+        set default enable
+      next
+    end
+  next
+  edit "HTTP2_CERT_GROUP"
+    unset vdom
+    config  group_member
+      edit 1
+        set local-cert HTTP2_RSA_2048
+        unset OCSP-stapling
+        unset intermediate-ca-group
+        unset local-cert-extra
+        set default enable
+      next
+    end
+  next
+  edit "host02"
+    unset vdom
+    config  group_member
+      edit 1
+        set local-cert host01
+        unset OCSP-stapling
+        unset intermediate-ca-group
+        unset local-cert-extra
+        set default enable
+      next
+    end
+  next
+end
+FortiADC-KVM #

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import ExitStack
 import copy
 import hashlib
 import json
@@ -272,9 +273,19 @@ def Access(base,device):
 
 
 def doctor(runtime,device,report):
+    with ExitStack() as stack:
+        return _doctor(runtime, device, report, stack)
+
+
+def _doctor(runtime, device, report, stack):
     from netops_admin import audit_gate, enrollment, exec_schema_fortios
-    reached,context=report.attempt("schema identity and write account",
-        lambda:Access(runtime.access_factory(device),device))
+    from netops_admin.access import operation
+
+    def open_schema():
+        base = stack.enter_context(operation(runtime.access_factory(device)))
+        return Access(base, device)
+
+    reached,context=report.attempt("schema identity and write account", open_schema)
     if not reached:
         report.skip("schema snapshot","administrator accounts","calibration","check account","audit policy","enrollment")
         return None,{}

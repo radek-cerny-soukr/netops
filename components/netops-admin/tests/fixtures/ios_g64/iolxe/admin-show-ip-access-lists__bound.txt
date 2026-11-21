@@ -1,0 +1,18 @@
+
+
+
+Extended IP access list G69-PBR-ACL
+    10 permit ip any 192.0.2.0 0.0.0.255 (4922 matches)
+Extended IP access list NETOPS-G64-EMPTY4
+Extended IP access list NETOPS-G64-OPTS
+    10 permit tcp any any range www 90
+    20 permit ip any any log
+Extended IP access list NETOPS-G64-REMARK
+    10 permit ip any any
+Extended IP access list NETOPS-G64-V4
+    10 permit icmp any any
+    20 deny ip host 198.51.100.9 any
+    30 permit tcp 198.51.100.0 0.0.0.255 any eq 22
+    40 permit tcp any any eq www
+    50 permit udp any host 198.51.100.1 eq snmp
+    100 permit ip any any

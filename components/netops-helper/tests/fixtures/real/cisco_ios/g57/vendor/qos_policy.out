@@ -1,0 +1,58 @@
+  Service-policy output: vlan10_policy
+    Class-map: class-default (match-any)
+      0 packets, 0 bytes
+      30 second offered rate 0 bps, drop rate 0 bps
+      Match: any
+        0 packets, 0 bytes
+        30 second rate 0 bps
+      Queueing
+      queue limit 250 packets
+      (queue depth/total drops/no-buffer drops) 0/0/0
+      (pkts output/bytes output) 0/0
+      shape (average) cir 1000000, bc 4000, be 4000
+      target shape rate 1000000
+      bandwidth remaining ratio 10
+      Service-policy : child_policy
+        Class-map: precedence_0 (match-all)
+          0 packets, 0 bytes
+          30 second offered rate 0 bps, drop rate 0 bps
+          Match: ip precedence 0
+          Queueing
+          queue limit 62 packets
+          (queue depth/total drops/no-buffer drops) 0/0/0
+          (pkts output/bytes output) 0/0
+          shape (average) cir 500000, bc 2000, be 2000
+          target shape rate 500000
+          bandwidth remaining ratio 20
+        Class-map: precedence_1 (match-all)
+          0 packets, 0 bytes
+          30 second offered rate 0 bps, drop rate 0 bps
+          Match: ip precedence 1
+          Queueing
+          queue limit 62 packets
+          (queue depth/total drops/no-buffer drops) 0/0/0
+          (pkts output/bytes output) 0/0
+          shape (average) cir 500000, bc 2000, be 2000
+          target shape rate 500000
+          bandwidth remaining ratio 40
+        Class-map: precedence_2 (match-all)
+          0 packets, 0 bytes
+          30 second offered rate 0 bps, drop rate 0 bps
+          Match: ip precedence 2
+          Queueing
+          queue limit 62 packets
+          (queue depth/total drops/no-buffer drops) 0/0/0
+          (pkts output/bytes output) 0/0
+          shape (average) cir 500000, bc 2000, be 2000
+          target shape rate 500000
+          bandwidth remaining ratio 60
+        Class-map: class-default (match-any)
+          0 packets, 0 bytes
+          30 second offered rate 0 bps, drop rate 0 bps
+          Match: any
+            0 packets, 0 bytes
+            30 second rate 0 bps
+
+          queue limit 62 packets
+          (queue depth/total drops/no-buffer drops) 0/0/0
+          (pkts output/bytes output) 0/0

@@ -1,0 +1,15 @@
+config
+You have all rights in this mode.
+ruckus(config)# 
+wlan netops-g111-test
+The WLAN service 'netops-g111-test' has been loaded. To save the WLAN service, type 'end' or 'exit'.
+ruckus(config-wlan)# 
+                                              open wpa2 passphrase <GENERATED> algorithm aes
+The command was executed successfully. To save the changes, type 'end' or 'exit'.
+ruckus(config-wlan)# 
+abort
+No changes have been saved.
+ruckus(config)# 
+exit
+Your changes have been saved.
+ruckus# 

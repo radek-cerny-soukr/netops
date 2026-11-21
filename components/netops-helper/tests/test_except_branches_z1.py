@@ -82,30 +82,31 @@ def test_ios_fresh_snapshot_is_discarded_if_its_requested_view_is_stale(ios_env)
 
 
 @pytest.mark.parametrize('global_read', [False, True])
-def test_context_session_failure_forgets_the_host_key(device, monkeypatch, global_read):
-    device('197-34-gdiag-global' if global_read else '512-A-root-arp')
+def test_context_login_failure_uses_enrolled_key_without_scan_or_retry(monkeypatch, global_read):
+    attempts = []
 
-    class FailedSession:
-        def __init__(self, *args, **kwargs):
-            pass
+    def fail_login(device, credential, **options):
+        attempts.append((device.host_key, device.host_key_fingerprint))
+        raise engine.core_session.SessionError('connection closed before prompt', code='disconnected')
 
-        def __enter__(self):
-            raise engine.core_session.SessionError('connection closed before prompt')
+    def unexpected_scan(*args, **options):
+        pytest.fail('FortiOS context read attempted a host-key scan')
 
-        def __exit__(self, *exc):
-            return None
-
-    monkeypatch.setattr(engine.core_session, 'Session', FailedSession)
+    monkeypatch.setattr(engine.core_session, 'fortinet_session', fail_login)
+    monkeypatch.setattr(engine.core_hostkey, 'scan', unexpected_scan)
     auth = fortigate('arp_table')
     address = engine._resolve_target_ipv4(auth)[0]
-    # A real cached value is removed by the actual exception handler.
     key = (address, auth.port, auth.host_key_fingerprint)
     engine._HOST_KEY_LINE_CACHE[key] = (engine._now() + 60, 'stale')
     call = (lambda: engine._global_context_read(auth, 'fortinet', 'get system performance status')) if global_read else (
         lambda: engine._vdom_context_read(auth, 'fortinet', 'root', ('get system arp',)))
-    with pytest.raises(engine.core_session.SessionError, match='connection closed'):
-        call()
-    assert key not in engine._HOST_KEY_LINE_CACHE
+    with engine._fortinet_operation(auth):
+        for _ in range(2):
+            with pytest.raises(engine.core_session.SessionError, match='connection closed') as error:
+                call()
+            assert error.value.code == 'disconnected'
+    assert auth.host_key is not None
+    assert attempts == [(auth.host_key, auth.host_key_fingerprint)]
 
 
 @pytest.mark.parametrize('global_read', [False, True])
@@ -114,7 +115,7 @@ def test_a_failed_context_exit_still_closes_the_session(device, monkeypatch, glo
         ('FortiGate-60F (global) # ', 'get system performance status'): ('CPU states: 1% user\n',
                                                                        'FortiGate-60F (global) # ')})
     factory = replay.session
-    exited = []
+    events = []
 
     def session(*args, **options):
         original = factory(*args, **options)
@@ -122,17 +123,22 @@ def test_a_failed_context_exit_still_closes_the_session(device, monkeypatch, glo
         class ExitFails(type(original)):
             def send(self, command):
                 if command == 'end':
+                    events.append('end')
                     raise engine.core_session.SessionError('connection lost on context exit')
                 return super().send(command)
 
+            def close(self):
+                events.append('close')
+                return super().close()
+
             def __exit__(self, *exc):
-                exited.append(True)
+                events.append('exit')
                 return super().__exit__(*exc)
 
         original.__class__ = ExitFails
         return original
 
-    monkeypatch.setattr(engine.core_session, 'Session', session)
+    monkeypatch.setattr(engine.core_session, 'fortinet_session', session)
     auth = fortigate('arp_table')
     if global_read:
         rc, text = engine._global_context_read(auth, 'fortinet', 'get system performance status')
@@ -141,7 +147,7 @@ def test_a_failed_context_exit_still_closes_the_session(device, monkeypatch, glo
         rc, text, index, extras = engine._vdom_context_read(auth, 'fortinet', 'root', ('get system arp',))
         assert rc is None and index == 0 and not extras
         assert text
-    assert exited == [True]
+    assert events == ['end', 'close', 'exit']
 
 
 def test_refused_vdom_edit_is_a_context_refusal_before_the_read(device):

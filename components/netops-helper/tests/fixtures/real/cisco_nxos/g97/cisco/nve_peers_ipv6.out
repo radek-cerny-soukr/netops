@@ -1,0 +1,3 @@
+Interface Peer-IP          State LearnType Uptime   Router-Mac
+--------- ---------------  ----- --------- -------- -----------------
+nve1      2001:db8:1::1:1   Up    CP       00:44:09   0000.5e00.5302

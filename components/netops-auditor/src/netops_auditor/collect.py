@@ -7,11 +7,14 @@ import re
 import ssl
 import time
 import types
+from contextlib import ExitStack
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
+from functools import partial
 
 from netops_core import hostkey, prompt, ssh
 from netops_core import legacy_ssh as legacy
+from netops_core.session import FORTINET_LOGIN_SECONDS, SessionError, fortinet_session
 
 from . import l1_exos, l1_fortios
 from .inputs import InputError, read_regular
@@ -586,10 +589,7 @@ def _ssh_source(login, address, port) -> str:
     return "%s@%s:%s" % (login, address, port)
 
 
-def _ssh_step(
-    device, request, command, address, port, login, credential, host_key_line, profile, seconds,
-    clock, required, run,
-) -> tuple:
+def _ssh_step(device, request, command, clock, required, execute) -> tuple:
     started_at = _moment(clock)
 
     def failed(digest=EMPTY_SHA256, size=0):
@@ -598,18 +598,8 @@ def _ssh_step(
         )
 
     try:
-        result = ssh.run_command(
-            address,
-            port,
-            login,
-            credential,
-            host_key_line,
-            command,
-            legacy_ssh=profile,
-            timeout_seconds=seconds,
-            run=run,
-        )
-    except ssh.SshError as error:
+        result = execute(command)
+    except (ssh.SshError, SessionError) as error:
         raise CollectError("%s: %s" % (request, error), failed()) from None
     if result.rc != 0:
         raise CollectError(
@@ -638,7 +628,16 @@ def collect_ssh(
     run=None,
     keyscan=None,
     now=None,
+    *,
+    host_key=None,
+    session=None,
 ) -> tuple:
+    """Collect over SSH, optionally borrowing the caller's pinned FortiOS session.
+
+    The caller retains ownership of an open session and supplies the matching
+    target and credential metadata. Otherwise Core verifies the enrolled key
+    before opening a FortiOS session for the two reads.
+    """
     _checked_text("device", device)
     steps = _checked_platform(platform)
     seconds = _checked_timeout(timeout)
@@ -664,31 +663,40 @@ def collect_ssh(
             CHANNEL_SSH,
         )
 
-    try:
-        host_key_line = hostkey.scan(
-            address, port, host_key_fingerprint, seconds, run=keyscan, legacy=profile
-        )
-    except hostkey.HostKeyError as error:
-        raise CollectError(str(error), failed()) from None
+    with ExitStack() as stack:
+        try:
+            if platform == PLATFORM_FORTIOS:
+                if session is None:
+                    target = types.SimpleNamespace(
+                        platform=platform, address=address, port=port, legacy_ssh=profile,
+                        host_key_fingerprint=host_key_fingerprint, host_key=host_key,
+                    )
+                    session = stack.enter_context(fortinet_session(
+                        target, credential, connect_timeout_seconds=min(seconds, FORTINET_LOGIN_SECONDS),
+                        timeout_seconds=seconds, idle_timeout_seconds=seconds,
+                    ))
+                execute = partial(session.run, timeout_seconds=seconds)
+            else:
+                host_key_line = hostkey.scan(
+                    address, port, host_key_fingerprint, seconds, run=keyscan, legacy=profile
+                )
+                execute = partial(
+                    ssh.run_command, address, port, login, credential, host_key_line,
+                    legacy_ssh=profile, timeout_seconds=seconds, run=run,
+                )
+        except hostkey.HostKeyError as error:
+            raise CollectError(str(error), failed()) from None
+        except SessionError as error:
+            raise CollectError("%s %s: %s" % (source, steps[0].command, error), failed()) from None
+        return _collect_ssh_steps(device, platform, steps, source, login, clock, failed, execute)
+
+
+def _collect_ssh_steps(device, platform, steps, source, login, clock, failed, execute) -> tuple:
     events, payload, taken, marked = [], b"", None, False
     for step in steps:
         request = "%s %s" % (source, _checked_command(step.command))
         try:
-            data, event = _ssh_step(
-                device,
-                request,
-                step.command,
-                address,
-                port,
-                login,
-                credential,
-                host_key_line,
-                profile,
-                seconds,
-                clock,
-                step.snapshot,
-                run,
-            )
+            data, event = _ssh_step(device, request, step.command, clock, step.snapshot, execute)
         except CollectError as error:
             raise CollectError(str(error), error.event, tuple(events) + (error.event,)) from None
         if step.field:

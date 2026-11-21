@@ -8,7 +8,18 @@ from .config_buffers import Content
 from .read_policy import SAFE_FORTIADC_OBJECT
 from .configuration import FullConfigPolicy, UnsupportedConfigurationFirmware, ConfigurationRedactionError
 
+# Tested identity (G00, decision of 2026-11-17): not a gate. Every FortiADC configuration read, triage_slb and the
+# FortiADC diagnostics run on another model or build with firmware_support "untested" and a warning; the field
+# policy of the tested version (config-fortiadc-7.6.7.json, the only one) is the nearest policy for every build
+# and stays fail-closed: a field outside it is hidden.
 SUPPORTED = ('FortiADC-KVM', '7.6.7', '0676')
+TESTED = (SUPPORTED,)
+# Top-level evidence from the VM220 show full-configuration capture. The final two blocks
+# must immediately precede the closing prompt. Partial output can still have balanced CLI syntax.
+_FULL_CAPTURE_SYSTEM = frozenset((b'config system global\n', b'config system interface\n',
+                                  b'config system admin\n', b'config system vdom\n'))
+_FULL_CAPTURE_TAIL = (b'config security web-vulnerability-scanner task\n',
+                      b'config security web-vulnerability-scanner integration\n')
 RIGHTS = frozenset(('system', 'networking', 'load-balance', 'log', 'link-load-balance',
                     'global-load-balance', 'security', 'share-resource', 'user'))
 LEVELS = frozenset(('none', 'read', 'read-write'))
@@ -143,18 +154,36 @@ def verify_identity(status):
         identity = platforms.version_record(products[0])
     except platforms.VersionRecordError:
         raise ValueError('configuration identity could not be verified') from None
-    if identity != SUPPORTED:
-        raise UnsupportedConfigurationFirmware('config_platform_not_supported',
-                                               detected=identity[1:], supported=(SUPPORTED[1:],))
+    if (len(identity[0]) > 64 or not re.fullmatch(r'[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,4}', identity[1]) or
+            not re.fullmatch(r'[0-9]{4,6}', identity[2])):
+        # Every model and build may be read since G00, so a malformed or oversized record is unreadable.
+        raise ValueError('configuration identity could not be verified')
+    if not identity[0].startswith(platforms.PRODUCT_HARDWARE['fortiadc']):
+        # The product kind is a real boundary (G00 §2.4); the model and build are not.
+        raise UnsupportedConfigurationFirmware('config_platform_not_supported: the device is not a FortiADC product')
     return identity, {'product': identity[0], 'version': identity[1], 'build': identity[2]}
 
 
-OBJECT_SECTIONS = frozenset(('load-balance virtual-server', 'load-balance pool',
+def firmware_support(identity, function='config_read for FortiADC'):
+    """firmware_support (netops_core.tested) of a verified FortiADC identity (model, version, build)."""
+    from netops_core import tested
+
+    def shown(item):
+        return item[1] + ' build' + item[2]
+
+    return tested.support('FortiADC', shown(identity), [(item[0], shown(item)) for item in TESTED],
+                          model=identity[0], function=function)
+
+
+DEFAULT_OBJECT_SECTIONS = frozenset(('load-balance persistence', 'load-balance profile',
+                                     'load-balance real-server-ssl-profile'))
+OBJECT_SECTIONS = DEFAULT_OBJECT_SECTIONS | frozenset(('load-balance virtual-server', 'load-balance pool',
                              'load-balance real-server',
                              'system health-check', 'security waf profile',
                              'system certificate local_cert_group',
                              'load-balance client-ssl-profile',
-                             'load-balance schedule-pool', 'system schedule-group'))
+                             'load-balance schedule-pool', 'system schedule-group',
+                             'load-balance content-routing', 'system interface', 'system certificate local'))
 
 # Measured on FortiADC-KVM 7.6.7 build 0676 (VM220, 2026-11-14, task 173; show full-configuration system
 # schedule-group, CLI help of schedule-member): the schedule fields live in the member table, which the schema lists one level higher.
@@ -186,7 +215,7 @@ def read_command(section, include_all=False, include_defaults=False):
     return ('show full-configuration ' if include_defaults else 'show ') + section
 
 
-def _object_scope(content, section):
+def _object_scope(content, section, include_defaults):
     family, name = object_section(section)
     stack, roots, objects = [], 0, 0
     for raw in content.lines():
@@ -212,6 +241,8 @@ def _object_scope(content, section):
             stack.pop()
         elif len(stack) < 2:
             raise ValueError('configuration object scope mismatch; output withheld')
+    if not stack and roots == 1 and objects == 0 and not include_defaults and family in DEFAULT_OBJECT_SECTIONS:
+        raise ValueError('configuration object not visible in show; retry with include_defaults=true')
     if stack or roots != 1 or objects != 1:
         raise ValueError('configuration object scope mismatch; output withheld')
     return {'config_scope': 'device-account-visible', 'configuration_complete': False,
@@ -236,18 +267,46 @@ def _policy():
                                                              'http-header-name', 'http-header-value'),)))
 
 
+def policy_firmware(firmware):
+    """The version whose field policy redacts this firmware: the only measured FortiADC policy (7.6.7)."""
+    if (type(firmware) is not tuple or len(firmware) != 3 or not all(type(value) is str for value in firmware) or
+            not firmware[0].startswith(platforms.PRODUCT_HARDWARE['fortiadc'])):
+        raise ValueError('configuration identity could not be verified')
+    return SUPPORTED[1]
+
+
 def policy_for(firmware):
-    if type(firmware) is not tuple or firmware != SUPPORTED:
-        raise ValueError('config_platform_not_supported')
+    policy_firmware(firmware)
     return _policy()
 
 
-def assess(content, account, section='all'):
+def full_capture_complete(content):
+    """Check the top-level extent of a redacted full configuration."""
+    depth, system = 0, set()
+    first = previous = last = None
+    for line in content.lines():
+        if line.startswith(b'config '):
+            if depth == 0:
+                if first is None:
+                    first = line
+                if line in _FULL_CAPTURE_SYSTEM:
+                    system.add(line)
+                previous, last = last, line
+            depth += 1
+        elif line.startswith(b'edit '):
+            depth += 1
+        elif line in (b'next\n', b'end\n'):
+            depth -= 1
+    return (depth == 0 and first == b'config system global\n' and system == _FULL_CAPTURE_SYSTEM and
+            (previous, last) == _FULL_CAPTURE_TAIL)
+
+
+def assess(content, account, section='all', *, include_defaults=False):
     if (type(content) is not Content or type(account) is not str or not 1 <= len(account) <= 256 or
             any(ord(c) < 32 for c in account)):
         raise ValueError('configuration scope could not be assessed')
     if section != 'all':
-        return _object_scope(content, section)
+        return _object_scope(content, section, include_defaults)
     path, accounts, profiles, vdoms = [], 0, {}, 0
     assigned, override, vdom_override, system_admin = [], [], [], []
     for raw in content.lines():
@@ -316,3 +375,207 @@ def assess(content, account, section='all'):
     return {'config_scope': 'all',
             'configuration_complete': not limitations,
             'visibility_limitations': sorted(limitations)}
+
+
+CERTIFICATE_QUERY = 'certificate_inventory'
+CERTIFICATE_COMMAND = 'get system certificate local'
+_CERT_ENDPOINTS = {
+    'local': 'system_certificate_local',
+    'intermediate_ca': 'system_certificate_intermediate_ca',
+    'ca': 'system_certificate_ca',
+}
+_CERT_GROUPS = {
+    'local_cert_group': 'system_certificate_local_cert_group',
+    'intermediate_ca_group': 'system_certificate_intermediate_ca_group',
+    'certificate_verify': 'system_certificate_certificate_verify',
+}
+_CERT_PROFILES = {
+    'client_ssl_profile': 'load_balance_client_ssl_profile',
+    'real_server_ssl_profile': 'load_balance_real_server_ssl_profile',
+}
+_CERT_DATE = re.compile(r'(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d) (\S+)')
+_CERT_ZONES = {'UTC': 0, 'GMT': 0, 'PST': -8, 'PDT': -7, 'MST': -7, 'MDT': -6,
+               'CST': -6, 'CDT': -5, 'EST': -5, 'EDT': -4, 'CET': 1, 'CEST': 2}
+_CERT_GET_NAME = re.compile(r'== \[ ([^\[\]\r\n]+) \]')
+_CERT_GET_FIELD = re.compile(r'[ \t]*([\w-]+):[ \t]*(.*)')
+
+
+def certificate_acme(text):
+    """Parse the CLI listing without retaining any field other than the ACME status."""
+    result, current = {}, None
+    for row in prompt.cleaned(text.replace('\r\n', '\n'), prompt.PLATFORM_FORTIADC).splitlines():
+        row = row.rstrip()
+        if not row or row == CERTIFICATE_COMMAND:
+            continue
+        entry = _CERT_GET_NAME.fullmatch(row)
+        if entry and entry[1].strip() not in result:
+            current = entry[1].strip()
+            result[current] = None
+            continue
+        field = _CERT_GET_FIELD.fullmatch(row)
+        if current is None or field is None:
+            raise ValueError('unverified certificate listing')
+        if field[1] == 'acme-status':
+            if result[current] is not None or not re.fullmatch(r'[A-Za-z][A-Za-z0-9_-]{0,63}', field[2]):
+                raise ValueError('unverified ACME status')
+            result[current] = field[2]
+    if any(value is None for value in result.values()):
+        raise ValueError('missing ACME status')
+    return result
+
+
+def _certificate_date(value):
+    from datetime import datetime, timedelta, timezone
+
+    match = _CERT_DATE.fullmatch(value)
+    if not match:
+        raise ValueError('unverified certificate date')
+    timestamp, zone = match.groups()
+    if zone in _CERT_ZONES:
+        local_zone = timezone(timedelta(hours=_CERT_ZONES[zone]))
+        return datetime.strptime(timestamp, '%Y-%m-%d %H:%M:%S').replace(
+            tzinfo=local_zone).astimezone(timezone.utc)
+    return datetime.strptime(value, '%Y-%m-%d %H:%M:%S %z').astimezone(timezone.utc)
+
+
+def _certificate_text(value, limit=2048):
+    if not isinstance(value, str) or len(value.encode()) > limit or (value and not value.isprintable()):
+        raise ValueError('unverified certificate field')
+    return value
+
+
+def _certificate_row(kind, row, now):
+    from datetime import timedelta
+
+    entry = {'name': _certificate_text(row['mkey'], 128), 'kind': kind, 'references': [],
+             'status': _certificate_text(row['status'], 64)}
+    if not entry['name']:
+        raise ValueError('missing certificate name')
+    entry.update(subject=_certificate_text(row['subject']), issuer=_certificate_text(row['issuer']))
+    start, expires = (_certificate_date(row[field]) for field in ('validfrom', 'validto'))
+    if start > expires:
+        raise ValueError('invalid certificate validity')
+    extensions = row['extension']
+    if not isinstance(extensions, list) or any(
+            not isinstance(extension, dict) or not isinstance(extension.get('name'), str)
+            for extension in extensions):
+        raise ValueError('invalid certificate extensions')
+    san = [_certificate_text(extension['content']) for extension in extensions
+           if extension['name'] == 'X509v3 Subject Alternative Name']
+    if len(san) > 1:
+        raise ValueError('duplicate SAN extension')
+    entry.update(not_before=start.isoformat(), not_after=expires.isoformat(),
+                 days_to_expiry=(expires - now).days, expired=expires <= now,
+                 expires_within_30_days=now < expires <= now + timedelta(days=30),
+                 san=san[0] if san else None)
+    return entry
+
+
+def certificate_inventory(rest, acme, now):
+    """Join account-visible global certificate tables and usage without returning raw replies."""
+    from time import monotonic
+    from netops_core.fortiadc_https import RequestError
+
+    deadline = monotonic() + 35
+    missing = []
+    rows = {}
+
+    def fetch(endpoint, label, **parameters):
+        try:
+            if monotonic() >= deadline:
+                raise RequestError('timeout')
+            payload = rest.read(endpoint, vdom='global', **parameters)
+            if isinstance(payload, list) and all(isinstance(row, dict) for row in payload):
+                return payload
+            raise RequestError('incomplete_output')
+        except RequestError as exc:
+            missing.append({'source': label, 'reason': exc.code})
+            return None
+
+    for kind, endpoint in _CERT_ENDPOINTS.items():
+        data = fetch(endpoint, kind)
+        if data is None:
+            continue
+        for row in data:
+            try:
+                entry = _certificate_row(kind, row, now)
+                key = (kind, entry['name'])
+                if key in rows:
+                    raise ValueError('duplicate certificate name')
+                if kind == 'local':
+                    entry['acme_status'] = (acme or {}).get(entry['name'])
+                rows[key] = entry
+            except (KeyError, TypeError, ValueError, OverflowError):
+                missing.append({'source': kind, 'reason': 'unparsed'})
+
+    if acme is None or set(acme) != {name for kind, name in rows if kind == 'local'}:
+        missing.append({'source': 'acme_status', 'reason': 'incomplete_output'})
+
+    groups = {}
+    for kind, endpoint in _CERT_GROUPS.items():
+        known = groups[kind] = {}
+        for group in fetch(endpoint, kind) or ():
+            name = group.get('mkey')
+            count = group.get('member_count')
+            if (not isinstance(name, str) or not SAFE_FORTIADC_OBJECT.fullmatch(name)
+                    or type(count) is not int or count < 0 or name in known):
+                missing.append({'source': kind, 'reason': 'unparsed'})
+                continue
+            members = fetch(endpoint + '_child_group_member', kind, pkey=name) if count else []
+            if members is None or count != len(members):
+                missing.append({'source': kind, 'reason': 'incomplete_output'})
+                continue
+            known[name] = members
+
+    def reference(kind, name, ref):
+        if not isinstance(name, str):
+            missing.append({'source': ref['kind'], 'reason': 'unparsed'})
+        elif name:
+            target = rows.get((kind, name))
+            if target is None:
+                missing.append({'source': ref['kind'], 'reason': 'unresolved_reference'})
+            else:
+                target['references'].append(ref)
+
+    def group_references(kind, name, ref):
+        if name == '':
+            return
+        if not isinstance(name, str) or name not in groups[kind]:
+            missing.append({'source': ref['kind'], 'reason': 'unresolved_reference'})
+            return
+        for member in groups[kind][name]:
+            if kind == 'local_cert_group':
+                for field in ('local_cert', 'extra_local_cert'):
+                    reference('local', member.get(field), ref)
+                for field in ('intermediate_cag', 'extra_intermediate_cag'):
+                    group_references('intermediate_ca_group', member.get(field), ref)
+            else:
+                certificate_kind, field = (('intermediate_ca', 'intermediate_ca') if kind == 'intermediate_ca_group'
+                                           else ('ca', 'ca'))
+                reference(certificate_kind, member.get(field), ref)
+
+    for kind, group_rows in groups.items():
+        for name in group_rows:
+            group_references(kind, name, {'kind': kind, 'name': name})
+
+    for kind, endpoint in _CERT_PROFILES.items():
+        for profile in fetch(endpoint, kind) or ():
+            name = profile.get('mkey')
+            if not isinstance(name, str) or not SAFE_FORTIADC_OBJECT.fullmatch(name):
+                missing.append({'source': kind, 'reason': 'unparsed'})
+                continue
+            ref = {'kind': kind, 'name': name}
+            if kind == 'client_ssl_profile':
+                group_references('local_cert_group', profile.get('local_certificate_group'), ref)
+                group_references('intermediate_ca_group', profile.get('forward_proxy_intermediate_ca_group'), ref)
+                reference('local', profile.get('forward_proxy_local_signing_ca'), ref)
+                for field in ('backend_certificate_verify', 'client_certificate_verify'):
+                    group_references('certificate_verify', profile.get(field), ref)
+            else:
+                reference('local', profile.get('local_cert'), ref)
+                group_references('certificate_verify', profile.get('cert_verify'), ref)
+    for entry in rows.values():
+        refs = {(ref['kind'], ref['name']) for ref in entry['references']}
+        entry['references'] = [{'kind': kind, 'name': name} for kind, name in sorted(refs)]
+    failures = {(entry['source'], entry['reason']) for entry in missing}
+    return list(rows.values()), [{'source': source, 'reason': reason} for source, reason in sorted(failures)]

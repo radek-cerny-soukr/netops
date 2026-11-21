@@ -1,0 +1,12 @@
+
+
+
+GigabitEthernet0/3.900 is administratively down, line protocol is down 
+  Hardware is iGbE, address is 0000.5e00.5301 (bia 0000.5e00.5301)
+  Internet address is 198.51.100.33/28
+  MTU 1500 bytes, BW 1000000 Kbit/sec, DLY 10 usec, 
+     reliability 255/255, txload 1/255, rxload 1/255
+  Encapsulation 802.1Q Virtual LAN, Vlan ID  900.
+  ARP type: ARPA, ARP Timeout 04:00:00
+  Keepalive set (10 sec)
+  Last clearing of "show interface" counters never

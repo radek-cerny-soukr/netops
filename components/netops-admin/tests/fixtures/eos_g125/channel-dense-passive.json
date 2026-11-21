@@ -1,0 +1,85 @@
+{
+    "numberOfChannelsInUse": 1,
+    "numberOfAggregators": 1,
+    "portChannels": {
+        "Port-Channel104": {
+            "linkState": "up",
+            "protocol": "lacp",
+            "lacpMode": "active",
+            "ports": {
+                "Ethernet15": {
+                    "intf": "Ethernet15",
+                    "lagMember": true,
+                    "linkDown": false,
+                    "suspended": false,
+                    "lacpMisconfig": {
+                        "status": "bundled"
+                    },
+                    "lacpState": {
+                        "activity": true,
+                        "timeout": false,
+                        "aggregation": true,
+                        "synchronization": true,
+                        "collecting": true,
+                        "distributing": true,
+                        "defaulted": false,
+                        "expired": false
+                    },
+                    "staticLag": false,
+                    "exceedsMaxWeight": false
+                },
+                "Ethernet14": {
+                    "intf": "Ethernet14",
+                    "lagMember": true,
+                    "linkDown": false,
+                    "suspended": false,
+                    "lacpMisconfig": {
+                        "status": "bundled"
+                    },
+                    "lacpState": {
+                        "activity": true,
+                        "timeout": false,
+                        "aggregation": true,
+                        "synchronization": true,
+                        "collecting": true,
+                        "distributing": true,
+                        "defaulted": false,
+                        "expired": false
+                    },
+                    "staticLag": false,
+                    "exceedsMaxWeight": false
+                }
+            },
+            "inactive": false
+        },
+        "Port-Channel900": {
+            "linkState": "down",
+            "protocol": "lacp",
+            "lacpMode": "passive",
+            "ports": {
+                "Ethernet12": {
+                    "intf": "Ethernet12",
+                    "lagMember": false,
+                    "linkDown": true,
+                    "suspended": false,
+                    "lacpMisconfig": {
+                        "status": "noAgg"
+                    },
+                    "lacpState": {
+                        "activity": false,
+                        "timeout": false,
+                        "aggregation": true,
+                        "synchronization": false,
+                        "collecting": false,
+                        "distributing": false,
+                        "defaulted": true,
+                        "expired": false
+                    },
+                    "staticLag": false,
+                    "exceedsMaxWeight": false
+                }
+            },
+            "inactive": false
+        }
+    }
+}

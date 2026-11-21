@@ -1,0 +1,3 @@
+channel-group 41 mode active
+Creating a port-channel interface Port-channel 41
+host08(config-if)#

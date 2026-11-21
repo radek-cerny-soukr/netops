@@ -1,0 +1,10 @@
+
+!Command: show running-config interface Ethernet1/64
+!Running configuration last done at: Thu Nov 19 17:29:56 2026
+!Time: Thu Nov 19 17:30:14 2026
+
+version 9.3(12) Bios:version
+
+interface Ethernet1/64
+  ipv6 port traffic-filter NETOPS-G103-V6 in
+

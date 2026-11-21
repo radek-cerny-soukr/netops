@@ -13,6 +13,7 @@ FIRMWARE = "33.7.1.6"
 TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
 NOT_INLINE_POWER_RC = 250
 FIXTURES = Path(__file__).parent / "fixtures" / "exos_port_poe"
+MANAGEMENT_FIXTURES = FIXTURES.parent / "exos_g42" / "x440"
 
 
 def fixture(name: str) -> str:
@@ -42,6 +43,7 @@ class FakeExos:
         self.accounts = ["admin", "netops-rw"]
         self.account_hashes = {}
         self.port_strings = {"11": "Zyxel-5p", "12": "Uplink-SW3"}
+        self.port_descriptions = {}
         self.port_numbers = [str(number) for number in range(1, 17)]
         self.foreign_session_users = []
         self.profiles, self.timers = {}, {}
@@ -72,6 +74,8 @@ class FakeExos:
         self.poe_stuck_off = False
         # port -> a measured "show inline-power info detail" answer, given verbatim instead of the simulated one
         self.poe_detail_measured = {}
+        self.poe_detail_templates = {}
+        self.ssh_client_port = "1"
         self.lldp_text = fixture("x440__03-lldp.out")
         self.fdb_text = fixture("x440__02-show-fdb.out")
 
@@ -134,6 +138,10 @@ class FakeExos:
             self.port_strings[words[2]] = words[4]
         elif words[:2] == ["unconfigure", "ports"] and words[3:] == ["display-string"]:
             self.port_strings.pop(words[2], None)
+        elif words[:2] == ["configure", "ports"] and len(words) == 5 and words[3] == "description-string":
+            self.port_descriptions[words[2]] = words[4]
+        elif words[:2] == ["unconfigure", "ports"] and words[3:] == ["description-string"]:
+            self.port_descriptions.pop(words[2], None)
         elif words[:2] in (["disable", "ports"], ["enable", "ports"]) and len(words) == 3:
             if words[2] not in self.port_numbers:
                 return False
@@ -225,13 +233,13 @@ class FakeExos:
             lines.append("configure vlan DATA add ports 1-4 untagged")
         for port, text in sorted(self.port_strings.items()):
             lines.append("configure ports %s display-string %s" % (port, text))
-        lines += ["disable port %s" % port for port in sorted(self.ports_disabled, key=int)]
-        lines.append("configure ports 10 description-string \"Default settings for the access port\"")
+        lines += ['configure ports %s description-string "%s"' % item for item in sorted(self.port_descriptions.items())]
+        lines += ["disable port %s" % port for port in sorted(self.ports_disabled)]
         lines += ["#", "# Module ems configuration.", "#", "configure syslog add 192.0.2.10:514 vr VR-Default local0",
                   "#", "# Module netTools configuration.", "#", "configure sntp-client primary 192.0.2.123 vr VR-Default",
                   "enable sntp-client", "#", "# Module snmpMaster configuration.", "#",
                   "#", "# Module poe configuration.", "#"]
-        lines += ["disable inline-power ports %s" % port for port in sorted(self.poe_disabled, key=int)]
+        lines += ["disable inline-power ports %s" % port for port in sorted(self.poe_disabled)]
         lines += ["#", "# Module telnetd configuration.", "#", "disable telnet"]
         lines += ["#", "# Module upm configuration.", "#"]
         for name, body in self.profiles.items():
@@ -332,7 +340,9 @@ class FakeExos:
             return self.poe_detail_measured[port]
         if port not in self.poe_ports:
             return "Port %s is not inline-power capable\n" % port
-        text = fixture("x440__25-ip-info-detail-pre.out").replace("Port 10 ", "Port %-2s" % port, 1)
+        text = self.poe_detail_templates.get(port)
+        if text is None:
+            text = fixture("x440__25-ip-info-detail-pre.out").replace("Port 10 ", "Port %-2s" % port, 1)
         state = self.poe_state(port)
         configured = "disabled" if port in self.poe_disabled else "enabled"
         text = text.replace("Configured Admin State: enabled", "Configured Admin State: %s" % configured)
@@ -345,18 +355,26 @@ class FakeExos:
             raise RuntimeError("check account unavailable")
         if command.startswith("show inline-power info detail ports "):
             return self.poe_detail(command.split()[-1])
+        if command in ("show iproute vr VR-Default", "show iproute vr VR-Mgmt"):
+            return (MANAGEMENT_FIXTURES / ("route-" + command.split()[-1] + ".txt")).read_text()
+        if command == "show iparp 192.0.2.9 vr VR-Default":
+            text = (MANAGEMENT_FIXTURES / "arp-client.txt").read_text()
+            return text.replace("Default          1  1\n", "Default          1  " + self.ssh_client_port + "\n")
         if command.startswith("show ports "):
             port = command.split()[2]
             if self.check_override is not None and port in self.check_override:
                 text = self.check_override[port]
-            elif not port.isdigit() or not 1 <= int(port) <= 16:
+            elif port not in self.port_numbers:
                 return "%% Invalid port number detected.\n"
             else:
                 text = self.port_strings.get(port)
             admin = "\tAdmin state:\t%s with  auto-speed sensing  auto-duplex\n" % (
                 "Disabled" if port in self.ports_down else "Enabled") if command.endswith(" information detail") else ""
             head = "Port:\t%s(%s):\n\tVirtual-router:\tVR-Default\n" % (port, text) if text else "Port:\t%s\n" % port
-            return head + admin
+            description = self.port_descriptions.get(port)
+            if description:
+                head += '\tDescription String: "%s"\n' % description
+            return head + admin + "\tStatic MAC-based VLANs:\tDisabled\n"
         key = command.split()[2]
         attributes = self.vlans.get(key)
         if self.check_override is not None and key in self.check_override:

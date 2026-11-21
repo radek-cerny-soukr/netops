@@ -1,0 +1,32 @@
+{
+  "platform": "nxos",
+  "table": "port-channel",
+  "versions": [
+    "9.3(12)"
+  ],
+  "exact_versions": true,
+  "ops": [
+    "create",
+    "delete"
+  ],
+  "table_scoped_key": true,
+  "key_pattern": "^port-channel[1-9][0-9]{0,3}$",
+  "protected_keys": [],
+  "attributes": {
+    "mode": {
+      "type": "text",
+      "update": false,
+      "unset": false,
+      "referenced_update": true,
+      "pattern": "^(access|trunk)$",
+      "max_length": 6,
+      "default": "access",
+      "required_on_create": false
+    }
+  },
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "Creates or removes an empty Layer 2 port-channel and verifies its existence and mode. The inverse preserves a pre-existing empty port-channel."
+}

@@ -162,6 +162,49 @@ _NEIGHBOR = re.compile(r'neighbor (' + _IPV4 + '|' + _V6 + ')( remote-as ' + _AS
 _REMOTE_AS = re.compile(r'remote-as ' + _ASN + _T)
 _ADDRESS_FAMILY = re.compile(r'address-family [a-z0-9]{2,12}(?: [a-z0-9-]{2,20})?' + _T)
 
+# EOS structures retain only typed policy statements. Remarks, credentials and unknown child
+# statements still pass through the opaque path, including descendants of any hidden statement.
+_EOS_ACL = re.compile(r'(ip|ipv6) access-list (?:standard )?' + _NAME + _T)
+_EOS_ACL_BINDING = re.compile(r'(?:ip|ipv6) access-group ' + _NAME + r' (?:in|out)' + _T)
+_EOS_ACL_SERVICE = r'(?:[0-9]{1,5}|http|https|ssh|domain|bgp|ntp|snmp)'
+_EOS_ACL_PORT = r'(?:(?:eq|neq|gt|lt) ' + _EOS_ACL_SERVICE + r'|range ' + _EOS_ACL_SERVICE + ' ' + _EOS_ACL_SERVICE + ')'
+_EOS_SEQUENCE = r'(?:[0-9]{1,10} )?'
+_EOS_ACL_ACTION = _EOS_SEQUENCE + r'(?:permit|deny) '
+_EOS_ACL_ADDRESS4 = r'(?:any|host ' + _IPV4 + '|' + _IPV4 + '/' + _LEN4 + ')'
+_EOS_ACL_ADDRESS6 = r'(?:any|(?:host )?[0-9A-Fa-f.]*:[0-9A-Fa-f:.]*(?:/' + _LEN6 + ')?)'
+
+
+def _eos_acl_rule(address, protocol):
+    return re.compile(_EOS_ACL_ACTION + '(?:(?:tcp|udp) ' + address + '(?: ' + _EOS_ACL_PORT + ')? ' +
+                      address + '(?: ' + _EOS_ACL_PORT + ')?|(?:' + protocol + ') ' + address + ' ' +
+                      address + '|' + address + ')(?: log)?' + _T)
+
+
+_EOS_ACL_RULE = {'acl-ip': _eos_acl_rule(_EOS_ACL_ADDRESS4, r'ip|icmp|ospf|gre|[0-9]{1,3}'),
+                 'acl-ipv6': _eos_acl_rule(_EOS_ACL_ADDRESS6, r'ipv6|icmpv6|ospf|[0-9]{1,3}')}
+_EOS_PREFIX_LIST = re.compile(
+    r'(?:ip prefix-list ' + _NAME + r' seq [0-9]{1,5} (?:permit|deny) ' + _IPV4 + '/' + _LEN4 +
+    r'|ipv6 prefix-list ' + _NAME + r' seq [0-9]{1,5} (?:permit|deny) (' + _V6 + ')/' + _LEN6 +
+    r')(?:(?: eq| ge| le) [0-9]{1,3}){0,2}' + _T)
+_EOS_ROUTE_MAP = re.compile(r'route-map ' + _NAME + r' (?:permit|deny) [0-9]{1,5}' + _T)
+_EOS_ROUTE_MAP_LINE = re.compile(r'(?:match (?:ip|ipv6) address prefix-list ' + _NAME +
+                                 r'|set (?:local-preference|metric|weight) [0-9]{1,10})' + _T)
+_EOS_MANAGEMENT = re.compile(r'management (?:ssh|console|api http-commands)' + _T)
+_EOS_MANAGEMENT_LINE = re.compile(r'(?:no )?shutdown|idle-timeout [0-9]{1,6}')
+_EOS_NAME_SERVER = re.compile(r'ip name-server(?: vrf ' + _NAME + ')? ' + _IPV4 + _T)
+_EOS_MANAGEMENT_VRF = re.compile(r'vrf ' + _NAME + _T)
+_EOS_ROUTER_LINE = re.compile(r'(?:(?:no )?passive-interface (?:default|' + _IFNAME + r')'
+                              r'|maximum-paths [0-9]{1,4}(?: ecmp [0-9]{1,4})?'
+                              r'|redistribute (?:connected|static)(?: route-map ' + _NAME + ')?'
+                              r'|neighbor (' + _IPV4 + '|' + _V6 + r') (?:activate|route-map ' +
+                              _NAME + r' (?:in|out)))' + _T)
+_EOS_INTERFACE_ROUTING = re.compile(r'ip ospf (?:area (?:' + _IPV4 +
+                                    r'|[0-9]{1,10})|cost [0-9]{1,5}|network (?:broadcast|point-to-point))' + _T)
+_EOS_LOCAL_STATEMENTS = frozenset(('ip routing', 'no ip routing', 'ipv6 unicast-routing',
+                                   'service routing protocols model multi-agent', 'no aaa root',
+                                   'aaa authentication login default local',
+                                   'aaa authorization exec default local'))
+
 _LEAF, _OPAQUE = 'leaf', 'opaque'
 # Upper bound of one context stack entry (list slot, tuple, indentation int) and of the nesting
 # depth (real configurations nest a few levels; a deeper stream is refused, which also keeps the
@@ -253,6 +296,7 @@ class _IndentedStreamRedactor:
     MARKER = None
     DIALECT = None
     UNIT = 0
+    KEPT_ENCODING = 'ascii'
 
     def __init__(self, forbidden, section, *, limits=None):
         if type(section) is not str or section != 'all':
@@ -638,7 +682,7 @@ class _IndentedStreamRedactor:
     def _keep(self, line, end):
         """Emit a verified line unchanged unless it holds a forbidden value, a reserved marker or a
         secret keyword."""
-        data = (line + end).encode('ascii')
+        data = (line + end).encode(self.KEPT_ENCODING)
         if any(secret in data for secret in self._secrets):
             self.credential_count += 1
             self._hidden_record(self._CREDENTIAL)
@@ -824,7 +868,42 @@ class EosStreamRedactor(_IndentedStreamRedactor):
         return _HEREDOC.fullmatch(body) is not None
 
     def _dialect_global(self, body):
-        return 'vrf' if _EOS_VRF.fullmatch(body) else None
+        if _EOS_VRF.fullmatch(body):
+            return 'vrf'
+        if match := _EOS_ACL.fullmatch(body):
+            return 'acl-' + match[1]
+        if _EOS_ROUTE_MAP.fullmatch(body):
+            return 'route-map'
+        if _EOS_MANAGEMENT.fullmatch(body):
+            return 'management'
+        if match := _EOS_PREFIX_LIST.fullmatch(body):
+            return _LEAF if match[1] is None or _ipv6(match[1]) else None
+        if _EOS_NAME_SERVER.fullmatch(body) or body.rstrip(' ') in _EOS_LOCAL_STATEMENTS:
+            return _LEAF
+        return None
+
+    def _classify(self, parent, body):
+        if parent in _EOS_ACL_RULE:
+            if body.rstrip(' ') == 'counters per-entry':
+                return _LEAF
+            if not _EOS_ACL_RULE[parent].fullmatch(body):
+                return None
+            if parent == 'acl-ipv6' and not all(_ipv6(token.partition('/')[0])
+                                                for token in body.split() if ':' in token):
+                return None
+            return _LEAF
+        if parent == 'route-map':
+            return _LEAF if _EOS_ROUTE_MAP_LINE.fullmatch(body) else None
+        if parent in ('management', 'management-vrf'):
+            if parent == 'management' and _EOS_MANAGEMENT_VRF.fullmatch(body):
+                return 'management-vrf'
+            return _LEAF if (_EOS_MANAGEMENT_LINE.fullmatch(body.rstrip(' ')) or
+                             _EOS_ACL_BINDING.fullmatch(body)) else None
+        if parent == 'interface' and (_EOS_ACL_BINDING.fullmatch(body) or _EOS_INTERFACE_ROUTING.fullmatch(body)):
+            return _LEAF
+        if parent in ('router', 'family') and (match := _EOS_ROUTER_LINE.fullmatch(body)):
+            return _LEAF if match[1] is None or _address(match[1]) else None
+        return super()._classify(parent, body)
 
     def _neighbor(self, body):
         match = _NEIGHBOR.fullmatch(body)
@@ -837,3 +916,39 @@ class EosStreamRedactor(_IndentedStreamRedactor):
 
     def _complete(self):
         return self._phase == 'ended'
+
+
+class EosComparisonRedactor(EosStreamRedactor):
+    """Read a framed EOS capture and omit the command-specific transport header from comparisons."""
+
+    def __init__(self, forbidden, section, *, limits, command):
+        super().__init__(forbidden, section, limits=limits)
+        self._command = command
+        self._header = re.compile(r'! Command: ' + re.escape(command) + r'(?: at line [0-9]+)?')
+        self._frame = 'start'
+
+    def _logical(self, line, end):
+        if self._frame == 'body':
+            super()._logical(line, '\n')
+            return
+        if self._frame == 'start':
+            if _BLANK.fullmatch(line):
+                return
+            if line == '> ' + self._command:
+                self._frame = 'command'
+                return
+        if self._frame in ('start', 'command') and self._header.fullmatch(line):
+            self._frame = 'device'
+            return
+        if self._frame == 'device':
+            if line.startswith(('! Startup-config last modified at ', '! Time: ')):
+                return
+            if re.fullmatch(r'! device: [^ ]+ \([A-Za-z0-9_.+-]+, EOS-[^\r\n]+\)', line):
+                self._frame = 'body'
+                return
+        if line.lstrip(' ').startswith('%'):
+            raise ConfigurationRefusedError()
+        raise self._failure('stream-incomplete')
+
+    def _last_line(self):
+        raise self._failure('stream-incomplete')

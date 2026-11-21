@@ -13,7 +13,7 @@ from .normalization import (normalize_mac, normalize_port,
 from .query_catalog import READ_QUERIES
 from .read_policy import _validate_slot
 from . import port_vlan
-from . import switch_managed, fortiswitch_ports
+from . import switch_dhcp, switch_managed, fortiswitch_ports
 from . import route_ipv6 as _route_ipv6
 
 FIELDS = {
@@ -21,6 +21,7 @@ FIELDS = {
     'vlan': ('vlan_id', 'name', 'ports'),
     'mac_entry': ('mac', 'vlan_id', 'port', 'type', 'vlan_name'),
     'neighbor_l3': ('ip', 'mac', 'interface', 'vlan_id', 'vrf', 'type'),
+    'dhcp_binding': ('ip', 'mac', 'interface', 'vlan_id', 'lease_seconds', 'type'),
     'lldp_neighbor': ('local_port', 'neighbor', 'neighbor_port', 'management_ip', 'capabilities'),
     'route': ('prefix', 'next_hop', 'interface', 'protocol', 'vrf'),
     'ospf_neighbor': ('neighbor_id', 'address', 'interface', 'state', 'role', 'vrf'),
@@ -30,9 +31,11 @@ FIELDS = {
     'aggregate': ('name', 'member_count'),
     'port_vlan': port_vlan.FIELDS,
     'ip_interface': ('interface', 'ip', 'prefix_length', 'vlan_id', 'admin_status', 'oper_status', 'vrf', 'mac', 'gateway'),
+    'ip_interface_v6': ('interface', 'ip', 'prefix_length', 'admin_status', 'oper_status', 'address_family'),
 }
 # Parser bindings reference catalogue names, never CLI strings or permissions.
 BINDINGS = {}
+IOS_FORWARDING_PROFILES = frozenset({'cisco_ios', 'cisco_xe'})
 PARSERS = {}
 TABLE_PARSERS = {}
 # Parsers of one (profile, table, query) output and the bindings of a target declared as router
@@ -75,16 +78,55 @@ def literal(value):
         return 'mac', _validate_slot(value, 'mac_literal')
 
 
-def request(profile, table, vlan_id=None, mac=None, ip=None, device_types=None, interface=None, managed_switch=None):
+def request(profile, table, vlan_id=None, mac=None, ip=None, device_types=None, interface=None, managed_switch=None, vr=None,
+            vrf=None, address_family=None, *, enabled_queries=None):
+    if vr is not None:
+        if profile != 'extreme_exos' or table not in ('route', 'neighbor_l3'):
+            raise ValueError('vr only selects EXOS route and neighbor_l3 tables')
+        _validate_slot(vr, 'vr')
+    from . import fortigate_tables
+    if profile == 'fortinet' and managed_switch is None and (
+            table in fortigate_tables.QUERIES or table == 'route' and address_family == 'ipv6' and ip is None):
+        if vr is not None or vrf is not None:
+            raise ValueError('vr and vrf do not apply to FortiGate tables')
+        return fortigate_tables.request(table, vlan_id, mac, ip, interface, address_family)
+    if address_family is not None:
+        if profile.startswith('juniper_junos') and table in ('ospf_neighbor', 'bgp_peer') and address_family in ('ipv4', 'ipv6'):
+            pass
+        elif profile == 'fortinet' and table == 'route' and managed_switch is None and address_family in ('ipv4', 'ipv6'):
+            pass
+        elif profile == 'arista_eos' and table in ('route', 'bgp_peer', 'ospf_neighbor', 'neighbor_l3') and address_family in ('ipv4', 'ipv6'):
+            pass
+        elif profile in IOS_FORWARDING_PROFILES and table == 'neighbor_l3' and address_family in ('ipv4', 'ipv6'):
+            pass
+        elif profile != 'cisco_nxos' or table not in ('route', 'bgp_peer', 'ospf_neighbor', 'neighbor_l3') or address_family not in ('ipv4', 'ipv6'):
+            raise ValueError('address_family must be ipv4 or ipv6 on a supported routing or neighbor table')
+        if ip is not None and ipaddress.ip_address(ip).version != (6 if address_family == 'ipv6' else 4):
+            raise ValueError('ip and address_family disagree')
+    if vrf is not None:
+        if not (profile in IOS_FORWARDING_PROFILES and table == 'neighbor_l3'
+                or profile == 'cisco_nxos' and table in ('route', 'neighbor_l3', 'ospf_neighbor', 'bgp_peer', 'ip_interface')):
+            raise ValueError('vrf applies only to IOS and IOS XE neighbor_l3 and NX-OS L3 tables')
+        _validate_slot(vrf, 'vrf')
     if table not in FIELDS:
         raise ValueError('unknown normalized table')
+    if table == 'dhcp_binding':
+        if profile not in IOS_FORWARDING_PROFILES | {'cisco_nxos'} or managed_switch is not None:
+            raise ValueError('dhcp_binding requires a local IOS, IOS XE or NX-OS switch')
+        selectors = {}
+        if interface is not None:
+            selectors['interface'] = port(_validate_slot(interface, 'interface'))
+        if mac is not None:
+            selectors['mac'] = _validate_slot(mac, 'mac_literal')
+        if ip is not None:
+            selectors['ip'] = _validate_slot(ip, 'ipv4_neighbor')
+        if vlan_id is not None:
+            selectors['vlan_id'] = int(_validate_slot(vlan_id, 'vlan_id'))
+        return 'dhcp_snooping_binding', {}, selectors
     if profile == 'linux' and table == 'interface' and interface is not None:
         if any(value is not None for value in (vlan_id, mac, ip, managed_switch)):
             raise ValueError('filter does not apply to this table')
         return 'interface_link', {'interface': _validate_slot(interface, 'interface')}, {}
-    from . import fortigate_tables
-    if profile == 'fortinet' and managed_switch is None and table in fortigate_tables.QUERIES:
-        return fortigate_tables.request(table, vlan_id, mac, ip, interface)
     parameters = switch_managed.parameters(profile, table, managed_switch)
     if profile == 'fortinet' and table in ('interface', 'interface_errors', 'port_vlan'):
         from . import fortiswitch_ports
@@ -94,8 +136,50 @@ def request(profile, table, vlan_id=None, mac=None, ip=None, device_types=None, 
         if any(value is not None for value in (vlan_id, mac, ip)):
             raise ValueError('filter does not apply to this table')
         return port_errors.request(profile, interface)
+    if profile == 'extreme_exos' and table in _exos_ports.BINDINGS:
+        if any(v is not None for v in (vlan_id, mac, ip, managed_switch)):
+            raise ValueError('filter does not apply to this table')
+        if table == 'poe_budget':
+            if interface is not None:
+                raise ValueError('interface does not apply to the switch power budget')
+            return 'inline_power', {}, {}
+        if interface is None:
+            raise ValueError('interface is required for this EXOS port table')
+        return _exos_ports.BINDINGS[table], {'interface': _validate_slot(interface, 'extreme_physical_port')}, {}
+    if profile == 'arista_eos' and (table in _eos_ports.FIELDS or table == 'mac_entry'):
+        if ip is not None or managed_switch is not None:
+            raise ValueError('filter does not apply to this table')
+        selected = _eos_ports.request(table, vlan_id, mac, interface, enabled_queries)
+        if selected is not None:
+            return selected
+    if profile in _ios_ports.PROFILES and table in _ios_ports.TABLES:
+        if ip is not None or managed_switch is not None:
+            raise ValueError('filter does not apply to this table')
+        selected = _ios_ports.request(table, vlan_id, mac, interface, profile=profile)
+        if selected is not None:
+            return selected
+    if profile == 'cisco_nxos':
+        default = {'stp_topology': 'stp_detail', 'stp_port_counters': 'stp_detail'}
+        scoped = {'stp_port_counters': 'stp_interface_detail', 'lag_member': 'lacp_interface',
+                  'optics_port': 'interface_transceiver', 'cdp_neighbor': 'cdp_neighbor_interface',
+                  'lldp_neighbor': 'lldp_neighbor_interface'}
+        if table in default or table in scoped and (interface is not None or table in ('lag_member', 'optics_port')):
+            if any(value is not None for value in (vlan_id, mac, ip, managed_switch)):
+                raise ValueError('filter does not apply to this table')
+            if interface is None and table in default:
+                return default[table], {}, {}
+            if table not in scoped or interface is None:
+                raise ValueError('interface is required for NX-OS lag_member and optics_port, or selects a port detail')
+            query = scoped[table]
+            value = _validate_slot(interface, READ_QUERIES[profile][query].slots['interface'].kind)
+            return query, {'interface': value}, {('local_port' if table.endswith('_neighbor') else 'port'): port(value)}
+    ios_forwarding = profile in IOS_FORWARDING_PROFILES and table in ('mac_entry', 'neighbor_l3')
     filters = {}
-    if interface is not None and table == 'port_vlan':
+    if interface is not None and ios_forwarding:
+        query, field = ('mac_table_interface', 'port') if table == 'mac_entry' else ('ipv6_neighbors_interface', 'interface')
+        kind = READ_QUERIES[profile][query].slots['interface'].kind
+        filters[field] = port(_validate_slot(interface, kind))
+    elif interface is not None and table == 'port_vlan':
         if not isinstance(interface, str):
             raise ValueError('interface only filters interface, port_vlan, ip_interface and interface_errors')
         filters['port'] = port(interface)
@@ -112,9 +196,15 @@ def request(profile, table, vlan_id=None, mac=None, ip=None, device_types=None, 
     if (mac is not None and table not in ('mac_entry', 'neighbor_l3')
             or ip is not None and table not in ('neighbor_l3', 'route')
             or vlan_id is not None and table not in ('interface', 'vlan', 'mac_entry', 'neighbor_l3')
-            or interface is not None and table not in ('interface', 'port_vlan', 'ip_interface')):
+            or interface is not None and not ios_forwarding
+            and table not in ('interface', 'port_vlan', 'ip_interface', 'ip_interface_v6')):
         raise ValueError('filter does not apply to this table')
-    key = 'neighbor_l3_v6' if table == 'neighbor_l3' and ip and ':' in ip else table
+    ipv6 = address_family == 'ipv6' or ip is not None and ':' in ip
+    if ios_forwarding:
+        selected = _ios_forwarding_request(table, filters, interface, vrf, address_family, ipv6, enabled_queries)
+        if selected is not None:
+            return selected
+    key = 'neighbor_l3_v6' if table == 'neighbor_l3' and ipv6 else table
     if table == 'route':
         if ip is None:
             # the whole table, where the catalogue has a plain table template (route_all)
@@ -124,8 +214,45 @@ def request(profile, table, vlan_id=None, mac=None, ip=None, device_types=None, 
         else:
             key = 'route_v6' if ':' in ip else 'route'
     query = BINDINGS.get(profile, {}).get(key)
+    scoped_parameters = {}
+    if profile == 'extreme_exos' and vr is None:
+        # Keep combined filters local after choosing the most selective supported
+        # device-side lookup. No device-wide FDB/ARP read for a scoped request.
+        if table == 'mac_entry' and mac is not None:
+            query, scoped_parameters = 'mac_address', {'mac': filters['mac']}
+        elif table in ('mac_entry', 'neighbor_l3') and key != 'neighbor_l3_v6' and vlan_id is not None:
+            query = 'mac_vlan' if table == 'mac_entry' else 'arp_vlan'
+            scoped_parameters = {'vlan_id': str(filters['vlan_id'])}
+    if profile == 'cisco_nxos' and table in ('mac_entry', 'neighbor_l3') and enabled_queries is not None:
+        scope = {'vrf': vrf} if vrf is not None else {}
+        if table == 'mac_entry':
+            options = [(name, {field: str(filters[field])}) for field, name in
+                       (('mac', 'mac_table_address'), ('vlan_id', 'mac_table_vlan')) if field in filters]
+        elif ip is not None:
+            lookup = 'ipv6_neighbor_lookup' if ipv6 else 'arp_lookup'
+            options = [(lookup + ('_vrf' if scope else ''), {**scope, 'address': filters['ip']})]
+        else:
+            options = []
+        # Existing enrollments with only whole-table queries can still use local filters.
+        for selected, selected_parameters in options:
+            if selected in enabled_queries:
+                return selected, selected_parameters, filters
     if device_types and 'router' in device_types and 'switch' not in device_types:
         query = ROUTER_BINDINGS.get(profile, {}).get(key, query)
+    if address_family and profile.startswith('juniper_junos'):
+        if table == 'ospf_neighbor' and address_family == 'ipv6':
+            query = 'ospfv3_neighbors'
+        if table == 'bgp_peer':
+            filters['address_family'] = address_family
+    elif address_family == 'ipv6' and profile == 'arista_eos':
+        query = {'route': 'ipv6_route_lookup' if ip else 'ipv6_route_table', 'neighbor_l3': 'ipv6_neighbors',
+                 'bgp_peer': 'ipv6_bgp_summary', 'ospf_neighbor': 'ospfv3_neighbors'}[table]
+    elif address_family == 'ipv6' and table != 'neighbor_l3':
+        query = {'route': 'ipv6_route_lookup' if ip else 'ipv6_route_table',
+                 'bgp_peer': 'bgp_ipv6_summary', 'ospf_neighbor': 'ospfv3_neighbors'}[table]
+    if vrf is not None and query is not None:
+        query += '_vrf'
+        parameters['vrf'] = vrf
     template = READ_QUERIES.get(profile, {}).get(query)
     if template is None:
         return None, {}, filters
@@ -136,8 +263,42 @@ def request(profile, table, vlan_id=None, mac=None, ip=None, device_types=None, 
     # A lookup template takes the address as a slot; a plain route table (EXOS) is read whole
     # and narrowed to the longest matching prefix by longest_prefix().
     address = filters.pop('ip', None) if table == 'route' else None
-    return query, {**parameters, **({'address': address} if '{address}' in template.command else {})}, filters
+    if profile == 'extreme_exos' and vr is not None:
+        # A VR-qualified read is already scoped to one VR; vlan/mac filters stay local.
+        query += '_vr'
+        parameters['vr'] = vr
+        template = READ_QUERIES[profile][query]
+    return query, {**parameters, **scoped_parameters, **({'address': address} if '{address}' in template.command else {})}, filters
 
+
+
+def _ios_forwarding_request(table, filters, interface, vrf, family, ipv6, enabled_queries):
+    def enabled(query):
+        # Only the switch_read authorization and engine pass the target's query set.
+        # Callers without that set retain the whole-table reads for local selectors.
+        return enabled_queries is not None and query in enabled_queries
+
+    if table == 'mac_entry':
+        if interface is not None:
+            return 'mac_table_interface', {'interface': interface}, filters
+        for field, query in (('mac', 'mac_table_address'), ('vlan_id', 'mac_table_vlan')):
+            if field in filters and enabled(query):
+                return query, {field: str(filters[field])}, filters
+        return None
+    if interface is not None and (family == 'ipv4' or 'ip' in filters and not ipv6):
+        raise ValueError('interface selects an IPv6 neighbor table on IOS')
+    scope = {'vrf': vrf} if vrf is not None else {}
+    suffix = '_vrf' if scope else ''
+    if ipv6 or interface is not None:
+        if interface is not None:
+            return 'ipv6_neighbors_interface' + suffix, {**scope, 'interface': interface}, filters
+        return 'ipv6_neighbors' + suffix, scope, filters
+    if 'ip' in filters and (scope or enabled('arp_lookup')):
+        return 'arp_lookup' + suffix, {**scope, 'address': filters['ip']}, filters
+    if scope:
+        query = 'vrf_arp_table' if not enabled('arp_table_vrf') and enabled('vrf_arp_table') else 'arp_table_vrf'
+        return query, scope, filters
+    return None
 
 def longest_prefix(records, ip):
     """The routes that win a lookup of `ip` in a whole table: all entries of the longest matching prefix."""
@@ -159,17 +320,52 @@ def parse(profile, table, query, text, *, rc=0, status=None, filters=None, comma
     if command is None and entry is not None and not entry.slots:
         command = entry.command
     state = status or output_status(text, rc=rc, profile=profile, command=command)
+    ios_scoped = profile in IOS_FORWARDING_PROFILES and query in IOS_FORWARDING_TABLES
+    if ios_scoped and state == 'empty' and table in ('mac_entry', 'dhcp_binding'):
+        # A successful IOS MAC/snooping read prints a header even when no rows match.
+        state = 'unparsed'
+    if ios_scoped and state == 'ok' and rc in (0, None) and command:
+        scope = re.search(r'\bvrf (\S+)', command)
+        if scope and text.strip() == f'% VRF {scope[1]} does not exist.':
+            state = 'not_applicable'
     blank_lookup = (profile, table, query) in _route_ipv6.QUERIES and (
         state == 'empty' or state == 'ok' and _route_ipv6.blank(text))
+    if profile == 'cisco_nxos' and table == 'route' and query in ('ipv6_route_table', 'ipv6_route_table_vrf', 'ipv6_route_lookup', 'ipv6_route_lookup_vrf') and state == 'empty':
+        state = 'unparsed'
+    if profile == 'cisco_xe' and state == 'empty' and query in (
+            'stp_detail', 'stp_interface_detail', 'cdp_neighbor_interface', 'lldp_neighbor_interface',
+            'power_inline_detail', 'interface_transceiver'):
+        state = 'unparsed'
+    if profile == 'cisco_nxos' and query in NXOS_SCOPED_TABLES and state == 'empty':
+        # These commands display a header even when no rows match.
+        state = 'unparsed'
     if blank_lookup:
         # A blank capture, or one holding only the prompt framing, is not the recognized
         # "% Network not in table" answer: no route is shown.
         state = 'unparsed'
+    if profile == 'cisco_nxos' and query == 'interface_transceiver' and state == 'ok':
+        from .optics import nxos_dom_not_applicable
+        if nxos_dom_not_applicable(text) and (not filters or filters.get('port') == text.strip().splitlines()[0].strip()):
+            state = 'not_applicable'
+            result = response_envelope(profile, state, [source_record(query, text, state)])
+            result.update(ok=True, table=table, records=[], unparsed=[],
+                          coverage={'complete': True, 'parsed_records': 0, 'unparsed_lines': 0, 'missing_fields': []})
+            return result
     if table == 'interface_errors':
         state = _port_errors.output_state(profile, query, text, state, rc)
+    # Exact EXOS negative answers are evidence of absence, not failed reads.
+    # Keep transport/pager failures and every unrecognized error fail-closed.
+    if (profile == 'extreme_exos' and rc in (0, None, 250)
+            and state not in ('truncated', 'timeout')
+            and _exos_ports.not_applicable(table, text, command)):
+        result = response_envelope(profile, 'not_applicable', [source_record(query, text, 'not_applicable')])
+        result.update(ok=True, table=table, records=[], unparsed=[],
+                      coverage={'complete': True, 'parsed_records': 0, 'unparsed_lines': 0, 'missing_fields': []})
+        return result
     refusal_states = {'permission_denied', 'unsupported', 'not_applicable'}
     refusal_like = refused or output_status(text, profile=profile) in refusal_states
     rows, unknown = [], []
+    cisco_optics = profile in ('cisco_nxos', 'cisco_xe') and table == 'optics_port' and query == 'interface_transceiver'
     parser = QUERY_PARSERS.get((profile, table, query), PARSERS.get(profile))
     if table in TABLE_PARSERS and profile in _port_errors.PROFILES:
         parser = lambda selected, output: TABLE_PARSERS[selected](profile, output, command=command)
@@ -178,6 +374,11 @@ def parse(profile, table, query, text, *, rc=0, status=None, filters=None, comma
     guard_allowed = state in refusal_states and (rc in (0, None) or exos_exit_250(profile, rc, text))
     if parser and (state == 'ok' or refusal_like and guard_allowed):
         rows, unknown = port_vlan.parse(profile, query, text) if table == 'port_vlan' and profile != 'fortinet' else parser(table, text)
+        if (profile, table, query) == ('fortinet', 'lag', 'lacp_detail'):
+            # The FortiOS aggregate detail does not print its own name; it is the argument of the rendered command.
+            named = re.fullmatch(r'diagnose netlink aggregate name (\S+) show', command or '')
+            for row in rows:
+                row['name'] = named[1] if named else None
         if table == 'vlan' and profile in ('cisco_ios', 'cisco_xe'):
             for row in rows:
                 if not row['ports']:
@@ -187,16 +388,79 @@ def parse(profile, table, query, text, *, rc=0, status=None, filters=None, comma
             state = 'unparsed' if unknown else 'ok'
         elif state != 'ok':
             rows, unknown = [], []
+        elif cisco_optics and rows and rows[0]['state'] in ('partial', 'incomplete'):
+            state = 'incomplete'
         elif unknown:
             state = 'unparsed'
         elif not rows:
             state = 'empty'
     elif state == 'ok':
         state = 'unsupported'
+    if profile == 'cisco_nxos' and query in NXOS_SCOPED_TABLES and state in ('ok', 'empty'):
+        if query in NXOS_LOOKUPS and table == 'neighbor_l3':
+            parts = (command or '').split()
+            selected_vrf = parts[-1] if len(parts) > 4 and parts[-2] == 'vrf' else 'default'
+            for row in rows:
+                # The default IPv4 heading sometimes omits the context.
+                if row['vrf'] is None and selected_vrf == 'default':
+                    row['vrf'] = 'default'
+            if rows and selected_vrf != 'all' and any(row['vrf'] != selected_vrf for row in rows):
+                unknown.append({'line': 1, 'text': 'NX-OS response identifies a different VRF'})
+        selector = None
+        if command:
+            value = command.split()[3 if query in NXOS_LOOKUPS else -1]
+            if query in NXOS_LOOKUPS:
+                selector = ('ip', str(ipaddress.ip_address(value)))
+            elif query == 'mac_table_address':
+                selector = ('mac', normalize_mac(value))
+            elif query == 'mac_table_vlan':
+                selector = ('vlan_id', int(value))
+        if selector and any(row[selector[0]] != selector[1] for row in rows):
+            unknown.append({'line': 1, 'text': 'NX-OS response does not match the lookup selector'})
+        if unknown:
+            state = 'unparsed'
+    if ios_scoped and rows and command:
+        unknown.extend(_ios_forwarding_scope(query, command, rows))
+        if unknown:
+            state = 'unparsed'
+    if profile == 'extreme_exos' and table == 'route' and command:
+        selected_vr = re.search(r' vr ([A-Za-z0-9][A-Za-z0-9_.:-]{0,63})$', command)
+        if selected_vr:
+            for row in rows:
+                row['vrf'] = selected_vr[1]
+    scoped_cisco = profile == 'cisco_nxos' or (
+        profile == 'cisco_xe' and _ios_ports.INTERFACE_QUERIES.get(table) == query and query is not None)
+    if scoped_cisco and filters and state in ('ok', 'incomplete') and any(
+            row.get(key) != value for row in rows for key, value in filters.items()):
+        state = 'unparsed'
+        platform_name = 'NX-OS' if profile == 'cisco_nxos' else 'IOS XE'
+        unknown.append({'line': 1, 'text': f'{platform_name} response identifies a different interface'})
     # A field counts as missing when the catalogue output never supplies it; a value that is
     # absent in some rows (no description on a port, no speed on a down link) is normal.
+    # Each EOS STP port block must include its required counters and state.
+    absent = any if (profile in ('arista_eos', 'cisco_nxos', 'cisco_xe') and table == 'stp_port_counters'
+                     or profile == 'cisco_xe' and table == 'stp_topology') else all
+    optional = optional_fields(profile, table)
+    if ((profile == 'cisco_nxos' and query in NXOS_NEIGHBOR_QUERIES)
+            or (ios_scoped and table == 'neighbor_l3')):
+        optional.add('vlan_id')
+    if profile in IOS_FORWARDING_PROFILES and table == 'neighbor_l3' and rows and all(row.get('state') == 'INCMP' for row in rows):
+        optional.add('mac')
+    if profile == 'cisco_nxos' and query == 'dhcp_snooping_binding':
+        # A documented infinite static lease has no duration in seconds.
+        optional.add('lease_seconds')
+    if profile == 'fortinet':
+        if query == 'local_stp_ports':
+            optional.add('role')
+        elif query == 'local_switch_vlans':
+            optional.add('oper_status')
     missing = sorted(field for field in (FIELDS[table] if rows else ())
-                     if field not in optional_fields(profile, table) and all(row.get(field) is None for row in rows))
+                     if field not in optional and absent(row.get(field) is None for row in rows))
+    if cisco_optics and rows:
+        row = rows[0]
+        if 'temperature_c' in missing and any(lane['temperature_c'] is not None for lane in row.get('lanes', [])):
+            missing.remove('temperature_c')
+        missing = sorted(set(missing) | set(row.get('missing_fields', [])))
     result = response_envelope(profile, state, [source_record(query, text, state)] if query else [])
     result.update(ok=state in ('ok', 'empty'), table=table, records=[row for row in rows if all(row.get(k) == v for k, v in (filters or {}).items())],
                   unparsed=unknown)
@@ -205,6 +469,10 @@ def parse(profile, table, query, text, *, rc=0, status=None, filters=None, comma
     if protected:
         result['coverage']['warnings'] = ['refusal_like_line_in_data']
         result['warnings'].append('refusal_like_line_in_data')
+    if profile == 'cisco_ios' and table == 'lag_member' and state == 'empty':
+        # G53 r3: an empty `show lacp internal` (no channel group) is a valid answer, not complete member data.
+        result['coverage']['complete'] = False
+        result['warnings'].append('no_channel_groups')
     if missing:
         result['warnings'].append('fields_absent_in_catalogue_output')
     if unknown:
@@ -256,8 +524,11 @@ def neighbor_line(value, style):
         interface = interface_cell(cell[1]) if len(cell) > 1 else parts[-1]
     else:
         interface = parts[-1]
+    ios_incomplete = (style == 'ios' and len(parts) == 5 and parts[2:4] == ['-', 'INCMP']
+                      and str(ipaddress.IPv6Address(parts[0])) == address
+                      and re.fullmatch(r'[0-9]+|-', parts[1]) is not None)
     # Incomplete ARP/ND is a useful record, never a made-up MAC.
-    if not mac_match and not re.search(r'\b(?:Incomplete|INCOMPLETE|FAILED)\b', value):
+    if not mac_match and not ios_incomplete and not re.search(r'\b(?:Incomplete|INCOMPLETE|FAILED)\b', value):
         return None
     if interface == 'Incomplete':
         interface = None
@@ -267,8 +538,11 @@ def neighbor_line(value, style):
         except ValueError:
             if not re.fullmatch(r'[A-Za-z0-9_.:-]{1,64}', interface):
                 return None
-    return record('neighbor_l3', ip=address, mac=normalize_mac(mac_match[0]) if mac_match else None,
-                  interface=interface, vlan_id=vlan(interface or ''))
+    row = record('neighbor_l3', ip=address, mac=normalize_mac(mac_match[0]) if mac_match else None,
+                 interface=interface, vlan_id=vlan(interface or ''))
+    if ios_incomplete:
+        row.update(mac=None, state='INCMP')
+    return row
 
 
 CAPABILITY_CODES = (('O', 'other'), ('P', 'repeater'), ('B', 'bridge'), ('W', 'wlan ap'), ('R', 'router'),
@@ -405,8 +679,10 @@ def exos_sharing(text):
             return []
         # Flags may be blank on continuation rows; '-' is an unaggregated member.
         m = re.fullmatch(r'(\d+(?::\d+)?)\s+(\d+(?::\d+)?|-)\s+(LACP|STATIC)\s+(<?\d+)\s+'
-                         r'(L2|L3_L4|L3|custom)\s+([AdLPR-]+)\s+(\d+(?::\d+)?)\s+(Y|N|-)\s+(A|D|R|NP|L)\s+(\d+)', value, re.I)
-        if m:
+                         r'(?:(L2|L3_L4|L3|custom)\s+)?([AdLPR-]+)\s+(\d+(?::\d+)?)\s+(Y|N|-)\s+(A|D|R|NP|L)\s+(\d+)', value, re.I)
+        # The EXOS-VM 33.6 LACP group reads blank under Algorithm. The group
+        # number and member link state are still printed.
+        if m and (m[5] or m[3].upper() == 'LACP'):
             current[0] = record('lag', name=port(m[1]), protocol='LACP' if m[3].upper() == 'LACP' else 'Static',
                                 status='down' if m[4].startswith('<') else None, members=[])
             member, aggregated, link = m[7], m[8], m[9]
@@ -513,12 +789,12 @@ EXOS_HEADINGS = {
     'interface': (r'Port Summary', r'Port\s+Display\s+VLAN Name\s+Port\s+Link\s+Speed\s+Duplex',
                   r'#\s+String\s+\(or # VLANs\)\s+State State Actual Actual', r'Port State: .*', r'Link State: .*',
                   r'[A-Za-z]-[A-Za-z][^:]*,?'),
-    'mac_entry': (r'MAC\s+VLAN Name\( Tag\)\s+Age\s+Flags\s+Port / Virtual Port List', r'Flags : .*',
+    'mac_entry': (r'VLAN \d+: show fdb vlan \S+', r'MAC\s+VLAN Name\( Tag\)\s+Age\s+Flags\s+Port / Virtual Port List', r'Flags : .*',
                   r'[a-zA-Z] ?- .*', r'Total: \d+ Static: \d+ +Perm: \d+ +Dyn: \d+ +Dropped: \d+ +Locked: \d+ +Locked with Timeout: \d+',
                   r'FDB Aging time: \d+', r'No FDB entries.*'),
     'vlan': (r'Untagged ports auto-move: \w+', r'Name\s+VID\s+Protocol Addr\s+Flags\s+Proto\s+Ports\s+Virtual',
              r'Active router', r'/Total', r'Flags : .*', r'\(\w\) .*', r'Total number of VLAN\(s\)\s*: \d+'),
-    'neighbor_l3': (r'VR\s+Destination\s+Mac\s+Age\s+Static\s+VLAN\s+VID\s+Port', r'VR\s+Destination',
+    'neighbor_l3': (r'VLAN \d+: show iparp vlan \S+', r'VR\s+Destination\s+Mac\s+Age\s+Static\s+VLAN\s+VID\s+Port', r'VR\s+Destination',
                     r'Mac\s+Age\s+Static\s+VLAN\s+VID\s+Port',
                     r'Total Entries\s*:\s*\d+', r'Dynamic Entries\s*:\s*\d+\s+Static Entries\s*:\s*\d+', r'Pending Entries\s*:\s*\d+',
                     r'ARP address check:\s*\w+\s+ARP refresh\s*:\s*\w+', r'Timeout\s*:\s*\d+ minutes\s+(?:ARP Sender-Mac Learning|Refresh)\s*:\s*\w+',
@@ -534,7 +810,7 @@ EXOS_HEADINGS = {
 
 BINDINGS['extreme_exos'] = {'interface': 'ports', 'vlan': 'vlan_summary', 'mac_entry': 'mac_table',
                             'neighbor_l3': 'arp_table', 'neighbor_l3_v6': 'ipv6_neighbors',
-                            'lldp_neighbor': 'lldp_neighbors_detail', 'route': 'route_table', 'route_all': 'route_table',
+                            'lldp_neighbor': 'lldp_neighbors_detail', 'route': 'route_table', 'route_all': 'route_table', 'route_v6': 'ipv6_route_table',
                             'aggregate': 'lacp', 'lag': 'lag_summary'}
 PARSERS['extreme_exos'] = exos
 
@@ -684,7 +960,7 @@ def mac_ios(text):
     return scan(text, handle)
 
 
-def mac_nxos(text):
+def mac_nxos(text, *, include_remote=False):
     legend = {'on': False}
 
     def handle(raw, value):
@@ -700,7 +976,13 @@ def mac_nxos(text):
         if not m:
             return None
         cell = m[7].strip()
-        if m[1] == '-' or SYSTEM_PORTS.fullmatch(cell):
+        if m[1] == '-':
+            return []
+        peer = re.fullmatch(r'(nve\d+)\(([^()]+)\)', cell) if include_remote else None
+        if peer:
+            return record('mac_entry', mac=normalize_mac(m[2]), vlan_id=int(m[1]), type=mac_type(m[3]),
+                          port=peer[1]) | {'remote': True, 'peer_ip': str(ipaddress.ip_address(peer[2]))}
+        if SYSTEM_PORTS.fullmatch(cell):
             return []
         if cell.startswith('vPC Peer-Link'):
             return record('mac_entry', mac=normalize_mac(m[2]), vlan_id=int(m[1]), type='trunk', port='vPC Peer-Link')
@@ -769,8 +1051,11 @@ EOS_NEIGHBOR_LEGEND = (r'Legend:', r'not learned: .*', r'-: Static .*', r'\*: .*
                        r'Flags: .*', r'(?:G|R|CP|PS|RO|CC|#) - .*')      # NX-OS flag legend above ARP and ND
 
 
+IOS_ND_CACHE_TIMER = r'ND cache expire time is [0-9]+ seconds'
+
+
 def ipv6_table(text):
-    first = next((line.strip() for line in text.splitlines() if line.strip() and not matches(line.strip(), EOS_NEIGHBOR_LEGEND)), '')
+    first = next((line.strip() for line in text.splitlines() if line.strip() and not matches(line.strip(), EOS_NEIGHBOR_LEGEND + (IOS_ND_CACHE_TIMER,))), '')
     if first.startswith('IPv6 '):
         return True
     try:
@@ -782,7 +1067,7 @@ def ipv6_table(text):
 def neighbors(text, style):
     """ARP (IPv4) or ND (IPv6) cache: the two queries share the normalized table, the header tells them apart."""
     if ipv6_table(text):
-        return scan(text, lambda raw, value: [] if matches(value, (r'IPv6 Address.*', r'IPv6 Adjacency Table.*', r'Address\s+Age\s+MAC Address\s+Pref.*', r'Total number of entries:\s*\d+', r'Flags:.*', r'[*+#]\s*-\s.*') + EOS_NEIGHBOR_LEGEND)
+        return scan(text, lambda raw, value: [] if matches(value, (r'IPv6 Address.*', r'IPv6 Adjacency Table.*', IOS_ND_CACHE_TIMER, r'Address\s+Age\s+MAC Address\s+Pref.*', r'Total number of entries:\s*\d+', r'Flags:.*', r'[*+#]\s*-\s.*') + EOS_NEIGHBOR_LEGEND)
                     else neighbor_line(value, style))
     return arp_rows(text, style)
 
@@ -795,8 +1080,16 @@ def interface_cell(cell):
     return port(re.split(r'[,\s]', cell)[0])
 
 
-def arp_rows(text, style):
+def arp_rows(text, style, *, nxos_bare_header=False):
+    vrf = [None]
+
     def handle(raw, value):
+        m = re.fullmatch(r'IP ARP Table for context (\S+)', value) if style == 'nxos' else None
+        if m:
+            vrf[0] = m[1]
+            return []
+        if nxos_bare_header and value == 'IP ARP Table':
+            return []
         if matches(value, (r'Protocol\s+Address\s+Age.*', r'Address\s+Age.*', r'MAC Address\s+Address\s+Name.*', r'MAC Address\s+Address\s+Interface.*',
                            r'IP ARP Table for context.*', r'Total number of entries:\s*\d+', r'Total entries:\s*\d+', r'Flags:.*',
                            r'[*+#]\s*-\s.*', r'(?:CP|PS|RO|D)\s*-\s.*') + EOS_NEIGHBOR_LEGEND):
@@ -818,7 +1111,7 @@ def arp_rows(text, style):
         address = str(ipaddress.ip_address(fields[0]))
         interface = interface_cell(fields[2])
         known = re.fullmatch(MAC, fields[1])
-        return record('neighbor_l3', ip=address, mac=normalize_mac(fields[1]) if known else None, interface=interface,
+        return record('neighbor_l3', ip=address, mac=normalize_mac(fields[1]) if known else None, interface=interface, vrf=vrf[0],
                       vlan_id=vlan(interface or ''),
                       type='interface' if style == 'ios' and m[2] == '-' and interface and known else None)
     return scan(text, handle)
@@ -826,11 +1119,11 @@ def arp_rows(text, style):
 
 # --- LLDP ---------------------------------------------------------------------------------
 
-def cisco_lldp(text, style='ios'):
+def cisco_lldp(text, style='ios', *, check_total=False):
     """`show lldp neighbors detail`: one block per neighbour. System Description, the management address list,
     media capabilities and the MED section are free text; they are recognized by their section, not parsed."""
     rows, unknown = [], []
-    current, section = None, None
+    current, section, total = None, None, None
     start = 'Local Intf:' if style == 'ios' else 'Chassis id:'
     simple = {'chassis id', 'chassis type', 'port type', 'port description', 'time remaining', 'time to live', 'system capabilities',
               'vlan id', 'peer source mac', 'auto negotiation', 'media attachment unit type', 'mtu', 'max frame size',
@@ -840,7 +1133,11 @@ def cisco_lldp(text, style='ios'):
         if not value:
             section = None if section == 'description' else section
             continue
-        if re.fullmatch(r'-{10,}', value) or re.fullmatch(r'Total (?:entries|neighbors) displayed:\s*\d+', value, re.I):
+        count = re.fullmatch(r'Total (?:entries|neighbors) displayed:\s*(\d+)', value, re.I)
+        if count:
+            total = int(count[1])
+            continue
+        if re.fullmatch(r'-{10,}', value):
             continue
         if current is None and matches(value, (r'Capability codes:', r'\(\w\) .*', r'Device ID\s+Local Intf\s+Hold-time\s+Capability\s+Port ID')):
             continue            # NX-OS prints the legend and a summary header above the detail blocks
@@ -899,6 +1196,10 @@ def cisco_lldp(text, style='ios'):
                 unknown.append({'line': number, 'text': raw})
         except ValueError:
             unknown.append({'line': number, 'text': raw})
+    if check_total and total != len(rows):
+        unknown.append({'line': 1, 'text': f'LLDP entry total {total} differs from the {len(rows)} parsed blocks'})
+    if check_total and any(not row['local_port'] or not row['neighbor_port'] for row in rows):
+        unknown.append({'line': 1, 'text': 'incomplete LLDP neighbor block'})
     return rows, unknown
 
 
@@ -994,9 +1295,12 @@ def lldp_summary(text, style):
 OSPF_ROLES = {'DR', 'BDR', 'DROTHER', '-'}
 # EOS separates the words in `2 WAYS`; the slash/role is a separate optional cell part.
 OSPF_STATE_CELL = r'(\S+(?:[ \t]+WAYS)?(?:[ \t]*/[ \t]*\S+)?)'
+EOS_OSPF_HEADER = re.compile(r'Neighbor ID\s+Instance\s+VRF\s+Pri\s+State\s+Dead Time\s+Address\s+Interface')
+_EOS_OSPF_ROW = re.compile(r'(\d+\.\d+\.\d+\.\d+)\s+(\S+)\s+(\S+)\s+(\d+)\s+' + OSPF_STATE_CELL
+                           + r'\s+(\S+)\s+(\d+\.\d+\.\d+\.\d+)\s+(\S+)')
 
 
-def ospf_neighbors(text, style):
+def ospf_neighbors(text, style, *, eos_details=False):
     """IOS `show ip ospf neighbor` (Neighbor ID, Pri, State, Dead Time, Address, Interface), EOS (Instance and VRF added),
     NX-OS (Up Time instead of Dead Time, VRF in the process line) and Junos (Address first, state without a DR role)."""
     nx_vrf = [None]
@@ -1013,17 +1317,17 @@ def ospf_neighbors(text, style):
             vrf = nx_vrf[0]
             fields = (m[1], m[2], m[3], m[4]) if m else None
         elif style == 'junos':
-            if matches(value, (r'Address\s+Interface\s+State\s+ID\s+Pri\s+Dead',)):
+            if matches(value, (r'Address\s+(?:Intf|Interface)\s+State\s+ID\s+Pri\s+Dead',)):
                 return []
             m = re.fullmatch(r'(\d+\.\d+\.\d+\.\d+)\s+(\S+)\s+(Down|Attempt|Init|2Way|ExStart|Exchange|Loading|Full)\s+(\d+\.\d+\.\d+\.\d+)\s+\d+\s+\d+', value)
             vrf = None
             fields = (m[4], m[3].upper(), m[1], m[2]) if m else None
         elif style == 'eos':
-            if matches(value, (r'Neighbor ID\s+Instance\s+VRF\s+Pri\s+State\s+Dead Time\s+Address\s+Interface',)):
+            if EOS_OSPF_HEADER.fullmatch(value):
                 return []
-            m = re.fullmatch(r'(\d+\.\d+\.\d+\.\d+)\s+\S+\s+(\S+)\s+\d+\s+'+OSPF_STATE_CELL+r'\s+\S+\s+(\d+\.\d+\.\d+\.\d+)\s+(\S+)', value)
-            vrf = m[2] if m else None
-            fields = (m[1], m[3], m[4], m[5]) if m else None
+            m = _EOS_OSPF_ROW.fullmatch(value)
+            vrf = m[3] if m else None
+            fields = (m[1], m[5], m[7], m[8]) if m else None
         else:
             if matches(value, (r'Neighbor ID\s+Pri\s+State\s+Dead Time\s+Address\s+Interface',)):
                 return []
@@ -1037,8 +1341,16 @@ def ospf_neighbors(text, style):
         role = role or None
         if role is not None and role not in OSPF_ROLES:
             return None
-        return record('ospf_neighbor', neighbor_id=str(ipaddress.ip_address(fields[0])), address=str(ipaddress.ip_address(fields[2])),
-                      interface=port(fields[3]), state=state, role=None if role == '-' else role, vrf=vrf)
+        address = ipaddress.ip_address(fields[2])
+        row = record('ospf_neighbor', neighbor_id=str(ipaddress.ip_address(fields[0])), address=str(address),
+                     interface=port(fields[3]), state=state, role=None if role == '-' else role, vrf=vrf)
+        if style == 'junos':
+            row['address_family'] = 'ipv4'
+        elif style == 'eos' and eos_details:
+            if not re.fullmatch(r'\d\d:\d\d:\d\d', m[6]):
+                return None
+            row.update(instance=int(m[2]), priority=int(m[4]), dead_time=m[6])
+        return row
     return scan(text, handle)
 
 
@@ -1051,16 +1363,48 @@ BGP_STATE_NAMES.update({'estab': 'Established', 'establ': 'Established', 'idle (
 BGP_STATES = set(BGP_STATE_NAMES)
 
 
+NXOS_BGP_WRAPPED_COUNTERS = re.compile(r'[ \t]+\d[ \t]+\d+(?:\.\d+)?(?:[ \t]+\d+){5}[ \t]+\S+[ \t]+\S.*')
+
+
+def _nxos_bgp_address_only(line):
+    try:
+        ipaddress.ip_address(line.rstrip().split('%')[0])
+    except ValueError:
+        return False
+    return not line[:1].isspace()
+
+
+def nxos_join_wrapped_peers(text):
+    """NX-OS prints a neighbor longer than the 15-character column (IPv6) alone and its counters indented on the next
+    line. Such a pair becomes one row on the address line and the counter line is left blank, so line numbers of
+    `unparsed` stay those of the capture; an address or counter line without its partner stays as printed."""
+    lines = text.split('\n')
+    for i in range(len(lines) - 1):
+        if _nxos_bgp_address_only(lines[i]) and NXOS_BGP_WRAPPED_COUNTERS.fullmatch(lines[i + 1].rstrip('\r')):
+            lines[i] = lines[i].rstrip() + ' ' + lines[i + 1].strip()
+            lines[i + 1] = ''
+    return '\n'.join(lines)
+
+
 def bgp_peers(text, style):
     """IOS `show ip bgp summary` (State/PfxRcd: a number means Established) and EOS (State and PfxRcd columns)."""
-    vrf = ['default'] if style == 'eos' else [None]
+    vrf = ['default'] if style in ('eos', 'fortinet') else [None]
+    if style == 'nxos':
+        text = nxos_join_wrapped_peers(text)
 
     def handle(raw, value):
         m = re.fullmatch(r'BGP summary information for VRF (\S+?)(?:, address family .*)?', value)
         if m:
             vrf[0] = m[1]
             return []
-        if matches(value, (r'BGP router identifier .*', r'BGP table version .*', r'BGP (?:attribute|community) entries .*', r'Router identifier .*', r'Neighbor\s+V\s+AS\s+.*',
+        # FortiOS (80F 8.0.2): `VRF default(0) BGP router identifier ..., local AS number ...`; VRF 0 is default.
+        m = re.fullmatch(r'VRF (\S+?)(?:\((\d+)\))? BGP router identifier .*', value) if style == 'fortinet' else None
+        if m:
+            vrf[0] = 'default' if m[1] in ('0', 'default') else m[1]
+            return []
+        if style == 'fortinet' and re.fullmatch(r'Total number of neighbors \d+', value):
+            return []
+        if matches(value, (r'BGP router identifier .*', r'BGP table version .*', r'BGP (?:attribute|community) entries .*', r'BGP community <REDACTED> \[\d+/\d+\].*', r'Router identifier .*', r'Neighbor\s+V\s+AS\s+.*',
                            r'\d+(?:/\d+)? .* (?:using|entries) .*', r'BGP using .*', r'BGP activity .*', r'Dampening .*', r'% BGP (?:not active|inactive)', r'(?:\d+ )?Neighbor.*')) or matches(value, (r'.*, local AS number \d+',)):
             return []
         if style == 'eos':
@@ -1073,7 +1417,7 @@ def bgp_peers(text, style):
             return None
         address = str(ipaddress.ip_address(fields[0].split('%')[0]))
         state, prefixes = re.sub(r'\s+', ' ', fields[2]), fields[3]
-        if style in ('ios', 'nxos'):
+        if style in ('ios', 'nxos', 'fortinet'):
             prefixes = state if state.isdigit() else None
             state = 'Established' if state.isdigit() else state
         elif state.lower() == 'estab':
@@ -1314,7 +1658,7 @@ def route_ios(text):
         m = re.fullmatch(r'\*?\s*directly connected, via (\S+)', value)
         if m:
             state['hops'] += 1
-            return record('route', prefix=state['prefix'], interface=port(m[1]), protocol='connected')
+            return record('route', prefix=state['prefix'], interface=port(m[1]), protocol=state['protocol'])
         m = re.fullmatch(r'\*?\s*(\d+\.\d+\.\d+\.\d+|[0-9a-fA-F:]+)(?:%\S+)?(?:, from \S+)?(?:, [\d:wdhm]+ ago)?(?:, via (\S+))?', value)
         if m and not value.startswith('Route'):
             state['hops'] += 1
@@ -1322,8 +1666,6 @@ def route_ios(text):
                           interface=port(m[2]) if m[2] else None, protocol=state['protocol'])
         return [] if matches(value, IOS_ROUTE_DETAIL) else None
     rows, unknown = scan(text, handle)
-    for row in rows:
-        row['protocol'] = row['protocol'] or state['protocol']
     if state['prefix'] and not state['hops']:
         rows.append(record('route', prefix=state['prefix'], protocol=state['protocol']))
     return rows, unknown
@@ -1362,8 +1704,9 @@ def route_nxos(text):
     return scan(text, handle)
 
 
-def route_eos(text):
-    state = {'vrf': None, 'prefix': None, 'protocol': None, 'in_codes': False}
+def route_eos(text, *, missing_hops=None):
+    """Parse EOS route rows and report prefix lines with no continuation to a lookup caller."""
+    state = {'vrf': None, 'prefix': None, 'protocol': None, 'in_codes': False, 'pending': False}
     # Full source codes from the cEOS legend; L means VRF leaked, not local.
     codes = {'C': 'connected', 'S': 'static', 'K': 'kernel', 'B': 'bgp', 'B I': 'bgp', 'B E': 'bgp',
              'I': 'isis', 'I L1': 'isis', 'I L2': 'isis', 'R': 'rip',
@@ -1375,54 +1718,73 @@ def route_eos(text):
         return record('route', prefix=prefix, next_hop=hop, interface=port(interface) if interface else None,
                       protocol=codes.get(code, code.lower()), vrf=state['vrf'])
 
+    def close_prefix():
+        if state['pending'] and missing_hops is not None:
+            missing_hops.append(state['prefix'])
+        state.update(prefix=None, protocol=None, pending=False)
+
     def handle(raw, value):
         m = re.fullmatch(r'VRF:\s*(\S+)', value)
         if m:
+            close_prefix()
             state['vrf'] = m[1]
             return []
+        if re.fullmatch(r'(?:Displaying [0-9]+ of [0-9]+ IPv6 routing table entries|IPv6 Routing Table - [0-9]+ entries)', value):
+            return []
         if value.startswith(('Codes:', 'Source Codes:')):
+            close_prefix()
             state['in_codes'] = True
             return []
-        if state['in_codes'] and re.match(r'\s+\S.* - ', raw):
+        if state['in_codes'] and (re.match(r'\s+\S.* - ', raw) or value == 'Aggregate'):
             return []
         state['in_codes'] = False
         if matches(value, (r'Gateway of last resort(?: is not set|:)?', r'Gateway of last resort is .*', r'Routing entry for .*')):
+            close_prefix()
             return []
         m = re.fullmatch(r'directly connected, (\S+)', value)       # 4.36: the interface is on the line below the prefix
         if m and state['prefix']:
-            return route(state['prefix'], None, m[1], state['protocol'])
+            row = route(state['prefix'], None, m[1], state['protocol'])
+            state['pending'] = False
+            return row
         m = re.fullmatch(r'([A-Z]{1,2}\d?(?: [A-Z]{1,2}\d?)?)\s+([0-9a-fA-F:.]+/\d+) is directly connected, (\S+)', value)
         if m:
+            close_prefix()
             return route(str(ipaddress.ip_network(m[2], strict=False)), None, m[3], m[1])
         m = re.fullmatch(r'([A-Z]{1,2}\d?(?: [A-Z]{1,2}\d?)?)\s+([0-9a-fA-F:.]+/\d+)(?: \[\d+/\d+\])?(?: via ([0-9a-fA-F:.]+)(?:, (\S+))?)?(?:,? .*)?', value)
         if m:
+            close_prefix()
             prefix = str(ipaddress.ip_network(m[2], strict=False))
-            state.update(prefix=prefix, protocol=m[1])
+            state.update(prefix=prefix, protocol=m[1], pending=not m[3])
             return route(prefix, str(ipaddress.ip_address(m[3])), m[4], m[1]) if m[3] else []
         m = re.fullmatch(r'via ([0-9a-fA-F:.]+)(?:, (\S+))?', value)
         if m and state['prefix']:
-            return route(state['prefix'], str(ipaddress.ip_address(m[1])), m[2], state['protocol'])
+            row = route(state['prefix'], str(ipaddress.ip_address(m[1])), m[2], state['protocol'])
+            state['pending'] = False
+            return row
         return None
-    return scan(text, handle)
+    parsed = scan(text, handle)
+    close_prefix()
+    return parsed
 
 
-def route_junos(text):
+def route_junos(text, *, include_next_hop_type=False):
     """`show route A detail`: only active entries, like the whole-table parser."""
-    state = {'prefix': None, 'protocol': None, 'vrf': None, 'hops': [], 'active': False}
+    state = {'prefix': None, 'protocol': None, 'vrf': None, 'hops': [], 'active': False, 'hop_type': None}
     out = []
 
     def close_entry():
         if state['prefix'] is None or state['protocol'] is None or not state['active']:
             return
-        if not state['hops']:
-            out.append(record('route', prefix=state['prefix'], protocol=state['protocol'], vrf=state['vrf']))
-        for hop, interface, protocol in state['hops']:
-            out.append(record('route', prefix=state['prefix'], next_hop=hop, interface=interface,
-                              protocol=protocol, vrf=state['vrf']))
+        for hop, interface in state['hops'] or [(None, None)]:
+            row = record('route', prefix=state['prefix'], next_hop=hop, interface=interface,
+                         protocol=state['protocol'], vrf=state['vrf'])
+            if include_next_hop_type and state['hop_type'] is not None:
+                row['next_hop_type'] = state['hop_type']
+            out.append(row)
 
     def close():
         close_entry()
-        state.update(prefix=None, protocol=None, hops=[], active=False)
+        state.update(prefix=None, protocol=None, hops=[], active=False, hop_type=None)
 
     def handle(raw, value):
         m = re.fullmatch(r'(?:(\S+)\.)?inet6?\.\d+: \d+ destinations, \d+ routes \(.*\)', value)
@@ -1441,17 +1803,21 @@ def route_junos(text):
         if m:
             close_entry()
             state.update(protocol=JUNOS_ROUTE_PROTOCOL.get(m[2].lower(), m[2].lower()),
-                         active=m[1] == '*', hops=[])
+                         active=m[1] == '*', hops=[], hop_type=None)
             return []
         m = re.fullmatch(r'State: <([^>]*)>', value)
         if m:
             state['active'] = 'Active' in m[1].split()
             return []
+        m = re.fullmatch(r'Next hop type: ([A-Za-z][A-Za-z -]*?)(?:, Next hop index: \d+)?', value)
+        if m:
+            state['hop_type'] = m[1]
+            return []
         m = re.fullmatch(r'Next hop:[ \t]+(?:([0-9a-fA-F:.]+)[ \t]+)?via[ \t]+(\S+?)(?:, selected)?', value)
         if m:
-            state['hops'].append((str(ipaddress.ip_address(m[1])) if m[1] else None, port(m[2]), state['protocol']))
+            state['hops'].append((str(ipaddress.ip_address(m[1])) if m[1] else None, port(m[2])))
             return []
-        if value.startswith('Next hop:'):
+        if value.startswith(('Next hop:', 'Next hop type:')):
             return None
         if raw[:1].isspace():
             return []           # the attribute lines of a route entry (Age, State, AS path ...)
@@ -1644,6 +2010,7 @@ def junos_bgp_peers(text):
             else:
                 return None
             state['peer'] = record('bgp_peer', neighbor=address, remote_as=m[2], state=established, prefixes=prefixes, vrf='default')
+            state['peer']['address_family'] = 'ipv6' if ':' in address else 'ipv4'
             return state['peer']
         m = re.fullmatch(r'([a-z0-9._-]+\.(?:inet6?|l3vpn|l2vpn|evpn|mvpn|iso|isovpn)\.\d+|[a-z0-9._-]+\.\d+): (\d+)/(\d+)/(\d+)(?:/(\d+))?', value)
         if m and state['peer'] is not None and raw[:1].isspace():
@@ -1785,6 +2152,8 @@ def eos(table, text):
 
 BINDINGS['arista_eos'] = {**BINDINGS['cisco_ios'], 'lldp_neighbor': 'lldp_neighbors_detail'}
 PARSERS['arista_eos'] = eos
+for _query in ('ipv6_route_table', 'ipv6_route_table_vrf', 'ipv6_route_lookup', 'ipv6_route_lookup_vrf'):
+    QUERY_PARSERS[('arista_eos', 'route', _query)] = _route_ipv6.eos_routes
 
 
 JUNOS_NAME = r'[A-Za-z][A-Za-z0-9]*(?:[-/][0-9]+)*(?:[./:][0-9]+)*'
@@ -1899,6 +2268,10 @@ from . import fortigate_tables  # noqa: E402
 fortigate_tables.register(QUERY_PARSERS)
 QUERY_PARSERS[('fortinet', 'route', 'route_lookup')] = lambda table, text: switch_managed.routes(table, text, lookup=True)
 QUERY_PARSERS[('fortinet', 'route', 'ipv6_route_lookup')] = _route_ipv6.routes
+QUERY_PARSERS[('fortinet', 'route', 'ipv6_routing_table')] = _route_ipv6.fortios_table
+# G11 (FP-07): FortiGate-local routing and aggregate tables (requests are built by fortigate_tables.request).
+BINDINGS['fortinet'].update(ospf_neighbor='ospf_neighbors', bgp_peer='bgp_summary', lag='lacp_detail',
+                           stp_port='local_stp_ports', port_vlan='local_switch_vlans')
 PARSERS['fortinet'] = switch_managed.parse
 
 for _profile, _query in port_vlan.BINDINGS.items():
@@ -1912,6 +2285,11 @@ from . import ip_interfaces  # noqa: E402  (imports this module; everything abov
 for _profile, _query in ip_interfaces.QUERIES.items():
     BINDINGS[_profile]['ip_interface'] = _query
     QUERY_PARSERS[(_profile, 'ip_interface', _query)] = ip_interfaces.PARSERS[_profile]
+for _profile in ('juniper_junos', 'juniper_junos_els'):
+    BINDINGS[_profile]['ip_interface_v6'] = 'interfaces'
+    QUERY_PARSERS[(_profile, 'ip_interface_v6', 'interfaces')] = ip_interfaces.junos
+    for _query in ('ospfv3_neighbors', 'ospfv3_neighbors_interface'):
+        QUERY_PARSERS[(_profile, 'ospf_neighbor', _query)] = ip_interfaces.junos_ospfv3
 for _profile in ip_interfaces.ROUTER_INTERFACES:
     ROUTER_BINDINGS[_profile] = {'interface': 'ip_interfaces'}
     QUERY_PARSERS[(_profile, 'interface', 'ip_interfaces')] = ip_interfaces.PARSERS[_profile]
@@ -1925,3 +2303,1665 @@ _cdp.register(FIELDS, OPTIONAL_FIELDS, BINDINGS, QUERY_PARSERS)
 
 from . import linux_tables as _linux_tables
 _linux_tables.register(BINDINGS, PARSERS, QUERY_PARSERS)
+
+
+for _query in ('ipv6_route_table', 'ipv6_route_table_vr'):
+    QUERY_PARSERS[('extreme_exos', 'route', _query)] = _route_ipv6.exos_routes
+
+from . import exos_ports as _exos_ports
+_exos_ports.register(__import__(__name__, fromlist=['']))
+from . import eos_ports as _eos_ports  # noqa: E402
+_eos_ports.register(__import__(__name__, fromlist=['']))
+from . import ios_ports as _ios_ports  # noqa: E402  (G53 IOS port/STP/LACP/PoE/DOM tables)
+_ios_ports.register(__import__(__name__, fromlist=['']))
+# NX-OS shares the Cisco detail layout with two vPC port annotations.
+def _nxos_stp(table, text):
+    return _ios_ports.stp(table, text, nxos=True)
+
+
+def _nxos_optics(table, text):
+    return _ios_ports._optics_rows(table, text, nxos=True)
+
+
+def _nxos_lacp(table, text):
+    from .ios_ports import PORT_STATE_BITS
+
+    # These counters and state values appear in both the valid-member and
+    # unconfigured-port responses. A timestamp of 1970 is printed in the latter.
+    patterns = {
+        'port': r'Interface (Ethernet[0-9/]+) is (.+)',
+        'group': r'Channel group is ([0-9]+) port channel is *(Po[0-9]+)?',
+        'pdus_sent': r'PDUs sent: ([0-9]+)',
+        'pdus_received': r'PDUs rcvd: ([0-9]+)',
+        'actor': r'Actor Oper State=([0-9]{1,3})',
+        'partner': r'Partner Oper State=([0-9]{1,3})',
+        'aggregate': r'Aggregate or Individual\(True=1\)= ([12])',
+    }
+    found = {key: re.findall(r'(?m)^[ \t]*' + pattern + r'[ \t]*$', text) for key, pattern in patterns.items()}
+    if any(len(matches) != 1 for matches in found.values()):
+        return [], [{'line': 1, 'text': 'incomplete or ambiguous NX-OS LACP interface response'}]
+    name, state = found['port'][0]
+    group, channel = found['group'][0]
+    actor, partner = (int(found[key][0]) for key in ('actor', 'partner'))
+    if actor > 255 or partner > 255 or bool(int(group)) != bool(channel):
+        return [], [{'line': 1, 'text': 'contradictory NX-OS LACP interface response'}]
+    flags = [key for bit, key in PORT_STATE_BITS if actor & bit]
+    bundled = bool(int(group)) and found['aggregate'][0] == '1' and (actor & 0x38) == 0x38
+    reason = None
+    if not int(group):
+        reason = 'no channel group'
+    elif found['aggregate'][0] != '1':
+        reason = 'device reports an individual link'
+    elif not actor & 8:
+        reason = 'actor is out of sync'
+    elif not bundled:
+        reason = 'actor is not collecting or distributing'
+    values = dict(port=port(name), group=int(group), state=state.strip(), bundled=bundled, port_state=actor,
+                  port_state_flags=flags, mode='active' if actor & 1 else 'passive', reason=reason,
+                  port_channel=channel or None, partner_state=partner,
+                  pdus_sent=int(found['pdus_sent'][0]), pdus_received=int(found['pdus_received'][0]))
+    extra = ('port_channel', 'partner_state', 'pdus_sent', 'pdus_received')
+    return [record(table, **values) | {key: values[key] for key in extra}], []
+
+
+for _table, _query, _parser in (
+    ('stp_topology', 'stp_detail', _nxos_stp),
+    ('stp_port_counters', 'stp_detail', _nxos_stp),
+    ('stp_port_counters', 'stp_interface_detail', _nxos_stp),
+    ('optics_port', 'interface_transceiver', _nxos_optics),
+    ('lag_member', 'lacp_interface', _nxos_lacp),
+    ('lldp_neighbor', 'lldp_neighbor_interface', PARSERS['cisco_nxos']),
+):
+    QUERY_PARSERS[('cisco_nxos', _table, _query)] = _parser
+PROFILE_OPTIONAL_FIELDS.setdefault('cisco_nxos', {}).update(
+    {table: _ios_ports.OPTIONAL[table] for table in ('stp_topology', 'stp_port_counters', 'optics_port')})
+PROFILE_OPTIONAL_FIELDS['cisco_nxos']['lag_member'] = set(FIELDS['lag_member']) - {
+    'group', 'port', 'state', 'bundled', 'port_state', 'port_state_flags'}
+BINDINGS['cisco_nxos'].update(stp_topology='stp_detail', stp_port_counters='stp_detail',
+                             optics_port='interface_transceiver', lag_member='lacp_interface')
+# G51: direct catalogue reads have table adapters without changing existing
+# table_read defaults or adding implicit device reads.
+from . import triage_routing as _triage_routing
+FIELDS['vrf'] = ('name', 'rd', 'interfaces')
+OPTIONAL_FIELDS['vrf'] = {'rd', 'interfaces'}
+QUERY_PARSERS[('cisco_ios', 'vrf', 'vrfs')] = _triage_routing.ios_vrfs
+QUERY_PARSERS[('cisco_ios', 'route', 'vrf_route_lookup')] = _triage_routing.ios_vrf_routes
+QUERY_PARSERS[('cisco_ios', 'neighbor_l3', 'vrf_arp_table')] = lambda table, text: neighbors(text, 'ios')
+QUERY_PARSERS[('cisco_ios', 'ip_interface', 'vrf_ip_interfaces')] = _triage_routing.ios_vrf_interfaces
+QUERY_PARSERS[('cisco_ios', 'route', 'ipv6_route_table')] = _route_ipv6.ios_table
+for _query in ('ip_interface_details', 'ipv6_interface_details'):
+    QUERY_PARSERS[('cisco_ios', 'ip_interface', _query)] = ip_interfaces.ios_addresses
+# VRF variants use the same measured output grammar as the default queries.
+QUERY_PARSERS[('cisco_nxos', 'ip_interface', 'ip_interfaces_vrf')] = ip_interfaces.nxos
+QUERY_PARSERS[('cisco_nxos', 'bgp_peer', 'bgp_ipv6_summary')] = lambda table, text: bgp_peers(text, 'nxos')
+QUERY_PARSERS[('cisco_nxos', 'bgp_peer', 'bgp_ipv6_summary_vrf')] = lambda table, text: bgp_peers(text, 'nxos')
+
+for _query in ('ipv6_route_table', 'ipv6_route_table_vrf', 'ipv6_route_lookup', 'ipv6_route_lookup_vrf'):
+    QUERY_PARSERS[('cisco_nxos', 'route', _query)] = _route_ipv6.nxos
+
+
+def nxos_ospfv3_neighbors(table, text):
+    """NX-OS OSPFv3 shows the link-local neighbor address on a continuation."""
+    vrf, pending = None, None
+    rows, unknown = [], []
+    for number, raw in enumerate(text.splitlines(), 1):
+        value = raw.strip()
+        if not value:
+            continue
+        match = re.fullmatch(r'OSPFv3 Process ID \S+ VRF (\S+)', value)
+        if match:
+            vrf = match[1]
+            continue
+        if matches(value, (r'Total number of neighbors: \d+', r'Neighbor ID\s+Pri\s+State\s+Up Time\s+Interface ID\s+Interface')):
+            continue
+        match = re.fullmatch(r'(\d+\.\d+\.\d+\.\d+)\s+\d+\s+(\w+)/(DR|BDR|DROTHER|-)\s+\S+\s+\d+\s+(\S+)', value)
+        if match and vrf is not None:
+            if pending:
+                unknown.append(pending[1])
+            pending = (match, {'line': number, 'text': raw})
+            continue
+        match = re.fullmatch(r'Neighbor address ([0-9A-Fa-f:]+)', value)
+        if match and pending:
+            peer, evidence = pending
+            try:
+                address = str(ipaddress.IPv6Address(match[1]))
+                rows.append(record(table, neighbor_id=str(ipaddress.IPv4Address(peer[1])), address=address,
+                                   interface=port(peer[4]), state=peer[2].lower(),
+                                   role=None if peer[3] == '-' else peer[3], vrf=vrf))
+            except ValueError:
+                unknown.extend((evidence, {'line': number, 'text': raw}))
+            pending = None
+            continue
+        unknown.append({'line': number, 'text': raw})
+    if pending:
+        unknown.append(pending[1])
+    return rows, unknown
+
+
+for _query in ('ospfv3_neighbors', 'ospfv3_neighbors_vrf'):
+    QUERY_PARSERS[('cisco_nxos', 'ospf_neighbor', _query)] = nxos_ospfv3_neighbors
+
+# G69: IOS XE uses the verified IOS address/RIB/VRF grammars.
+for _query, _table in _triage_routing.IOS_TABLES.items():
+    QUERY_PARSERS[("cisco_xe", _table, _query)] = QUERY_PARSERS[("cisco_ios", _table, _query)]
+
+
+_JUNOS_FILTER_NAME = r"[A-Za-z0-9_][A-Za-z0-9_.:/-]{0,63}"
+_JUNOS_BINDING_LINE = re.compile(
+    rf"(?m)^[ \t]*(inactive:[ \t]+)?(input|output)(?:-list)?[ \t]+"
+    rf"(\[[ \t\n]*{_JUNOS_FILTER_NAME}(?:[ \t\n]+{_JUNOS_FILTER_NAME})*[ \t\n]*\]|{_JUNOS_FILTER_NAME});[ \t]*$"
+)
+
+
+def junos_firewall_bindings(text):
+    """Accept only the IPv4 filter leaf output from the reviewed configuration command."""
+    rows = []
+    for match in _JUNOS_BINDING_LINE.finditer(text):
+        inactive, direction, names = match.groups()
+        rows.extend({"filter": name, "direction": direction, "inactive": bool(inactive)}
+                    for name in names.strip("[] ").split())
+    complete = not _JUNOS_BINDING_LINE.sub("", text).strip()
+    return {"records": rows, "complete": complete}
+
+
+def junos_firewall_counters(text):
+    filters = []
+    current, section = None, None
+    complete = True
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        match = re.fullmatch(rf"Filter:\s*({_JUNOS_FILTER_NAME})", line)
+        if match:
+            current = {"filter": match[1], "counters": [], "policers": []}
+            filters.append(current)
+            section = None
+        elif current is not None and line in {"Counters:", "Policers:"}:
+            section = line[:-1].lower()
+        elif section and re.fullmatch(r"Name\s+(?:Bytes\s+)?Packets", line):
+            continue
+        else:
+            counter = re.fullmatch(r"(\S+)\s+(?:(\d+)\s+)?(\d+)", line)
+            if not (section and counter and (section == "policers" or counter[2] is not None)):
+                complete = False
+                continue
+            current[section].append({"name": counter[1], "bytes": int(counter[2]) if counter[2] else None,
+                                     "packets": int(counter[3])})
+    return {"records": filters, "complete": complete and bool(filters)}
+
+
+def junos_cluster_status(text):
+    cluster = re.search(r"(?m)^Cluster ID:\s*(\d+)", text)
+    groups = list(re.finditer(r"(?m)^Redundancy group:\s*(\d+)\s*,\s*Failover count:\s*(\d+)", text))
+    rows = []
+    for index, group in enumerate(groups):
+        end = groups[index + 1].start() if index + 1 < len(groups) else len(text)
+        nodes = re.findall(r"(node\d+)\s+(\d+)\s+(\S+)\s+(yes|no)\s+(yes|no)\s+(.+?)(?=\s+node\d+\s+|$)",
+                           text[group.end():end], re.M)
+        rows.append({"group": int(group[1]), "failovers": int(group[2]), "nodes": [
+            {"node": node, "priority": int(priority), "status": status, "preempt": preempt == "yes",
+             "manual": manual == "yes", "monitor_failures": [] if failures.strip() == "None" else failures.split()}
+            for node, priority, status, preempt, manual, failures in nodes
+        ]})
+    return {"cluster_id": int(cluster[1]) if cluster else None, "records": rows,
+            "complete": bool(cluster and rows) and all(len({node["node"] for node in row["nodes"]}) == 2 for row in rows)}
+
+
+def junos_cluster_interfaces(text):
+    links = {}
+    rows = []
+    section = None
+    headings = {"Control interfaces:": "control", "Fabric interfaces:": "fabric",
+                "Redundant-ethernet Information:": "reth", "Redundant-pseudo-interface Information:": "pseudo"}
+    complete = True
+    for raw in text.splitlines():
+        line = raw.strip()
+        status = re.fullmatch(r"(Control|Fabric) link status:\s*(.+)", line)
+        if status:
+            links[status[1].lower()] = status[2]
+        elif line in headings:
+            section = headings[line]
+        elif not line or line.startswith(("Index ", "Name ", "(Physical/Monitored)")):
+            continue
+        elif section == "control" and (match := re.fullmatch(r"\d+\s+(\S+)\s+(Up|Down|Admin Down)(?:\s+.*)?", line, re.I)):
+            rows.append({"kind": section, "interface": match[1], "status": match[2]})
+        elif section == "fabric" and (match := re.fullmatch(r"(fab\d+)(?:\s+(\S+)\s+(\w+)\s*/\s*(\w+)(?:\s+\S+)?)?", line)):
+            rows.append({"kind": section, "interface": match[1], "child": match[2],
+                         "physical_status": match[3], "monitored_status": match[4]})
+        elif section in {"reth", "pseudo"} and (match := re.fullmatch(r"(\S+)\s+(Up|Down)\s+(\d+|Not configured)", line, re.I)):
+            rows.append({"kind": section, "interface": match[1], "status": match[2],
+                         "group": int(match[3]) if match[3].isdecimal() else None})
+        else:
+            complete = False
+    return {"records": rows, "links": links, "complete": complete and bool(rows) and links.keys() == {"control", "fabric"}}
+
+
+def junos_cluster_statistics(text):
+    rows = []
+    section = None
+    services = False
+    for raw in text.splitlines():
+        line = raw.strip()
+        link = re.fullmatch(r"(Control link|Child link)\s+(\d+):?", line)
+        if link:
+            services = False
+            section = {"kind": link[1].lower(), "index": int(link[2]), "counters": {}}
+            rows.append(section)
+        elif line == "Services Synchronized:":
+            services = True
+            section = None
+        elif section and (counter := re.fullmatch(r"([\w ]+):\s*(\d+)", line)):
+            field = counter[1].replace("Heartbeat packets errors", "Heartbeat packet errors")
+            section["counters"][field] = int(counter[2])
+        elif services:
+            fields = line.rsplit(maxsplit=2)
+            if len(fields) == 3 and all(value.isascii() and value.isdecimal() for value in fields[1:]):
+                name, sent, received = fields
+                rows.append({"kind": "service", "name": name, "sent": int(sent), "received": int(received)})
+    required = {"control link": {"Heartbeat packets sent", "Heartbeat packets received", "Heartbeat packet errors"},
+                "child link": {"Probes sent", "Probes received"}}
+    complete = {row["kind"] for row in rows} >= required.keys() | {"service"} and all(
+        required.get(row["kind"], set()) <= row.get("counters", {}).keys() for row in rows)
+    return {"records": rows, "complete": complete}
+
+
+def junos_firewall_diagnostics(profile, query, text, status, parameters, *, count_verified=True):
+    from . import triage_flow, triage_vpn
+    from .query_catalog.junos import FILTER_BINDING_QUERY
+
+    if profile not in {"juniper_junos", "juniper_junos_els"} or status not in {"ok", "empty"}:
+        return {}
+    parsers = {
+        "firewall_filters": junos_firewall_counters,
+        "firewall_filter": junos_firewall_counters,
+        FILTER_BINDING_QUERY: junos_firewall_bindings,
+        "security_policies": triage_flow.srx_policies,
+        "security_match_policies": triage_flow.srx_policies,
+        "security_policy_hits": triage_flow.srx_policy_hits,
+        "security_flow_sessions": triage_flow.srx_sessions,
+        "security_source_nat_rules": triage_flow.srx_nat_rules,
+        "security_destination_nat_rules": triage_flow.srx_nat_rules,
+        "chassis_cluster_status": junos_cluster_status,
+        "chassis_cluster_interfaces": junos_cluster_interfaces,
+        "chassis_cluster_statistics": junos_cluster_statistics,
+        "ike_security_associations": triage_vpn.srx_ike_associations,
+        "ipsec_security_associations": triage_vpn.srx_ipsec_associations,
+        "ipsec_statistics": triage_vpn.srx_ipsec_statistics,
+    }
+    if query not in parsers:
+        return {}
+    if status == "empty":
+        parsed = {"records": [], "complete": query == FILTER_BINDING_QUERY}
+    else:
+        parsed = parsers[query](text)
+    if query == "security_policies":
+        parsed["complete"] = parsed["complete"] and count_verified
+    if query == FILTER_BINDING_QUERY:
+        parsed["interface"] = parameters["interface"]
+    if query == "firewall_filter" and parsed["records"]:
+        parsed["complete"] = parsed["complete"] and [row["filter"] for row in parsed["records"]] == [parameters["filter"]]
+    state = status if parsed["complete"] else "unparsed"
+    envelope = response_envelope(profile, state, [source_record(query, text, state)],
+                                 warnings=[] if parsed["complete"] else ["incomplete_output"],
+                                 identity_coverage=False)
+    envelope["coverage"]["complete"] = parsed["complete"]
+    return {"diagnostics": parsed, "normalized": envelope}
+
+
+NXOS_LOOKUPS = frozenset({'arp_lookup', 'arp_lookup_vrf', 'ipv6_neighbor_lookup', 'ipv6_neighbor_lookup_vrf'})
+NXOS_NEIGHBOR_QUERIES = NXOS_LOOKUPS | {'arp_table_vrf', 'ipv6_neighbors_vrf'}
+NXOS_SCOPED_TABLES = NXOS_LOOKUPS | {'mac_table_address', 'mac_table_vlan', 'dhcp_snooping_binding'}
+
+
+def _nxos_mac_scope(table, text):
+    rows, unknown = mac_nxos(text, include_remote=True)
+    if not re.search(r'(?m)^[ \t]*VLAN[ \t]+MAC Address[ \t]+Type[ \t]+age[ \t]+Secure[ \t]+NTFY[ \t]+Ports[ \t]*\r?$', text):
+        unknown.append({'line': 1, 'text': 'NX-OS MAC table header is missing'})
+    return rows, unknown
+
+
+def _nxos_neighbor_scope(table, text):
+    # NX-OS wraps a long IPv6 address onto its own line above the rest of its row.
+    text = re.sub(r'(?m)^([0-9a-fA-F]{0,4}:[0-9a-fA-F:]{1,38})[ \t]*\r?\n[ \t]+(?=\d)', r'\1 ', text)
+    if ipv6_table(text):
+        vrf = None
+
+        def nd_line(raw, value):
+            nonlocal vrf
+            header = re.fullmatch(r'IPv6 Adjacency Table for VRF (\S+)', value)
+            if header:
+                vrf = header[1]
+                return []
+            if re.fullmatch(r'(?:Flags:.*|(?:[\#GR]|CP|PS|RO|CC)\s*-\s+.*|'
+                            r'Total number of entries:\s*\d+|Address\s+Age\s+MAC Address\s+Pref Source\s+Interface(?:\s+Flags)?)', value):
+                return []
+            row = re.fullmatch(rf'(\S+)\s+\S+\s+({MAC}|INCOMPLETE)\s+\d+\s+\S+\s+(\S+)'
+                               r'(?:\s+(?:[#GR]|CP|PS|RO|CC))*', value)
+            if not row or vrf is None:
+                return None
+            iface = port(row[3])
+            return record(table, ip=str(ipaddress.IPv6Address(row[1])), interface=iface, vlan_id=vlan(iface),
+                          mac=None if row[2] == 'INCOMPLETE' else normalize_mac(row[2]), vrf=vrf)
+
+        rows, unknown = scan(text, nd_line)
+    else:
+        rows, unknown = arp_rows(text, 'nxos', nxos_bare_header=True)
+    totals = re.findall(r'(?m)^Total number of entries:[ \t]*(\d{1,10})[ \t]*\r?$', text)
+    if not totals or sum(map(int, totals)) != len(rows):
+        unknown.append({'line': 1, 'text': 'NX-OS neighbor entry total is missing or disagrees with the rows'})
+    if not re.search(r'(?m)^Address\s+Age\s+MAC Address\s+', text):
+        unknown.append({'line': 1, 'text': 'NX-OS neighbor table header is missing'})
+    return rows, unknown
+
+
+for _query in NXOS_NEIGHBOR_QUERIES:
+    QUERY_PARSERS['cisco_nxos', 'neighbor_l3', _query] = _nxos_neighbor_scope
+for _query in ('mac_table_address', 'mac_table_vlan'):
+    QUERY_PARSERS['cisco_nxos', 'mac_entry', _query] = _nxos_mac_scope
+
+
+def _nxos_dhcp_bindings(table, text):
+    return switch_dhcp.nxos_bindings(text, port)
+
+
+QUERY_PARSERS['cisco_nxos', 'dhcp_binding', 'dhcp_snooping_binding'] = _nxos_dhcp_bindings
+
+
+IOS_FORWARDING_TABLES = {
+    **dict.fromkeys(('mac_table_address', 'mac_table_interface', 'mac_table_vlan'), 'mac_entry'),
+    **dict.fromkeys(('arp_lookup', 'arp_lookup_vrf', 'arp_table_vrf', 'vrf_arp_table',
+                     'ipv6_neighbors_interface', 'ipv6_neighbors_vrf', 'ipv6_neighbors_interface_vrf'), 'neighbor_l3'),
+    'dhcp_snooping_binding': 'dhcp_binding',
+}
+
+
+def _ios_forwarding_scope(query, command, rows):
+    parts = command.split()
+    selector = None
+    if 'vrf' in parts:
+        vrf = parts[parts.index('vrf') + 1]
+        for row in rows:
+            row['vrf'] = vrf
+    if query == 'mac_table_address':
+        selector = 'mac', normalize_mac(parts[-1])
+    elif query == 'mac_table_vlan':
+        selector = 'vlan_id', int(parts[-1])
+    elif query == 'mac_table_interface':
+        selector = 'port', port(parts[-1])
+    elif query in ('arp_lookup', 'arp_lookup_vrf'):
+        selector = 'ip', str(ipaddress.IPv4Address(parts[-1]))
+    elif query in ('ipv6_neighbors_interface', 'ipv6_neighbors_interface_vrf'):
+        selector = 'interface', port(parts[-1])
+    if selector and any(row[selector[0]] != selector[1] for row in rows):
+        return [{'line': 1, 'text': 'IOS response does not match the command selector'}]
+    return []
+
+
+def _ios_scoped_mac(table, text):
+    rows, unknown = mac_ios(text)
+    totals = re.findall(r'(?mi)^\s*Total Mac Addresses for this criterion:[ \t]*(\d+)[ \t]*$', text)
+    entries = re.findall(r'(?mi)^[ \t]*(?:\d+|All)[ \t]+(?:' + MAC + r')[ \t]+\S+[ \t]+\S+', text)
+    header = re.search(r'(?mi)^[ \t]*Vlan[ \t]+Mac Address[ \t]+Type[ \t]+Ports?[ \t]*$', text)
+    # IOSvL2 omits the total when there are no entries.
+    if not header or len(totals) > 1 or (totals or entries) and (not totals or int(totals[0]) != len(entries)):
+        unknown.append({'line': 1, 'text': 'IOS MAC table header or entry total could not be verified'})
+    return rows, unknown
+
+
+def _ios_scoped_neighbors(table, text):
+    rows, unknown = neighbors(text, 'ios')
+    header = r'(?mi)^[ \t]*(?:Protocol[ \t]+Address[ \t]+Age|IPv6 Address[ \t]+Age)\b'
+    totals = re.findall(r'(?mi)^[ \t]*Total (?:number of )?entries:[ \t]*(\d+)[ \t]*$', text)
+    if not re.search(header, text) or totals and sum(map(int, totals)) != len(rows):
+        unknown.append({'line': 1, 'text': 'IOS neighbor table header or entry total could not be verified'})
+    return rows, unknown
+
+
+for _profile in IOS_FORWARDING_PROFILES:
+    for _query, _table in IOS_FORWARDING_TABLES.items():
+        if _table == 'mac_entry':
+            QUERY_PARSERS[_profile, _table, _query] = _ios_scoped_mac
+        elif _table == 'neighbor_l3':
+            QUERY_PARSERS[_profile, _table, _query] = _ios_scoped_neighbors
+        else:
+            QUERY_PARSERS[_profile, _table, _query] = lambda table, text: switch_dhcp.ios_snooping_bindings(text, port)
+
+
+_NXOS_ACL_FAMILIES = {
+    'access_lists': 'ipv4', 'ipv4_access_lists': 'ipv4', 'ipv4_access_lists_summary': 'ipv4',
+    'ipv6_access_lists': 'ipv6', 'ipv6_access_lists_summary': 'ipv6',
+    'mac_access_lists': 'mac', 'mac_access_lists_summary': 'mac',
+}
+
+
+def _nxos_acl(text, family, name, summary):
+    acl = None
+    section = None
+    seen = set()
+    complete = True
+    records, unknown = [], []
+    family_label = {'ipv4': 'IPV4 ACL' if summary else 'IP access list',
+                    'ipv6': 'IPV6 ACL' if summary else 'IPv6 access list',
+                    'mac': 'MAC ACL' if summary else 'MAC access list'}[family]
+
+    def finished():
+        return not summary or acl is None or {'total_entries', 'configured_interfaces', 'active_interfaces'} <= seen
+
+    for number, raw in enumerate(text.splitlines(), 1):
+        line = raw.strip()
+        if not line:
+            continue
+        header = re.fullmatch(re.escape(family_label) + r'\s+(\S+)', line)
+        if header:
+            complete = complete and finished() and (name is None or header[1] == name)
+            acl = {'family': family, 'name': header[1], 'statistics_enabled': False}
+            if summary:
+                acl.update(total_entries=None, configured_interfaces=[], active_interfaces=[])
+            else:
+                acl['entries'] = []
+            records.append(acl)
+            section = None
+            seen = set()
+            continue
+        if acl is None:
+            unknown.append({'line': number, 'text': raw})
+            continue
+        if line == ('Statistics enabled' if summary else 'statistics per-entry'):
+            acl['statistics_enabled'] = True
+            continue
+        if summary:
+            section_name = {'Configured on interfaces:': 'configured_interfaces',
+                            'Active on interfaces:': 'active_interfaces'}.get(line)
+            count = re.fullmatch(r'Total ACEs Configured:\s*(\d+)', line)
+            binding = re.fullmatch(r'(\S+)\s+-\s+(ingress|egress)\s+\(([^()]+)\)', line)
+            if section_name and section_name not in seen:
+                section = section_name
+                seen.add(section)
+                continue
+            if count and 'total_entries' not in seen:
+                acl['total_entries'] = int(count[1])
+                seen.add('total_entries')
+                continue
+            if binding and section:
+                acl[section].append({'interface': binding[1], 'direction': binding[2], 'type': binding[3]})
+                continue
+        else:
+            ace = re.fullmatch(r'(\d+)\s+(permit|deny|remark)\s+(.+)', line)
+            if ace:
+                rule, hits = ace[3], None
+                count = re.search(r'\s+\[match=(\d+)\]$', rule) if ace[2] != 'remark' else None
+                if count:
+                    rule, hits = rule[:count.start()], int(count[1])
+                elif ace[2] != 'remark' and '[match=' in rule:
+                    unknown.append({'line': number, 'text': raw})
+                    continue
+                acl['entries'].append({'sequence': int(ace[1]), 'action': ace[2], 'rule': rule, 'hit_count': hits})
+                continue
+            if re.fullmatch(r'fragments (?:permit-all|deny-all)', line):
+                acl['fragment_policy'] = line.split()[1]
+                continue
+        unknown.append({'line': number, 'text': raw})
+    return records, unknown, complete and finished() and bool(records) and not unknown
+
+
+def nxos_g94_diagnostics(query, text, parameters, state):
+    """Parse redacted CLI output. Keep recognized records when another line is incomplete."""
+    if state not in ('ok', 'empty'):
+        return None
+    if state == 'empty':
+        if query not in _NXOS_ACL_FAMILIES and query not in {
+            'arp_inspection_statistics', 'arp_inspection_statistics_vlan',
+        }:
+            return None
+        records, unknown, complete = [], [], True
+    elif query in _NXOS_ACL_FAMILIES:
+        records, unknown, complete = _nxos_acl(text, _NXOS_ACL_FAMILIES[query],
+                                                parameters.get('name'), query.endswith('_summary'))
+    else:
+        if query == 'dhcp_snooping_status':
+            fields, complete = switch_dhcp.nxos_snooping(text)
+        elif query == 'dhcp_relay_status':
+            fields, complete = switch_dhcp.nxos_relay(text)
+        elif query in ('dhcp_snooping_statistics', 'dhcp_relay_statistics'):
+            fields, complete = switch_dhcp.nxos_dhcp_counters(text, relay=query == 'dhcp_relay_statistics')
+        elif query in ('arp_inspection_statistics', 'arp_inspection_statistics_vlan'):
+            fields, complete = switch_dhcp.nxos_dai(text, parameters.get('vlan_id'))
+        else:
+            return None
+        records, unknown = fields if isinstance(fields, list) else [fields], []
+    status = ('ok' if records else 'empty') if complete else 'incomplete'
+    result = response_envelope('cisco_nxos', status, [source_record(query, text, status)], identity_coverage=False)
+    result.update(records=records, unparsed=unknown, coverage={'complete': complete, 'parsed_records': len(records),
+                                                               'unparsed_lines': len(unknown), 'missing_fields': []})
+    return result
+
+
+_NXOS_QOS_INTERFACE = r'Eth(?:ernet)?\d+/\d+(?:/\d+)?'
+_NXOS_QOS_SLOT = r'slot\s+\d+'
+_NXOS_QUEUE_COUNTERS = {
+    'Tx Pkts': 'tx_packets',
+    'Tx Byts': 'tx_bytes',
+    'Dropped Pkts': 'dropped_packets',
+    'Dropped Byts': 'dropped_bytes',
+    'Tail Drop Pkts': 'tail_drop_packets',
+    'Tail Drop Byts': 'tail_drop_bytes',
+    'WRED/AFD & Tail Drop Pkts': 'wred_afd_tail_drop_packets',
+    'WRED/AFD & Tail Drop Byts': 'wred_afd_tail_drop_bytes',
+    'WD & Tail Drop Pkts': 'watchdog_tail_drop_packets',
+    'Q Depth Byts': 'depth_bytes',
+}
+_NXOS_QUEUE_TRAFFIC = {'Unicast': 'unicast', 'OOBFC Unicast': 'oobfc_unicast', 'Multicast': 'multicast'}
+
+
+def _nxos_qos_queues(text, interface):
+    queue = None
+    port_seen = False
+    schedule = {}
+    groups = set()
+    span = None
+    traffic = []
+
+    def handle(raw, value):
+        nonlocal queue, port_seen, traffic, span
+        heading = re.fullmatch(rf'Egress Queuing for ({_NXOS_QOS_INTERFACE}) \[[^\]]+\]', value)
+        if heading and not port_seen and port(heading[1]) == interface:
+            port_seen = True
+            return []
+        if re.fullmatch(_NXOS_QOS_SLOT, value):
+            return []
+        if not port_seen:
+            return None
+        if re.fullmatch(r'QoS-Group#\s+Bandwidth%\s+PrioLevel\s+Shape(?:\s+QLimit)?|Min\s+Max\s+Units', value):
+            return []
+        scheduling = re.fullmatch(r'(\d+)\s+(\d+|-)\s+(\d+|-)\s+\S+\s+\S+\s+\S+(?:\s+\d+\(D\))?', value)
+        if scheduling and queue is None:
+            group = int(scheduling[1])
+            if group in schedule:
+                return None
+            schedule[group] = {
+                'bandwidth_percent': int(scheduling[2]) if scheduling[2] != '-' else None,
+                'priority_level': int(scheduling[3]) if scheduling[3] != '-' else None,
+            }
+            return []
+        if value.startswith('|') and value.endswith('|'):
+            cells = [cell.strip() for cell in value[1:-1].split('|')]
+            heading = re.fullmatch(r'QOS GROUP (\d+)|(CONTROL|SPAN) QOS GROUP', cells[0])
+            if len(cells) == 1 and heading:
+                group = int(heading[1]) if heading[1] is not None else heading[2].lower()
+                if group in groups:
+                    return None
+                groups.add(group)
+                traffic = []
+                queue = {'interface': interface, 'qos_group': group, 'counters': {}}
+                if group in schedule:
+                    queue.update(schedule[group])
+                return [queue]
+            if queue is None or span is not None:
+                return None
+            if not cells[0] and cells[1:] in (['Unicast', 'Multicast'], ['Unicast', 'OOBFC Unicast', 'Multicast']):
+                traffic = [_NXOS_QUEUE_TRAFFIC[item] for item in cells[1:]]
+                return []
+            key = _NXOS_QUEUE_COUNTERS.get(cells[0])
+            if not key or not traffic or len(cells) != len(traffic) + 1 or key in queue['counters']:
+                return None
+            queue['counters'][key] = dict(zip(traffic, map(int, cells[1:]), strict=True))
+            return []
+        if value == 'Per Slice Egress SPAN Statistics':
+            span = {'interface': interface, 'section': 'per_slice_egress_span', 'counters': {}}
+            return [span]
+        if span is not None:
+            counter = re.fullmatch(r'(SPAN (?:Copies Tail Drop|Input Queue Drop|Copies/Transit Tail Drop|Input Desc Drop))\s+Pkts\s+(\d+)', value)
+            if counter:
+                span['counters']['_'.join(counter[1].lower().replace('/', ' ').split()) + '_packets'] = int(counter[2])
+                return []
+        return None
+
+    rows, unknown = scan(text, handle)
+    if rows and re.search(r'(?m)^[ \t]*\|[^\n]+\|[ \t]*(?:\n[ \t]*)*\Z', text):
+        unknown.append({'line': len(text.splitlines()), 'text': 'NX-OS queue table footer is missing'})
+    queue_rows = [row for row in rows if 'qos_group' in row]
+    mandatory = {'tx_packets', 'tx_bytes'}
+    missing = []
+    if not queue_rows or set(schedule) != {group for group in groups if isinstance(group, int)}:
+        missing.append('queue_groups')
+    if any(not mandatory <= row['counters'].keys() or isinstance(row['qos_group'], int) and not (
+        {'dropped_packets', 'tail_drop_packets', 'wred_afd_tail_drop_packets'} & row['counters'].keys()
+    ) for row in queue_rows):
+        missing.append('queue_counters')
+    if span is not None and len(span['counters']) != 4:
+        missing.append('span_counters')
+    return rows, unknown, missing
+
+
+def _nxos_qos_policy(text, interface):
+    stats = None
+    port_seen = False
+    policy = None
+    policy_class = None
+
+    def handle(raw, value):
+        nonlocal stats, port_seen, policy, policy_class
+        state = re.fullmatch(r'Global statistics status\s*:\s*(enabled|disabled)', value)
+        if state and stats is None:
+            stats = state[1] == 'enabled'
+            return []
+        if re.fullmatch(_NXOS_QOS_INTERFACE, value) and not port_seen and port(value) == interface:
+            port_seen = True
+            return []
+        if not port_seen:
+            return None
+        service = re.fullmatch(r'Service-policy \((qos|queuing|network-qos)\) (input|output):\s+(\S+)', value)
+        if service:
+            policy = {'interface': interface, 'policy_type': service[1], 'direction': service[2],
+                      'name': service[3], 'statistics_enabled': stats, 'classes': []}
+            policy_class = None
+            return [policy]
+        if policy is None:
+            return None
+        index = re.fullmatch(r'SNMP Policy Index:\s+(\d+)', value)
+        if index and policy_class is None:
+            policy['snmp_policy_index'] = int(index[1])
+            return []
+        class_map = re.fullmatch(r'Class-map \((qos|queuing|network-qos)\):\s+(\S+)\s+\((match-any|match-all)\)', value)
+        if class_map and class_map[1] == policy['policy_type']:
+            policy_class = {'name': class_map[2], 'match_mode': class_map[3], 'rules': [], 'counters': {}}
+            policy['classes'].append(policy_class)
+            return []
+        if policy_class is None or not raw[:1].isspace():
+            return None
+        if re.fullmatch(r'(?:(?:match|set|police|shape|queue-limit|random-detect)\s+.+|'
+                        r'priority level \d+|bandwidth (?:remaining )?percent \d+)', value):
+            policy_class['rules'].append(value)
+            return []
+        counter = re.fullmatch(r'((?:Match|Transmitted|Dropped) (?:Packets|Bytes))\s*:\s*(\d+)', value, re.I)
+        if counter:
+            policy_class['counters']['_'.join(counter[1].lower().split())] = int(counter[2])
+            return []
+        return None
+
+    rows, unknown = scan(text, handle)
+    missing = []
+    if stats is None or not port_seen or not rows:
+        missing.append('interface_policy')
+    if any(not row['classes'] or any(not (item['rules'] or item['counters']) for item in row['classes'])
+           for row in rows):
+        missing.append('policy_classes')
+    return rows, unknown, missing
+
+
+def _nxos_pfc(text):
+    header = False
+    ports = set()
+
+    def handle(_raw, value):
+        nonlocal header
+        if re.fullmatch(_NXOS_QOS_SLOT, value):
+            return []
+        if re.fullmatch(r'Port\s+Mode\s+Oper\s*\(VL bmap\)\s+RxPPP\s+TxPPP', value, re.I):
+            header = True
+            return []
+        row = re.fullmatch(rf'({_NXOS_QOS_INTERFACE})\s+(Auto|On|Off)\s+(On|Off)'
+                           r'(?:\s+\((\d+)\))?\s+(\d+)\s+(\d+)', value, re.I)
+        if not header or not row or port(row[1]) in ports:
+            return None
+        interface = port(row[1])
+        ports.add(interface)
+        return [{'interface': interface, 'admin_mode': row[2].lower(), 'oper_mode': row[3].lower(),
+                 'vl_bitmap': int(row[4]) if row[4] is not None else None,
+                 'rx_pause_frames': int(row[5]), 'tx_pause_frames': int(row[6])}]
+
+    rows, unknown = scan(text, handle)
+    return rows, unknown, [] if rows else ['pfc_counters']
+
+
+# Only try the column separator at the start of a whitespace run.
+_NXOS_TCAM_ROW = re.compile(r'([A-Za-z][\w ,()/.:\[\]-]*?)(?<!\s)\s{2,}+(\d++)'
+                           r'(?:\s++(?:(\d++)\s++)?(\d++\.\d++)%?)?')
+_NXOS_CAPACITY_SECTION = re.compile(r'`show [^`]+`')
+_NXOS_CAPACITY_ACL = re.compile(r'`show (?:system internal|hardware) access-list resource utilization'
+                                r'(?: module \d+)?`')
+
+
+def _nxos_tcam(text, capacity):
+    in_acl = not capacity
+    module = instance = slot = None
+    header = False
+    row_keys = set()
+
+    def handle(_raw, value):
+        nonlocal in_acl, module, instance, slot, header
+        if capacity and _NXOS_CAPACITY_SECTION.fullmatch(value):
+            in_acl = _NXOS_CAPACITY_ACL.fullmatch(value) is not None
+            module = instance = slot = None
+            header = False
+            return []
+        if capacity and (value == 'Cmd exec error.' or value.startswith('Failed to get ')):
+            return None
+        if not in_acl:
+            return []
+        slot_heading = re.fullmatch(r'slot\s+(\d+)', value)
+        if slot_heading:
+            slot = int(slot_heading[1])
+            module = instance = None
+            header = False
+            return []
+        asic = re.fullmatch(r'INSTANCE (0x[0-9a-fA-F]+)', value)
+        if asic:
+            instance = int(asic[1], 16)
+            module = None
+            header = False
+            return []
+        heading = re.fullmatch(r'ACL Hardware Resource Utilization \(Mod (\d+)\)', value)
+        if heading and (slot is None or slot == int(heading[1])):
+            module = int(heading[1])
+            return []
+        if module is not None and re.fullmatch(r'Used\s+Free\s+Percent(?:\s+Utilization)?', value):
+            header = True
+            return []
+        if header and value == 'Utilization':
+            return []
+        if header and value == 'Note: Ingress SUP region includes the Redirect region':
+            return []
+        row = _NXOS_TCAM_ROW.fullmatch(value)
+        if not header or not row:
+            return None
+        resource, used, free, percent = row.groups()
+        if percent is None and not re.fullmatch(r'(?:Both|Single) LOU Operands|LOU [\w ]+:', resource):
+            return None
+        key = module, instance, resource
+        if key in row_keys:
+            return None
+        row_keys.add(key)
+        return [{'module': module, 'instance': instance, 'resource': resource, 'used': int(used),
+                 'free': int(free) if free is not None else None,
+                 'utilization_percent': float(percent) if percent is not None else None}]
+
+    rows, unknown = scan(text, handle)
+    has_regions = any(row['free'] is not None and (
+        re.search(r'\b(?:[PRV]ACL|TCAM|ACL|QOS|SUP|SPAN)\b', row['resource'], re.I)
+        and not row['resource'].startswith('L4 op labels,')
+    ) for row in rows)
+    return rows, unknown, [] if has_regions else ['tcam_regions']
+
+
+def nxos_g96_diagnostics(query, text, parameters, state, rc):
+    """Return available QoS and ACL observations with conservative coverage."""
+    slot_only = re.fullmatch(r'\s*(?:slot\s+\d+\s+=+\s*)+(?:Cmd exec error\.\s*)?', text) is not None
+    partial_exit = state == 'transport_error' and rc == 244 and (
+        query == 'priority_flow_control' and slot_only or
+        query == 'tcam_utilization' and text.rstrip().endswith('Cmd exec error.')
+        and 'ACL Hardware Resource Utilization (Mod ' in text
+    )
+    if state != 'ok' and not partial_exit:
+        return None
+    if query == 'qos_queues':
+        records, unknown, missing = _nxos_qos_queues(text, port(parameters['interface']))
+    elif query == 'qos_policy':
+        records, unknown, missing = _nxos_qos_policy(text, port(parameters['interface']))
+    elif query == 'priority_flow_control':
+        records, unknown, missing = _nxos_pfc(text)
+    else:
+        records, unknown, missing = _nxos_tcam(text, capacity=query == 'hardware_capacity')
+
+    complete = not (unknown or missing or partial_exit)
+    status = 'ok' if complete else 'incomplete'
+    warnings = ['device_command_partial'] if partial_exit else []
+    result = response_envelope('cisco_nxos', status, [source_record(query, text, status)],
+                               warnings=warnings, identity_coverage=False)
+    result.update(records=records, unparsed=unknown, coverage={
+        'complete': complete, 'parsed_records': len(records), 'unparsed_lines': len(unknown), 'missing_fields': missing,
+    })
+    return result
+
+
+_NVE_PEER_HEADER = r'Interface\s+Peer-IP\s+State\s+LearnType\s+Uptime\s+Router-Mac'
+_NVE_VNI_HEADER = r'Interface\s+VNI\s+Multicast-group\s+State\s+Mode\s+Type\s+\[BD/VRF\]\s+Flags'
+_EVPN_MAC_IP_HEADERS = (
+    r'Topology(?: ID)?\s+Mac Address\s+Prod\s+Host IP\s+Next Hop \(s\)',
+    r'Topology(?: ID)?\s+Mac Address\s+Host IP\s+Prod\s+Flags\s+Seq No\s+Next-Hops',
+)
+
+
+def _nxos_overlay_rows(query, text):
+    headers = {'nve_peers': (_NVE_PEER_HEADER,), 'nve_vni': (_NVE_VNI_HEADER,),
+               'evpn_mac_ip': _EVPN_MAC_IP_HEADERS}[query]
+    layout = None
+
+    def handle(raw, line):
+        nonlocal layout
+        for index, header in enumerate(headers):
+            if re.fullmatch(header, line):
+                layout = index
+                return []
+        if query == 'nve_vni' and matches(line, (r'Codes: CP - Control Plane\s+DP - Data Plane(?:\s+.*)?',
+                                                r'(?:UC - Unconfigured|SU - Suppress Unknown Unicast|'
+                                                r'Xconn - Crossconnect|MS-IR - Multisite Ingress Replication).*')):
+            return []
+        if query == 'evpn_mac_ip' and matches(line, (r'Flags\s*-\s*\(Rmac\):Router MAC.*',
+                                                    r'\(Dup\):Duplicate.*', r'\(Ps\):Peer Sync.*')):
+            return []
+        if layout is None:
+            return None
+        if query == 'nve_peers':
+            match = re.fullmatch(r'(nve\d+)\s+(\S+)\s+(Up|Down)\s+(\S+)\s+(\S+)\s+(\S+)', line)
+            if match:
+                interface, peer, state, learn_type, uptime, mac = match.groups()
+                return dict(interface=interface, peer_ip=str(ipaddress.ip_address(peer)), state=state,
+                            learn_type=learn_type, uptime=uptime,
+                            router_mac=None if mac.lower() in {'n/a', '--'} else normalize_mac(mac))
+        elif query == 'nve_vni':
+            match = re.fullmatch(r'(nve\d+)\s+(\d+)\s+(\S+)\s+(Up|Down)\s+(\S+)\s+'
+                                 r'(L[23])\s+\[([^\]]+)\](?:\s+(.*))?', line)
+            if match:
+                interface, vni, multicast, state, mode, layer, binding, flags = match.groups()
+                return dict(interface=interface, vni=int(vni), state=state, mode=mode, type=layer,
+                            multicast_group=None if multicast.lower() in {'n/a', '--'} else str(ipaddress.ip_address(multicast)),
+                            bridge_domain=binding if layer == 'L2' else None,
+                            vrf=binding if layer == 'L3' else None, flags=flags.split() if flags else [])
+        else:
+            pattern = (rf'(\d+)\s+({MAC})\s+(?P<producer>\S+)\s+(?P<ip>\S+)\s+(?P<next_hops>.+)'
+                       if layout == 0 else rf'(\d+)\s+({MAC})\s+(?P<ip>\S+)\s+(?P<producer>\S+)\s+'
+                       r'(?P<flags>\S+)\s+(?P<sequence>\d+)\s+(?P<next_hops>.+)')
+            match = re.fullmatch(pattern, line)
+            if match:
+                fields = match.groupdict()
+                fields['ip'] = str(ipaddress.ip_address(fields['ip']))
+                if not re.fullmatch(r'Ifindex \d+', fields['next_hops']):
+                    ipaddress.ip_address(fields['next_hops'].split()[0].rstrip(','))
+                if layout == 1:
+                    fields['sequence'] = int(fields['sequence'])
+                return dict(topology_id=int(match[1]), mac=normalize_mac(match[2]), **fields)
+        return None
+
+    rows, unknown = scan(text, handle)
+    return rows, unknown, layout is not None
+
+
+_NVE_DETAIL_FIELDS = {
+    'VPC Capability', 'Local Router MAC', 'Host Learning Mode', 'Source-Interface', 'Anycast-Interface',
+    'Source Interface State', 'Anycast Interface State', 'Virtual RMAC Advertisement', 'NVE Flags',
+    'Interface Handle', 'Source Interface hold-down-time', 'Source Interface hold-up-time',
+    'Remaining hold-down time', 'Virtual Router MAC', 'Interface state', 'Fabric convergence time',
+    'Fabric convergence time left', 'ESI multihoming delay-restore time', 'ESI multihoming delay-restore time left',
+    'ESI multihoming FRR anycast source IP',
+}
+
+
+def _nxos_nve_interface(text):
+    details = {}
+    interface = None
+
+    def handle(raw, line):
+        nonlocal interface
+        if match := re.fullmatch(r'Interface: (nve1), State: (\w+), encapsulation: (VXLAN)', line):
+            if interface is None:
+                interface = dict(interface=match[1], state=match[2], encapsulation=match[3], details=details)
+                return interface
+            return None
+        key, sep, value = line.partition(':')
+        if interface is not None and sep and key in _NVE_DETAIL_FIELDS and key not in details:
+            if value.strip() or key == 'NVE Flags':
+                details[key] = value.strip()
+                return []
+        return None
+
+    rows, unknown = scan(text, handle)
+    required = {'Source-Interface', 'Source Interface State', 'Host Learning Mode', 'Interface state'}
+    return rows, unknown, required <= details.keys()
+
+
+def _nxos_evpn_summary(text):
+    # The existing NX-OS BGP table parser handles wrapped IPv6 neighbors and multiword states.
+    filtered = re.sub(r'(?m)^[ \t]*\d+ received paths for inbound soft reconfiguration[ \t]*$', '', text)
+    rows, unknown = bgp_peers(filtered, 'nxos')
+    contexts = re.findall(r'(?m)^\s*BGP summary information for VRF (\S+), address family L2VPN EVPN\s*$', text)
+    counts = re.findall(r'(?m)^\s*BGP table version is \d+, L2VPN EVPN config peers (\d+), capable peers \d+\s*$', text)
+    header = re.search(r'(?m)^[ \t]*Neighbor\s+V\s+AS\s+MsgRcvd\s+MsgSent\s+TblVer\s+InQ\s+OutQ\s+Up/Down'
+                       r'\s+State/PfxRcd[ \t]*$', text)
+    complete = len(contexts) == len(counts) == 1 and int(counts[0]) == len(rows)
+    return rows, unknown, complete and (header is not None or not rows)
+
+
+_EVPN_PATH_ATTRIBUTES = (
+    r'AS-Path: .+', r'Imported (?:to|from) .+', r'Gateway IP: \S+',
+    # The shared CLI redactor can mask the optional extended community line.
+    r'Received (?:label|path-id) \d+', r'Ext(?:community: .+|\[REDACTED\])', r'Router MAC:\s*\S+',
+)
+
+
+def _nxos_evpn_prefix(text):
+    vrf = rd = route = path = None
+
+    def handle(raw, line):
+        nonlocal vrf, rd, route, path
+        if match := re.fullmatch(r'BGP routing table information for VRF (\S+), address family L2VPN EVPN', line):
+            vrf = match[1]
+            rd = route = path = None
+        elif match := re.fullmatch(r'Route Distinguisher: (\S+)(?:\s+\(L[23]VNI \d+\))?', line):
+            rd = match[1]
+            route = path = None
+        elif match := re.fullmatch(r'BGP routing table entry for (\[(\d+)\]\S+), version (\d+)', line):
+            if rd is None or vrf is None:
+                return None
+            route = dict(vrf=vrf, rd=rd, nlri=match[1], route_type=int(match[2]),
+                         version=int(match[3]), paths=[])
+            path = None
+            return route
+        elif route is None:
+            return None
+        elif match := re.fullmatch(r'Paths: \((\d+) available, (?:best #(\d+)|no best path)\)', line):
+            if 'path_count' in route:
+                return None
+            route.update(path_count=int(match[1]), best_path=int(match[2]) if match[2] else None)
+        elif match := re.fullmatch(r'Path type: (.+)', line):
+            path = {'description': match[1], 'attributes': []}
+            route['paths'].append(path)
+        elif match := re.fullmatch(r'(\S+)(?: \(metric \d+\))? from (\S+) \((\S+)\)', line):
+            if path is None or 'next_hop' in path:
+                return None
+            path.update(next_hop=str(ipaddress.ip_address(match[1])), received_from=str(ipaddress.ip_address(match[2])))
+        elif re.fullmatch(r'Origin (?:IGP|EGP|incomplete), .*\bweight \d+(?:,.*)?', line, re.I):
+            if path is None or 'origin' in path:
+                return None
+            path['origin'] = line
+        elif path is not None and matches(line, _EVPN_PATH_ATTRIBUTES):
+            path['attributes'].append(line)
+        elif not matches(line, (r'Flags: \(.+\).+', r'Multipath: .+', r'Advertised path-id \d+',
+                                r'Path-id \d+ (?:not advertised to any peer|advertised to peers:)')):
+            return None
+        return []
+
+    rows, unknown = scan(text, handle)
+    complete = bool(rows) and route is not None and all(
+        row.get('path_count') == len(row['paths'])
+        and (row['best_path'] is None or 1 <= row['best_path'] <= len(row['paths']))
+        and all(path.keys() >= {'next_hop', 'received_from', 'origin'} for path in row['paths'])
+        for row in rows
+    )
+    return rows, unknown, complete
+
+
+def nxos_overlay_diagnostics(query, text, state):
+    """Build records from one redacted NX-OS overlay capture and retain unknown lines."""
+    if state == 'empty':
+        rows, unknown, shape_complete = [], [], False
+    elif query == 'nve_interface_detail':
+        rows, unknown, shape_complete = _nxos_nve_interface(text)
+    elif query == 'evpn_bgp_summary':
+        rows, unknown, shape_complete = _nxos_evpn_summary(text)
+    elif query == 'evpn_bgp_prefix':
+        rows, unknown, shape_complete = _nxos_evpn_prefix(text)
+    else:
+        rows, unknown, shape_complete = _nxos_overlay_rows(query, text)
+    complete = state in {'ok', 'empty'} and shape_complete and not unknown
+    if complete:
+        state = 'ok' if rows else 'empty'
+    elif state in {'ok', 'empty'}:
+        state = 'incomplete'
+    result = response_envelope('cisco_nxos', state, [source_record(query, text, state)], identity_coverage=False)
+    result.update(records=rows, unparsed=unknown, coverage={'complete': complete, 'parsed_records': len(rows),
+                                                           'unparsed_lines': len(unknown)})
+    return result
+
+
+def ios_security_diagnostic(profile, query, text, state, parameters):
+    """Recognize IOS ACL data and verified empty responses for DHCP/port security."""
+    if state not in ('ok', 'empty'):
+        return None
+    records, unknown = [], []
+    if query in ('ipv4_access_lists', 'ipv6_access_lists'):
+        records, unknown = _ios_acl_rows(text)
+    elif not _ios_security_empty(profile, query, text, parameters):
+        return None
+    state = 'unparsed' if unknown else 'ok' if records else 'empty'
+    result = response_envelope(profile, state, [source_record(query, text, state)], identity_coverage=False)
+    result.update(records=records, unparsed=unknown, coverage={
+        'complete': not unknown, 'parsed_records': len(records), 'unparsed_lines': len(unknown),
+    })
+    return result
+
+
+def _ios_acl_rows(text):
+    acl = None
+
+    def handle(raw, value):
+        nonlocal acl
+        heading = re.fullmatch(r'(IPv6|Standard IP|Extended IP) access list (\S+)(?: \([^()]+\))*', value)
+        if heading:
+            family = 'ipv6' if heading[1] == 'IPv6' else 'ipv4'
+            acl = {'name': heading[2], 'family': family, 'rules': []}
+            return [acl]
+        rule = re.fullmatch(r'(?:(\d+) )?((?:permit|deny|remark|evaluate|dynamic)\s+.+?)(?: sequence (\d+))?', value)
+        if not raw[0].isspace() or acl is None or not rule:
+            return None
+        body = rule[2]
+        count = re.search(r' \((\d+) match(?:es)?\)$', body)
+        seq = rule[1] or rule[3]
+        acl['rules'].append({'sequence': int(seq) if seq else None,
+                             'rule': body[:count.start()] if count else body,
+                             'hits': int(count[1]) if count else None})
+        return []
+
+    return scan(text, handle)
+
+
+def _ios_security_empty(profile, query, text, parameters):
+    lines = [' '.join(line.split()) for line in text.splitlines() if line.strip()]
+    if query == 'dhcp_server_binding_address':
+        address = parameters.get('address')
+        prefixes = ('Address', 'Adddress') if profile == 'cisco_xe' else ('Address',)
+        return any(lines == [f'% {prefix} {address} is not in the database.'] for prefix in prefixes)
+    if query == 'dhcp_server_bindings':
+        columns = 'IP address Client-ID/ Lease expiration Type'
+        if profile == 'cisco_xe' and len(lines) == 4 and lines[1] == columns + ' State Interface':
+            columns = lines[1]
+        return lines == ['Bindings from all pools not associated with VRF:', columns, 'Hardware address/', 'User name']
+    if query == 'dhcp_server_conflicts':
+        return lines == ['IP address Detection method Detection time VRF']
+    if query == 'port_security_addresses':
+        return (len(lines) == 8
+                and lines[0] == 'Secure Mac Address Table'
+                and lines[2:4] == ['Vlan Mac Address Type Ports Remaining Age', '(mins)']
+                and all(re.fullmatch(r'-+(?: -+)*', lines[i]) for i in (1, 4, 5))
+                and re.fullmatch(r'Total Addresses in System \(excluding one mac per port\) *: 0', lines[6]) is not None
+                and re.fullmatch(r'Max Addresses limit in System \(excluding one mac per port\) *: [0-9]+', lines[7]) is not None)
+    if query == 'authentication_sessions_interface':
+        return lines == ['No sessions match supplied criteria.']
+    if query == 'arp_inspection_statistics':
+        return lines == ['Source Mac Validation : Disabled', 'Destination Mac Validation : Disabled',
+                         'IP Address Validation : Disabled', 'No active or enabled vlans on switch.']
+    if query == 'ip_source_guard':
+        if profile == 'cisco_xe' and not lines:
+            return True
+        return len(lines) == 2 and lines[0] == 'Interface Filter-type Filter-mode IP-address Mac-address Vlan' and bool(
+            re.fullmatch(r'[- ]+', lines[1]))
+    return query in ('dhcp_server_pools', 'dot1x_interface') and not lines
+
+
+# G57 operational reads use the ssh_read envelope and retain partial, sourced results.
+_IOS_QOS_PORT = r'[A-Za-z][A-Za-z-]*\d+(?:/\d+)*(?:\.\d+)?'
+_IOS_QOS_CLASS = re.compile(r'Class-map:\s*(\S+)\s+\(match[- ](?:all|any)\)(?: fragment \S+)?', re.I)
+_IOS_QOS_POLICY = re.compile(r'Service-policy(?: (input|output))?\s*:\s*(\S+)(?: \(\d+\))?', re.I)
+_IOS_QOS_COUNTERS = [
+    (r'(\d+) packets, (\d+) bytes', ('packets', 'bytes')),
+    (r'\d+ (?:seconds?|minute) offered rate (\d+) bps, drop rate (\d+) bps', ('offered_rate_bps', 'drop_rate_bps')),
+    (r'\((?:queue )?depth/total drops/no-buffer drops\)\s*(\d+)/(\d+)/(\d+)',
+     ('queue_depth', 'total_drops', 'no_buffer_drops')),
+    (r'\(pkts output/bytes output\)\s*(\d+)/(\d+)', ('output_packets', 'output_bytes')),
+    (r'Packets dropped (\d+) packets/(\d+) bytes', ('dropped_packets', 'dropped_bytes')),
+    (r'Priority: .+, b/w exceed drops: (\d+)', ('bandwidth_exceed_drops',)),
+]
+_IOS_QOS_DETAILS = re.compile(
+    r'Match:\s*.+|Queueing|queue limit \d+ (?:packets|bytes)|shape \(average\) cir .+|target shape rate \d+'
+    r'|bandwidth (?:remaining ratio \d+|\d+% \(\d+ kbps\))|\d+ (?:second|minute) rate \d+ bps'
+    r'|QoS Set|(?:cos|dscp) \w+|No packet marking statistics available|Account QoS statistics', re.I,
+)
+_IOS_QOS_POLICER_ACTION = r'(?:transmit|drop|set-[\w-]+(?: [\w./-]+)*)'
+_IOS_QOS_POLICER_COUNTER = re.compile(
+    rf'(conformed|exceeded|violated) (\d+) packets, (\d+) bytes; actions?:(?:\s+({_IOS_QOS_POLICER_ACTION}))?', re.I,
+)
+_IOS_QOS_POLICER_LIMIT = re.compile(
+    r'cir \d+ bps, (?:bc \d+ bytes|conform-burst \d+)'
+    r'(?:, (pir) \d+(?: bps)?, (?:be \d+ bytes|peak-burst \d+)|, be \d+ bytes)?'
+    r'|(pir) \d+ bps, be \d+ bytes', re.I,
+)
+_IOS_QOS_POLICER_RATES = re.compile(
+    r'conformed \d+ bps, exceed(?:ed)? \d+ bps(?:,? (violate(?:d)? \d+ bps))?', re.I,
+)
+
+
+def _ios_qos_policer(lines, *, classic_ios):
+    outcomes, unknown = {}, []
+    required = {'conformed', 'exceeded'}
+    actions = None
+    action_indent = 0
+    for number, indent, line in lines:
+        if match := _IOS_QOS_POLICER_COUNTER.fullmatch(line):
+            outcome, packets, octets, action = match.groups()
+            outcome = outcome.lower()
+            actions = None
+            if outcome in outcomes:
+                unknown.append(number)
+                continue
+            action_indent = indent
+            entry = {'packets': int(packets), 'bytes': int(octets), 'actions': [action] if action else []}
+            outcomes[outcome] = entry
+            if action is None:
+                actions = entry['actions']
+        elif actions is not None and indent > action_indent and re.fullmatch(_IOS_QOS_POLICER_ACTION, line, re.I):
+            actions.append(line)
+        else:
+            actions = None
+            if limit := _IOS_QOS_POLICER_LIMIT.fullmatch(line):
+                if limit[1] or limit[2]:
+                    required.add('violated')
+            elif rates := _IOS_QOS_POLICER_RATES.fullmatch(line):
+                if classic_ios and rates[1]:
+                    required.add('violated')
+            else:
+                unknown.append(number)
+    return outcomes, unknown, required <= outcomes.keys() and all(entry['actions'] for entry in outcomes.values())
+
+
+def _ios_qos_policy(lines, interface, *, classic_ios=False):
+    records, unknown, policies = [], [], []
+    active = None
+    class_indent = 0
+    queueing = set()
+    policers = {}
+    policer_indent = None
+    complete = True
+    port = normalize_port(interface)['name']
+    for number, raw in lines:
+        line = raw.strip()
+        indent = len(raw.expandtabs()) - len(raw.expandtabs().lstrip())
+        if policer_indent is not None and indent <= policer_indent:
+            policer_indent = None
+        if re.fullmatch(_IOS_QOS_PORT, line):
+            if normalize_port(line)['name'].lower() != port.lower():
+                return [], [number], False
+            continue
+        while policies and indent <= policies[-1][0]:
+            complete &= policies.pop()[3]
+            active = None
+        if policy := _IOS_QOS_POLICY.fullmatch(line):
+            policer_indent = None
+            direction = policy[1] or (policies[-1][1] if policies else None)
+            if direction is None:
+                unknown.append(number)
+                continue
+            policies.append([indent, direction.lower(), policy[2], False])
+            active = None
+        elif (match := _IOS_QOS_CLASS.fullmatch(line)) and policies:
+            policer_indent = None
+            policies[-1][3] = True
+            active = {'interface': port, 'direction': policies[-1][1],
+                      'policy_path': [item[2] for item in policies], 'class_name': match[1]}
+            class_indent = indent
+            records.append(active)
+        elif active is not None and indent >= class_indent:
+            index = len(records) - 1
+            if policer_indent is not None:
+                policers[index].append((number, indent, line))
+                continue
+            if line.casefold() == 'police:' and index not in policers:
+                policer_indent = indent
+                policers[index] = []
+                continue
+            if line.casefold() == 'queueing':
+                queueing.add(index)
+            for pattern, fields in _IOS_QOS_COUNTERS:
+                if match := re.fullmatch(pattern, line, re.I):
+                    # Deeper packet counters under Match describe the criterion, not the class.
+                    active.update({name: int(value) for name, value in zip(fields, match.groups())
+                                   if name not in active})
+                    break
+            else:
+                if not _IOS_QOS_DETAILS.fullmatch(line):
+                    unknown.append(number)
+        else:
+            unknown.append(number)
+    complete &= bool(records) and all(item[3] for item in policies)
+    complete &= all({'packets', 'bytes', 'drop_rate_bps'} <= row.keys() for row in records)
+    complete &= all({'total_drops', 'dropped_packets'} & records[index].keys() for index in queueing)
+    for index, block in policers.items():
+        records[index]['policer'], unparsed, finished = _ios_qos_policer(block, classic_ios=classic_ios)
+        unknown.extend(unparsed)
+        complete &= finished
+    return records, sorted(unknown), complete
+
+
+def _ios_qos_queues(lines, interface):
+    records, unknown = {}, []
+    category = None
+    complete = True
+    port = normalize_port(interface)['name']
+    policer = None
+    header = re.fullmatch(rf'({_IOS_QOS_PORT})(?: \(All statistics are in packets\))?', lines[0][1].strip(), re.I)
+    if not header or normalize_port(header[1])['name'].lower() != port.lower():
+        return [], [lines[0][0]], False
+    for number, raw in lines[1:]:
+        line = raw.strip()
+        if match := re.fullmatch(r'output queues (enqueued|dropped):', line, re.I):
+            category = match[1].lower()
+        elif (match := re.fullmatch(r'queue (\d+):\s+(\d+)\s+(\d+)\s+(\d+)', line, re.I)) and category:
+            row = records.setdefault(int(match[1]), {'interface': port, 'queue': int(match[1])})
+            complete &= category not in row
+            row[category] = [int(value) for value in match.groups()[1:]]
+        elif match := re.fullmatch(r'Policer:\s+Inprofile:\s*(\d+)\s+OutofProfile:\s*(\d+)', line, re.I):
+            policer = {'interface': port, 'policer_in_profile': int(match[1]), 'policer_out_of_profile': int(match[2])}
+        elif not re.fullmatch(r'(?:dscp|cos):\s*(?:incoming|outgoing)|-+|'
+                              r'\d+\s*-\s*\d+\s*:\s*\d+(?:\s+\d+)*|'
+                              r'queue:\s+threshold1\s+threshold2\s+threshold3', line, re.I):
+            unknown.append(number)
+    # The documented Catalyst format has four egress queues, with three thresholds each.
+    complete &= set(records) == {0, 1, 2, 3} and all({'enqueued', 'dropped'} <= row.keys() for row in records.values())
+    return [*records.values(), *([policer] if policer else [])], unknown, complete and policer is not None
+
+
+_XE_FED_COLUMNS = {
+    'Enqueue': ('Buffers', 'Enqueue-TH0', 'Enqueue-TH1', 'Enqueue-TH2', 'Qpolicer'),
+    'Drop': ('Drop-TH0', 'Drop-TH1', 'Drop-TH2', 'SBufDrop', 'QebDrop', 'QpolicerDrop'),
+}
+
+
+def _xe_fed_qos_queues(lines, interface):
+    records, unknown = {}, []
+    queues = {'Enqueue': set(), 'Drop': set()}
+    section, port, column_count = None, None, 0
+    sections = set()
+    for number, raw in lines:
+        line = raw.strip()
+        if heading := re.fullmatch(r'DATA Port:(\d+) (Enqueue|Drop) Counters', line):
+            section, port, column_count = heading[2], int(heading[1]), 0
+            if section in sections:
+                unknown.append(number)
+                section = None
+            else:
+                sections.add(section)
+            continue
+        if re.fullmatch(r'-+(?:\s+-+)*', line):
+            continue
+        parts = line.split()
+        if section and not column_count and parts[0] in {'Q', 'Queue'}:
+            expected = _XE_FED_COLUMNS[section]
+            if tuple(parts[1:]) in (expected, expected[:-1]):
+                column_count = len(parts) - 1
+                continue
+        if column_count:
+            units = ['(Bytes)'] * column_count
+            if section == 'Enqueue':
+                units[0] = '(Count)'
+            if parts == units:
+                continue
+            if len(parts) == column_count + 1 and all(value.isdecimal() for value in parts):
+                queue, *values = map(int, parts)
+                key = (port, queue)
+                if key not in queues[section]:
+                    queues[section].add(key)
+                    row = records.setdefault(key, {'interface': interface, 'data_port': port, 'queue': queue})
+                    if section == 'Enqueue':
+                        row.update(buffer_count=values[0], enqueued_bytes=values[1:4])
+                        if len(values) == 5:
+                            row['policer_enqueued_bytes'] = values[4]
+                    else:
+                        row.update(dropped_bytes=values[:3], shared_buffer_drop_bytes=values[3],
+                                   queue_buffer_drop_bytes=values[4])
+                        if len(values) == 6:
+                            row['policer_drop_bytes'] = values[5]
+                    continue
+        unknown.append(number)
+    complete = bool(queues['Enqueue']) and queues['Enqueue'] == queues['Drop']
+    return list(records.values()), unknown, complete
+
+
+_IOS_NAT_HEADER = re.compile(r'Pro\s+Inside global\s+Inside local\s+Outside local\s+Outside global', re.I)
+
+
+def _ios_nat_endpoint(value):
+    if value in {'---', '--'}:
+        return None
+    address, sep, port = value.partition(':')
+    if sep and (not port.isdecimal() or int(port) > 65535):
+        raise ValueError('invalid NAT port')
+    return {'address': str(ipaddress.IPv4Address(address)), 'port': int(port) if sep else None}
+
+
+def _ios_nat_translations(lines, _interface):
+    records, unknown = [], []
+    total, header = None, False
+    for number, raw in lines:
+        line = raw.strip()
+        if _IOS_NAT_HEADER.fullmatch(line) and not header and total is None:
+            header = True
+            continue
+        if (match := re.fullmatch(r'Total number of translations:\s*(\d+)', line, re.I)) and total is None:
+            total = int(match[1])
+            continue
+        parts = line.split()
+        if header and total is None and len(parts) == 5 and re.fullmatch(r'---|[a-z][a-z0-9-]*', parts[0]):
+            try:
+                endpoints = [_ios_nat_endpoint(value) for value in parts[1:]]
+            except ValueError:
+                pass
+            else:
+                records.append(dict(zip(('inside_global', 'inside_local', 'outside_local', 'outside_global'),
+                                        endpoints), protocol=None if parts[0] == '---' else parts[0]))
+                continue
+        unknown.append(number)
+    complete = (header or total == 0) and (total is None or total == len(records))
+    return records, unknown, complete
+
+
+_IOS_NAT_COUNTS = [
+    (r'Total (?:active )?translations:\s*(\d+) \((\d+) static, (\d+) dynamic; (\d+) extended\)',
+     ('total_translations', 'static_translations', 'dynamic_translations', 'extended_translations')),
+    (r'Hits:\s*(\d+)\s+Misses:\s*(\d+)', ('hits', 'misses')),
+    (r'Expired translations:\s*(\d+)', ('expired_translations',)),
+    (r'Peak translations:\s*(\d+)(?:, occurred .+ ago)?', ('peak_translations',)),
+    (r'max entry: max allowed (\d+), used (\d+), missed (\d+)',
+     ('translation_limit', 'translation_limit_used', 'translation_limit_misses')),
+    (r'In-to-out drops: (\d+)\s+Out-to-in drops: (\d+)', ('outbound_drops', 'inbound_drops')),
+    (r'Pool stats drop: (\d+)\s+Mapping stats drop: (\d+)', ('pool_drops', 'mapping_drops')),
+    (r'Port block alloc fail: (\d+)', ('port_block_allocation_failures',)),
+    (r'IP alias add fail: (\d+)', ('ip_alias_creation_failures',)),
+    (r'Limit entry add fail: (\d+)', ('limit_entry_creation_failures',)),
+]
+_IOS_NAT_DETAIL = re.compile(
+    r'Dynamic mappings:|-- (?:Inside|Outside) (?:Source|Destination)|nat-limit statistics:'
+    r'|(?:\[Id: \d+\] )?(?:access-list|route-map) \S+ (?:pool|interface) \S+ refcount \d+'
+    r'|Reserved port setting (?:enabled|disabled) provisioned (?:yes|no)|start [\d.]+\s+end [\d.]+', re.I,
+)
+
+
+def _ios_nat_statistics(lines, _interface):
+    summary, pools, unknown = {}, [], []
+    direction = None
+    port_list = rf'{_IOS_QOS_PORT}(?:,\s*{_IOS_QOS_PORT})*,?'
+    for number, raw in lines:
+        line = raw.strip()
+        if match := re.fullmatch(rf'(Inside|Outside) interfaces:(?:\s+({port_list}))?', line, re.I):
+            direction = match[1].lower() + '_interfaces'
+            summary[direction] = re.findall(_IOS_QOS_PORT, match[2] or '')
+            continue
+        if direction and re.fullmatch(port_list, line):
+            summary[direction].extend(re.findall(_IOS_QOS_PORT, line))
+            continue
+        direction = None
+        if match := re.fullmatch(r'pool (\S+):\s*(?:id \d+, )?(?:netmask [\d.]+|prefix-length \d+)', line, re.I):
+            pools.append({'pool': match[1]})
+        elif (match := re.fullmatch(r'type \S+, total addresses (\d+), allocated (\d+) \((\d+)%\), misses (\d+)',
+                                    line, re.I)) and pools and 'total_addresses' not in pools[-1]:
+            pools[-1].update(zip(('total_addresses', 'allocated_addresses', 'allocated_percent', 'allocation_misses'),
+                                 map(int, match.groups())))
+        else:
+            for pattern, fields in _IOS_NAT_COUNTS:
+                if (match := re.fullmatch(pattern, line, re.I)) and fields[0] not in summary:
+                    summary.update(zip(fields, map(int, match.groups())))
+                    break
+            else:
+                if not _IOS_NAT_DETAIL.fullmatch(line):
+                    unknown.append(number)
+    complete = {'total_translations', 'hits', 'misses', 'expired_translations'} <= summary.keys()
+    if complete:
+        complete = (summary['total_translations'] == summary['static_translations'] + summary['dynamic_translations']
+                    and summary['extended_translations'] <= summary['total_translations'])
+    complete &= all('total_addresses' in pool and pool['allocated_addresses'] <= pool['total_addresses']
+                    and pool['allocated_percent'] <= 100 for pool in pools)
+    return [*([summary] if summary else []), *pools], unknown, complete
+
+
+_IOS_IKE_V1_HEADER = re.compile(r'dst\s+src\s+state\s+conn-id(?P<slot>\s+slot)?(?P<status>\s+status)?', re.I)
+_IOS_IKE_V2_HEADER = re.compile(r'Tunnel-id\s+Local\s+Remote\s+fvrf/ivrf\s+Status', re.I)
+
+
+def _ios_ikev1(lines, _interface):
+    records, unknown = [], []
+    fields = ()
+    saw_header = False
+    for number, raw in lines:
+        line = raw.strip()
+        if re.fullmatch(r'IPv[46] Crypto ISAKMP SA', line, re.I):
+            fields = ()
+        elif (header := _IOS_IKE_V1_HEADER.fullmatch(line)) and (header['slot'] or header['status']):
+            saw_header = True
+            fields = ('connection_id',)
+            if header['slot']:
+                fields += ('slot',)
+            if header['status']:
+                fields += ('sa_status',)
+        elif fields and len(parts := line.split(maxsplit=2 + len(fields))) == 3 + len(fields):
+            try:
+                destination, source = map(lambda value: str(ipaddress.ip_address(value)), parts[:2])
+                if not re.fullmatch(r'[A-Z0-9_]+', parts[2]):
+                    raise ValueError('invalid IKEv1 state')
+                row = {'destination': destination, 'source': source, 'state': parts[2]}
+                for field, value in zip(fields, parts[3:]):
+                    if field == 'sa_status' and re.fullmatch(r'[A-Z0-9_]+(?: \(deleted\))?', value):
+                        row[field] = value
+                    elif field != 'sa_status' and value.isdecimal():
+                        row[field] = int(value)
+                    else:
+                        raise ValueError('invalid IKEv1 table value')
+            except ValueError:
+                unknown.append(number)
+            else:
+                records.append(row)
+        else:
+            unknown.append(number)
+    return records, unknown, saw_header
+
+
+def _ios_ikev2(lines, _interface):
+    records, unknown = [], []
+    active = None
+    header = False
+    for number, raw in lines:
+        line = raw.strip()
+        if re.fullmatch(r'IPv[46] Crypto IKEv2 SA', line, re.I):
+            header, active = False, None
+        elif _IOS_IKE_V2_HEADER.fullmatch(line):
+            header, active = True, None
+        elif header and (match := re.fullmatch(r'(\d+)\s+(\S+)/(\d+)\s+(\S+)/(\d+)\s+(\S+)/(\S+)\s+([A-Z_]+)', line)):
+            active = None
+            try:
+                local, remote = (str(ipaddress.ip_address(match[i])) for i in (2, 4))
+            except ValueError:
+                unknown.append(number)
+            else:
+                active = {'tunnel_id': int(match[1]), 'local_address': local, 'local_port': int(match[3]),
+                          'remote_address': remote, 'remote_port': int(match[5]), 'front_vrf': match[6],
+                          'inside_vrf': match[7], 'sa_status': match[8]}
+                records.append(active)
+        elif active is not None and (match := re.fullmatch(r'Life/Active Time:\s*(\d+)/(\d+) sec', line, re.I)):
+            active.update(lifetime_seconds=int(match[1]), active_seconds=int(match[2]))
+        elif active is not None and re.fullmatch(r'Encr: [\w/-]+(?: \(keysize: \d+\)|, keysize: \d+)?, '
+                                                 r'(?:Hash|PRF): [\w/-]+(?:, Hash: [\w/-]+)?, DH Grp:\s*\d+, '
+                                                 r'Auth(?: sign)?: [\w/-]+(?:, Auth verify: [\w/-]+)?', line, re.I):
+            active['algorithms'] = line
+        else:
+            unknown.append(number)
+    return records, unknown, (header or bool(records)) and all(
+        row['sa_status'] != 'READY' or {'algorithms', 'active_seconds'} <= row.keys() for row in records
+    )
+
+
+_IOS_IPSEC_COUNTER = re.compile(r'#(?:pkts )?([a-z][\w .()-]*?)\s*:?\s+(\d+)', re.I)
+_IOS_IPSEC_DETAIL = re.compile(
+    r'Group: \S+|(?:PERMIT|DENY), flags=\{[^}]*\}|(?:plaintext|path|media) mtu \d+.*'
+    r'|PFS \(Y/N\): [YN], DH group: \S+|in use settings\s*=\s*\{[^}]*\}'
+    r'|(?:slot: \d+, )?conn id: \d+,.+|sa timing: remaining key lifetime \((?:k/sec|sec)\): .+'
+    r'|HA last key lifetime sent\(k\): \(\d+\)|ike_cookies: (?:[0-9a-f]{8} ){3}[0-9a-f]{8}'
+    r'|Kilobyte Volume Rekey has been disabled|IV size: \d+ bytes|replay detection support: [YN]'
+    r'|ecn bit support: [YN] status: \w+|local crypto endpt\.: \S+, remote crypto endpt\.: \S+', re.I,
+)
+
+
+def _ios_ipsec(lines, _interface):
+    if len(lines) == 1 and lines[0][1].strip().lower() == 'no sas found':
+        return [], [], True
+    records, unknown = [], []
+    context, row, sa, direction = {}, None, None, None
+    for number, raw in lines:
+        line = raw.strip()
+        if match := re.fullmatch(r'interface:\s*(\S+)', line, re.I):
+            context = {'interface': match[1]}
+            row, sa, direction = None, None, None
+        elif 'interface' in context and (match := re.fullmatch(r'Crypto map tag:\s*(\S+), local addr\.?\s+(\S+)', line, re.I)):
+            context.update(crypto_map=match[1], local_address=match[2])
+        elif 'interface' in context and (match := re.fullmatch(r'protected vrf:\s*(\S+)', line, re.I)):
+            context['vrf'] = match[1]
+        elif 'interface' in context and (match := re.fullmatch(r'local\s+ident \(addr/mask/prot/port\):\s*\((\S+)\)', line, re.I)):
+            row = {**context, 'local_selector': match[1], 'counters': {}, 'associations': []}
+            records.append(row)
+            sa, direction = None, None
+        elif row is None:
+            unknown.append(number)
+        elif match := re.fullmatch(r'remote\s+ident \(addr/mask/prot/port\):\s*\((\S+)\)', line, re.I):
+            row['remote_selector'] = match[1]
+        elif match := re.fullmatch(r'current_peer\s+(\S+) port (\d+)', line, re.I):
+            row.update(peer=match[1], peer_port=int(match[2]))
+        elif match := re.fullmatch(r'current outbound spi:\s*((?:0x)?[0-9a-f]+)(?:\(\d+\))?', line, re.I):
+            row['outbound_spi'] = match[1]
+        elif match := re.fullmatch(r'(inbound|outbound) (esp|ah|pcp) sas:', line, re.I):
+            direction = (match[1].lower(), match[2].lower())
+            sa = None
+            if direction == ('outbound', 'esp'):
+                row['outbound_esp_reported'] = True
+        elif direction and (match := re.fullmatch(r'spi:\s*((?:0x)?[0-9a-f]+)(?:\(\d+\))?', line, re.I)):
+            sa = {'direction': direction[0], 'protocol': direction[1], 'spi': match[1]}
+            row['associations'].append(sa)
+        elif sa is not None and (match := re.fullmatch(r'transform:\s*([\w-]+(?:\s+[\w-]+)*)\s*,?', line, re.I)):
+            sa['transforms'] = match[1].split()
+        elif sa is not None and (match := re.fullmatch(r'Status:\s*(\S+)', line, re.I)):
+            sa['sa_status'] = match[1]
+        elif sa is not None and (match := re.fullmatch(r'replay detection support: [YN]\s+replay window size: (\d+)',
+                                                      line, re.I)):
+            sa['replay_window_size'] = int(match[1])
+        elif line.startswith('#') and all(_IOS_IPSEC_COUNTER.fullmatch(part.strip()) for part in line.rstrip(',').split(',')):
+            for part in line.rstrip(',').split(','):
+                counter = _IOS_IPSEC_COUNTER.fullmatch(part.strip())
+                row['counters'][counter[1]] = int(counter[2])
+        elif not _IOS_IPSEC_DETAIL.fullmatch(line):
+            unknown.append(number)
+    complete = bool(records)
+    for row in records:
+        complete &= (row.pop('outbound_esp_reported', False) and
+                     {'crypto_map', 'peer', 'remote_selector', 'outbound_spi'} <= row.keys() and
+                     {'encaps', 'decaps', 'send errors', 'recv errors'} <= row['counters'].keys() and
+                     all('transforms' in sa for sa in row['associations']))
+    return records, unknown, complete
+
+
+_IOS_G57_PARSERS = {
+    'qos_policy': _ios_qos_policy, 'qos_queues': _ios_qos_queues,
+    'nat_translations': _ios_nat_translations, 'nat_statistics': _ios_nat_statistics,
+    'ikev1_sa': _ios_ikev1, 'ikev2_sa': _ios_ikev2, 'ipsec_sa': _ios_ipsec,
+}
+
+
+def ios_g57_diagnostics(profile, query, text, parameters, state):
+    lines = [(number, raw) for number, raw in enumerate(text.splitlines(), 1) if raw.strip()]
+    records, unknown, complete = [], [], state == 'empty'
+    if state == 'ok':
+        parser = _xe_fed_qos_queues if profile == 'cisco_xe' and query == 'qos_queues' else _IOS_G57_PARSERS[query]
+        options = {'classic_ios': True} if profile == 'cisco_ios' and query == 'qos_policy' else {}
+        records, unknown, complete = parser(lines, parameters.get('interface'), **options)
+        complete &= not unknown
+        state = ('ok' if records else 'empty') if complete else ('incomplete' if records else 'unparsed')
+    result = response_envelope(profile, state, [source_record(query, text, state)], identity_coverage=False)
+    result.update(records=records, unparsed=[{'line': number} for number in unknown],
+                  coverage={'complete': complete, 'parsed_records': len(records),
+                            'unparsed_lines': len(unknown), 'missing_fields': []})
+    return result
+
+
+# G89 — Cisco IOS XE hardware Quantum Flow Processor.
+_QFP_DROP_HEADER = re.compile(r"Global Drop Stats\s+Packets\s+Octets")
+_QFP_DROP_ROW = re.compile(r"([A-Za-z][A-Za-z0-9_/-]*)\s+(\d+)\s+(\d+)")
+_QFP_SEPARATOR = re.compile(r"-+")
+_QFP_WINDOWS = {"5_seconds": 5, "1_minute": 60, "5_minutes": 300, "60_minutes": 3600}
+_QFP_CPP = re.compile(r"CPP\s+(\d+):?\s+5 secs\s+1 min\s+5 min\s+60 min")
+_QFP_DIRECTION = re.compile(r"(Input|Output):")
+_QFP_TRAFFIC = re.compile(r"(Priority|Non-Priority|Total)?\s*\((pps|bps)\)")
+_QFP_PROCESSING = re.compile(r"(Processing|Crypto|RX|TX):\s+Load \(pct\)|Idle \(pct\)")
+
+
+def _qfp_drops(lines):
+    last_clearing = None
+    if lines:
+        label, _, value = lines[0].partition(":")
+        if label.rstrip() == "Last clearing of QFP drops statistics" and value:
+            last_clearing = value.lstrip()
+            lines = lines[1:]
+    if lines and _QFP_SEPARATOR.fullmatch(lines[0]):
+        lines = lines[1:]
+    if len(lines) < 2 or not _QFP_DROP_HEADER.fullmatch(lines[0]) or not _QFP_SEPARATOR.fullmatch(lines[1]):
+        return {}, [], False
+    rows = []
+    for line in lines[2:]:
+        match = _QFP_DROP_ROW.fullmatch(line)
+        if match:
+            rows.append(dict(reason=match[1], packets=int(match[2]), octets=int(match[3])))
+    summary = {"last_clearing": last_clearing}
+    complete = bool(rows) and len(rows) == len(lines) - 2 == len({row["reason"] for row in rows})
+    return summary, rows, complete
+
+
+def _qfp_utilization(lines):
+    records = []
+    crypto_processors = set()
+    unknown = False
+    for line in lines:
+        processor = _QFP_CPP.fullmatch(line)
+        if processor:
+            records.append({"cpp": int(processor[1]), "input": {}, "output": {}, "load_percent": {}})
+            crypto_seen = False
+            direction = None
+            priority = None
+            continue
+        if not records:
+            unknown = True
+            continue
+        if line == "Crypto/IO" and not crypto_seen:
+            crypto_seen = True
+            crypto_processors.add(records[-1]["cpp"])
+            continue
+        fields = line.rsplit(maxsplit=4)
+        if len(fields) != 5 or not all(value.isdecimal() for value in fields[1:]):
+            unknown = True
+            continue
+        label, *measurements = fields
+        values = dict(zip(_QFP_WINDOWS, map(int, measurements)))
+        data = records[-1]
+        prefix = _QFP_DIRECTION.match(label)
+        traffic_label = label[prefix.end():].lstrip() if prefix else label
+        traffic = _QFP_TRAFFIC.fullmatch(traffic_label)
+        load = _QFP_PROCESSING.fullmatch(label)
+        if traffic and not crypto_seen:
+            category, unit = traffic.groups()
+            if prefix:
+                direction = prefix[1].lower()
+            if category:
+                priority = category.lower().replace("-", "_")
+            if direction is None or priority is None or unit == "pps" and category is None:
+                unknown = True
+                continue
+            kind = data[direction].setdefault(priority, {})
+            if unit in kind:
+                unknown = True
+            kind[unit] = values
+        elif load and all(0 <= value <= 100 for value in values.values()):
+            field = (load[1] or "Idle").lower()
+            if (field == "processing") == crypto_seen or field in data["load_percent"]:
+                unknown = True
+            data["load_percent"][field] = values
+        else:
+            unknown = True
+    for record in records:
+        for direction in ("input", "output"):
+            traffic = record[direction]
+            if ("total" not in traffic or any(set(rates) != {"pps", "bps"} for rates in traffic.values())
+                    or set(traffic) not in ({"total"}, {"priority", "non_priority", "total"})):
+                unknown = True
+        loads = set(record["load_percent"])
+        expected = {"processing", "crypto", "rx", "tx", "idle"} if record["cpp"] in crypto_processors else {"processing"}
+        if loads != expected:
+            unknown = True
+    complete = bool(records) and not unknown and len(records) == len({row["cpp"] for row in records})
+    return {"window_seconds": _QFP_WINDOWS}, records, complete
+
+
+def ios_xe_qfp_diagnostic(query, text, status, *, full_page):
+    """Decode only the documented hardware formats and keep partial observations distinct."""
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    if full_page:
+        summary, records, complete = _qfp_drops(lines) if query == "qfp_drops" else _qfp_utilization(lines)
+    else:
+        summary, records, complete = {}, [], False
+    complete = complete and status == "ok"
+    verdict = "ok" if complete else "incomplete"
+    result = response_envelope("cisco_xe", verdict, [source_record(query, text, status)], identity_coverage=False)
+    result.update(summary=summary, records=records, coverage={"complete": complete})
+    return result

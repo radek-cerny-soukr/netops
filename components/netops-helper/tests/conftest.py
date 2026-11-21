@@ -1,3 +1,4 @@
+import base64
 import json
 import os
 from pathlib import Path
@@ -44,7 +45,7 @@ LOOPBACK = "127.0.0.1"
 PORT = 2222
 LOGIN = "reader"
 PASSWORD = "wire-test-password"
-HOST_KEY_BLOB = "cmVwbGFjZS1tZS1ob3N0LWtleS1tYXRlcmlhbC1B"
+HOST_KEY_BLOB = base64.b64encode(b"\0\0\0\x0bssh-ed25519\0\0\0\x20" + bytes(range(32))).decode()
 HOST_KEY_PIN = fingerprint_of(HOST_KEY_BLOB)
 KNOWN_HOSTS_LINE = f"[{LOOPBACK}]:{PORT} ssh-ed25519 {HOST_KEY_BLOB}"
 EXEC_OUTPUT = "wire-test output marker"
@@ -179,6 +180,37 @@ def wire(tmp_path, monkeypatch):
     _WIRE_IDENTITY_FILE = None
 
 
+def _fortinet_wire(wire, answers, *, prompt="fixture-fortinet # ", fallback=EXEC_OUTPUT + "\n"):
+    """Log process metadata, then answer commands over a single simulated device PTY."""
+    setup = EXEC_CLIENT.format(log=str(wire["log"]), output="", code=0)
+    setup = setup.split("identity_file =", 1)[0]
+    client = r"""
+import tty
+tty.setraw(0)
+sys.stdout.write(PROMPT)
+sys.stdout.flush()
+for line in sys.stdin:
+    if line == "\n":
+        sys.stdout.write(line + PROMPT)
+        sys.stdout.flush()
+        continue
+    with open(TRANSCRIPT, "a") as commands:
+        commands.write(line)
+    command = line.rstrip("\n")
+    answer = ANSWERS.get(command, FALLBACK)
+    if isinstance(answer, dict):
+        sys.stdout.write(line + answer["partial"])
+        sys.stdout.flush()
+        sys.exit(1)
+    if answer is None:
+        sys.exit(1)
+    sys.stdout.write(line + answer + PROMPT)
+    sys.stdout.flush()
+"""
+    data = dict(PROMPT=prompt, TRANSCRIPT=str(wire["transcript"]), ANSWERS=answers, FALLBACK=fallback)
+    _write_client(wire["binaries"], "ssh", setup + "".join(f"{key} = {value!r}\n" for key, value in data.items()) + client)
+
+
 def _calls(wire) -> list[dict]:
     if not wire["log"].exists():
         return []
@@ -210,6 +242,7 @@ def _target(
         login=LOGIN,
         secret=secret,
         host_key_fingerprint=HOST_KEY_PIN,
+        host_key="ssh-ed25519 " + HOST_KEY_BLOB if platform in {"fortinet", "fortiadc"} else None,
         credential_kind=credential_kind,
         sftp_roots=sftp_roots,
         read_inventory={},
@@ -223,6 +256,9 @@ def _target(
 
 
 def _plain_query(platform: str) -> tuple[str, str]:
+    if platform in {"cisco_ios", "cisco_xe", "cisco_nxos"}:
+        # Generic wire fixtures need a raw read without a management output projection.
+        return "clock", READ_QUERIES[platform]["clock"].command
     for name, query in sorted(READ_QUERIES[platform].items()):
         if not query.slots:
             return name, query.command

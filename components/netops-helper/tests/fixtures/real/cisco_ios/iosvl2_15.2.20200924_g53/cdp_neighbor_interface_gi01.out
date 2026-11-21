@@ -1,0 +1,21 @@
+
+-------------------------
+Device ID: host02
+Entry address(es): 
+  IP address: 192.0.2.1
+Platform: Cisco ,  Capabilities: Router Source-Route-Bridge 
+Interface: GigabitEthernet0/1,  Port ID (outgoing port): GigabitEthernet0/1
+Holdtime : 159 sec
+
+Version :
+Cisco IOS Software, IOSv Software (VIOS-ADVENTERPRISEK9-M), Version 15.9(3)M12, RELEASE SOFTWARE (fc1)
+Technical Support: http://www.cisco.com/techsupport
+Copyright (c) 1986-2025 by Cisco Systems, Inc.
+Compiled Fri 19-Sep-25 07:49 by mcpre
+
+advertisement version: 2
+Management address(es): 
+  IP address: 192.0.2.1
+
+
+Total cdp entries displayed : 1

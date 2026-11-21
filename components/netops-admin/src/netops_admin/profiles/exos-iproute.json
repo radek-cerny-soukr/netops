@@ -1,0 +1,30 @@
+{
+  "platform": "exos",
+  "table": "iproute",
+  "versions": [
+    "33.6.1.14"
+  ],
+  "ops": [
+    "create",
+    "update",
+    "delete"
+  ],
+  "table_scoped_key": true,
+  "key_pattern": "^(?:vr:[A-Za-z][A-Za-z0-9_-]{0,31}:)?(?:[0-9]{1,3}(?:\\.[0-9]{1,3}){3}/[0-9]{1,2}|[0-9a-f:]{2,39}/[0-9]{1,3})$",
+  "protected_keys": [],
+  "attributes": {
+    "gateway": {
+      "type": "text",
+      "max_length": 39,
+      "update": true,
+      "unset": false,
+      "referenced_update": true,
+      "required_on_create": true
+    }
+  },
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "1.0.12 G45 (X12), measured on EXOS-VM 33.6.1.14 in the GNS3 lab (task netops-20261117-479). Key: [vr:<VR>:]<network>/<length> in the canonical form (VR-Default without the vr: prefix, IPv6 lower case and compressed); 0.0.0.0/0 is the IPv4 default route, ::/0 the IPv6 default route. Lines: 'configure iproute add|delete <net>/<len>|default <gateway> [vr <VR>]'; show configuration prints IPv4 as 'configure iproute add A M GW', IPv6 as 'P/L GW', the default route as 'default GW' (IPv4 and IPv6, measured in task 479-r2) and omits vr VR-Default. A second gateway of the same destination is a second route, so a new gateway is added before the old route is deleted. One gateway per destination: a second gateway (shared routes), a blackhole route or another option (metric, bfd, protection, unicast/multicast only) is outside the profile and refused. Refused before any write: routes of VR-Mgmt and VR-Control, an unknown VR, a gateway that is not a plain address (zone identifier, white space), a gateway of the other family or inside the destination, and a route that holds a session client (show session) when the VR of the session cannot be determined (the client is held by the route tables of no VR or of several VRs, show iproute [ipv6] vr <VR> of the check account with every origin, dynamic routes included; VR-Control has no route table for show iproute) or when, in the VR of the session, it is at least as specific as the best route to the client (it carries or would take the path). A static route stays configured when the VLAN of its gateway is deleted. The safeguard is the UPM timer profile with the inverse. The check account reads show iproute [ipv6] vr <VR> (rows equal to the total; the IPv6 default route is the row 'Default route'). A user VR was not measured live (the lab has none)."
+}

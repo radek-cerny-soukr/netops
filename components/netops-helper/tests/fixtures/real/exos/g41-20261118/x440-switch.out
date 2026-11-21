@@ -1,0 +1,9 @@
+SysName:          host12
+System Type:      X440G2-12p-10G4
+Image Booted:     primary
+Primary ver:      33.7.1.6
+                  patch1-11
+Secondary ver:    32.6.2.68
+Config Selected:  primary.cfg
+Config Booted:    primary.cfg
+Config Automatic: NONE (Disabled)

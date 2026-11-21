@@ -1,0 +1,11 @@
+
+!Command: show running-config dhcp
+!Running configuration last done at: Wed Nov 18 12:33:33 2026
+!Time: Wed Nov 18 12:33:35 2026
+
+version 9.3(12) Bios:version
+feature dhcp
+
+service dhcp
+ip dhcp relay
+ipv6 dhcp relay

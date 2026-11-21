@@ -1,0 +1,4 @@
+
+IP access list copp-system-p-acl-auto-rp
+	10 permit ip any 224.0.1.39/32
+	20 permit ip any 224.0.1.40/32

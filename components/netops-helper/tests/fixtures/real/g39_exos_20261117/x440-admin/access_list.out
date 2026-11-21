@@ -1,0 +1,4 @@
+Vlan Name    Port   Policy Name          Dir      Rules  Dyn Rules 
+===================================================================
+*            12     x04test              ingress  1      0       
+

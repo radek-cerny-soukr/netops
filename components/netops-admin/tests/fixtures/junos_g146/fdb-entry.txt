@@ -1,0 +1,12 @@
+
+MAC address: 00:00:5e:00:53:01
+  Routing instance: default-switch
+  VLAN name: D20, VLAN ID: 20
+   Learning interface: ge-0/0/1.0   
+   ELP-NH: 0          
+   NH ID: 0                             RTR ID: 0               
+   MAC flags: D           
+   Layer 2 flags: in_hash,in_ifd,in_ifl,in_vlan,in_rtt,kernel,in_ifbd
+   Epoch: 0                            Sequence number: 0     
+   Learning mask: 0x00000001           BGP sequence number: 0      
+   Time: 2026-11-18 18:16:37 UTC

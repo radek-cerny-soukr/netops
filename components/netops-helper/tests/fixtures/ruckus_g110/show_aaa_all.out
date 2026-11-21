@@ -1,0 +1,10 @@
+show aaa all
+AAA:
+  ID:
+    1:
+      Name= Local Database
+      Type= Local
+
+    2:
+      Name= Guest Accounts
+      Type= Guest

@@ -140,10 +140,7 @@ the client.
   leash. The child gets a minimal environment (`PATH`, `HOME`, `LC_ALL`) with no agent socket.
 - Adds the options of a named legacy profile, and only for the device whose inventory entry names
   one - see below.
-- Verifies the host key against `host_key_fingerprint` from the inventory: the key is read with
-  `ssh-keyscan`, its sha256 fingerprint is computed and compared with the pin, and only the matching
-  key is written into a throwaway `known_hosts` that the session then uses with
-  `StrictHostKeyChecking=yes`. There is no trust on first use.
+- Checks the enrolled FortiOS public key `host_key` against `host_key_fingerprint` before connecting. For ExtremeXOS, the SSH key probe supplies the key to compare with the fingerprint. OpenSSH uses a temporary `known_hosts` and `StrictHostKeyChecking=yes` for the authenticated connection.
 - **Authenticates with a key or with a password.** A record of kind `ssh-key` is written into a file
   with mode 0600 in a private temporary directory and passed as `-i <path>`; a record of kind
   `password` is written into a file of the same mode that an askpass script reads, and the client is
@@ -154,9 +151,7 @@ the client.
   failed attempts for one wrong password. Either way the credential never reaches `argv`, where `ps`
   would show it to every user on the machine, and never reaches a value in the environment: only the
   path of the file that holds it does. The directory is removed when the call ends, on every path.
-- Default timeout 120 s per command, about fifteen times the slowest dump measured (7.7 s). A
-  collection runs the host key scan and at most two commands, each bounded by that timeout, so the
-  wall clock is bounded by three timeouts.
+- Default timeout 120 s per command. The FortiOS session also has a separate bounded login. ExtremeXOS bounds the key probe and the configuration read.
 
 ### Old algorithms, one device at a time
 
@@ -270,8 +265,7 @@ FortiOS keeps its own preflight command; EXOS needs no command at all.
 
 ### A one-shot command needs no PTY
 
-FortiOS answers a command passed to `ssh` as a remote command, with no terminal allocated. Verified
-with the native client and key authentication against FortiOS v8.0.0 build0167:
+The earlier one-shot measurement used the native SSH client and key authentication with no terminal allocated on FortiOS v8.0.0 build0167:
 
 - `ssh -F /dev/null -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=... -o
   IdentitiesOnly=yes -i <key> <login>@<device> "get system status | grep Version"` - exit 0, 0.9 s,
@@ -279,13 +273,7 @@ with the native client and key authentication against FortiOS v8.0.0 build0167:
 - the same invocation with `show full-configuration` - exit 0, 7.7 s, 57,258 lines, `config` 2,525 =
   `end` 2,525, so the dump is complete.
 
-No `--More--` appears anywhere in the output (the only occurrence of the string "More" is the name of
-an IPS signature, `Automationdirect.C-More`), and no CRLF comes from the session - the two lines that
-carry `\r` hold a multi-line value from inside the configuration itself. The byte stream stays clean,
-which is what the stability of this channel rests on, so this collector allocates no PTY (`-tt` is
-not among the bound options).
-
-A PTY is needed only by wrappers that run the command as `timeout N sh -c '...'`; that is a property of such a wrapper, not of FortiOS.
+The one-shot measurement returned the dump without paging. The current FortiOS collector uses an interactive session with bounded framing for both collection steps.
 
 ### The prompt in the output, and the two hashes
 
@@ -393,7 +381,7 @@ auditor binds it with arguments instead of trusting a configuration file.
 
 ### SSH collection and command boundaries
 
-For FortiOS, the pager preflight uses `get system console` with `output:standard`; EXOS collection sends no paging command, and `show configuration` is its only command. SSH collection uses one-shot exec without a PTY; authentication follows the configured credential and host-key policy. Prompt cleaning normalizes the supported leading or trailing prompt before snapshot hashing.
+FortiOS reads `get system console` and `show` in one pinned interactive SSH session. The pager preflight requires `output: standard`. ExtremeXOS uses one-shot SSH exec for `show configuration` and sends no paging command. Prompt cleaning runs before snapshot hashing.
 
 Full EXOS configuration collection requires administrator privilege. When a target offers only `ssh-rsa`, configure the explicit per-target legacy profile. Sequential host-key-type probing follows the same configured timeout and host-key pin policy. Apply configured input and response-size limits; no measured collection duration is a product guarantee. Documented ExtremeXOS examples include firmware `33.7.1.6`, `33.6.1.14`.
 

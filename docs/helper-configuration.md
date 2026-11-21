@@ -2,6 +2,8 @@
 
 Configure devices with the instance stopped. Keep the private input outside the source repository with mode 600. Replace all example values, including the SSH host key pin obtained through an independently trusted channel. The account must be independently verified as read-only; the JSON declaration alone does not restrict the device account.
 
+Set `NETOPS_FORTIADC_BACKUP_KEY_FILE=/var/lib/netops/helper/fortiadc-backup.key` in the Compose `.env` to enable encrypted FortiADC history. Place a file containing 32 random bytes at that container path in the `netops-state` volume, owned by the Helper UID `51001` with mode `0600`. History for targets with `read` and `compare` configuration access is stored in `config-history` beside the Helper audit log.
+
 The input has exactly `inventory` and `vault`. This is a complete schema example for one Linux device:
 
 ```json
@@ -115,12 +117,13 @@ A `helper` section may also hold `read_inventory`, `sftp_roots`, `rate_limit`, `
 }
 ```
 
-`read_inventory` lists the values an MCP caller may pass as query parameters. 137 of the 549 catalogue queries take a parameter; `read_query_catalog` names the kind and the inventory category of each parameter. An inventory-bound parameter (125 queries have one) is accepted only when its value is listed, character for character, in that category of the target. The exceptions below are checked against their own rule instead:
+`read_inventory` lists the values an MCP caller may pass as query parameters. 413 of the 1107 catalogue queries take a parameter; `read_query_catalog` names the kind and the inventory category of each parameter. An inventory-bound parameter (361 queries have one) is accepted only when its value is listed, character for character, in that category of the target. A query with several parameters can count in more than one of these groups. The exceptions below are checked against their own rule instead:
 
-- Literal parameters, checked only for their fixed form and not looked up in the inventory (10 queries): `vlan_id` (a VLAN number from 1 to 4094), `mac_literal` (a MAC address), and the `lines` (1 to 200) and `mac_literal` (lower-case MAC) of `wifi_events`.
-- Lookup parameters of the FortiOS `route_lookup`, `ipv6_route_lookup`, `policy_lookup_ipv4` and `policy_lookup_ipv6` (4 queries): a single address must be listed in `addresses`; a canonical prefix is accepted when it is equal to or inside an entry of `lookup_prefixes`. A prefix does not enroll the addresses inside it.
+- Literal parameters, checked only for their fixed form and not looked up in the inventory (59 queries): `vlan_id` (a VLAN number from 1 to 4094), `mac_literal` (a MAC address), `acl_policy` (1–64 ASCII letters, digits, underscore, dot or hyphen, starting with a letter, digit or underscore; reserved selectors `all`, `any`, `none`, `detail`, `dynamic`, `profile` and `rule` are refused without regard to case), `diagnostic_dns_name` (a lowercase DNS name of at least two labels, at most 253 characters, without a trailing dot, with the last label starting with a letter), and the `lines` (1 to 200) and `mac_literal` (lower-case MAC) of `wifi_events`.
+  EXOS `policy_details` takes the literal policy name, `dns_lookup` takes the literal DNS name and sends a DNS lookup from the switch, `mac_address` takes a literal MAC, and `mac_vlan` / `arp_vlan` take a literal VLAN ID. These literals do not enroll targets or authorize other reads. EXOS `dhcp_server`, `dhcp_snooping` and `dhcp_snooping_violations` require an enrolled VLAN name; `netlogin_port` requires an enrolled physical port. Every query still requires its own opt-in.
+- Lookup parameters of the FortiOS `route_lookup`, `ipv6_route_lookup`, `policy_lookup_ipv4` and `policy_lookup_ipv6` and of the IOS and IOS XE `vrf_route_lookup`, `bgp_prefix`, `cef_lookup` and `vrf_cef_lookup` (12 queries): a single address must be listed in `addresses`; a canonical prefix is accepted when it is equal to or inside an entry of `lookup_prefixes`. A prefix does not enroll the addresses inside it.
 - `wtp_id` of `wifi_ap_status` and `wifi_rf_analysis`: listed in `wtp_ids`, or an access point id that an earlier `wifi_ap_status` of the same target returned.
-- `triage_flow`: `src`, `dst`, `port` and `proto` need not be enrolled; the Helper allows them for the route, policy and session reads of that one call only, and no other call gains them. This deliberately broadens lookup scope: enabling `system_status`, `route_lookup` and `policy_lookup_ipv4` permits lookups of arbitrary validated IPv4 flow literals, even outside `addresses`, `lookup_prefixes`, `flow_ports` and `ip_protocols`. Ingress for policy lookup is inferred from the route to `src` and checked for safe syntax; it need not be an enrolled interface. Session reads additionally require the `sessions` diagnostic recipe and that ingress in `interfaces`; their source and destination may still be outside enrolled addresses. The temporary scope never persists and does not broaden egress. Grant these queries only when that flow-lookup access is intended; direct `ssh_read` and `fortios_diagnostics` retain their enrolled-value checks.
+- FortiOS `triage_flow`: `src`, `dst`, `port` and `proto` need not be enrolled; the Helper allows them for the route, policy and session reads of that one call only, and no other call gains them. This deliberately broadens lookup scope: enabling `system_status`, `route_lookup` and `policy_lookup_ipv4` permits lookups of arbitrary validated IPv4 flow literals, even outside `addresses`, `lookup_prefixes`, `flow_ports` and `ip_protocols`. Ingress for policy lookup is inferred from the route to `src` and checked for safe syntax; it need not be an enrolled interface. Session reads additionally require the `sessions` diagnostic recipe and that ingress in `interfaces`; their source and destination may still be outside enrolled addresses. The temporary scope never persists and does not broaden egress. Grant these queries only when that flow-lookup access is intended; direct `ssh_read` and `fortios_diagnostics` retain their enrolled-value checks. IOS and IOS XE `triage_flow` gains no temporary scope: `src` and `dst` must be listed in `addresses` and the required ingress `interface` in `interfaces`.
 
 Any other value is refused with `policy_scope` ("The requested operation is outside the enrolled target scope.") before the device is contacted, and the refusal does not count against `rate_limit`. The error data names the category in `data.field` and the argument in `data.parameter` (every refused argument in `data.parameters`), never the value; a query that is not enabled gives `data.field` `enabled_queries` and a wrong set of parameters gives `parameters`. Pass the values in the `parameters` argument of `ssh_read`, for example `{"target":"linux-a.example.invalid","platform":"linux","query":"interface_link","parameters":{"interface":"eth0"}}`. With the example, `interface_link` with `{"interface":"eth0"}` and `service_status` with `{"service":"ssh.service"}` are accepted; `eth1` or `cron.service` are refused.
 
@@ -128,34 +131,35 @@ Each category holds at most 256 unique, non-empty strings (`schema_paths`: 4096)
 
 | Category | Accepted value | Used by |
 |---|---|---|
-| `interfaces` | letters, digits and `_ . : / -`, starting with a letter or digit, at most 64 characters; it must also be valid for at least one enabled query that takes an interface (for example a FortiOS interface name has at most 15 characters and no `:` or `/`) | 60 catalogue queries; `fortios_diagnostics` |
+| `interfaces` | letters, digits and `_ . : / -`, starting with a letter or digit, at most 64 characters; it must also be valid for at least one enabled query that takes an interface (for example a FortiOS interface name has at most 15 characters and no `:` or `/`); on a FortiOS target that enrolls the `sniffer` recipe, `any` is also accepted and lets only `sniffer` capture on every interface, with disabled VDOMs | 154 catalogue queries; `fortios_diagnostics` |
 | `sdwan_members` | canonical decimal member seq-id from 1 to 512, without leading zeros | 4 FortiOS queries |
 | `sdwan_rules` | canonical decimal SD-WAN rule ID from 1 to 4000, without leading zeros | 2 FortiOS queries |
 | `sdwan_health_checks` | 1–35 ASCII letters, digits, underscore, dot or hyphen, starting with a letter or digit; spaces, quotes and Unicode are unsupported | `sdwan_sla_history` |
 | `link_monitors` | same supported name form as `sdwan_health_checks`; `all` is refused regardless of case | `link_monitor_status` |
-| `addresses` | an IPv4 or IPv6 address in canonical form: no leading zeros, lowercase compressed IPv6, no zone index | 26 catalogue queries; `fortios_diagnostics` |
-| `wtp_ids` | 1–35 ASCII letters, digits, `_` or `-`, starting with a letter or digit; the serial numbers (wtp-id) of the FortiAP the target manages. Optional: an id returned by an earlier `wifi_ap_status` of the same target is accepted without being listed | `wifi_ap_status`, `wifi_rf_analysis` (optional `wtp_id`) |
-| `lookup_prefixes` | a CIDR prefix of either family in canonical form: the network address without host bits (`198.51.100.0/24`, not `198.51.100.1/24`), a decimal prefix length from 1, lowercase compressed IPv6, no mask notation, no zone index | prefix operands of the FortiOS `route_lookup`, `ipv6_route_lookup`, `policy_lookup_ipv4` and `policy_lookup_ipv6` queries and of the `sessions` and `flow` recipes of `fortios_diagnostics` |
+| `ipsec_tunnels` | phase-1 tunnel name, same supported name form as `sdwan_health_checks` | `ike_gateway_detail`, `ipsec_tunnel_detail` |
+| `addresses` | an IPv4 or IPv6 address in canonical form: no leading zeros, lowercase compressed IPv6, no zone index | 117 catalogue queries; `fortios_diagnostics` |
+| `wtp_ids` | 1–35 ASCII letters, digits, `_` or `-`, starting with a letter or digit; on FortiOS the serial numbers (wtp-id) of the FortiAP the target manages, on Ruckus Unleashed access point device names. Optional: an id returned by an earlier `wifi_ap_status` of the same target is accepted without being listed | `wifi_ap_status`, `wifi_rf_analysis` (optional `wtp_id`); Ruckus Unleashed `access_point_by_name` |
+| `lookup_prefixes` | a CIDR prefix of either family in canonical form: the network address without host bits (`198.51.100.0/24`, not `198.51.100.1/24`), a decimal prefix length from 1, lowercase compressed IPv6, no mask notation, no zone index | prefix operands of the FortiOS `route_lookup`, `ipv6_route_lookup`, `policy_lookup_ipv4` and `policy_lookup_ipv6` queries and of the IOS and IOS XE `vrf_route_lookup`, `bgp_prefix`, `cef_lookup` and `vrf_cef_lookup` queries, of the `sessions` and `flow` recipes of `fortios_diagnostics` and of the FortiADC `session_list` and `persistence_list` client filter; the listed prefix itself for NX-OS `bgp_prefix_detail`, `route_prefix_lookup`, `route_prefix_lookup_vrf` and Junos `security_flow_sessions` |
 | `managed_switches` | `S` followed by 11 to 15 uppercase letters or digits | 19 FortiOS queries |
-| `services` | letters, digits and `_ . @ -`, starting with a letter or digit, at most 128 characters | 2 Linux queries |
-| `vlans` | a letter followed by up to 31 letters, digits, `_` or `-`; not `all`, `any`, `none`, `detail`, `ipv4`, `ipv6`, `tag`, `ports`, `virtual-router` or `statistics` | 2 EXOS queries |
+| `services` | letters, digits and `_ . @ -`, starting with a letter or digit, at most 128 characters | 4 queries (Linux services, EXOS STP domains) |
+| `vlans` | a letter followed by up to 31 letters, digits, `_` or `-`; not `all`, `any`, `none`, `detail`, `ipv4`, `ipv6`, `tag`, `ports`, `virtual-router` or `statistics` | 7 queries (5 EXOS, 2 Junos ELS) |
 | `certificates` | a letter followed by up to 78 letters, digits, `_`, `.` or `-`; not `all`, `any`, `none`, `detail` or `details` | 1 FortiOS query |
 | `switches` | letters, digits and `_ . : -`, starting with a letter or digit, at most 64 characters | 1 FortiOS query |
 | `schema_paths` | up to 32 words separated by single spaces, each word of letters, digits and `_ . + -` starting with a letter or digit | `schema_read` (FortiOS with `system_status` enabled) |
-| `diagnostic_recipes` | `ping`, `traceroute`, `sniffer`, `sessions`, `flow`, `logs`, `nslookup`, `http_probe`, `health_check_verify`, `system_event_logs`, `waf_attack_logs`, `session_list` or `persistence_list` | `fortios_diagnostics` (FortiOS or FortiADC with `system_status` enabled; a FortiOS target accepts `ping`, `traceroute`, `sniffer`, `sessions`, `flow` and `logs`, a FortiADC target `ping`, `traceroute`, `nslookup`, `http_probe`, `health_check_verify`, `system_event_logs`, `waf_attack_logs`, `session_list` and `persistence_list`, any other recipe fails the inventory) |
-| `diagnostic_names` | a lowercase DNS name of at least two labels without a trailing dot, the last label starting with a letter | `fortios_diagnostics` `nslookup` (FortiADC) |
+| `diagnostic_recipes` | `ping`, `traceroute`, `sniffer`, `sessions`, `flow`, `logs`, `nslookup`, `http_probe`, `health_check_verify`, `system_event_logs`, `waf_attack_logs`, `health_check_event_logs`, `admin_event_logs`, `configuration_event_logs`, `slb_http_traffic_logs`, `slb_layer4_traffic_logs`, `session_list`, `persistence_list`, `disk_usage`, `ntp_status` or `packet_capture` | `fortios_diagnostics` (FortiOS or FortiADC with `system_status` enabled; a FortiOS target accepts `ping`, `traceroute`, `sniffer`, `sessions`, `flow` and `logs`, a FortiADC target every other value and `ping` and `traceroute`; any other recipe fails the inventory; see [Helper tools](../components/netops-helper/docs/tools.md)) |
+| `diagnostic_names` | a lowercase DNS name of at least two labels without a trailing dot, the last label starting with a letter | `fortios_diagnostics` `nslookup` (FortiADC) and FortiOS `ping` / `traceroute` targets; an explicit FortiOS `source_address` applies to IPv4 and DNS-name targets |
 | `diagnostic_http_endpoints` | `http://`, a canonical unicast IPv4 address, `:port` only when the port is not 80, and a path of `/`-separated segments of letters, digits and `_ . ~ -` not starting with `.`; no query, fragment or credentials; at most 128 characters | `fortios_diagnostics` `http_probe` (FortiADC) |
 | `adc_health_checks` | letters, digits and `_ . -`, starting with a letter or digit, at most 35 characters | `fortios_diagnostics` `health_check_verify` (FortiADC) |
 | `diagnostic_vdoms` | VDOM names: a letter or digit followed by up to 30 letters, digits, `_`, `.` or `-` | explicit `vdom` of `fortios_diagnostics` (FortiOS; a FortiADC target refuses a selector) |
-| `adc_vdoms` | letters, digits and `_ . -`, starting with a letter or digit, at most 35 characters | 1 FortiADC query (`slb_vs_stat`) |
-| `adc_virtual_servers` | letters, digits and `_ . -`, starting with a letter or digit, at most 35 characters | 3 FortiADC queries (`slb_vs_stat`, `tls_handshake_stats`, `tls_session_reuse`) |
-| `diagnostic_virtual_servers` | FortiADC only: a letter or digit followed by up to 62 letters, digits, `_`, `.` or `-` | `fortios_diagnostics` `session_list` / `persistence_list` (the virtual server is passed as `address`) |
+| `adc_vdoms` | letters, digits and `_ . -`, starting with a letter or digit, at most 35 characters | 3 FortiADC queries (`slb_vs_stat`, `slb_vs_overview`, `slb_rs_stat`) |
+| `adc_virtual_servers` | letters, digits and `_ . -`, starting with a letter or digit, at most 35 characters | 7 FortiADC queries (`slb_vs_stat`, `slb_rs_stat`, `tls_handshake_stats`, `tls_session_reuse`, `dos_access_limit`, `dos_conn_limit`, `dos_req_limit`) |
+| `diagnostic_virtual_servers` | FortiADC only: a letter or digit followed by up to 62 letters, digits, `_`, `.` or `-` | `fortios_diagnostics` `session_list` / `persistence_list` and `slb_http_traffic_logs` / `slb_layer4_traffic_logs` (required), `waf_attack_logs` (optional); the virtual server is passed as `address` |
 
-`lookup_prefixes` lets a lookup or a filter name a whole client network, for example `198.51.100.0/24`, instead of one enrolled address. A prefix is accepted only where nothing connects to it: the FortiOS `route_lookup`, `ipv6_route_lookup` and `policy_lookup_ipv4` / `policy_lookup_ipv6` parameters (`address`, `src_ip`, `dst_ip`) and the `address` and `source_address` of the `sessions` and `flow` recipes of `fortios_diagnostics`. The requested prefix must be canonical and equal to or inside an enrolled `lookup_prefixes` entry of the same family; a single address still has to be listed in `addresses` itself, and an address that merely lies inside an enrolled prefix is not enrolled. `ping`, `traceroute`, `sniffer`, `logs`, BGP peers, `triage_routing`, the other vendors' route lookups and `egress` never take a prefix, and `lookup_prefixes` does not widen `egress`. FortiOS `get router info routing-table details`, `get router info6 routing-table` and `diagnose firewall iprope lookup` take one address, so the Helper sends the network address of the prefix (`198.51.100.0/24` becomes `198.51.100.0`): the answer is the route or policy for that address, not for the whole prefix. The `sessions` and `flow` filters take the range of the prefix (`diagnose sys session filter dst 198.51.100.0 198.51.100.255`, `diagnose debug flow filter addr 198.51.100.0 198.51.100.255`). Prefix filters require measured range grammar: FortiGate-60F 7.6.8 build 3744 with a tuple, or FortiGate-80F 8.0.2 build 0251. Other identities return `prefix_not_supported_on_identity` before diagnostic state changes; route and policy lookups still use the network address. In FortiOS `fortios_diagnostics`, a single address is refused when it is multicast, unspecified or the limited broadcast address, and a `sessions` or `flow` filter prefix when its first or last address is. Route and policy lookups and the `lookup_prefixes` inventory check the canonical form, the family and a non-zero length, and the Helper and the Proxy both refuse, in the inventory and in a request, a prefix whose network address is multicast, unspecified or the IPv4 limited broadcast address (for example `ff00::/8` or `0.0.0.0/8`); a lookup prefix must also lie inside an enrolled entry. Enroll only unicast client networks. A refusal names `lookup_prefixes` in `data.field` when the requested value was a prefix, and `addresses` otherwise.
+`lookup_prefixes` lets a lookup or a filter name a whole client network, for example `198.51.100.0/24`, instead of one enrolled address. A prefix is accepted only where nothing connects to it: the FortiOS `route_lookup`, `ipv6_route_lookup` and `policy_lookup_ipv4` / `policy_lookup_ipv6` parameters (`address`, `src_ip`, `dst_ip`), the `address` of the IOS and IOS XE `vrf_route_lookup`, `bgp_prefix`, `cef_lookup` and `vrf_cef_lookup`, the `address` and `source_address` of the `sessions` and `flow` recipes of `fortios_diagnostics`, and the `source_address` of the FortiADC `session_list` and `persistence_list` (IPv4, /16–/32; prefixes through /30 select their usable hosts), and the direct NX-OS and Junos prefix slots below. In these Fortinet, IOS and IOS XE parameters the requested prefix must be canonical and equal to or inside an enrolled `lookup_prefixes` entry of the same family. NX-OS `bgp_prefix_detail`, `route_prefix_lookup`, `route_prefix_lookup_vrf` and Junos `security_flow_sessions` take a prefix directly and accept only a `lookup_prefixes` entry exactly as listed; a single address still has to be listed in `addresses` itself, and an address that merely lies inside an enrolled prefix is not enrolled. `ping`, `traceroute`, `sniffer`, `logs`, BGP peers, `triage_routing`, the address-based route lookups of other vendors and `egress` never take a prefix, and `lookup_prefixes` does not widen `egress`. FortiOS `get router info routing-table details`, `get router info6 routing-table` and `diagnose firewall iprope lookup` take one address, so the Helper sends the network address of the prefix (`198.51.100.0/24` becomes `198.51.100.0`): the answer is the route or policy for that address, not for the whole prefix. The IOS and IOS XE lookups likewise receive the network address. The `sessions` and `flow` filters take the range of the prefix (`diagnose sys session filter dst 198.51.100.0 198.51.100.255`, `diagnose debug flow filter addr 198.51.100.0 198.51.100.255`). The range grammar was measured on FortiGate-60F 7.6.8 build 3744 with a tuple and on FortiGate-80F 8.0.2 build 0251. On another identity the Helper uses the 7.6.8 form for FortiOS 7.x and older and the 8.0.2 form for 8.x and newer, and the result carries `firmware_support.status: "untested"` with a `firmware_untested` warning; a form the device refuses ends the call after the filter is cleared and read back. Route and policy lookups use the network address. In FortiOS `fortios_diagnostics`, a single address is refused when it is multicast, unspecified or the limited broadcast address, and a `sessions` or `flow` filter prefix when its first or last address is. Route and policy lookups and the `lookup_prefixes` inventory check the canonical form, the family and a non-zero length, and the Helper and the Proxy both refuse, in the inventory and in a request, a prefix whose network address is multicast, unspecified or the IPv4 limited broadcast address (for example `ff00::/8` or `0.0.0.0/8`); a lookup prefix must also lie inside an enrolled entry. Enroll only unicast client networks. A refusal names `lookup_prefixes` in `data.field` when the requested value was a prefix, and `addresses` otherwise.
 
 `fortios_diagnostics` requires its recipe, address and interface to be listed in `diagnostic_recipes`, `addresses` and `interfaces`. An explicit `vdom` must also be listed in `diagnostic_vdoms` and must equal the session's verified current VDOM. The qualified multi-VDOM sessions recipe selects and verifies that context explicitly; a per-VDOM administrator's login is not qualified for `fortios_diagnostics` (see [multi-VDOM reads](#fortios-multi-vdom-reads)).
 
-`logs` never sets a log filter. It reads `execute log filter dump`, refuses a dump whose nine fields differ from the measured FortiOS 8.0.2 shape, runs one bounded `execute log display` under the current device filter, and requires the dump read afterwards to equal the first one. When the dump differs in the same session, the helper reconnects, verifies the same identity and requires the dump of the new session to equal the first one; otherwise cleanup is reported as not verified. The result names that device filter in `filter_applied`; it is not a filter by type, target or time. Only the loaded batch (at most the device `view-lines`) of the current category is searched: records whose `srcip` or `dstip` equals the enrolled `address` are kept, at most `count` of them, and, when the optional `since` and `until` (form `YYYY-MM-DD HH:MM:SS`, `logs` only) are given, only those inside that window, with `found`, `loaded`, `matched`, `returned`, `truncated` and the `time_range` of the loaded batch. `log_state` is `ok`, `empty` (only for complete zero-count headers), `device_refused`, `unsupported` or `incomplete`; timeouts, a loaded-count/parsed-record mismatch, or a record without a valid timestamp are `incomplete`, never `empty`. Only `ok` and `empty` set the result's `ok` flag. A missing or unknown header is `unsupported`.
+Without `log_category`, `logs` sets no log filter. It reads `execute log filter dump`, refuses a dump whose nine fields differ from the measured FortiOS 8.0.2 shape, runs one bounded `execute log display` under the current device filter, and requires the dump read afterwards to equal the first one. When the dump differs in the same session, the helper reconnects, verifies the same identity and requires the dump of the new session to equal the first one; otherwise cleanup is reported as not verified. The result names that device filter in `filter_applied`; it is not a filter by type, target or time. With `log_category` (and the optional `log_subtype`, `log_action` and `policy_id`, see [Helper tools](../components/netops-helper/docs/tools.md)) the call sets that category, the `srcip` of a non-empty `address`, the other given terms and `view-lines` in its own SSH session, requires the dump to show exactly these terms and then closes the session, which discards the filter; an empty `address` reads the category without an address. Only the loaded batch (at most the device `view-lines`) of the current category is searched: records whose `srcip` or `dstip` equals the enrolled `address` (every record when `address` is empty) are kept, at most `count` of them, and, when the optional `since` and `until` (form `YYYY-MM-DD HH:MM:SS`, `logs` only) are given, only those inside that window, with `found`, `loaded`, `matched`, `returned`, `truncated` and the `time_range` of the loaded batch. `log_state` is `ok`, `empty` (only for complete zero-count headers), `device_refused`, `unsupported` or `incomplete`; timeouts, a loaded-count/parsed-record mismatch, or a record without a valid timestamp are `incomplete`, never `empty`. Only `ok` and `empty` set the result's `ok` flag. A missing or unknown header is `unsupported`.
 
 The `schema_read` tool still needs a measured server-side schema registry and library files, with no supported provisioning workflow. Bounded `fortios_diagnostics` instead verifies its pinned target and measured live identity without a registry; see the diagnostic section below.
 
@@ -165,9 +169,9 @@ The other optional fields:
 |---|---|---|---|---|
 | `read_inventory` | object of the categories above, each a list of strings | 256 values per category, 4096 for `schema_paths`; 128 characters per value | `{}` | values allowed as query parameters |
 | `sftp_roots` | list of absolute POSIX paths in canonical form: no trailing `/`, no `//`, no `..`, not `/` itself | 256 unique paths, 2000 characters each | `[]` | `sftp_stat` accepts a root and any path below it whose target, as the SFTP server resolves it, stays below the resolved root |
-| `rate_limit` | `{"requests": N, "window_seconds": S}`, both whole numbers, both keys required | `requests` 1–60, `window_seconds` 1–3600 | 30 requests per 60 seconds | per-target limit on accepted device operations; a follow-up page (`offset` > 0) of `ssh_read` or `schema_read` is not counted; an exceeded limit is refused with `rate_limit` and `retry_after_seconds`. The triage tools (`triage_health`, `triage_routing`, `triage_vpn`, `triage_slb`, `triage_flow`, `wifi_triage`) reserve 10, 5, 4, 21, 5 and 7 reads (`wifi_triage` 15 with an enrolled REST token) against this total and a triage sublimit of the same size (`triage_rate_limit` in `target_scope` and `helper_status`); both budgets are checked atomically before acceptance |
+| `rate_limit` | `{"requests": N, "window_seconds": S}`, both whole numbers, both keys required | `requests` 1–60, `window_seconds` 1–3600 | 30 requests per 60 seconds | per-target limit on accepted device operations; a follow-up page (`offset` > 0) of `ssh_read` or `schema_read` is not counted; an exceeded limit is refused with `rate_limit` and `retry_after_seconds`. The triage tools (`triage_health`, `triage_routing`, `triage_vpn`, `triage_slb`, `triage_flow`, `wifi_triage`) reserve 10, 5, up to 6 (4 summary and 2 detail, counting only queries enabled on the target), 21, 5 and 7 reads (`wifi_triage` 15 with an enrolled REST token) against this total and a triage sublimit of the same size (`triage_rate_limit` in `target_scope` and `helper_status`); both budgets are checked atomically before acceptance |
 | `fortios_output_standard_verified` | `true` or `false` | — | `false` | FortiOS `ssh_read`, `schema_read` and `fortios_diagnostics` are refused while it is `false` |
-| `role_boundary` | `"catalogue"` | only with `account_role: "admin-bounded"`, which is accepted only for `ssh_platform: "ruckus_unleashed"`, `"fortios"` or `"fortiadc"` | absent | required companion of `admin-bounded`; refused with `read-only` |
+| `role_boundary` | `"catalogue"` | only with `account_role: "admin-bounded"`, which is accepted only for `ssh_platform: "ruckus_unleashed"`, `"fortios"`, `"fortiadc"`, `"cisco_ios"`, `"cisco_xe"` or `"cisco_nxos"`; the three Cisco platforms limit it to fixed reads (see [Privileged Cisco and Junos reads](#privileged-cisco-and-junos-reads)) | absent | required companion of `admin-bounded`; refused with `read-only` |
 | `snmp_credential` | `null` or the name of a vault record of kind `snmpv3-authpriv` (a legacy `snmp-community` record is refused by `snmp_get` with the replacement instructions) | — | `null` | `target_scope` reports it as `snmp_enrolled`; an `snmpv3-authpriv` record (SHA256, AES128) activates `snmp_get` within the target UDP egress scope and the 1 to 20 OID limit; `snmp_enrolled` is false for a legacy record; SNMPv1, SNMPv2c, noAuthNoPriv and authNoPriv are not supported |
 | `tls_ca_certificate` | absolute canonical path of a PEM file below `/etc/netops-helper/certs`, never inline PEM | 64 KiB; only CA certificates (basicConstraints `CA=true`), no private key block | absent | `tls_probe` of this target verifies the chain against this CA instead of the system store; hostname/SAN checking and TLS 1.2 or newer stay mandatory |
 
@@ -179,7 +183,7 @@ A section that breaks any rule above is refused as a whole. The message names th
 
 ## Additional enrollment controls
 
-See [Optional Helper fields](#optional-helper-fields). The `admin-bounded` account is accepted only on an explicitly supported platform whose read-only role is missing or refuses part of the catalogue (`ruckus_unleashed`, `fortios`, `fortiadc`), with `role_boundary: "catalogue"`; it remains an administrator on the device. See [account boundaries](../components/netops-helper/docs/read-only-accounts.md). SNMP is accepted only as SNMPv3 authPriv (SHA256, AES128); SNMPv1, SNMPv2c and FTP/FTPS are refused even if historical engine fields are present.
+See [Optional Helper fields](#optional-helper-fields). The `admin-bounded` account is accepted only on an explicitly supported platform whose read-only role is missing or refuses part of the catalogue (`ruckus_unleashed`, `fortios`, `fortiadc`, and with a fixed query limit `cisco_ios`, `cisco_xe` and `cisco_nxos`, see [Privileged Cisco and Junos reads](#privileged-cisco-and-junos-reads)), with `role_boundary: "catalogue"`; it remains an administrator on the device. See [account boundaries](../components/netops-helper/docs/read-only-accounts.md). SNMP is accepted only as SNMPv3 authPriv (SHA256, AES128); SNMPv1, SNMPv2c and FTP/FTPS are refused even if historical engine fields are present.
 
 Device roles are exactly `perimeter`, `internal` and `lab`; earlier Czech spellings are refused. A failed/refused Helper operation has MCP `isError: true` and preserves its structured error result. A `switch_read` protocol that is not configured is a valid `not_applicable` answer (`ok: true`, `isError: false`); triage still reports required missing protocol evidence as incomplete. The error flag never authorizes a retry or a wider device scope.
 
@@ -283,22 +287,25 @@ Configuration SSH reads default to a 30-second idle timeout, reset only by recei
 ## Configuration captures on EXOS, Cisco and Arista
 
 The same `config_access` opt-in supports `extreme_exos`, `cisco_ios`, `cisco_xe`,
-`cisco_nxos` and `arista_eos`. Use `section="all", include_all=true,
+`cisco_nxos`, `arista_eos`, `juniper_junos` and `juniper_junos_els`. Use `section="all", include_all=true,
 redaction="full", include_defaults=false`; section reads, defaults and other
 option combinations are refused before capture. The command is `show configuration`
-on EXOS and `show running-config` on the other four platforms. Identities are
-checked before capture, with these narrow adapter scopes:
+on EXOS, `show configuration | display set | no-more` on Junos and `show running-config` on the other four platforms. Identities are
+read before capture; these are the tested identities:
 
-| Platform | Accepted identity |
+| Platform | Tested identity |
 |---|---|
-| `extreme_exos` | X440G2-12p-10G4, 33.7.1.6-patch1-11 |
+| `extreme_exos` | X440G2-12p-10G4, 33.7.1.6-patch1-11; EXOS-VM, 33.6.1.14 |
 | `cisco_ios` | IOSv 15.9(3)M12, fc1 |
 | `cisco_xe` | IOL-XE 17.18.2, fc3 (the image's identity reports model `Linux`) |
 | `cisco_nxos` | Nexus9000 C9300v, 9.3(12) |
 | `arista_eos` | cEOSLab, 4.36.1F; the full image build is retained in the snapshot identity |
+| `juniper_junos`, `juniper_junos_els` | ex9214, 26.2R1.7 (vJunos-switch) |
 
-These are accepted code identities, not a claim of complete configuration
-visibility or qualification of every hardware model. Redactors retain an explicit
+Another model or release is captured with the same redactor and the answer carries
+`firmware_support.status: "untested"` and a `firmware_untested` warning; an identity
+that cannot be read or another product is still refused. The tested identities are
+not a claim of complete configuration visibility or qualification of every hardware model. Redactors retain an explicit
 allowlist of visible lines; every other line is a constant unverified marker.
 NX-OS and EOS use platform-specific indentation rules. Credentials and unknown
 lines are hidden before storage, paging and comparison; account rights and format
@@ -316,7 +323,12 @@ read; numeric privilege alone is insufficient. On the measured cEOS 4.36.1F, pri
 (without it the account stayed at privilege 1; tasks 178 and 191, 2026-11-14); that privilege can also allow writes,
 so it must not be presented as proof of a read-only account. EXOS read-only
 accounts refused `show configuration` (X440G2-12p-10G4 33.7.1.6-patch1-11, task 191, 2026-11-14);
-the Helper returns `device-refused`.
+the Helper returns `device-refused`. A Junos account in the built-in `read-only` class
+(`netops-ro` on vJunos-switch 26.2R1.7) receives `/* ACCESS-DENIED */` lines instead of
+the configuration; the Helper returns `device-refused` without a snapshot. The Junos
+capture therefore needs an account that can view the configuration (measured with an
+administrator), which is not a read-only account. An NX-OS administrator login may be
+enrolled for these configuration tools only, as `admin-bounded` (see below).
 Verify effective device permissions and command authorization before enrollment;
 Helper policy does not make a privileged device account read-only and does not
 escalate its privilege. A device refusal during the identity read also returns
@@ -342,6 +354,17 @@ text instead gives `config_snapshot_redaction_changed`; take fresh captures.
 FortiOS (line comparison since 1.0.10) and FortiADC (positional comparison)
 retain their earlier metadata comparability rules, except that a FortiOS
 full-profile pair may differ in `credential_redactions`.
+
+**Approved baselines and live comparisons.** With `read` and `compare`, `config_read(..., snapshot_id=<id>, content_sha256=<hash>, approve_baseline=true)` approves an existing completed, unfiltered capture (offset 0, no `contains`/`filter_sha256`) as the target's baseline; no device is contacted. The redacted text, never hidden lines, is stored privately in `config-baselines` beside the Helper audit log and survives cache eviction and restart; the latest approval replaces the baseline of the same target, section and defaults option. `config_diff(..., base_snapshot="baseline", other_snapshot=<id>)` compares a fresh capture with it. Ruckus Unleashed keeps in-memory comparison only. For `cisco_ios`, `cisco_xe`, `cisco_nxos` and `arista_eos`, `base_snapshot="startup"` with `other_snapshot="running"` captures both configurations live (first page only; continue with the returned snapshot IDs). On EXOS, `other_snapshot="running"` with `base_snapshot` `saved`, `booted` or `saved:<name>` reads the switch's change counts and unsaved-change indicator. Junos compares the shared candidate with running in either order (`candidate`/`running`), or a rollback selector `rollback:<1-49>` with `running`.
+
+## Privileged Cisco and Junos reads
+
+Some catalogue reads are refused by the measured read-only accounts and are answered only by a privileged login. Enrollment does not grant these rights, and a privileged login is not read-only.
+
+- **IOS and IOS XE probes.** The `ping*` and `traceroute*` queries (five echo requests or at most five hops, one-second timeout, enrolled `addresses`, source `interfaces` and `vrfs`) were refused by the privilege-1 account and answered by a privilege-15 login on IOSv 15.9(3)M12; the IOS XE probes were measured with a privilege-15 login enrolled as `admin-bounded` on IOL XE 17.18.2. On IOS XE enroll them for a separate alias with `account_role: "admin-bounded"` and `role_boundary: "catalogue"`; that role on IOS XE accepts only the probe queries, the IOS XE security reads, `log_history`, `clock`, `ip_interface_details` and `snmp_engine_id`, optionally with configuration access; with no enabled queries, `config_access` must contain `read`. On IOS the `admin-bounded` role accepts only `log_history`, `clock` and `snmp_engine_id` (with `interfaces` only for `log_history`, no SFTP roots and no SNMP credential), so it does not cover the IOS probes; leave them disabled on IOS unless device command authorization lets the read-only account run exactly these templates (not measured).
+- **IOS SNMP engine ID.** The privilege-1 account was refused `show snmp engineID` (measured with the SNMP agent disabled); enroll `snmp_engine_id` under a separate `admin-bounded` alias with `enabled_queries: ["snmp_engine_id"]`. The other management reads (`show aaa servers`, `show radius statistics`, `show tacacs`, `show snmp`, `show hosts`, `show users`, `show ssh`, `show line`) stay on the read-only alias; community strings, keys and AAA secrets are redacted before hashing and paging.
+- **NX-OS.** `admin-bounded` is accepted only with no `enabled_queries`, no SFTP roots, no SNMP credential, `config_access` containing `read` and no other non-empty inventory category, that is for the configuration tools alone.
+- **Junos probes.** `ping`, `ping_instance`, `traceroute` and `traceroute_instance` need the Junos `network` permission. The built-in `read-only` class refuses them (`device_cli_error`); they were measured with an administrator on vJunos-switch 26.2R1.7. NetOps recommends keeping the built-in `read-only` class; leave the probes disabled or use an exact `allow-commands` entry approved for the target.
 
 ## MLAG and vPC catalogue reads
 
@@ -420,7 +443,7 @@ See the [complete scope and refusals](../components/netops-helper/docs/tools.md#
 
 ## Registry-free bounded FortiOS diagnostics
 
-The existing fortios_diagnostics tool needs no NETOPS_SCHEMA_REGISTRY. Keep its enrolled recipes, destination addresses and interfaces, verified standard output and pinned host key. Each session must return one measured hardware/version/build identity, one current VDOM and one Virtual domain configuration marker (disable or multiple) before any diagnostic command. In disable mode the current VDOM must be root. In multiple mode an enrolled explicit vdom equal to the current VDOM is required; a missing or different selector returns config_platform_not_supported. The multi-VDOM sessions recipe selects and verifies the matching VDOM context and checks interface ownership there; the single-VDOM path does not switch context. The response exposes the measured identity and vdom; schema_sha256 is removed. Recipe limits, the 30-second session bound, 131072-byte capture bound and verified cleanup are retained. For FortiGate-VM64 on FortiOS 8.0.2 build 0251, the five recipes ping, traceroute, sniffer, sessions and flow have
+The existing fortios_diagnostics tool needs no NETOPS_SCHEMA_REGISTRY. Keep its enrolled recipes, destination addresses and interfaces, verified standard output and pinned host key. Each session must return one readable hardware/version/build identity (an untested one is reported in `firmware_support`, not refused), one current VDOM and one Virtual domain configuration marker (disable or multiple) before any diagnostic command. In disable mode the current VDOM must be root. In multiple mode an enrolled explicit vdom equal to the current VDOM is required; a missing or different selector returns config_platform_not_supported. The multi-VDOM sessions recipe selects and verifies the matching VDOM context and checks interface ownership there; the single-VDOM path does not switch context. The response exposes the measured identity and vdom; schema_sha256 is removed. Recipe limits, the 30-second session bound, 131072-byte capture bound and verified cleanup are retained. For FortiGate-VM64 on FortiOS 8.0.2 build 0251, the five recipes ping, traceroute, sniffer, sessions and flow have
 been exercised on a single-root target, including timer interruption and verified
 restoration of diagnostic settings. This does not qualify another model or build,
 multi-VDOM, or successful forwarding to an external destination.
@@ -428,20 +451,23 @@ multi-VDOM, or successful forwarding to an external destination.
 The device account must permit CLI get, show, diagnose and execute while CLI
 configuration remains disabled. Inventory opt-in does not grant device privileges.
 
-On a FortiADC target the same tool runs one fixed command in a terminal session after
-the measured FortiADC-KVM 7.6.7 build 0676 identity: `execute ping <address>`,
+On a FortiADC target the five probe recipes run one fixed command in a terminal session after
+the identity check (tested on FortiADC-KVM 7.6.7 build 0676): `execute ping <address>`,
 `execute traceroute <address>`, `execute nslookup name <name>`, `execute curl <endpoint>`
 or `execute health-check-verify health-check <name> dest-address <address> count <count>`.
-Another firmware ends
-as `config_platform_not_supported`. `interface` must be empty and no remote option is
+Another FortiADC firmware runs with `firmware_support.status: "untested"` and a `firmware_untested` warning; an unreadable identity
+or another product stops the read with `bounded FortiADC diagnostic failed; the session was closed`. `interface` must be empty and no remote option is
 changed. Except for `health_check_verify`, `count` must stay 3 and is not applied: the
 device always sends 5 ping packets, and a ping result says so with `count_applied: false`
 and `fixed_ping_packets: 5`. `timeout` is 1-10 seconds for ping, nslookup and `http_probe`
-and 1-60 seconds for traceroute and `health_check_verify`; the default is 10 seconds (also for FortiOS recipes). FortiADC nslookup uses this default to allow a cold DNS cache lookup. For FortiADC traceroute use `timeout: 60`; with the default the result
+and 1-60 seconds for traceroute and `health_check_verify`; the default is 10 seconds (also for FortiOS recipes; FortiADC `ntp_status` defaults to 60). FortiADC nslookup uses this default to allow a cold DNS cache lookup. For FortiADC traceroute use `timeout: 60`; with the default the result
 may hold only the header. In the measured run each unanswered traceroute hop took about
 20 seconds. At `timeout` the command is interrupted and the partial output is returned
 with `deadline_reached: true` and `complete: false`; the audit record then carries
 `detail: "deadline_reached"`. The final `^C` echo of the interrupt sent by Helper is omitted from the device output.
+These rules cover the five probes only. The FortiADC log, session and persistence, `disk_usage`, `ntp_status` and
+`packet_capture` recipes have their own operands and limits (for example `packet_capture` requires an enrolled interface
+and the log and state recipes set a temporary filter that is cleared and read back); see [Helper tools](../components/netops-helper/docs/tools.md).
 
 `http_probe` sends one plain HTTP request from the appliance to an endpoint listed exactly
 in `diagnostic_http_endpoints`; enroll only idempotent endpoints. The caller passes the
@@ -488,16 +514,18 @@ For sessions, sniffer and flow, the optional TCP/UDP tuple uses source_address, 
 destination_port and protocol; the existing address argument is the destination
 address. The tuple direction is source to destination. Both addresses must be in
 the target addresses inventory, ports are canonical integers from 0 through
-65535, and protocol is TCP (6) or UDP (17). TCP/UDP tuples are enabled only for
+65535, and protocol is TCP (6) or UDP (17). TCP/UDP tuples were tested on
 the identities in `TUPLE_IDENTITIES`: FortiGate-VM64 8.0.2 build 0251,
 FortiGate-60F 7.6.8 build 3744 and FortiGate-80F 8.0.2 build 0251. On the 60F a
 live UDP flow trace with a tuple captured packet trace lines (see the flow
-section below); sessions and sniffer with a tuple are not qualified there. On
+section below), and a live sessions call with a UDP tuple and a policy
+filter matched the CLI with verified cleanup; a sniffer tuple has no live
+evidence there. On
 the FortiGate-80F (HA primary) a live flow call with a UDP tuple filter set and
 cleared the filter with verified cleanup but traced no packet, because that
 session was offloaded; TCP/UDP capture with a tuple (sessions, sniffer and flow)
-is not qualified on that identity. Other identities retain the existing ICMP
-behavior and refuse tuples until their syntax/build is qualified.
+is not qualified on that identity. On other identities a tuple runs with
+`firmware_support.status: "untested"` and a `firmware_untested` warning.
 For sessions, the output is projected per session to one line with proto,
 proto_state, duration, expire, policy_id, dev (ingress->egress interface
 indexes for original/reply) and the org/reply byte/packet/error counters, followed
@@ -568,8 +596,8 @@ FortiOS 8.0.2 build 0251 (measured live on FortiGate-60F 7.6.8 and
 FortiGate-VM64 8.0.2; FortiGate-80F 8.0.2 runs the same build). No other
 timestamp shape is counted. On FortiGate-VM64-KVM 7.6.7 and 8.0.0 the shape is
 not measured, so when `diagnose debug info` reports `console timestamp: enable`
-the flow call is refused before any change and names `diagnose debug console
-timestamp disable`. The Helper never changes that setting.
+the flow call runs and reports `untested` with a warning that names console
+timestamps; trace lines of another shape are not counted. The Helper never changes that setting.
 Both states keep `ok` and the verified cleanup. A failure inside the session,
 for example output above the capture limit or a missing prompt, is
 `bounded FortiOS diagnostic failed; the session was closed` after the debug
@@ -591,7 +619,7 @@ FortiGate-60F 7.6.8 build 3744 the helper sets each tuple bound as the same
 from and to value. A live UDP flow trace on that identity with a read-write
 diagnostic account returned packet trace lines for the tuple and restored and
 verified the debug and filter state; it is listed in `TUPLE_IDENTITIES` for
-that reason. Other 7.6.8 builds and models stay refused. On FortiGate-80F 8.0.2
+that reason. Other 7.6.8 builds and models run as `untested`. On FortiGate-80F 8.0.2
 build 0251 the live flow evidence is an ICMP trace with packet lines and a UDP
 tuple filter on an offloaded session that traced no packet; tuple capture there
 is not qualified.
@@ -886,3 +914,115 @@ a token keep their SSH behavior; the three REST tools return `unsupported`.
 See [MCP verification](fortios-wifi-rest.md#verify-access),
 [troubleshooting](fortios-wifi-rest.md#troubleshooting) and
 [rotation/revocation](fortios-wifi-rest.md#rotate-and-revoke).
+
+## Intent check (netops check-intent)
+
+`netops check-intent PLAN` runs one read-only check of a named plan through the
+public Helper MCP endpoint and exits. It never changes a device and has no
+built-in scheduler.
+
+Keep plans in the optional `helper.intent` object of each device in a local
+inventory file: the value of the enrollment document's `inventory` field as a
+standalone JSON file with top-level `version: 2` and `devices` (the full
+`configure helper` input with `inventory` and `vault` is refused). The instance
+needs no stored plan, only the enrolled target aliases and their read
+permissions. A plan name is 1–64 characters `[A-Za-z0-9_.-]` starting with a
+letter or digit, and holds at least one of `lag`, `vlan` or `poe`, each a
+nonempty list:
+
+| Check | Fields | Compared with |
+| --- | --- | --- |
+| `lag` | `name`, `active_members` (unique interfaces, may be empty) | exact set of `bundled` members in `switch_read` table `lag` |
+| `vlan` | `port`, `vlan_id` 1–4094, `membership` `tagged`, `untagged` or `absent`; optional `managed_switch` (FortiSwitch serial) | membership in table `port_vlan` |
+| `poe` | `port`, `min_w` ≤ `max_w` (watts, 0–100000) | measured `power_w` in table `poe_port`, closed interval |
+
+Fragment of a device's `helper` object:
+
+```json
+"intent": {
+  "daily": {
+    "lag": [{"name": "5", "active_members": ["5"]}],
+    "vlan": [{"port": "3", "vlan_id": 304, "membership": "tagged"}],
+    "poe": [{"port": "1", "min_w": 0, "max_w": 5}]
+  }
+}
+```
+
+A device holds at most 256 plans, a plan at most 256 checks of one kind and a
+LAG at most 256 `active_members`. The same plan name on several devices is
+checked in one run. The CLI validates the inventory, every Helper device's
+`intent` and the full Helper section of each device with the selected plan; a
+duplicate check (same kind, selector, `managed_switch` and VLAN ID) or an
+invalid field refuses the inventory. The required `switch_read` tables need the
+matching enabled queries on the target. For managed FortiSwitch VLAN checks,
+set `managed_switch` to a serial listed in the FortiOS target's
+`helper.read_inventory.managed_switches` and enable `managed_switch_port_vlans`
+and `interface_vlan_ids` on that target.
+
+```sh
+netops check-intent daily --inventory inventory.json \
+  --endpoint https://netops.example/mcp --ca netops-ca.pem --token-file mcp-token
+```
+
+`PLAN`, `--inventory`, `--endpoint`, `--ca` and `--token-file` are required;
+`--notify` is optional.
+
+| Argument | Meaning |
+| --- | --- |
+| `PLAN` | plan name in `helper.intent` |
+| `--inventory` | local inventory JSON described above |
+| `--endpoint` | HTTPS NetOps MCP URL with path exactly `/mcp`, no user, query or fragment |
+| `--ca` | NetOps instance CA certificate (`netops ca`) |
+| `--token-file` | regular file of at most 256 bytes with the MCP bearer token, readable only by the operator (for example mode 0600; the CLI follows symbolic links and does not check the file mode or owner); after trimming leading and trailing whitespace the token must be at least 32 ASCII characters with no whitespace |
+| `--notify` | send one Discord message when the run is `fail`, using `NETOPS_DISCORD_WEBHOOK` |
+
+The command initializes an MCP session and calls `switch_read` once per
+distinct target, table, interface and managed switch. It ignores proxy
+environment variables for the MCP connection. It prints one JSON object
+`{"plan", "status", "checks", "notification"}`. Each check has `target`,
+`kind`, `expected` and `status`; `actual` is present when determined and is
+null for `lag_absent`. A read with a status other than `ok` or `empty`,
+insufficient coverage, unparsed data, a pagination indicator other than
+`has_more: false` or coverage warnings gives `incomplete` with
+`reason: read_incomplete`; for configuration-sourced VLANs, coverage may omit
+`oper_status` alone. A missing, ambiguous or unusable observation gives
+`incomplete` with `observation_missing_or_ambiguous`, except that an acceptable
+LAG read with no matching row gives `fail` with `lag_absent`. Any incomplete
+check makes the run `incomplete` (exit `2`); otherwise any failed check gives
+`fail` (exit `1`) and all passing checks give `pass` (exit `0`). The run is
+also `incomplete` with `reason` `invalid_inventory`, `invalid_plan_name`,
+`plan_not_found` or `gateway_unavailable` when it cannot check the plan.
+
+`notification` is separate from `status` and does not change the exit code. A
+refused inventory or plan reports `not_needed` regardless of `--notify`. After
+plan selection it is `disabled` without `--notify` and `not_needed` with it
+when the run is not `fail`. On a `fail` run with `--notify`, an unset or empty
+`NETOPS_DISCORD_WEBHOOK` reports `unconfigured`; otherwise one Discord POST is
+attempted. Use an HTTPS Discord webhook URL on `discord.com` or `discordapp.com`
+(no other host or subdomain) with path
+`/api/webhooks/ID/TOKEN` or `/api/vN/webhooks/ID/TOKEN`. An invalid URL, a
+redirect (not followed), a non-2xx response or a delivery error (TLS, network,
+10-second timeout) reports `failed`; a 2xx response at the requested URL
+reports `sent`. Nothing is retried. The message is one POST with `?wait=true`
+and mentions disabled: `NetOps intent PLAN: N mismatched checks`, then at most
+eight lines `target: kind selector` (plus `VLAN id` for VLAN checks), at most
+2000 characters. It contains no observed values, device output, token or
+webhook URL, and the printed JSON contains neither the token nor the webhook
+URL.
+
+The webhook URL is a secret. The command reads it only from the process
+environment variable `NETOPS_DISCORD_WEBHOOK`, not from the NetOps vault or a
+file; keep it out of the repository, inventory, command line and logs, and
+supply it from a private, mode 0600 environment source of the host scheduler.
+`compose.yaml` neither passes this variable nor mounts the inventory, CA and
+token files, so this guide gives no Compose example. Running the command
+periodically (for example a cron job or systemd timer that runs the `netops`
+command with these files and the variable available) is up to the administrator.
+
+Verification of 1.0.12: plan evaluation was checked live and read-only through
+the public HTTPS MCP endpoint with delivery disabled, 9 checks in total: LAG,
+VLAN and PoE on three EXOS switches (3 + 2 + 2) and VLAN on a FortiSwitch
+managed by FortiOS 8.0.2 (2). Cisco IOSvL2 added 2 VLAN checks separately through the Helper SSH
+transport; physical PoE on Cisco is covered by a documentation fixture only.
+Discord delivery is covered by automated tests only (stubbed HTTP, fixture
+webhook); no real webhook was called.

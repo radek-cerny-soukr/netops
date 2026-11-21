@@ -68,6 +68,7 @@ from netops_core import vault as core_vault
 from netops_core.snmp import validate_snmp_usm
 from netops_core.inputs import InputError, read_regular
 from netops_helper import inventory as helper_inventory
+from netops_helper.read_policy import LOG_WINDOW_KINDS, check_log_range
 from netops_helper.read_policy import _validate_slot as validate_template_slot
 from netops_helper import legacy_configuration
 from netops_helper.page_metadata import PAGED_TOOLS, page_metadata, strip_page_metadata
@@ -120,12 +121,12 @@ WITHHELD_CLIENT_CAPABILITIES = ("sampling", "elicitation", "roots")
 CLIENT_CAPABILITIES_META_KEY = "io.modelcontextprotocol/clientCapabilities"
 SSH_TRANSPORT_FAILURE_MESSAGE = "The remote MCP SSH transport failed."
 SSH_HOST_KEY_FAILURE_MESSAGE = "SSH host-key verification failed."
-SSH_TOOLS = {"locate_endpoint", "switch_read", "ssh_read", "sftp_stat", "schema_read", "fortios_diagnostics", "triage_health",
-             "triage_routing", "triage_vpn", "config_read", "config_diff", "triage_slb", "wifi_triage", "triage_flow"}
+SSH_TOOLS = {"triage_port", "locate_endpoint", "vpc_compare", "switch_read", "ssh_read", "sftp_stat", "schema_read", "fortios_diagnostics", "triage_health",
+             "triage_routing", "triage_vpn", "config_read", "config_diff", "triage_slb", "wifi_triage", "triage_flow", "triage_nxos_path"}
 TRIAGE_SLB_REQUIRED_QUERIES = ("slb_vs_stat", "slb_load", "system_performance")
 # A triage reserves its planned device reads on acceptance. They count against the target's total
 # rate_limit, which manual queries share, and against the triage sublimit of the same size.
-TRIAGE_READS = {**progress_module.TRIAGE_READS, "triage_flow": 5, "wifi_triage": 7}
+TRIAGE_READS = {**progress_module.TRIAGE_READS, "triage_flow": 5, "wifi_triage": 7, "triage_port": 16}
 TRIAGE_HEALTH_READS = TRIAGE_READS["triage_health"]
 TRIAGE_ROUTING_READS = TRIAGE_READS["triage_routing"]
 TRIAGE_VPN_READS = TRIAGE_READS["triage_vpn"]
@@ -133,7 +134,7 @@ TRIAGE_SLB_RATE_COST = TRIAGE_READS["triage_slb"]
 TRIAGE_FLOW_READS = TRIAGE_READS["triage_flow"]
 TRIAGE_WIFI_READS = TRIAGE_READS["wifi_triage"]
 LOCATE_MAX_READS = 40
-WIFI_REST_TOOLS = {"wifi_clients", "wifi_aps_live", "wifi_rogue"}
+WIFI_REST_TOOLS = {"wifi_clients", "wifi_aps_live", "wifi_rogue", "fortiswitch_overview", "firewall_policy_hits"}
 WIFI_REST_READS = 2
 CONTROL_TOOLS = {"helper_status", "read_query_catalog", "target_scope"}
 LOGGED_SERVER_METHODS = {"sampling/createMessage", "elicitation/create", "roots/list"}
@@ -194,6 +195,8 @@ READ_QUERY_NAMES = {
         "switch_flap_guard",
         "switch_dhcp_snooping",
         "switch_dhcp_bindings",
+        "extender_modem_status",
+        "user_devices",
         "switch_fan_health",
         "switch_source_guard",
         "switch_lldp_port",
@@ -207,6 +210,14 @@ READ_QUERY_NAMES = {
         "av_outbreak_stats",
         "bfd_neighbors",
         "bgp_summary",
+        "bgp_neighbor_detail",
+        "ipv6_bgp_neighbor_detail",
+        "ipv6_routing_table",
+        "routing_table_database",
+        "ipv6_routing_table_database",
+        "interface_list",
+        "local_stp_ports",
+        "local_switch_vlans",
         "bgp_advertised_ipv4",
         "bgp_received_ipv4",
         "bgp_accepted_ipv4",
@@ -217,6 +228,9 @@ READ_QUERY_NAMES = {
         "ospf_interfaces_ipv6",
         "bridge_mac_table",
         "disk_status",
+        "hardware_sensors",
+        "crash_log",
+        "config_error_log",
         "firewall_auth_users",
         "ha_checksum",
         "ha_nonsync_checksum",
@@ -250,6 +264,7 @@ READ_QUERY_NAMES = {
         "ipsec_status",
         "ipsec_tunnel_statistics",
         "dhcp_leases",
+        "dhcp_leases_all",
         "ipsec_summary",
         "ipv6_bfd_neighbors",
         "ipv6_bgp_summary",
@@ -274,6 +289,8 @@ READ_QUERY_NAMES = {
         "sdwan_interface_quality",
         "sdwan_sla_history",
         "link_monitor_status",
+        "ike_gateway_detail",
+        "ipsec_tunnel_detail",
         "sdwan_member_detail",
         "sdwan_service_ipv4",
         "sdwan_service_ipv6",
@@ -298,6 +315,37 @@ READ_QUERY_NAMES = {
         "wifi_ssid_mapping",
     )),
     "extreme_exos": frozenset((
+        'access_lists',
+        'policies',
+        'policy_details',
+        'dhcp_server',
+        'bootprelay',
+        'bootprelay_configuration',
+        'radius',
+        'tacacs',
+        'accounts',
+        'netlogin',
+        'netlogin_port',
+        'dns_client',
+        'dns_lookup',
+        'management',
+        'snmp_engine',
+        'snmp_targets',
+        'dhcp_snooping',
+        'dhcp_snooping_violations',
+        'mac_address',
+        'mac_vlan',
+        'arp_vlan',
+        'port_utilization',
+        'port_packets',
+        'lacp_member',
+        'stp_domain_ports',
+        'stp_port_detail',
+        'port_qos',
+        'port_qos_drops',
+        'igmp_snooping',
+        'igmp_groups',
+        'ipconfig_ipv6',
         "access_list_counters",
         "arp_address",
         "arp_interface",
@@ -329,6 +377,7 @@ READ_QUERY_NAMES = {
         "lldp_neighbors",
         "lldp_neighbors_detail",
         "log_configuration",
+        "log_history",
         "log_messages",
         "log_warnings",
         "mac_interface",
@@ -363,8 +412,87 @@ READ_QUERY_NAMES = {
         "vlan_details",
         "vlan_summary",
         "vlan_detail",
+        'ping',
+        'ping_source',
+        'traceroute',
+        'traceroute_source',
+        'ospf_neighbors',
+        'ospf_interfaces',
+        'ospf_lsdb',
+        'ospfv3_neighbors',
+        'ospfv3_interfaces',
+        'bgp_summary',
+        'bgp_neighbor',
+        'bgp_routes',
+        'vrrp',
+        'bfd_sessions',
+        'route_table_vr',
+        'ipv6_route_table_vr',
+        'arp_table_vr',
+        'ipv6_neighbors_vr',
     )),
     "cisco_ios": frozenset((
+        "mac_table_address",
+        "mac_table_interface",
+        "mac_table_vlan",
+        "arp_lookup",
+        "arp_lookup_vrf",
+        "arp_table_vrf",
+        "ipv6_neighbors_interface",
+        "ipv6_neighbors_vrf",
+        "ipv6_neighbors_interface_vrf",
+        "ipv4_access_lists",
+        "ipv6_access_lists",
+        "dhcp_server_bindings",
+        "dhcp_server_binding_address",
+        "dhcp_server_pools",
+        "dhcp_server_conflicts",
+        "dhcp_server_statistics",
+        "dhcp_snooping_status",
+        "dhcp_snooping_binding",
+        "dhcp_snooping_statistics",
+        "port_security_interface",
+        "port_security_addresses",
+        "authentication_sessions_interface",
+        "dot1x_interface",
+        "arp_inspection_statistics",
+        "ip_source_guard",
+        "qos_policy",
+        "nat_translations",
+        "nat_statistics",
+        "ikev1_sa",
+        "ikev2_sa",
+        "ipsec_sa",
+        "qos_queues",
+        'ping',
+        'ping_source',
+        'ping_vrf',
+        'ping_vrf_source',
+        'ping_ipv6',
+        'ping_ipv6_source',
+        'traceroute',
+        'traceroute_source',
+        'traceroute_vrf',
+        'traceroute_vrf_source',
+        'stp_detail',
+        'stp_interface_detail',
+        'stp_mst',
+        'etherchannel_detail',
+        'lacp_internal',
+        'etherchannel_load_balance',
+        'power_inline_detail',
+        'lldp_neighbor_interface',
+        'cdp_neighbor_interface',
+
+        "aaa_servers",
+        "radius_statistics",
+        "tacacs_statistics",
+        "snmp_statistics",
+        "snmp_engine_id",
+        "dns_hosts",
+        "users",
+        "ssh_sessions",
+        "lines",
         "arp_table",
         "bgp_summary",
         "cdp_neighbors",
@@ -414,8 +542,72 @@ READ_QUERY_NAMES = {
         "vlans",
         "vrrp_summary",
         "vtp_status",
+        "adjacency_details",
+        "bfd_neighbors",
+        "bgp_advertised_routes",
+        "bgp_ipv6_summary",
+        "bgp_neighbor",
+        "bgp_prefix",
+        "bgp_routes",
+        "cef_lookup",
+        "ip_interface_details",
+        "ip_policy",
+        "ip_protocols",
+        "ipv6_interface_details",
+        "ipv6_route_table",
+        "ospf_database",
+        "ospf_interface",
+        "ospf_neighbor_detail",
+        "ospfv3_neighbors",
+        "route_maps",
+        "vrf_arp_table",
+        "vrf_ip_interfaces",
+        "vrf_cef_lookup",
+        "vrf_route_lookup",
+        "vrfs",
     )),
     "cisco_xe": frozenset((
+        "qos_policy",
+        "qos_queues",
+        "nat_translations",
+        "nat_statistics",
+        "ikev1_sa",
+        "ikev2_sa",
+        "ipsec_sa",
+        "stp_detail",
+        "stp_interface_detail",
+        "stp_mst",
+        "etherchannel_detail",
+        "lacp_internal",
+        "etherchannel_load_balance",
+        "power_inline_detail",
+        "lldp_neighbor_interface",
+        "cdp_neighbor_interface",
+        "ping",
+        "ping_ipv6",
+        "ping_ipv6_source",
+        "ping_ipv6_vrf",
+        "ping_ipv6_vrf_source",
+        "ping_source",
+        "ping_vrf",
+        "ping_vrf_source",
+        "traceroute",
+        "traceroute_ipv6",
+        "traceroute_ipv6_source",
+        "traceroute_ipv6_vrf",
+        "traceroute_ipv6_vrf_source",
+        "traceroute_source",
+        "traceroute_vrf",
+        "traceroute_vrf_source",
+        "aaa_servers",
+        "radius_statistics",
+        "tacacs_statistics",
+        "snmp_statistics",
+        "snmp_engine_id",
+        "dns_hosts",
+        "users",
+        "ssh_sessions",
+        "lines",
         "arp_table",
         "bgp_summary",
         "cdp_neighbors",
@@ -425,6 +617,11 @@ READ_QUERY_NAMES = {
         "err_disabled",
         "errdisable_recovery",
         "hsrp_summary",
+        "hsrp_detail",
+        "vrrp_detail",
+        "object_tracking",
+        "ip_sla_statistics",
+        "log_history",
         "interface_details",
         "interface_errors",
         "interface_switchport",
@@ -466,8 +663,72 @@ READ_QUERY_NAMES = {
         "vlans",
         "vrrp_summary",
         "vtp_status",
+        "adjacency_details",
+        "bfd_neighbors",
+        "bgp_advertised_routes",
+        "bgp_ipv6_summary",
+        "bgp_neighbor",
+        "bgp_prefix",
+        "bgp_routes",
+        "cef_lookup",
+        "ip_interface_details",
+        "ip_policy",
+        "ip_protocols",
+        "ipv6_interface_details",
+        "ipv6_route_table",
+        "ospf_database",
+        "ospf_interface",
+        "ospf_neighbor_detail",
+        "ospfv3_neighbors",
+        "route_maps",
+        "vrf_arp_table",
+        "vrf_ip_interfaces",
+        "vrf_cef_lookup",
+        "vrf_route_lookup",
+        "vrfs",
     )),
     "cisco_nxos": frozenset((
+        "qos_queues",
+        "qos_policy",
+        "priority_flow_control",
+        "tcam_utilization",
+        "hardware_capacity",
+        "mac_table_address",
+        "mac_table_vlan",
+        "arp_lookup",
+        "arp_lookup_vrf",
+        "ipv6_neighbor_lookup",
+        "ipv6_neighbor_lookup_vrf",
+        "ipv4_access_lists",
+        "ipv6_access_lists",
+        "mac_access_lists",
+        "ipv4_access_lists_summary",
+        "ipv6_access_lists_summary",
+        "mac_access_lists_summary",
+        "ip_interface_details",
+        "dhcp_snooping_status",
+        "dhcp_snooping_statistics",
+        "dhcp_relay_status",
+        "dhcp_relay_statistics",
+        "arp_inspection_statistics",
+        "arp_inspection_statistics_vlan",
+        "ping",
+        "ping_source",
+        "traceroute",
+        "traceroute_source",
+        "ping6",
+        "ping6_source",
+        "traceroute6",
+        "traceroute6_source",
+        "dns_hosts",
+        "snmp_statistics",
+        "snmp_engine_id",
+        "aaa_authentication",
+        "radius_statistics",
+        "tacacs_statistics",
+        "users",
+        "ssh_server",
+        "configuration_sessions",
         "access_lists",
         "arp_table",
         "bfd_neighbors",
@@ -526,9 +787,56 @@ READ_QUERY_NAMES = {
         "vpc_orphan_ports",
         "vpc_peer_keepalive",
         "vpc_role",
+        "cdp_neighbor_interface",
+        "lacp_interface",
+        "lldp_neighbor_interface",
+        "port_channel_database",
+        "port_channel_load_balance",
+        "stp_detail",
+        "stp_interface_detail",
+        "stp_mst",
+        "vpc_interface_consistency",
+        "vpc_member_consistency",
         "vpc_status",
+        "nve_peers",
+        "nve_vni",
+        "nve_interface_detail",
+        "evpn_bgp_summary",
+        "evpn_bgp_prefix",
+        "evpn_mac_ip",
         "vrfs",
         "vrrp_summary",
+        "arp_table_vrf",
+        "bfd_neighbors_detail",
+        "bgp_advertised_routes",
+        "bgp_ipv6_summary",
+        "bgp_ipv6_summary_vrf",
+        "bgp_neighbor_detail",
+        "bgp_prefix_detail",
+        "bgp_received_routes",
+        "bgp_summary_vrf",
+        "forwarding_ipv4_route",
+        "ip_adjacency",
+        "ip_interfaces_vrf",
+        "ip_policy",
+        "ipv6_neighbors_vrf",
+        "ipv6_route_lookup_vrf",
+        "ipv6_route_table",
+        "ipv6_route_table_vrf",
+        "ospf_database",
+        "ospf_interface_detail",
+        "ospf_interfaces_vrf",
+        "ospf_neighbors_detail",
+        "ospf_neighbors_vrf",
+        "ospf_process",
+        "ospfv3_neighbors",
+        "ospfv3_neighbors_vrf",
+        "route_lookup_vrf",
+        "route_map_counters",
+        "route_maps",
+        "route_prefix_lookup",
+        "route_prefix_lookup_vrf",
+        "route_table_vrf",
     )),
     "arista_eos": frozenset((
         "arp_entry",
@@ -688,12 +996,34 @@ READ_QUERY_NAMES = {
         "vrrp_summary",
     )),
     "ruckus_unleashed": frozenset((
+        "access_point",
+        "aaa_servers",
+        "access_point_by_name",
         "access_points",
+        "client_detail",
+        "client_performance",
+        "clients",
+        "config_settings",
         "ethernet_info",
+        "dhcp_relays",
+        "events",
+        "events_activities",
+        "l2_acls",
+        "l3_acls",
+        "mesh_topology",
+        "mgmt_acls",
+        "ping",
+        "radio_performance_24",
+        "radio_performance_5",
+        "rogue_devices",
+        "static_routes",
         "system_info",
+        "wlan",
         "wlans",
     )),
     "fortiadc": frozenset((
+        "certificate_inventory",
+        "ha_standby_status",
         "arp_table",
         "autoupdate_contract",
         "bgp_neighbors",
@@ -705,19 +1035,25 @@ READ_QUERY_NAMES = {
         "firewall_timeouts",
         "ha_status",
         "interface_counters",
+        "interface_list",
         "interface_state",
+        "interface_state_all",
+        "interface_summary",
         "llb_policy",
         "lldp_neighbors",
         "log_files",
         "log_list_attack",
         "log_list_traffic",
         "nic_detail",
+        "nic_detail_all",
         "ospf_neighbors",
         "persistence_sessions",
         "routing_table",
         "slb_load",
         "slb_sessions",
         "slb_vs_stat",
+        "slb_vs_overview",
+        "slb_rs_stat",
         "system_date",
         "system_performance",
         "system_status",
@@ -785,7 +1121,10 @@ READ_QUERY_SLOTS = {
             "pol_type": {"inventory": "policy_types", "kind": "fortios_policy_type"},
         },
         "nat_pool_assignments": {"pool": {"inventory": "nat_pools", "kind": "fortios_nat_pool"}},
+        "extender_modem_status": {"serial": {"inventory": "literal", "kind": "fortios_extender_serial"}},
         "fqdn_object_detail": {"name": {"inventory": "firewall_addresses", "kind": "fortios_address_object"}},
+        "bgp_neighbor_detail": {"peer": {"inventory": "addresses", "kind": "ipv4_address", "optional": True}},
+        "ipv6_bgp_neighbor_detail": {"peer6": {"inventory": "addresses", "kind": "ipv6_address", "optional": True}},
         "bgp_advertised_ipv4": {"peer": {"inventory": "addresses", "kind": "ipv4_address"}},
         "bgp_received_ipv4": {"peer": {"inventory": "addresses", "kind": "ipv4_address"}},
         "bgp_accepted_ipv4": {"peer": {"inventory": "addresses", "kind": "ipv4_address"}},
@@ -800,6 +1139,8 @@ READ_QUERY_SLOTS = {
             "member": {"inventory": "sdwan_members", "kind": "fortios_sdwan_member"},
         },
         "link_monitor_status": {"monitor": {"inventory": "link_monitors", "kind": "fortios_link_monitor"}},
+        "ike_gateway_detail": {"tunnel": {"inventory": "ipsec_tunnels", "kind": "fortios_ipsec_tunnel"}},
+        "ipsec_tunnel_detail": {"tunnel": {"inventory": "ipsec_tunnels", "kind": "fortios_ipsec_tunnel"}},
         "sdwan_member_detail": {"member": {"inventory": "sdwan_members", "kind": "fortios_sdwan_member"}},
         "sdwan_service_ipv4": {"rule": {"inventory": "sdwan_rules", "kind": "fortios_sdwan_rule"}},
         "sdwan_service_ipv6": {"rule": {"inventory": "sdwan_rules", "kind": "fortios_sdwan_rule"}},
@@ -865,6 +1206,31 @@ READ_QUERY_SLOTS = {
         },
     },
     "extreme_exos": {
+        "log_history": {
+            "source": {"inventory": None, "kind": "exos_log_source"},
+            "severity": {"inventory": None, "kind": "exos_log_severity"},
+            "begin_date": {"inventory": None, "kind": "log_date"},
+            "begin_time": {"inventory": None, "kind": "log_time"},
+            "end_date": {"inventory": None, "kind": "log_date"},
+            "end_time": {"inventory": None, "kind": "log_time"},
+            "interface": {"inventory": "interfaces", "kind": "extreme_physical_port", "optional": True},
+        },
+        'policy_details': {'policy': {'inventory': None, 'kind': 'acl_policy'}},
+        'dhcp_server': {'vlan': {'inventory': 'vlans', 'kind': 'vlan_name'}},
+        'netlogin_port': {'interface': {'inventory': 'interfaces', 'kind': 'extreme_physical_port'}},
+        'dns_lookup': {'name': {'inventory': None, 'kind': 'diagnostic_dns_name'}},
+        'dhcp_snooping': {'vlan': {'inventory': 'vlans', 'kind': 'vlan_name'}},
+        'dhcp_snooping_violations': {'vlan': {'inventory': 'vlans', 'kind': 'vlan_name'}},
+        'mac_address': {'mac': {'inventory': None, 'kind': 'mac_literal'}},
+        'mac_vlan': {'vlan_id': {'inventory': None, 'kind': 'vlan_id'}},
+        'arp_vlan': {'vlan_id': {'inventory': None, 'kind': 'vlan_id'}},
+        'port_utilization': {'interface': {'inventory': 'interfaces', 'kind': 'extreme_physical_port'}},
+        'port_packets': {'interface': {'inventory': 'interfaces', 'kind': 'extreme_physical_port'}},
+        'lacp_member': {'interface': {'inventory': 'interfaces', 'kind': 'extreme_physical_port'}},
+        'stp_domain_ports': {'domain': {'inventory': 'services', 'kind': 'service'}},
+        'stp_port_detail': {'domain': {'inventory': 'services', 'kind': 'service'}, 'interface': {'inventory': 'interfaces', 'kind': 'extreme_physical_port'}},
+        'port_qos': {'interface': {'inventory': 'interfaces', 'kind': 'extreme_physical_port'}},
+        'port_qos_drops': {'interface': {'inventory': 'interfaces', 'kind': 'extreme_physical_port'}},
         "vlan_details": {"vlan": {"inventory": "vlans", "kind": "vlan_name"}},
         "dhcp_snooping_entries": {"vlan": {"inventory": "vlans", "kind": "vlan_name"}},
         "arp_address": {
@@ -939,58 +1305,215 @@ READ_QUERY_SLOTS = {
                 "kind": "extreme_physical_port",
             },
         },
+        'route_table_vr': {'vr': {'inventory': 'virtual_routers', 'kind': 'vr'}},
+        'ipv6_route_table_vr': {'vr': {'inventory': 'virtual_routers', 'kind': 'vr'}},
+        'arp_table_vr': {'vr': {'inventory': 'virtual_routers', 'kind': 'vr'}},
+        'ipv6_neighbors_vr': {'vr': {'inventory': 'virtual_routers', 'kind': 'vr'}},
+        'ping': {'vr': {'inventory': 'virtual_routers', 'kind': 'vr'}, 'address': {'inventory': 'addresses', 'kind': 'ipv4_address'}},
+        'traceroute': {'vr': {'inventory': 'virtual_routers', 'kind': 'vr'}, 'address': {'inventory': 'addresses', 'kind': 'ipv4_address'}},
+        'ping_source': {'vr': {'inventory': 'virtual_routers', 'kind': 'vr'}, 'address': {'inventory': 'addresses', 'kind': 'ipv4_address'}, 'source': {'inventory': 'addresses', 'kind': 'ipv4_address'}},
+        'traceroute_source': {'vr': {'inventory': 'virtual_routers', 'kind': 'vr'}, 'address': {'inventory': 'addresses', 'kind': 'ipv4_address'}, 'source': {'inventory': 'addresses', 'kind': 'ipv4_address'}},
+        'bgp_neighbor': {'address': {'inventory': 'addresses', 'kind': 'ipv4_address'}},
     },
     "cisco_ios": {
-        "interface_details": {
-            "interface": {
-                "inventory": "interfaces",
-                "kind": "cisco_ios_interface",
+        'mac_table_address': {'mac': {'inventory': None, 'kind': 'mac_literal'}},
+        'mac_table_interface': {'interface': {'inventory': 'interfaces', 'kind': 'cisco_ios_switchport'}},
+        'mac_table_vlan': {'vlan_id': {'inventory': None, 'kind': 'vlan_id'}},
+        'arp_lookup': {'address': {'inventory': None, 'kind': 'ipv4_neighbor'}},
+        'arp_lookup_vrf': {'vrf': {'inventory': 'vrfs', 'kind': 'vrf'}, 'address': {'inventory': None, 'kind': 'ipv4_neighbor'}},
+        'arp_table_vrf': {'vrf': {'inventory': 'vrfs', 'kind': 'vrf'}},
+        'ipv6_neighbors_interface': {'interface': {'inventory': 'interfaces', 'kind': 'interface'}},
+        'ipv6_neighbors_vrf': {'vrf': {'inventory': 'vrfs', 'kind': 'vrf'}},
+        'ipv6_neighbors_interface_vrf': {'vrf': {'inventory': 'vrfs', 'kind': 'vrf'}, 'interface': {'inventory': 'interfaces', 'kind': 'interface'}},
+        'dhcp_server_binding_address': {'address': {'inventory': None, 'kind': 'ipv4_neighbor'}},
+        'port_security_interface': {'interface': {'inventory': 'interfaces', 'kind': 'cisco_ios_physical_interface'}},
+        'authentication_sessions_interface': {'interface': {'inventory': 'interfaces', 'kind': 'cisco_ios_physical_interface'}},
+        'dot1x_interface': {'interface': {'inventory': 'interfaces', 'kind': 'cisco_ios_physical_interface'}},
+        'qos_policy': {'interface': {'inventory': 'interfaces', 'kind': 'interface'}},
+        'qos_queues': {'interface': {'inventory': 'interfaces', 'kind': 'cisco_ios_physical_interface'}},
+        'ping': {'address': {'inventory': 'addresses', 'kind': 'ipv4_address'}},
+        'ping_source': {'address': {'inventory': 'addresses', 'kind': 'ipv4_address'}, 'source': {'inventory': 'interfaces', 'kind': 'interface'}},
+        'ping_vrf': {'vrf': {'inventory': 'vrfs', 'kind': 'vrf'}, 'address': {'inventory': 'addresses', 'kind': 'ipv4_address'}},
+        'ping_vrf_source': {'vrf': {'inventory': 'vrfs', 'kind': 'vrf'}, 'address': {'inventory': 'addresses', 'kind': 'ipv4_address'}, 'source': {'inventory': 'interfaces', 'kind': 'interface'}},
+        'ping_ipv6': {'address': {'inventory': 'addresses', 'kind': 'ipv6_address'}},
+        'ping_ipv6_source': {'address': {'inventory': 'addresses', 'kind': 'ipv6_address'}, 'source': {'inventory': 'interfaces', 'kind': 'interface'}},
+        'traceroute': {'address': {'inventory': 'addresses', 'kind': 'ipv4_address'}},
+        'traceroute_source': {'address': {'inventory': 'addresses', 'kind': 'ipv4_address'}, 'source': {'inventory': 'interfaces', 'kind': 'interface'}},
+        'traceroute_vrf': {'vrf': {'inventory': 'vrfs', 'kind': 'vrf'}, 'address': {'inventory': 'addresses', 'kind': 'ipv4_address'}},
+        'traceroute_vrf_source': {'vrf': {'inventory': 'vrfs', 'kind': 'vrf'}, 'address': {'inventory': 'addresses', 'kind': 'ipv4_address'}, 'source': {'inventory': 'interfaces', 'kind': 'interface'}},
+        # G53 per-port detail reads.
+        'stp_interface_detail': {'interface': {'inventory': 'interfaces', 'kind': 'cisco_ios_physical_interface'}},
+        'power_inline_detail': {'interface': {'inventory': 'interfaces', 'kind': 'cisco_ios_physical_interface'}},
+        'lldp_neighbor_interface': {'interface': {'inventory': 'interfaces', 'kind': 'cisco_ios_physical_interface'}},
+        'cdp_neighbor_interface': {'interface': {'inventory': 'interfaces', 'kind': 'cisco_ios_physical_interface'}},
+
+        'adjacency_details': {
+            'interface': {
+                'inventory': 'interfaces',
+                'kind': 'interface',
             },
         },
-        "interface_errors": {
-            "interface": {
-                "inventory": "interfaces",
-                "kind": "cisco_ios_physical_interface",
+        'bgp_advertised_routes': {
+            'address': {
+                'inventory': 'addresses',
+                'kind': 'ipv4_address',
             },
         },
-        "interface_switchport": {
-            "interface": {
-                "inventory": "interfaces",
-                "kind": "cisco_ios_physical_interface",
+        'bgp_neighbor': {
+            'address': {
+                'inventory': 'addresses',
+                'kind': 'ipv4_address',
             },
         },
-        "interface_transceiver": {
-            "interface": {
-                "inventory": "interfaces",
-                "kind": "cisco_ios_physical_interface",
+        'bgp_prefix': {
+            'address': {
+                'inventory': 'addresses',
+                'kind': 'ipv4_lookup',
             },
         },
-        "ipv6_route_lookup": {
-            "address": {
-                "inventory": "addresses",
-                "kind": "ipv6_address",
+        'bgp_routes': {
+            'address': {
+                'inventory': 'addresses',
+                'kind': 'ipv4_address',
             },
         },
-        "route_lookup": {
-            "address": {
-                "inventory": "addresses",
-                "kind": "ipv4_address",
+        'cef_lookup': {
+            'address': {
+                'inventory': 'addresses',
+                'kind': 'ipv4_lookup',
             },
         },
-        "stp_vlan": {
-            "vlan_id": {
-                "inventory": None,
-                "kind": "vlan_id",
+        'interface_details': {
+            'interface': {
+                'inventory': 'interfaces',
+                'kind': 'cisco_ios_interface',
             },
         },
-        "vlan_details": {
-            "vlan_id": {
-                "inventory": None,
-                "kind": "vlan_id",
+        'interface_errors': {
+            'interface': {
+                'inventory': 'interfaces',
+                'kind': 'cisco_ios_physical_interface',
+            },
+        },
+        'interface_switchport': {
+            'interface': {
+                'inventory': 'interfaces',
+                'kind': 'cisco_ios_physical_interface',
+            },
+        },
+        'interface_transceiver': {
+            'interface': {
+                'inventory': 'interfaces',
+                'kind': 'cisco_ios_physical_interface',
+            },
+        },
+        'ip_interface_details': {
+            'interface': {
+                'inventory': 'interfaces',
+                'kind': 'interface',
+            },
+        },
+        'ipv6_interface_details': {
+            'interface': {
+                'inventory': 'interfaces',
+                'kind': 'interface',
+            },
+        },
+        'ipv6_route_lookup': {
+            'address': {
+                'inventory': 'addresses',
+                'kind': 'ipv6_address',
+            },
+        },
+        'ospf_interface': {
+            'interface': {
+                'inventory': 'interfaces',
+                'kind': 'interface',
+            },
+        },
+        'route_lookup': {
+            'address': {
+                'inventory': 'addresses',
+                'kind': 'ipv4_address',
+            },
+        },
+        'stp_vlan': {
+            'vlan_id': {
+                'inventory': None,
+                'kind': 'vlan_id',
+            },
+        },
+        'vlan_details': {
+            'vlan_id': {
+                'inventory': None,
+                'kind': 'vlan_id',
+            },
+        },
+        'vrf_arp_table': {
+            'vrf': {
+                'inventory': 'vrfs',
+                'kind': 'vrf',
+            },
+        },
+        'vrf_ip_interfaces': {
+            'vrf': {
+                'inventory': 'vrfs',
+                'kind': 'vrf',
+            },
+        },
+        'vrf_cef_lookup': {
+            'vrf': {
+                'inventory': 'vrfs',
+                'kind': 'vrf',
+            },
+            'address': {
+                'inventory': 'addresses',
+                'kind': 'ipv4_lookup',
+            },
+        },
+        'vrf_route_lookup': {
+            'vrf': {
+                'inventory': 'vrfs',
+                'kind': 'vrf',
+            },
+            'address': {
+                'inventory': 'addresses',
+                'kind': 'ipv4_lookup',
             },
         },
     },
     "cisco_xe": {
+        'qos_policy': {'interface': {'inventory': 'interfaces', 'kind': 'interface'}},
+        'etherchannel_detail': {'group_id': {'inventory': None, 'kind': 'etherchannel_group_id'}},
+        'stp_interface_detail': {'interface': {'inventory': 'interfaces', 'kind': 'cisco_xe_physical_interface'}},
+        'power_inline_detail': {'interface': {'inventory': 'interfaces', 'kind': 'cisco_xe_physical_interface'}},
+        'lldp_neighbor_interface': {'interface': {'inventory': 'interfaces', 'kind': 'cisco_xe_physical_interface'}},
+        'cdp_neighbor_interface': {'interface': {'inventory': 'interfaces', 'kind': 'cisco_xe_physical_interface'}},
+        'qos_queues': {'interface': {'inventory': 'interfaces', 'kind': 'cisco_xe_physical_interface'}},
+        'ping': {'address': {'inventory': 'addresses', 'kind': 'ipv4_address'}},
+        'ping_ipv6': {'address': {'inventory': 'addresses', 'kind': 'ipv6_address'}},
+        'ping_ipv6_source': {'address': {'inventory': 'addresses', 'kind': 'ipv6_address'}, 'source': {'inventory': 'interfaces', 'kind': 'interface'}},
+        'ping_ipv6_vrf': {'address': {'inventory': 'addresses', 'kind': 'ipv6_address'}, 'vrf': {'inventory': 'vrfs', 'kind': 'vrf'}},
+        'ping_ipv6_vrf_source': {'address': {'inventory': 'addresses', 'kind': 'ipv6_address'}, 'vrf': {'inventory': 'vrfs', 'kind': 'vrf'}, 'source': {'inventory': 'interfaces', 'kind': 'interface'}},
+        'ping_source': {'address': {'inventory': 'addresses', 'kind': 'ipv4_address'}, 'source': {'inventory': 'interfaces', 'kind': 'interface'}},
+        'ping_vrf': {'address': {'inventory': 'addresses', 'kind': 'ipv4_address'}, 'vrf': {'inventory': 'vrfs', 'kind': 'vrf'}},
+        'ping_vrf_source': {'address': {'inventory': 'addresses', 'kind': 'ipv4_address'}, 'vrf': {'inventory': 'vrfs', 'kind': 'vrf'}, 'source': {'inventory': 'interfaces', 'kind': 'interface'}},
+        'traceroute': {'address': {'inventory': 'addresses', 'kind': 'ipv4_address'}},
+        'traceroute_ipv6': {'address': {'inventory': 'addresses', 'kind': 'ipv6_address'}},
+        'traceroute_ipv6_source': {'address': {'inventory': 'addresses', 'kind': 'ipv6_address'}, 'source': {'inventory': 'interfaces', 'kind': 'interface'}},
+        'traceroute_ipv6_vrf': {'address': {'inventory': 'addresses', 'kind': 'ipv6_address'}, 'vrf': {'inventory': 'vrfs', 'kind': 'vrf'}},
+        'traceroute_ipv6_vrf_source': {'address': {'inventory': 'addresses', 'kind': 'ipv6_address'}, 'vrf': {'inventory': 'vrfs', 'kind': 'vrf'}, 'source': {'inventory': 'interfaces', 'kind': 'interface'}},
+        'traceroute_source': {'address': {'inventory': 'addresses', 'kind': 'ipv4_address'}, 'source': {'inventory': 'interfaces', 'kind': 'interface'}},
+        'traceroute_vrf': {'address': {'inventory': 'addresses', 'kind': 'ipv4_address'}, 'vrf': {'inventory': 'vrfs', 'kind': 'vrf'}},
+        'traceroute_vrf_source': {'address': {'inventory': 'addresses', 'kind': 'ipv4_address'}, 'vrf': {'inventory': 'vrfs', 'kind': 'vrf'}, 'source': {'inventory': 'interfaces', 'kind': 'interface'}},
+        "log_history": {
+            "begin_date": {"inventory": None, "kind": "log_date"},
+            "begin_time": {"inventory": None, "kind": "log_time"},
+            "end_date": {"inventory": None, "kind": "log_date"},
+            "end_time": {"inventory": None, "kind": "log_time"},
+            "severity": {"inventory": None, "kind": "log_severity", "optional": True},
+            "interface": {"inventory": "interfaces", "kind": "cisco_xe_interface", "optional": True},
+        },
         "interface_details": {
             "interface": {
                 "inventory": "interfaces",
@@ -1039,8 +1562,61 @@ READ_QUERY_SLOTS = {
                 "kind": "vlan_id",
             },
         },
+        'adjacency_details': {'interface': {'inventory': 'interfaces', 'kind': 'interface'}},
+        'bgp_advertised_routes': {'address': {'inventory': 'addresses', 'kind': 'ipv4_address'}},
+        'bgp_neighbor': {'address': {'inventory': 'addresses', 'kind': 'ipv4_address'}},
+        'bgp_prefix': {'address': {'inventory': 'addresses', 'kind': 'ipv4_lookup'}},
+        'bgp_routes': {'address': {'inventory': 'addresses', 'kind': 'ipv4_address'}},
+        'cef_lookup': {'address': {'inventory': 'addresses', 'kind': 'ipv4_lookup'}},
+        'ip_interface_details': {'interface': {'inventory': 'interfaces', 'kind': 'interface'}},
+        'ipv6_interface_details': {'interface': {'inventory': 'interfaces', 'kind': 'interface'}},
+        'ospf_interface': {'interface': {'inventory': 'interfaces', 'kind': 'interface'}},
+        'vrf_arp_table': {'vrf': {'inventory': 'vrfs', 'kind': 'vrf'}},
+        'vrf_ip_interfaces': {'vrf': {'inventory': 'vrfs', 'kind': 'vrf'}},
+        'vrf_cef_lookup': {'vrf': {'inventory': 'vrfs', 'kind': 'vrf'}, 'address': {'inventory': 'addresses', 'kind': 'ipv4_lookup'}},
+        'vrf_route_lookup': {'vrf': {'inventory': 'vrfs', 'kind': 'vrf'}, 'address': {'inventory': 'addresses', 'kind': 'ipv4_lookup'}},
     },
     "cisco_nxos": {
+        "qos_queues": {"interface": {"inventory": "interfaces", "kind": "cisco_nxos_ethernet"}},
+        "qos_policy": {"interface": {"inventory": "interfaces", "kind": "cisco_nxos_ethernet"}},
+        "evpn_bgp_prefix": {'prefix': {'inventory': None, 'kind': 'ip_literal'}},
+        "mac_table_address": {'mac': {'inventory': None, 'kind': 'mac_literal'}},
+        "mac_table_vlan": {'vlan_id': {'inventory': None, 'kind': 'vlan_id'}},
+        "arp_lookup": {'address': {'inventory': None, 'kind': 'ipv4_neighbor'}},
+        "arp_lookup_vrf": {'address': {'inventory': None, 'kind': 'ipv4_neighbor'}, 'vrf': {'inventory': 'vrfs', 'kind': 'vrf'}},
+        "ipv6_neighbor_lookup": {'address': {'inventory': None, 'kind': 'ipv6_neighbor'}},
+        "ipv6_neighbor_lookup_vrf": {'address': {'inventory': None, 'kind': 'ipv6_neighbor'}, 'vrf': {'inventory': 'vrfs', 'kind': 'vrf'}},
+        "ipv4_access_lists": {'name': {'inventory': None, 'kind': 'nxos_acl_name'}},
+        "ipv6_access_lists": {'name': {'inventory': None, 'kind': 'nxos_acl_name', 'optional': True}},
+        "mac_access_lists": {'name': {'inventory': None, 'kind': 'nxos_acl_name', 'optional': True}},
+        "ip_interface_details": {'interface': {'inventory': 'interfaces', 'kind': 'cisco_nxos_interface'}},
+        "arp_inspection_statistics_vlan": {'vlan_id': {'inventory': None, 'kind': 'vlan_id'}},
+        "vpc_member_consistency": {'vpc_id': {'inventory': None, 'kind': 'vpc_id'}},
+        "vpc_interface_consistency": {'interface': {'inventory': 'interfaces', 'kind': 'cisco_nxos_port_channel'}},
+        "stp_interface_detail": {'interface': {'inventory': 'interfaces', 'kind': 'cisco_nxos_interface'}},
+        "lldp_neighbor_interface": {'interface': {'inventory': 'interfaces', 'kind': 'cisco_nxos_interface'}},
+        "lacp_interface": {'interface': {'inventory': 'interfaces', 'kind': 'cisco_nxos_non_subinterface'}},
+        "cdp_neighbor_interface": {'interface': {'inventory': 'interfaces', 'kind': 'cisco_nxos_interface'}},
+        "ping": {'vrf': {'inventory': 'vrfs', 'kind': 'vrf'}, 'address': {'inventory': 'addresses', 'kind': 'ipv4_address'}},
+        "ping_source": {'vrf': {'inventory': 'vrfs', 'kind': 'vrf'}, 'address': {'inventory': 'addresses', 'kind': 'ipv4_address'}, 'source': {'inventory': 'addresses', 'kind': 'ipv4_address'}},
+        "traceroute": {'vrf': {'inventory': 'vrfs', 'kind': 'vrf'}, 'address': {'inventory': 'addresses', 'kind': 'ipv4_address'}},
+        "traceroute_source": {'vrf': {'inventory': 'vrfs', 'kind': 'vrf'}, 'address': {'inventory': 'addresses', 'kind': 'ipv4_address'}, 'source': {'inventory': 'addresses', 'kind': 'ipv4_address'}},
+        "ping6": {'vrf': {'inventory': 'vrfs', 'kind': 'vrf'}, 'address': {'inventory': 'addresses', 'kind': 'ipv6_address'}},
+        "ping6_source": {'vrf': {'inventory': 'vrfs', 'kind': 'vrf'}, 'address': {'inventory': 'addresses', 'kind': 'ipv6_address'}, 'source': {'inventory': 'addresses', 'kind': 'ipv6_address'}},
+        "traceroute6": {'vrf': {'inventory': 'vrfs', 'kind': 'vrf'}, 'address': {'inventory': 'addresses', 'kind': 'ipv6_address'}},
+        "traceroute6_source": {'vrf': {'inventory': 'vrfs', 'kind': 'vrf'}, 'address': {'inventory': 'addresses', 'kind': 'ipv6_address'}, 'source': {'inventory': 'addresses', 'kind': 'ipv6_address'}},
+        "radius_statistics": {
+            "address": {
+                "inventory": "addresses",
+                "kind": "ipv4_address",
+            },
+        },
+        "tacacs_statistics": {
+            "address": {
+                "inventory": "addresses",
+                "kind": "ipv4_address",
+            },
+        },
         "interface_details": {
             "interface": {
                 "inventory": "interfaces",
@@ -1062,7 +1638,7 @@ READ_QUERY_SLOTS = {
         "interface_transceiver": {
             "interface": {
                 "inventory": "interfaces",
-                "kind": "cisco_nxos_errors_interface",
+                "kind": "cisco_nxos_non_subinterface",
             },
         },
         "ipv6_route_lookup": {
@@ -1087,6 +1663,138 @@ READ_QUERY_SLOTS = {
             "vlan_id": {
                 "inventory": None,
                 "kind": "vlan_id",
+            },
+        },
+        "arp_table_vrf": {
+            "vrf": {
+                "inventory": "vrfs",
+                "kind": "vrf",
+            },
+        },
+        "bgp_advertised_routes": {
+            "address": {
+                "inventory": "addresses",
+                "kind": "ipv4_address",
+            },
+        },
+        "bgp_ipv6_summary_vrf": {
+            "vrf": {
+                "inventory": "vrfs",
+                "kind": "vrf",
+            },
+        },
+        "bgp_neighbor_detail": {
+            "address": {
+                "inventory": "addresses",
+                "kind": "ipv4_address",
+            },
+        },
+        "bgp_prefix_detail": {
+            "prefix": {
+                "inventory": "lookup_prefixes",
+                "kind": "ipv4_prefix",
+            },
+        },
+        "bgp_received_routes": {
+            "address": {
+                "inventory": "addresses",
+                "kind": "ipv4_address",
+            },
+        },
+        "bgp_summary_vrf": {
+            "vrf": {
+                "inventory": "vrfs",
+                "kind": "vrf",
+            },
+        },
+        "ip_interfaces_vrf": {
+            "vrf": {
+                "inventory": "vrfs",
+                "kind": "vrf",
+            },
+        },
+        "ipv6_neighbors_vrf": {
+            "vrf": {
+                "inventory": "vrfs",
+                "kind": "vrf",
+            },
+        },
+        "ipv6_route_lookup_vrf": {
+            "address": {
+                "inventory": "addresses",
+                "kind": "ipv6_address",
+            },
+            "vrf": {
+                "inventory": "vrfs",
+                "kind": "vrf",
+            },
+        },
+        "ipv6_route_table_vrf": {
+            "vrf": {
+                "inventory": "vrfs",
+                "kind": "vrf",
+            },
+        },
+        "ospf_interface_detail": {
+            "interface": {
+                "inventory": "interfaces",
+                "kind": "cisco_nxos_interface",
+            },
+        },
+        "ospf_interfaces_vrf": {
+            "vrf": {
+                "inventory": "vrfs",
+                "kind": "vrf",
+            },
+        },
+        "ospf_neighbors_vrf": {
+            "vrf": {
+                "inventory": "vrfs",
+                "kind": "vrf",
+            },
+        },
+        "ospfv3_neighbors_vrf": {
+            "vrf": {
+                "inventory": "vrfs",
+                "kind": "vrf",
+            },
+        },
+        "route_lookup_vrf": {
+            "address": {
+                "inventory": "addresses",
+                "kind": "ipv4_address",
+            },
+            "vrf": {
+                "inventory": "vrfs",
+                "kind": "vrf",
+            },
+        },
+        "route_map_counters": {
+            "route_map": {
+                "inventory": "route_maps",
+                "kind": "route_map",
+            },
+        },
+        "route_prefix_lookup": {
+            "prefix": {
+                "inventory": "lookup_prefixes",
+                "kind": "ipv4_prefix",
+            },
+        },
+        "route_prefix_lookup_vrf": {
+            "prefix": {
+                "inventory": "lookup_prefixes",
+                "kind": "ipv4_prefix",
+            },
+            "vrf": {
+                "inventory": "vrfs",
+                "kind": "vrf",
+            },
+        },
+        "route_table_vrf": {
+            "vrf": {
+                "inventory": "vrfs",
+                "kind": "vrf",
             },
         },
     },
@@ -1324,7 +2032,16 @@ READ_QUERY_SLOTS = {
             },
         },
     },
-    "ruckus_unleashed": {},
+    "ruckus_unleashed": {
+        "client_detail": {"mac": {"inventory": "literal", "kind": "wifi_mac_literal"}},
+        "client_performance": {"mac": {"inventory": "literal", "kind": "wifi_mac_literal"}},
+        "radio_performance_24": {"ap_mac": {"inventory": "literal", "kind": "wifi_mac_literal"}},
+        "radio_performance_5": {"ap_mac": {"inventory": "literal", "kind": "wifi_mac_literal"}},
+        "access_point": {"ap_mac": {"inventory": "literal", "kind": "wifi_mac_literal"}},
+        "access_point_by_name": {"wtp_id": {"inventory": "wtp_ids", "kind": "fortios_wtp_id"}},
+        "wlan": {"wlan": {"inventory": "wlan_names", "kind": "ruckus_wlan_name"}},
+        "ping": {"address": {"inventory": "addresses", "kind": "ipv4_address"}},
+    },
     "fortiadc": {
         "interface_state": {
             "interface": {
@@ -1353,12 +2070,90 @@ READ_QUERY_SLOTS = {
         "tls_session_reuse": {
             "virtual_server": {"inventory": "adc_virtual_servers", "kind": "fortiadc_virtual_server"},
         },
+        "slb_vs_overview": {
+            "vdom": {"inventory": "adc_vdoms", "kind": "fortiadc_vdom"},
+        },
+        "slb_rs_stat": {
+            "vdom": {"inventory": "adc_vdoms", "kind": "fortiadc_vdom"},
+            "virtual_server": {"inventory": "adc_virtual_servers", "kind": "fortiadc_virtual_server"},
+            "real_server": {"inventory": None, "kind": "fortiadc_member_id"},
+        },
         "slb_vs_stat": {
             "vdom": {"inventory": "adc_vdoms", "kind": "fortiadc_vdom"},
             "virtual_server": {"inventory": "adc_virtual_servers", "kind": "fortiadc_virtual_server"},
         },
     },
 }
+# EOS routing/probe slots must match the canonical catalogue at the proxy boundary.
+from netops_helper.query_catalog.arista import QUERIES as _EOS_READ_QUERIES
+from netops_helper.query_catalog.cisco import IOS_ADMIN_READS, IOS_G54_QUERIES, IOS_XE_ADMIN_READS, XE_LOG_HISTORY, xe_log_window, IOS_XE_G73_QUERIES
+
+READ_QUERY_NAMES["cisco_ios"] |= frozenset(IOS_G54_QUERIES)
+READ_QUERY_SLOTS["cisco_ios"].update({
+    name: {slot: {"inventory": spec.inventory, "kind": spec.kind,
+                  **({"optional": True} if slot in entry.optional_slots else {})}
+           for slot, spec in entry.slots.items()}
+    for name, entry in IOS_G54_QUERIES.items() if entry.slots
+})
+
+READ_QUERY_NAMES["cisco_xe"] |= frozenset(IOS_XE_G73_QUERIES)
+READ_QUERY_SLOTS["cisco_xe"].update({
+    name: {key: {"inventory": slot.inventory, "kind": slot.kind} for key, slot in entry.slots.items()}
+    for name, entry in IOS_XE_G73_QUERIES.items() if entry.slots
+})
+from netops_helper.query_catalog.cisco import NXOS_G93_QUERIES, NXOS_LOG_HISTORY, nxos_log_window
+
+READ_QUERY_NAMES["cisco_nxos"] |= frozenset(NXOS_G93_QUERIES)
+READ_QUERY_SLOTS["cisco_nxos"].update({
+    name: {key: {"inventory": slot.inventory, "kind": slot.kind,
+                 **({"optional": True} if key in entry.optional_slots else {})}
+           for key, slot in entry.slots.items()}
+    for name, entry in NXOS_G93_QUERIES.items() if entry.slots
+})
+READ_QUERY_NAMES["cisco_xe"] |= frozenset({
+    "c9800_aps",
+    "c9800_ap_joins",
+    "c9800_clients",
+    "c9800_client_detail",
+    "c9800_client_stats",
+    "c9800_radio_24",
+    "c9800_radio_5",
+    "c9800_ap_load",
+    "c9800_wlans",
+    "c9800_ap_tags",
+    "c9800_ap_tag_detail",
+    "c9800_policy_profiles",
+    "c9800_client_deletes",
+    "c9800_exclusions",
+    "c9800_rogue_aps",
+    "c9800_redundancy",
+    "c9800_chassis_rmi",
+})
+READ_QUERY_SLOTS["cisco_xe"]["c9800_ap_tag_detail"] = {"ap_name": {"inventory": None, "kind": "c9800_ap_name"}}
+READ_QUERY_SLOTS["cisco_xe"]["c9800_client_detail"] = {"mac": {"inventory": None, "kind": "mac_literal"}}
+
+READ_QUERY_NAMES["cisco_xe"] |= frozenset({"qfp_drops", "qfp_utilization"})
+
+READ_QUERY_NAMES["arista_eos"] = frozenset(_EOS_READ_QUERIES)
+READ_QUERY_SLOTS["arista_eos"] = {
+    name: {key: {"inventory": slot.inventory, "kind": slot.kind,
+                 **({"optional": True} if key in query.optional_slots else {})}
+           for key, slot in query.slots.items()}
+    for name, query in _EOS_READ_QUERIES.items() if query.slots
+}
+# Junos operational and SRX read slots follow the canonical catalogue too.
+from netops_helper.query_catalog.junos import ELS_QUERIES as _JUNOS_ELS_READ_QUERIES
+from netops_helper.query_catalog.junos import CONFIG_READ_QUERIES as JUNOS_CONFIG_READS
+from netops_helper.query_catalog.junos import JUNOS_QUERIES as _JUNOS_READ_QUERIES
+from netops_helper.query_catalog.junos import LOG_HISTORY_QUERY, PROFILES as JUNOS_PROFILES, log_window
+for _platform, _queries in (("juniper_junos", _JUNOS_READ_QUERIES), ("juniper_junos_els", _JUNOS_ELS_READ_QUERIES)):
+    READ_QUERY_NAMES[_platform] = frozenset(_queries)
+    READ_QUERY_SLOTS[_platform] = {
+        name: {key: {"inventory": slot.inventory, "kind": slot.kind,
+                     **({"optional": True} if key in query.optional_slots else {})}
+               for key, slot in query.slots.items()}
+        for name, query in _queries.items() if query.slots
+    }
 SAFE_INTERFACE_VALUE = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_.:/-]{0,63}")
 SAFE_SERVICE_VALUE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.@-]{0,127}")
 SAFE_SWITCH_VALUE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}")
@@ -1438,41 +2233,39 @@ def _canonical_cisco_ethernet(value: str) -> str | None:
     return f"Ethernet{slot}/{port}"
 
 
-def _canonical_cisco_ios_interface(value: str, physical_only: bool) -> str | None:
+def _canonical_cisco_ios_interface(value: str, physical_only: bool, *, allow_vlan: bool = True,
+                                   port_channel_max: int = 48) -> str | None:
     if value.casefold() in _CISCO_IOS_RESERVED:
         return None
     ethernet = _canonical_cisco_ethernet(value)
     if ethernet is not None:
         return ethernet
     match = re.fullmatch(
-        r"(GigabitEthernet|Gi)([0-9]+)/([0-9]+)(?:/([0-9]+))?",
+        r"(FastEthernet|Fa|GigabitEthernet|Gi|TenGigabitEthernet|Te)([0-9]+)/([0-9]+)(?:/([0-9]+))?",
         value,
     )
     if match:
+        prefix = {"Fa": "FastEthernet", "Gi": "GigabitEthernet", "Te": "TenGigabitEthernet"}.get(match[1], match[1])
+        # IOS names use slot/port or stack-or-slot/module/port.
         first = _canonical_decimal(match[2], 0, 8)
-        second = _canonical_decimal(match[3], 0, 99)
-        third = (
-            None
-            if match[4] is None
-            else _canonical_decimal(match[4], 1, 99)
-        )
-        if third is None and match[4] is None:
-            if first == 0 and second is not None and second >= 1:
-                return f"GigabitEthernet0/{second}"
-        elif (
-            first is not None
-            and 1 <= first <= 8
-            and second == 0
-            and third is not None
-        ):
-            return f"GigabitEthernet{first}/0/{third}"
+        if match[4] is None:
+            port = _canonical_decimal(match[3], 0, 99)
+            if first is not None and port is not None:
+                return f"{prefix}{first}/{port}"
+            return None
+        module = _canonical_decimal(match[3], 0, 8)
+        port = _canonical_decimal(match[4], 0, 99)
+        if first is not None and module is not None and port is not None:
+            return f"{prefix}{first}/{module}/{port}"
         return None
     if physical_only:
         return None
     match = re.fullmatch(r"(Port-channel|Po)([0-9]+)", value)
     if match:
-        number = _canonical_decimal(match[2], 1, 48)
+        number = _canonical_decimal(match[2], 1, port_channel_max)
         return None if number is None else f"Port-channel{number}"
+    if not allow_vlan:
+        return None
     match = re.fullmatch(r"(Vlan|Vl)([0-9]+)", value)
     if match:
         number = _canonical_decimal(match[2], 1, 4094)
@@ -1542,6 +2335,8 @@ def _canonical_cisco_xe_physical(value: str) -> str | None:
 def _canonical_cisco_xe_interface(
     value: str,
     physical_only: bool,
+    *,
+    switchport_only: bool = False,
 ) -> str | None:
     if value.casefold() in _CISCO_IOS_RESERVED:
         return None
@@ -1552,6 +2347,8 @@ def _canonical_cisco_xe_interface(
     if match:
         number = _canonical_decimal(match[2], 1, 128)
         return None if number is None else f"Port-channel{number}"
+    if switchport_only:
+        return None
     match = re.fullmatch(r"(Vlan|Vl)([0-9]+)", value)
     if match:
         number = _canonical_decimal(match[2], 1, 4094)
@@ -1566,6 +2363,8 @@ def _canonical_cisco_xe_interface(
 def _canonical_cisco_nxos_interface(
     value: str,
     errors_only: bool,
+    *,
+    allow_ethernet_subinterface: bool = False,
 ) -> str | None:
     if value.casefold() in _CISCO_NXOS_RESERVED:
         return None
@@ -1590,7 +2389,7 @@ def _canonical_cisco_nxos_interface(
             return None
         if match[4] is not None and subinterface is None:
             return None
-        if errors_only and subinterface is not None:
+        if errors_only and subinterface is not None and not allow_ethernet_subinterface:
             return None
         rendered = "Ethernet" + "/".join(
             str(component) for component in components
@@ -1652,9 +2451,13 @@ _VENDOR_INTERFACE_CANONICALIZERS = {
     "cisco_ios_physical_interface": lambda value: _canonical_cisco_ios_interface(
         value, True,
     ),
+    "cisco_ios_switchport": lambda value: _canonical_cisco_ios_interface(
+        value, False, allow_vlan=False, port_channel_max=64,
+    ),
     "cisco_xe_interface": lambda value: _canonical_cisco_xe_interface(
         value, False,
     ),
+    "cisco_xe_switchport": lambda value: _canonical_cisco_xe_interface(value, False, switchport_only=True),
     "cisco_xe_physical_interface": lambda value: _canonical_cisco_xe_interface(
         value, True,
     ),
@@ -1662,28 +2465,64 @@ _VENDOR_INTERFACE_CANONICALIZERS = {
         value, False,
     ),
     "cisco_nxos_errors_interface": lambda value: _canonical_cisco_nxos_interface(
+        value, True, allow_ethernet_subinterface=True,
+    ),
+    "cisco_nxos_non_subinterface": lambda value: _canonical_cisco_nxos_interface(
         value, True,
     ),
+    "cisco_nxos_ethernet": lambda value: _canonical_cisco_nxos_interface(value, True)
+    if value.startswith("Ethernet") else None,
+    "cisco_nxos_port_channel": lambda value: _canonical_cisco_nxos_interface(value, False)
+    if re.fullmatch(r"Port-channel[0-9]{1,4}", value) else None,
 }
 
+
+# The short and the full IOS name of one port are the same enrolled port (G53 r3): both sides are
+# canonicalized by the slot's own validator; other kinds keep the exact comparison.
+_CANONICAL_MEMBERSHIP_KINDS = frozenset({"cisco_ios_interface", "cisco_ios_physical_interface", "cisco_ios_switchport", "cisco_xe_switchport"})
+
+
+def enrolled_interface(value: object, kind: str, listed: Any) -> bool:
+    if value in listed:
+        return True
+    if kind not in _CANONICAL_MEMBERSHIP_KINDS or not isinstance(value, str):
+        return False
+    canonicalize = _VENDOR_INTERFACE_CANONICALIZERS[kind]
+    canonical = canonicalize(value)
+    return canonical is not None and any(
+        isinstance(item, str) and canonicalize(item) == canonical for item in listed
+    )
+
+
 SAFE_FORTIADC_OBJECT_VALUE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,34}")
+_JUNOS_VLAN_KEYWORDS = frozenset({
+    "all", "brief", "detail", "extensive", "instance", "interface", "logical-system",
+    "object-summary", "operational", "satellite", "vlan-groups",
+})
+
 SLOT_KIND_PATTERNS = {
+    "fortiadc_member_id": re.compile(r"[1-9][0-9]{0,9}"),
     "fortiadc_vdom": SAFE_FORTIADC_OBJECT_VALUE,
     "fortiadc_virtual_server": SAFE_FORTIADC_OBJECT_VALUE,
+    "acl_policy": re.compile(r"[A-Za-z0-9_][A-Za-z0-9_.-]{0,63}"),
     "vlan_name": re.compile(r"[A-Za-z][A-Za-z0-9_-]{0,31}"),
+    "junos_vlan_name": re.compile(r"[A-Za-z][A-Za-z0-9_-]{0,31}"),
     "managed_switch_serial": re.compile(r"S[A-Z0-9]{11,15}"),
     "managed_switch_port": re.compile(r"port[1-9][0-9]{0,2}"),
     "managed_switch_trunk": re.compile(r"[A-Za-z0-9_][A-Za-z0-9_-]{0,34}"),
+    "c9800_ap_name": re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,63}"),
     "certificate_name": re.compile(r"[A-Za-z][A-Za-z0-9_.-]{0,78}"),
     "fortios_address_object": re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,78}"),
     "fortios_station_mac": re.compile(r"[0-9A-Fa-f]{2}(?::[0-9A-Fa-f]{2}){5}"),
     "fortios_wtp_id": re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,34}"),
+    "ruckus_wlan_name": re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,31}"),
     "wifi_mac_literal": re.compile(r"[0-9a-f]{2}(?::[0-9a-f]{2}){5}"),
     "wifi_log_lines": re.compile(r"[1-9][0-9]?|1[0-9]{2}|200"),
     "flow_port": re.compile(r"(?:0|[1-9][0-9]{0,4})"),
     "ip_protocol": re.compile(r"(?:0|[1-9][0-9]{0,2})"),
     "fortios_policy_type": re.compile(r"(?:policy|proxy)"),
     "fortios_nat_pool": re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,78}"),
+    "fortios_extender_serial": re.compile(r"FX[A-Z0-9]{12,14}"),
     "interface": SAFE_INTERFACE_VALUE,
     "service": SAFE_SERVICE_VALUE,
     "switch": SAFE_SWITCH_VALUE,
@@ -1701,6 +2540,9 @@ SLOT_KIND_PATTERNS = {
     "junos_interface": re.compile(_JUNOS_INTERFACE),
     "junos_physical_interface": re.compile(_JUNOS_LINE),
     "junos_logical_interface": re.compile(_JUNOS_LOGICAL),
+    "junos_filter_interface": re.compile(_JUNOS_LOGICAL),
+    "junos_firewall_filter": re.compile(r"[A-Za-z0-9_][A-Za-z0-9_.:/-]{0,63}"),
+    "junos_security_zone": re.compile(r"[A-Za-z0-9_][A-Za-z0-9_-]{0,62}"),
     "junos_lacp_interface": re.compile(_JUNOS_LACP),
 }
 GENERIC_INVENTORY_KINDS = {
@@ -1709,12 +2551,12 @@ GENERIC_INVENTORY_KINDS = {
     "addresses": "address",
     "switches": "switch",
 }
-DEVICE_TOOLS = {
-    "locate_endpoint", "switch_read",
+DEVICE_TOOLS = {"triage_port",
+    "locate_endpoint", "vpc_compare", "switch_read",
     "dns_probe", "tcp_probe", "icmp_probe", "tls_probe", "ssh_read",
     "snmp_get", "sftp_stat", "ftp_list", "schema_read", "fortios_diagnostics", "triage_health", "triage_routing",
     "triage_vpn", "config_read", "config_diff", "triage_slb", "wifi_triage", "wifi_clients", "wifi_aps_live", "wifi_rogue",
-    "triage_flow",
+    "triage_flow", "triage_nxos_path", "fortiswitch_overview", "firewall_policy_hits",
 }
 TOOL_ARGUMENT_SCHEMAS = {
     "helper_status": (frozenset(), frozenset()),
@@ -1729,20 +2571,26 @@ TOOL_ARGUMENT_SCHEMAS = {
         frozenset({"parameters", "offset", "max_bytes", "content_sha256"}),
     ),
     "locate_endpoint": (frozenset({"targets", "endpoint"}), frozenset()),
-    "switch_read": (frozenset({"target", "table"}), frozenset({"vlan_id", "mac", "ip", "interface", "limit", "offset", "max_bytes", "managed_switch"})),
+    "vpc_compare": (frozenset({"targets", "vpc_id"}), frozenset()),
+    "switch_read": (frozenset({"target", "table"}), frozenset({"vlan_id", "mac", "ip", "interface", "limit", "offset", "max_bytes", "managed_switch", "baseline", "summary", "vr", "vrf", "address_family"})),
     "triage_health": (frozenset({"target"}), frozenset()),
-    "triage_routing": (frozenset({"target", "address"}), frozenset()),
-    "triage_flow": (frozenset({"target", "src", "dst", "port", "proto"}), frozenset({"source_port"})),
+    "triage_port": (frozenset({"target", "interface"}), frozenset({"domain"})),
+    "triage_routing": (frozenset({"target", "address"}), frozenset({"vrf", "sla_id"})),
+    "triage_flow": (frozenset({"target", "src", "dst", "port", "proto"}), frozenset({"source_port", "interface"})),
+    "triage_nxos_path": (frozenset({"target", "interface", "address"}), frozenset()),
     "triage_vpn": (frozenset({"target", "tunnel"}), frozenset()),
     "wifi_triage": (frozenset({"target"}), frozenset({"mac", "ip", "name", "summary", "history_limit", "history_offset"})),
     "wifi_clients": (frozenset({"target"}), frozenset({"ssid", "ap", "mac", "name", "limit", "offset", "max_bytes"})),
     "wifi_aps_live": (frozenset({"target"}), frozenset({"summary", "limit", "offset", "max_bytes"})),
+    "fortiswitch_overview": (frozenset({"target"}), frozenset()),
+    "firewall_policy_hits": (frozenset({"target"}), frozenset({"unused_only", "limit", "offset", "max_bytes"})),
     "wifi_rogue": (frozenset({"target"}), frozenset({"limit", "min_signal", "offset", "max_bytes", "mac", "ap", "full"})),
     "fortios_diagnostics": (
         frozenset({"target","recipe","address","interface"}),
-        frozenset({"count","timeout","max_bytes","vdom","health_check","source_address","source_port","destination_port","protocol","since","until"}),
+        frozenset({"count","timeout","max_bytes","vdom","health_check","source_address","source_port","destination_port","protocol","since","until","start_line",
+                   "log_category","log_subtype","log_action","policy_id","sniffer_filter"}),
     ),
-    "config_read": (frozenset({"target","platform","section"}), frozenset({"include_all","snapshot_id","offset","limit","redaction","include_defaults","contains","context","content_sha256","filter_sha256"})),
+    "config_read": (frozenset({"target","platform","section"}), frozenset({"include_all","snapshot_id","offset","limit","redaction","include_defaults","contains","context","content_sha256","filter_sha256","approve_baseline"})),
     "config_diff": (frozenset({"target","platform","base_snapshot","other_snapshot"}), frozenset({"offset","limit","secret_offset"})),
     "triage_slb": (frozenset({"target", "virtual_server"}), frozenset({"vdom"})),
     "schema_read": (frozenset({"target","path"}), frozenset({"view","vdom","owners","offset","max_bytes","content_sha256"})),
@@ -1788,6 +2636,23 @@ def _lookup_enrolled(value: object, version: int, inventory: Any) -> bool:
     )
 
 
+def _probe_target_kind(value: object) -> object:
+    """A FortiOS ping/traceroute target (G09 FP-04): 6 for a canonical unicast IPv6 address, "name" for a DNS name in
+    the diagnostic_names syntax, 4 for a unicast IPv4 address; None otherwise."""
+    if isinstance(value, str) and ":" in value:
+        try:
+            address = ipaddress.IPv6Address(value)
+        except ValueError:
+            return None
+        return 6 if str(address) == value and not (address.is_multicast or address.is_unspecified) else None
+    try:
+        if helper_inventory.validate_inventory_item("diagnostic_names", value) == value:
+            return "name"
+    except (ValueError, TypeError):
+        pass
+    return 4 if _diagnostic_filter_valid(value, "ping") else None
+
+
 def _diagnostic_filter_valid(value: object, recipe: object) -> bool:
     """A unicast IPv4 address; for the sessions and flow filters also a canonical prefix whose ends are unicast."""
     def unicast(ip: Any) -> bool:
@@ -1801,18 +2666,23 @@ def _diagnostic_filter_valid(value: object, recipe: object) -> bool:
 def _valid_typed_inventory_value(value: object, kind: str, *, lookup_only: bool = False) -> bool:
     if not isinstance(value, str):
         return False
+    if kind == "lookup_prefix":
+        return _lookup_network(value, 4) is not None or _lookup_network(value, 6) is not None
+    if kind == "ipv4_prefix":
+        return _lookup_network(value, 4) is not None
     if kind in LOOKUP_SLOT_KINDS:
         version = LOOKUP_SLOT_KINDS[kind]
         if "/" in value:
             return _lookup_network(value, version) is not None
         return _valid_typed_inventory_value(value, "ipv%d_address" % version)
-    if kind in {"vlan_id", "mac_literal", "ip_literal", "vrf", "vr", "routing_instance"}:
+    if kind in {"vlan_id", "vpc_id", "etherchannel_group_id", "mac_literal", "ip_literal", "vrf", "vr", "routing_instance", "route_map", "nxos_acl_name",
+                "ipv4_neighbor", "ipv6_neighbor"} | LOG_WINDOW_KINDS:
         try:
             validate_template_slot(value, kind, lookup_only=lookup_only)
         except ValueError:
             return False
         return True
-    if kind in {"fortios_sdwan_health_check", "fortios_link_monitor"}:
+    if kind in {"fortios_sdwan_health_check", "fortios_link_monitor", "fortios_ipsec_tunnel"}:
         return (
             re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,34}", value) is not None
             and not (kind == "fortios_link_monitor" and value.casefold() == "all")
@@ -1840,9 +2710,25 @@ def _valid_typed_inventory_value(value: object, kind: str, *, lookup_only: bool 
     canonicalizer = _VENDOR_INTERFACE_CANONICALIZERS.get(kind)
     if canonicalizer is not None:
         return canonicalizer(value) is not None
+    if kind in {"diagnostic_dns_name", "eos_dns_name", "junos_dns_name"}:
+        return len(value) <= 253 and re.fullmatch(r"(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?", value) is not None
+    if kind in {"junos_log_time", "junos_log_severity"}:
+        try:
+            validate_template_slot(value, kind)
+        except ValueError:
+            return False
+        return True
+    if kind == "acl_policy" and value.casefold() in {"all", "any", "none", "detail", "dynamic", "profile", "rule"}:
+        return False
+    if kind == "junos_vlan_name" and any(word.startswith(value.casefold()) for word in _JUNOS_VLAN_KEYWORDS):
+        return False
+    if kind == "junos_firewall_filter" and any(word.startswith(value.casefold()) for word in ("regex", "version")):
+        return False
     if kind == "vlan_name" and value.casefold() in {"all", "any", "none", "detail", "ipv4", "ipv6", "tag", "ports", "virtual-router", "statistics"}:
         return False
     if kind == "certificate_name" and value.casefold() in {"all", "any", "none", "detail", "details"}:
+        return False
+    if kind == "ruckus_wlan_name" and value.casefold() == "all":
         return False
     pattern = SLOT_KIND_PATTERNS.get(kind)
     return pattern is not None and pattern.fullmatch(value) is not None
@@ -1971,16 +2857,27 @@ ARGUMENT_HINTS = {
     "vlan_id": "vlan_id is one VLAN number from 1 to 4094 written as a decimal string",
     "mac": "mac is one MAC address literal, for example 00:00:5e:00:53:01 or 0000.5e00.5301",
     "ip": "ip is one IPv4 or IPv6 address literal without prefix length or zone",
+    "vrf": "vrf is one enrolled IOS or NX-OS VRF name",
+    "address_family": "address_family is ipv4 or ipv6 for NX-OS route, bgp_peer or ospf_neighbor",
     "interface": "interface is one interface name of 1 to 64 letters, digits and _.:/- characters; it selects one port of interface_errors (on Junos an enrolled interface) or filters port_vlan and ip_interface",
     "managed_switch": "managed_switch is an enrolled FortiSwitch serial: S followed by 11 to 15 upper-case letters or digits",
     "filter": "vlan_id filters interface, vlan, mac_entry and neighbor_l3; mac filters mac_entry and neighbor_l3; ip filters neighbor_l3 and route; interface filters port_vlan and ip_interface and selects the interface_errors port",
     "targets": "targets lists 1 to 64 distinct enrolled target aliases",
     "endpoint": "endpoint is one IPv4 or IPv6 address or MAC address literal, not a host name",
+    "baseline": "baseline is the unchanged counter_baseline of an earlier interface_errors result of the same target, profile, interface selection and managed_switch",
+    "summary": "summary is counts or changes and applies only to table interface_errors",
 }
 
 
 def argument_error(field: str, hint: str | None = None) -> ToolArgumentsError:
     return ToolArgumentsError(data={"field": field, "hint": hint or ARGUMENT_HINTS[field]})
+
+
+_SWITCH_ROUTING_SELECTOR_ERRORS = {
+    'vrf applies only to IOS and IOS XE neighbor_l3 and NX-OS L3 tables': 'vrf',
+    'address_family must be ipv4 or ipv6 on a supported routing or neighbor table': 'address_family',
+    'ip and address_family disagree': 'address_family',
+}
 
 
 def _recipe_limits(arguments: dict[str, Any], limits) -> None:
@@ -2214,6 +3111,7 @@ class Proxy:
     def _auth_context(
         self, entry: Any, section: Any, credential: core_vault.Credential,
         usm: dict[str, str] | None, tool: str, rest_token: str | None = None,
+        *, tool_args: dict[str, Any] | None = None, c9800_location: bool = False,
     ) -> str:
         envelope = {
             "alias": entry.name,
@@ -2238,14 +3136,19 @@ class Proxy:
             "wifi_thresholds": getattr(section, "wifi_thresholds", {}),
             "egress": dict(section.egress),
         }
+        if (host_key := getattr(entry, "host_key", None)) is not None:
+            envelope["host_key"] = host_key
         if tool == "locate_endpoint":
             # The same plan the request reserves, including the REST reads of an injected token.
-            envelope["locate_read_limit"] = self._rate_cost(tool, rest_token, section)
+            envelope["locate_read_limit"] = self._rate_cost(
+                tool, rest_token, section, tool_args, c9800_location=c9800_location)
         if usm is not None and tool in SNMP_ENVELOPE_TOOLS:
             envelope["snmp_usm"] = dict(usm)
         if getattr(section, "tls_ca_certificate", None) is not None:
             envelope["tls_ca_certificate"] = section.tls_ca_certificate
-        if tool == "tls_probe" and getattr(section, "fortios_rest_certificate_sha256", None):
+        if (tool == "tls_probe" or (tool == "ssh_read" and section.catalog_platform() == "fortiadc"
+                                   and "certificate_inventory" in section.enabled_queries)
+                ) and getattr(section, "fortios_rest_certificate_sha256", None):
             envelope["fortios_rest_certificate_sha256"] = section.fortios_rest_certificate_sha256
             envelope["fortios_rest_port"] = section.fortios_rest_port
         if rest_token is not None:
@@ -2361,6 +3264,14 @@ class Proxy:
                 raise argument_error('server_name', 'server_name is null or 1 to 253 printable characters')
 
         if tool in ("config_read", "config_diff"):
+            if tool == "config_read" and "approve_baseline" in normalized:
+                if type(normalized["approve_baseline"]) is not bool:
+                    raise argument_error("approve_baseline", "approve_baseline is a boolean")
+                if normalized["approve_baseline"] and (
+                        not normalized.get("snapshot_id") or not normalized.get("content_sha256") or
+                        normalized.get("offset", 0) != 0 or normalized.get("contains") is not None or
+                        normalized.get("context", 0) != 0 or normalized.get("filter_sha256") is not None):
+                    raise argument_error("approve_baseline", "Approve an existing unfiltered snapshot with its content_sha256")
             from .configuration import page_arguments
             try:
                 page_arguments(normalized.get("offset", 0), normalized.get("limit", 48000))
@@ -2372,15 +3283,17 @@ class Proxy:
             if tool == "config_read" and normalized.get("offset", 0) and not normalized.get("snapshot_id"):
                 raise argument_error("snapshot_id", "A continuation requires snapshot_id from the first page")
             if tool == "config_read" and normalized.get("platform") in ("extreme_exos", "cisco_ios", "cisco_xe", "cisco_nxos",
-                                                                       "arista_eos"):
+                                                                       "arista_eos", "juniper_junos",
+                                                                       "juniper_junos_els", "ruckus_unleashed"):
                 # The single admitted EXOS, IOS, IOS XE, NX-OS or EOS option set; everything else is refused before any SSH.
                 # IOS/IOS XE/NX-OS/EOS: include_defaults true (show running-config all) is not admitted.
                 from . import configuration, config_exos_adapter, config_cisco_ios_adapter, config_cisco_xe_adapter
-                from . import config_arista_eos_adapter, config_cisco_nxos_adapter
+                from . import config_arista_eos_adapter, config_cisco_nxos_adapter, config_junos_adapter
                 name = normalized["platform"]
                 adapter = {"extreme_exos": config_exos_adapter, "cisco_ios": config_cisco_ios_adapter,
                            "cisco_xe": config_cisco_xe_adapter, "cisco_nxos": config_cisco_nxos_adapter,
-                           "arista_eos": config_arista_eos_adapter}[name]
+                           "arista_eos": config_arista_eos_adapter, "juniper_junos": config_junos_adapter,
+                           "juniper_junos_els": config_junos_adapter}.get(name)
                 field, hint = "redaction", name + " requires redaction full explicitly"
                 try:
                     if normalized.get("redaction", "minimal") != "full":
@@ -2392,7 +3305,14 @@ class Proxy:
                     if normalized.get("include_all", False) is not True:
                         raise ValueError()
                     field, hint = "section", name + " supports only section all with include_all true"
-                    adapter.read_command(normalized["section"], True, False)
+                    if name == "ruckus_unleashed":
+                        if normalized["section"] != "all":
+                            raise ValueError()
+                        field, hint = "approve_baseline", "Unleashed snapshots support in-memory comparison"
+                        if normalized.get("approve_baseline", False):
+                            raise ValueError()
+                    else:
+                        adapter.read_command(normalized["section"], True, False)
                     field, hint = "contains", "contains is 1 to 64 printable ASCII characters or null"
                     configuration.filter_arguments(normalized.get("contains"))
                     field, hint = "context", "context is a whole number from 0 to 10 and requires contains when nonzero"
@@ -2414,7 +3334,8 @@ class Proxy:
                 except ValueError:
                     raise argument_error(field, hint) from None
             elif tool == "config_diff" and normalized.get("platform") in ("extreme_exos", "cisco_ios", "cisco_xe",
-                                                                         "cisco_nxos", "arista_eos"):
+                                                                         "cisco_nxos", "arista_eos", "juniper_junos",
+                                                                         "juniper_junos_els", "ruckus_unleashed"):
                 # config_diff compares two stored snapshots (task 157); only the page and snapshot arguments below apply.
                 pass
             elif normalized.get("platform") not in ("fortios", "fortinet", "fortiadc"):
@@ -2466,15 +3387,56 @@ class Proxy:
                     not 0 <= normalized["secret_offset"] <= 1073741824):
                 raise argument_error("secret_offset", "secret_offset is a whole number from 0 to 1073741824")
             if tool == "config_diff":
-                for field in ("base_snapshot", "other_snapshot"):
-                    if not isinstance(normalized.get(field), str) or not re.fullmatch("cfg_[0-9a-f]{32}", normalized[field]):
-                        raise argument_error(field, "Copy a snapshot identifier: cfg_ and 32 lower-case hexadecimal characters")
+                from .config_exos_adapter import live_comparison
+                from . import config_junos_adapter
+                if (normalized.get("platform") == "extreme_exos" and live_comparison(
+                        normalized.get("base_snapshot"), normalized.get("other_snapshot"))) or (
+                        normalized.get("platform") in config_junos_adapter.PLATFORMS and
+                        config_junos_adapter.live_comparison(normalized.get("base_snapshot"),
+                                                             normalized.get("other_snapshot"))):
+                    for field in ("offset", "secret_offset"):
+                        if normalized.get(field, 0):
+                            raise argument_error(field, "A live configuration comparison does not have continuation pages")
+                elif (normalized.get("platform") in ("arista_eos", "cisco_nxos", "cisco_ios", "cisco_xe")
+                      and (normalized.get("base_snapshot"), normalized.get("other_snapshot")) == ("startup", "running")):
+                    if normalized.get("offset", 0) or normalized.get("secret_offset", 0):
+                        raise argument_error("offset", "Start at offset 0 and use the returned snapshot IDs for later pages")
+                else:
+                    for field in ("base_snapshot", "other_snapshot"):
+                        if (field == "base_snapshot" and normalized.get(field) == "baseline"
+                                and normalized.get("platform") != "ruckus_unleashed"):
+                            continue
+                        if not isinstance(normalized.get(field), str) or not re.fullmatch("cfg_[0-9a-f]{32}", normalized[field]):
+                            raise argument_error(field, "Copy a snapshot identifier: cfg_ and 32 lower-case hexadecimal characters")
 
-        if tool == "triage_routing" and not _valid_typed_inventory_value(normalized["address"], "ipv4_address"):
-            raise argument_error('address', 'address is one IPv4 address literal')
+        if tool == "triage_port":
+            if not any(_valid_typed_inventory_value(normalized["interface"], kind)
+                       for kind in ("extreme_physical_port", "eos_stp_interface", "junos_physical_interface",
+                                    "cisco_ios_interface", "cisco_xe_interface")):
+                raise argument_error("interface")
+            if not _valid_typed_inventory_value(normalized.get("domain", "s0"), "service"):
+                raise argument_error("domain")
+
+        if tool == "triage_routing":
+            if not _valid_typed_inventory_value(normalized["address"], "ipv4_address"):
+                raise argument_error("address", "address is one IPv4 address literal")
+            if normalized.get("vrf") is not None and not _valid_typed_inventory_value(normalized["vrf"], "vrf"):
+                raise argument_error("vrf")
+            sla = normalized.get("sla_id")
+            if sla is not None and (type(sla) is not int or not 1 <= sla <= 2147483647):
+                raise argument_error("sla_id", "sla_id must be a positive operation identifier")
+
+        if tool == "triage_nxos_path":
+            if not _valid_typed_inventory_value(normalized["interface"], "cisco_nxos_interface"):
+                raise argument_error("interface")
+            if not _valid_typed_inventory_value(normalized["address"], "ipv4_address"):
+                raise argument_error("address", "address is one IPv4 address literal")
 
         if tool == "triage_flow":
             from . import triage_flow
+            interface = normalized.get("interface")
+            if interface is not None and not _valid_typed_inventory_value(interface, "interface"):
+                raise argument_error("interface")
             try:
                 triage_flow.validate(normalized["src"], normalized["dst"], normalized["port"], normalized["proto"],
                                      normalized.get("source_port"))
@@ -2485,12 +3447,15 @@ class Proxy:
                 r"[A-Za-z0-9][A-Za-z0-9_.-]{0,34}", normalized["tunnel"])):
             raise argument_error('tunnel', 'tunnel is 1 to 35 letters, digits or _.- and starts with a letter or digit')
 
-        if tool in {"switch_read", "wifi_clients", "wifi_aps_live", "wifi_rogue"}:
+        if tool in {"switch_read", "wifi_clients", "wifi_aps_live", "wifi_rogue", "firewall_policy_hits"}:
             for field, default, low, high in (("limit", 100, 1, 500), ("offset", 0, 0, 8_000_000),
                                                ("max_bytes", 16_000, 1_000, 48_000)):
                 value = normalized.get(field, default)
                 if type(value) is not int or not low <= value <= high:
                     raise argument_error(field, "%s must be an integer from %d to %d" % (field, low, high))
+
+        if tool == "firewall_policy_hits" and type(normalized.get("unused_only", False)) is not bool:
+            raise argument_error("unused_only", "unused_only must be true or false")
 
         if tool in {"wifi_aps_live", "wifi_triage"} and type(normalized.get("summary", False)) is not bool:
             raise ToolArgumentsError(data={"field": "summary", "hint": "summary must be true or false"})
@@ -2548,32 +3513,103 @@ class Proxy:
                 raise ToolArgumentsError(data={"field": "ip", "hint": "Provide one canonical IPv4 address"})
 
         if tool == "fortios_diagnostics":
+            from . import fortiadc_diagnostics
+
+            if normalized["recipe"] in fortiadc_diagnostics.RECIPES:
+                if any(normalized.get(name) is not None for name in
+                       ("vdom", "health_check", "source_port", "destination_port", "protocol")):
+                    raise argument_error('recipe', 'FortiADC logs do not accept VDOM, health checks or port/protocol filters')
+                _recipe_limits(normalized, (("count", 3, 1, 20), ("timeout", 10, 1, 20), ("max_bytes", 16000, 1000, 16384)))
+                try:
+                    fortiadc_diagnostics.validate(
+                        normalized["recipe"], normalized["address"], normalized["interface"],
+                        normalized.get("count", 3), normalized.get("timeout", 10), normalized.get("max_bytes", 16000),
+                        source_address=normalized.get("source_address"), since=normalized.get("since"),
+                        until=normalized.get("until"), start_line=normalized.get("start_line"),
+                    )
+                except ValueError as error:
+                    raise argument_error('address/interface/source_address/since/until/start_line', str(error)) from None
+                return normalized
+            if normalized.get("start_line") is not None:
+                raise argument_error('start_line', 'start_line applies only to the FortiADC log recipes')
+            if normalized["recipe"] in ("disk_usage", "ntp_status"):
+                if (normalized["address"] != "" or normalized["interface"] != ""
+                        or any(normalized.get(name) is not None for name in
+                               ("vdom", "since", "until", "health_check", "source_address",
+                                "source_port", "destination_port", "protocol"))):
+                    raise argument_error('recipe', 'disk/NTP reads require empty address/interface and no filters')
+                from .adc_monitoring import NTP_TIMEOUT
+                read_timeout = NTP_TIMEOUT if normalized["recipe"] == "ntp_status" else 10
+                _recipe_limits(normalized, (("count", 3, 3, 3), ("timeout", read_timeout, 1, read_timeout),
+                                           ("max_bytes", 16000, 1000, 16384)))
+                return normalized
+            if normalized["recipe"] == fortiadc_diagnostics.PACKET_CAPTURE:
+                # G32 ADC-G11: FortiADC capture on one enrolled interface with a fixed host/port filter.
+                if any(normalized.get(name) is not None for name in
+                       ("vdom", "since", "until", "health_check", "source_port", "protocol")):
+                    raise argument_error('recipe', 'packet_capture takes no VDOM, timestamps, health check, source port or protocol')
+                _recipe_limits(normalized, (("count", 3, 1, fortiadc_diagnostics.CAPTURE_MAX_PACKETS),
+                                            ("timeout", 10, 1, fortiadc_diagnostics.CAPTURE_MAX_SECONDS),
+                                            ("max_bytes", 16000, 1000, 16384)))
+                interface = normalized["interface"]
+                if not isinstance(interface, str) or not interface or _VENDOR_INTERFACE_CANONICALIZERS["fortiadc_interface"](interface) != interface:
+                    raise argument_error('interface', 'packet_capture requires one FortiADC interface name')
+                try:
+                    fortiadc_diagnostics.validate_capture(
+                        normalized["address"], interface, normalized.get("count", 3), normalized.get("timeout", 10),
+                        normalized.get("max_bytes", 16000), normalized.get("source_address"),
+                        normalized.get("destination_port"))
+                except ValueError as error:
+                    raise argument_error('address/source_address/destination_port', str(error)) from None
+                return normalized
             if normalized["recipe"] in ("session_list", "persistence_list"):
                 if (not isinstance(normalized["address"], str)
                         or re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,62}", normalized["address"]) is None
                         or normalized["interface"] != "" or normalized.get("vdom") is not None
                         or normalized.get("since") is not None or normalized.get("until") is not None
-                        or any(name in normalized for name in ("health_check","source_address","source_port","destination_port","protocol"))):
-                    raise argument_error('address/interface/vdom/since/until', 'session/persistence list requires a virtual-server name as address, empty interface and no vdom, timestamps or tuple filters')
+                        or any(name in normalized for name in ("health_check","source_port","destination_port","protocol"))):
+                    raise argument_error('address/interface/vdom/since/until', 'session/persistence list requires a virtual-server name as address, empty interface and no vdom, timestamps or port/protocol filters')
+                if "source_address" in normalized:
+                    from netops_helper.fortiadc_diagnostics import client_range
+                    try:
+                        client_range(normalized["source_address"])
+                    except ValueError:
+                        raise argument_error('source_address', 'source_address is one client IPv4 address or a canonical IPv4 prefix /16../32') from None
                 _recipe_limits(normalized, (("count", 3, 1, 50), ("timeout", 10, 1, 10), ("max_bytes", 16000, 1000, 16384)))
-                return normalized
-            if normalized["recipe"] in ("system_event_logs", "waf_attack_logs"):
-                if (normalized["address"] != "" or normalized["interface"] != ""
-                        or normalized.get("vdom") is not None
-                        or normalized.get("since") is not None or normalized.get("until") is not None
-                        or any(name in normalized for name in ("health_check","source_address","source_port","destination_port","protocol"))):
-                    raise argument_error('address/interface/vdom/since/until', 'system/WAF logs require empty address/interface and no vdom, timestamps or tuple filters')
-                _recipe_limits(normalized, (("count", 3, 1, 20), ("timeout", 10, 1, 20), ("max_bytes", 16000, 1000, 16384)))
                 return normalized
             if normalized["recipe"] not in ("ping","traceroute","sniffer","sessions","flow","nslookup","http_probe","health_check_verify","logs"):
                 raise argument_error('recipe', 'Use a diagnostic recipe listed in the tool schema')
             adc = normalized["interface"] == ""
             verify = normalized["recipe"] == "health_check_verify"
+            # G10 (FP-01, FP-05, FP-06): FortiOS log category, session and sniffer filters, as the Helper checks them.
+            from netops_helper import fortios_diagnostics as fortios_recipes
+            g10 = {name: normalized.get(name) for name in
+                   ("log_category", "log_subtype", "log_action", "policy_id", "sniffer_filter")}
+            if any(value is not None for value in g10.values()):
+                if adc:
+                    raise argument_error('log_category/log_subtype/log_action/policy_id/sniffer_filter',
+                                         'These filters apply only to FortiOS logs, sessions and sniffer recipes')
+                try:
+                    fortios_recipes.validate_filters(normalized["recipe"], **g10)
+                except ValueError as error:
+                    raise argument_error('log_category/log_subtype/log_action/policy_id/sniffer_filter',
+                                         str(error)) from None
+            partial = fortios_recipes.session_partial(
+                normalized["recipe"], normalized.get("source_address"), normalized.get("source_port"),
+                normalized.get("destination_port"), normalized.get("protocol"), g10["policy_id"])
+            sniffer_filter = g10["sniffer_filter"] if normalized["recipe"] == "sniffer" else None
+            open_address = not adc and normalized["address"] == "" and (
+                (normalized["recipe"] == "logs" and g10["log_category"] is not None)
+                or (partial and normalized.get("source_address") is not None)
+                or sniffer_filter in ("port", "arp"))
+            any_interface = normalized["recipe"] == "sniffer" and normalized["interface"] == "any"
+            if any_interface and open_address and sniffer_filter != "arp":
+                raise argument_error('interface', 'The sniffer on the interface any needs an enrolled host address, except for arp')
             if adc and normalized["recipe"] not in ("ping","traceroute","nslookup","http_probe","health_check_verify"):
                 raise argument_error('recipe/interface', 'An empty interface selects FortiADC and supports ping, traceroute, nslookup, http_probe or health_check_verify')
             if adc:
                 _recipe_limits(normalized, (("count", 3, 1, 5) if verify else ("count", 3, 3, 3),))
-            if not adc and (normalized["recipe"] in ("nslookup","http_probe","health_check_verify") or not isinstance(normalized["interface"], str) or _canonical_fortios_interface(normalized["interface"]) is None):
+            if not adc and not any_interface and (normalized["recipe"] in ("nslookup","http_probe","health_check_verify") or not isinstance(normalized["interface"], str) or _canonical_fortios_interface(normalized["interface"]) is None):
                 raise argument_error('interface', 'Provide an allowed FortiOS interface; ADC-only recipes require an empty interface')
             if verify != ("health_check" in normalized):
                 raise argument_error('health_check', 'health_check is required only for health_check_verify')
@@ -2592,14 +3628,40 @@ class Proxy:
                     named = False
                 if not named:
                     raise argument_error('address', 'Provide one enrolled diagnostic DNS name or HTTP endpoint for this recipe')
-            elif not _diagnostic_filter_valid(normalized["address"], normalized["recipe"]):
+            elif not adc and normalized["recipe"] in ("ping","traceroute"):
+                if _probe_target_kind(normalized["address"]) is None:
+                    raise argument_error('address', 'Provide one IPv4 or IPv6 address literal or an enrolled DNS name')
+            elif not open_address and not _diagnostic_filter_valid(normalized["address"], normalized["recipe"]):
                 raise argument_error('address', 'Provide one address literal or an allowed recipe filter')
             vdom = normalized.get("vdom")
             if vdom is not None and (not isinstance(vdom,str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,30}",vdom)):
                 raise argument_error('vdom', 'vdom is null or 1..31 letters, digits or _.- starting with a letter or digit')
             tuple_names = ("source_address","source_port","destination_port","protocol")
             tuple_values = tuple(normalized.get(name) for name in tuple_names)
-            if any(value is not None for value in tuple_values):
+            if (not adc and normalized["recipe"] in ("ping","traceroute") and tuple_values[0] is not None
+                    and all(value is None for value in tuple_values[1:])):
+                # FOS-P05: ping/traceroute from an explicit IPv4 source address of the FortiGate.
+                if (_probe_target_kind(normalized["address"]) == 6
+                        or _probe_target_kind(tuple_values[0]) != 4 or "/" in tuple_values[0]):
+                    raise argument_error('source_address', 'source_address of ping or traceroute is one IPv4 address literal and needs an IPv4 or DNS name target')
+            elif partial:
+                source, destination_port = tuple_values[0], tuple_values[2]
+                if source is not None and not _diagnostic_filter_valid(source, "sessions"):
+                    raise argument_error('source_address', 'source_address must be a valid recipe address literal')
+                if destination_port is not None and (type(destination_port) is not int or not 1 <= destination_port <= 65535):
+                    raise argument_error('destination_port', 'destination_port is a whole number 1..65535')
+                if normalized["address"] == "" and source is None:
+                    raise argument_error('address/source_address', 'A sessions filter needs an address or a source_address')
+            elif sniffer_filter not in (None, "icmp"):
+                source, source_port, destination_port, protocol = tuple_values
+                if source is not None or source_port is not None:
+                    raise argument_error('source_address/source_port', 'A host, port or ARP sniffer filter takes no source address or source port')
+                if sniffer_filter == "port":
+                    if type(destination_port) is not int or not 1 <= destination_port <= 65535 or protocol not in (None, 6, 17):
+                        raise argument_error('destination_port/protocol', 'The sniffer port filter needs destination_port 1..65535; protocol is null, 6 or 17')
+                elif destination_port is not None or protocol is not None:
+                    raise argument_error('destination_port/protocol', 'destination_port and protocol apply to the sniffer port filter only')
+            elif any(value is not None for value in tuple_values):
                 if normalized["recipe"] not in ("sessions", "sniffer", "flow") or any(value is None for value in tuple_values):
                     raise argument_error('source_address/source_port/destination_port/protocol', 'Provide all four tuple fields only for sessions, sniffer or flow')
                 if not _diagnostic_filter_valid(tuple_values[0], normalized["recipe"]):
@@ -2639,25 +3701,40 @@ class Proxy:
             if owners is not None and (not isinstance(owners,list) or len(owners)>64 or any(not isinstance(k,str) or not k or len(k.encode("utf-8"))>128 or not k.isprintable() for k in owners)):
                 raise argument_error('owners', 'owners is null or a list of at most 64 nonempty printable names of at most 128 bytes each')
 
+        if tool == "vpc_compare":
+            targets = normalized["targets"]
+            if (not isinstance(targets, list) or len(targets) != 2
+                    or any(not cls._valid_alias(target) for target in targets) or targets[0] == targets[1]):
+                raise argument_error("targets", "Provide two distinct enrolled NX-OS target aliases")
+            if not _valid_typed_inventory_value(normalized["vpc_id"], "vpc_id"):
+                raise argument_error("vpc_id", "Provide the vPC number as a decimal string from 1 to 4096")
         if tool == "locate_endpoint":
-            from netops_helper.tables import literal
-            from netops_helper.locate import MAX_TARGETS
+            from netops_helper.locate import MAX_TARGETS, selector
             targets = normalized['targets']
             if (not isinstance(targets, list) or not 1 <= len(targets) <= MAX_TARGETS
                     or any(not cls._valid_alias(t) for t in targets) or len(set(targets)) != len(targets)):
                 raise argument_error("targets")
             try:
-                literal(normalized['endpoint'])
+                selector(normalized['endpoint'])
             except (ValueError, TypeError):
                 raise argument_error("endpoint") from None
 
         if tool == "switch_read":
             from netops_helper.tables import FIELDS as SWITCH_TABLES, request
+            from netops_helper.page_metadata import BASELINE_PATTERN
             table = normalized['table']
             if not isinstance(table, str) or table not in SWITCH_TABLES:
                 raise argument_error("table", "table is one of " + ", ".join(SWITCH_TABLES))
+            # Counter deltas and short modes exist only for interface_errors; the engine decodes the token.
+            if normalized.get("baseline") is not None and (
+                    table != "interface_errors" or not isinstance(normalized["baseline"], str)
+                    or not re.fullmatch(BASELINE_PATTERN, normalized["baseline"])):
+                raise argument_error("baseline")
+            if normalized.get("summary") is not None and (
+                    table != "interface_errors" or normalized["summary"] not in ("counts", "changes")):
+                raise argument_error("summary")
             for name, kind in (("vlan_id", "vlan_id"), ("mac", "mac_literal"), ("ip", "ip_literal"), ("interface", "interface"),
-                               ("managed_switch", "managed_switch_serial")):
+                               ("managed_switch", "managed_switch_serial"), ("vr", "vr"), ("vrf", "vrf")):
                 if normalized.get(name) is not None:
                     try:
                         validate_template_slot(normalized[name], kind)
@@ -2665,11 +3742,38 @@ class Proxy:
                         raise argument_error(name) from None
             try:
                 # interface_errors validates its port selector per platform at read time.
-                interface = normalized.get('interface') if table != 'interface_errors' and not (
+                # FortiGate lag takes the enrolled aggregate as interface; the target-level check below decides.
+                interface = normalized.get('interface') if table not in ('interface_errors', 'lag', 'stp_port') and not (
                     table in ('interface', 'port_vlan') and normalized.get('managed_switch') is not None) else None
-                request('cisco_ios', table, normalized.get('vlan_id'), normalized.get('mac'), normalized.get('ip'), interface=interface)
-            except (ValueError, TypeError):
+                from netops_helper.eos_ports import FIELDS as EOS_TABLES
+                # EOS tables, device-side EOS MAC selection and EOS IPv6 neighbors use the EOS rules; the engine
+                # repeats the check for the target's real platform.
+                eos = (table in EOS_TABLES or table == 'mac_entry' and interface is not None
+                       or table == 'neighbor_l3' and normalized.get('address_family') is not None and normalized.get('vrf') is None)
+                guessed = ('extreme_exos' if table in ('poe_budget', 'poe_port', 'optics_port', 'port_utilization', 'port_packets', 'lacp_member')
+                           else 'arista_eos' if eos
+                           else 'cisco_nxos' if table == 'dhcp_binding' or normalized.get('vrf') is not None or normalized.get('address_family') is not None else 'cisco_ios')
+                from netops_helper.ios_ports import TABLES as IOS_TABLES
+                # G53: the same tables exist for IOS with IOS interface names; either profile's rules may accept.
+                candidates = [guessed] + (['cisco_ios'] if table in IOS_TABLES | {'mac_entry', 'neighbor_l3', 'dhcp_binding'} and guessed != 'cisco_ios' else [])
+                if table in IOS_TABLES and 'cisco_nxos' not in candidates:
+                    candidates.append('cisco_nxos')
+                if table in IOS_TABLES | {'mac_entry', 'neighbor_l3', 'dhcp_binding'} and 'cisco_xe' not in candidates:
+                    candidates.append('cisco_xe')
+                for position, candidate in enumerate(candidates):
+                    try:
+                        request(candidate, table, normalized.get('vlan_id'), normalized.get('mac'), normalized.get('ip'),
+                                interface=interface, vrf=normalized.get('vrf'), address_family=normalized.get('address_family'))
+                        break
+                    except (ValueError, TypeError):
+                        if position == len(candidates) - 1:
+                            raise
+            except (ValueError, TypeError) as exc:
+                if field := _SWITCH_ROUTING_SELECTOR_ERRORS.get(str(exc)):
+                    raise argument_error(field, str(exc)) from None
                 given = [name for name in ("vlan_id", "mac", "ip", "interface") if normalized.get(name) is not None]
+                if not given and table in ("lag_member", "optics_port"):
+                    raise argument_error("interface", f"{table} requires interface (an enrolled port of the target)") from None
                 raise argument_error(given[0] if len(given) == 1 else "/".join(given) or "table",
                                      ARGUMENT_HINTS["filter"]) from None
 
@@ -2739,6 +3843,16 @@ class Proxy:
             if not condition:
                 refuse(field)
 
+        if section.catalog_platform() == "cisco_ios" and section.account_role == helper_inventory.ADMIN_BOUNDED_ROLE:
+            require(tool == "ssh_read" and args.get("query") in IOS_ADMIN_READS, "account_role")
+        if section.catalog_platform() == "cisco_xe" and section.account_role == helper_inventory.ADMIN_BOUNDED_ROLE:
+            require(tool in ("config_read", "config_diff")
+                    or tool == "ssh_read" and args.get("query") in IOS_XE_ADMIN_READS
+                    or tool == "switch_read" and args.get("table") in {"mac_entry", "neighbor_l3", "dhcp_binding"},
+                    "account_role")
+        if section.catalog_platform() == "cisco_nxos" and section.account_role == helper_inventory.ADMIN_BOUNDED_ROLE:
+            require(tool in {"config_read", "config_diff"}, "account_role")
+
         if tool == "dns_probe":
             require(bool(egress["allow_dns"]), "egress")
             return
@@ -2746,22 +3860,25 @@ class Proxy:
             require(bool(egress["allow_icmp"]), "egress")
             return
         if tool in ("config_read", "config_diff"):
+            if tool == "config_read" and args.get("approve_baseline"):
+                require("read" in listed("config_access") and "compare" in listed("config_access"), "config_access")
             permission = "read" if tool == "config_read" else "compare"
             if tool == "config_read" and args.get("platform") == "extreme_exos":
                 require(section.catalog_platform() == "extreme_exos", "platform")
                 require("read" in listed("config_access"), "config_access")
                 require(cls._port_allowed(entry.port, egress, "tcp"), "egress")
                 return
-            if tool == "config_read" and args.get("platform") in ("cisco_ios", "cisco_xe", "cisco_nxos", "arista_eos"):
+            if tool == "config_read" and args.get("platform") in ("cisco_ios", "cisco_xe", "cisco_nxos", "arista_eos",
+                                                                  "juniper_junos", "juniper_junos_els", "ruckus_unleashed"):
                 # Exact inventory platform (cisco_ios, cisco_xe, cisco_nxos or arista_eos, never each other); never the FortiOS/FortiADC branch below.
                 require(section.catalog_platform() == args.get("platform"), "platform")
                 require("read" in listed("config_access"), "config_access")
                 require(cls._port_allowed(entry.port, egress, "tcp"), "egress")
                 return
             if tool == "config_diff" and args.get("platform") in ("extreme_exos", "cisco_ios", "cisco_xe", "cisco_nxos",
-                                                                  "arista_eos"):
-                # Task 157: exact inventory platform, compare only together with read; the diff reads no device,
-                # the egress check keeps the symmetry with the FortiOS/FortiADC branch.
+                                                                  "arista_eos", "juniper_junos", "juniper_junos_els",
+                                                                  "ruckus_unleashed"):
+                # Exact inventory platform and both permissions, including a live ExtremeXOS comparison.
                 require(section.catalog_platform() == args.get("platform"), "platform")
                 require("read" in listed("config_access") and "compare" in listed("config_access"), "config_access")
                 require(cls._port_allowed(entry.port, egress, "tcp"), "egress")
@@ -2780,13 +3897,29 @@ class Proxy:
             require(all(query in section.enabled_queries for query in TRIAGE_SLB_REQUIRED_QUERIES), "enabled_queries")
             require(cls._port_allowed(entry.port, egress, "tcp"), "egress")
             return
-        if tool == "fortios_diagnostics" and args["recipe"] in ("system_event_logs", "waf_attack_logs", "session_list", "persistence_list"):
+        from . import fortiadc_diagnostics
+        if tool == "fortios_diagnostics" and (
+            args["recipe"] in fortiadc_diagnostics.RECIPES or args["recipe"] in fortiadc_diagnostics.STATE_RECIPES
+            or args["recipe"] in ("disk_usage", "ntp_status")
+        ):
             require(section.catalog_platform() == "fortiadc", "platform")
             require("system_status" in section.enabled_queries, "enabled_queries")
             require(args["recipe"] in listed("diagnostic_recipes"), "diagnostic_recipes")
-            require(args["recipe"] not in ("session_list", "persistence_list")
-                    or args["address"] in listed("diagnostic_virtual_servers"),
-                    "diagnostic_virtual_servers")
+            if args["recipe"] in fortiadc_diagnostics.STATE_RECIPES or (
+                args["recipe"] in fortiadc_diagnostics.VS_LOG_RECIPES and args["address"]
+            ):
+                require(args["address"] in listed("diagnostic_virtual_servers"), "diagnostic_virtual_servers")
+            require(args.get("source_address") is None
+                    or _lookup_enrolled(args["source_address"], 4, section.read_inventory),
+                    "lookup_prefixes" if "/" in (args.get("source_address") or "") else "addresses")
+            return
+        if tool == "fortios_diagnostics" and args["recipe"] == fortiadc_diagnostics.PACKET_CAPTURE:
+            require(section.catalog_platform() == "fortiadc", "platform")
+            require("system_status" in section.enabled_queries, "enabled_queries")
+            require(args["recipe"] in listed("diagnostic_recipes"), "diagnostic_recipes")
+            require(args["interface"] in listed("interfaces"), "interfaces")
+            for name in ("address", "source_address"):
+                require(args.get(name) is None or _lookup_enrolled(args[name], 4, section.read_inventory), "addresses")
             return
         if tool == "fortios_diagnostics" and section.catalog_platform() == "fortiadc":
             category = {"nslookup": "diagnostic_names", "http_probe": "diagnostic_http_endpoints"}.get(args["recipe"], "addresses")
@@ -2805,34 +3938,133 @@ class Proxy:
             require(args.get("vdom") is None or args["vdom"] in listed("diagnostic_vdoms"),
                     "diagnostic_vdoms")
             def enrolled_address(name: str) -> None:
-                require(args.get(name) is None or _lookup_enrolled(args[name], 4, section.read_inventory),
+                if (name == "address" and args["recipe"] in ("ping", "traceroute")
+                        and _probe_target_kind(args[name]) == "name"):
+                    require(args[name] in listed("diagnostic_names"), "diagnostic_names")
+                    return
+                require(args.get(name) in (None, "") or _lookup_enrolled(args[name], 4, section.read_inventory),
                         "lookup_prefixes" if "/" in (args.get(name) or "") else "addresses")
 
             require(args["recipe"] in listed("diagnostic_recipes"), "diagnostic_recipes")
             enrolled_address("address")
-            require(args["interface"] in listed("interfaces"), "interfaces")
+            # G10 FP-06: the sniffer on the interface any runs only when the target enrolls `any` in interfaces, like
+            # a named interface (review 471-r2-rv finding 1); its host or ARP-only form is validated above. An
+            # enrolled any scopes only the sniffer.
+            require(args["interface"] in listed("interfaces")
+                    and (args["interface"] != "any" or args["recipe"] == "sniffer"), "interfaces")
             enrolled_address("source_address")
             return
         if tool in {"triage_health", "triage_vpn"}:
-            require(section.catalog_platform() == "fortinet", "platform")
-            require("system_status" in section.enabled_queries, "enabled_queries")
+            profile = section.catalog_platform()
+            identity_queries = {"fortinet": "system_status"}
+            if tool == "triage_health":
+                identity_queries.update(dict.fromkeys(JUNOS_PROFILES, "version"))
+                identity_queries["ruckus_unleashed"] = "system_info"
+                identity_queries.update(dict.fromkeys(("cisco_ios", "cisco_xe", "cisco_nxos", "extreme_exos"), "version"))
+            require(profile in identity_queries, "platform")
+            require(identity_queries[profile] in section.enabled_queries, "enabled_queries")
+            if tool == "triage_vpn":
+                from netops_helper.triage_vpn import DETAIL_STEPS
+
+                for _, query in DETAIL_STEPS:
+                    if query in section.enabled_queries:
+                        cls._authorize_tool("ssh_read", {"platform": profile, "query": query,
+                                                         "parameters": {"tunnel": args["tunnel"]}}, entry, section)
             return
-        if tool in {"wifi_clients", "wifi_aps_live", "wifi_rogue"}:
+        if tool in WIFI_REST_TOOLS:
             require(section.catalog_platform() == "fortinet", "platform")
             if section.fortios_rest_credential:
                 require(cls._port_allowed(section.fortios_rest_port, egress, "tcp"), "egress")
             return
         if tool == "wifi_triage":
-            require(section.catalog_platform() == "fortinet", "platform")
+            profile = section.catalog_platform()
+            require(profile in ("fortinet", "ruckus_unleashed", "cisco_xe"), "platform")
+            if profile == "cisco_xe":
+                if args.get("mac") is None:
+                    raise argument_error("mac", "Catalyst 9800 requires one client MAC")
+                require({"version", "c9800_client_detail"} <= set(section.enabled_queries), "enabled_queries")
+                return
+            if profile == "ruckus_unleashed":
+                from .triage_wifi import ruckus_client_query
+                if args.get("name") is not None:
+                    raise argument_error("name", "Ruckus Unleashed requires mac or ip")
+                require({"system_info", ruckus_client_query(args.get("mac"))} <= set(section.enabled_queries),
+                        "enabled_queries")
+                return
             require("system_status" in section.enabled_queries, "enabled_queries")
             if section.fortios_rest_credential:
                 require(cls._port_allowed(section.fortios_rest_port, egress, "tcp"), "egress")
             return
+        if tool in {"triage_port", "triage_routing", "triage_flow"}:
+            from .triage_routing import CISCO_RUNBOOK_TESTED, cisco_runbook_plan
+
+            profile = section.catalog_platform()
+            if profile in CISCO_RUNBOOK_TESTED:
+                require("version" in section.enabled_queries, "enabled_queries")
+                if tool == "triage_port" and args.get("domain", "s0") != "s0":
+                    raise argument_error("domain", "domain applies only to EXOS triage_port")
+                if tool == "triage_flow" and args.get("interface") is None:
+                    raise argument_error("interface", "interface is required for Cisco triage_flow")
+                for field, category, kind in (
+                    ("interface", "interfaces", "interface" if tool == "triage_flow" else profile + "_interface"),
+                    ("vrf", "vrfs", "vrf"),
+                    ("address", "addresses", "ipv4_address"), ("src", "addresses", "ipv4_address"),
+                    ("dst", "addresses", "ipv4_address"),
+                ):
+                    if (value := args.get(field)) is not None:
+                        if not _valid_typed_inventory_value(value, kind):
+                            raise argument_error(field)
+                        require(value in listed(category), category)
+                for query, parameters in cisco_runbook_plan(tool, args):
+                    if query in section.enabled_queries:
+                        cls._authorize_tool("ssh_read", {"platform": profile, "query": query,
+                                                          "parameters": parameters}, entry, section)
+                return
+            if tool == "triage_routing" and (args.get("vrf") is not None or args.get("sla_id") is not None):
+                raise argument_error("vrf/sla_id", "vrf and sla_id apply to Cisco triage_routing")
+            if tool == "triage_flow" and args.get("interface") is not None:
+                raise argument_error("interface", "interface applies to Cisco triage_flow")
+        if tool == "triage_port":
+            profile = section.catalog_platform()
+            require(profile in ("extreme_exos", "arista_eos", "juniper_junos_els"), "platform")
+            if profile == "juniper_junos_els":
+                if not _valid_typed_inventory_value(args["interface"], "junos_physical_interface"):
+                    raise argument_error("interface")
+                if args.get("domain", "s0") != "s0":
+                    raise argument_error("domain", "domain applies only to EXOS triage_port")
+                require("interface_details" in section.enabled_queries, "enabled_queries")
+                require(args["interface"] in listed("interfaces"), "interfaces")
+                return
+            eos = profile == "arista_eos"
+            kind = "eos_stp_interface" if eos else "extreme_physical_port"
+            if not _valid_typed_inventory_value(args["interface"], kind):
+                raise argument_error("interface")
+            query = "stp_interface_detail" if eos else "stp_port_detail"
+            require(query in section.enabled_queries, "enabled_queries")
+            require(args["interface"] in listed("interfaces"), "interfaces")
+            domain = args.get("domain", "s0")
+            if eos and domain != "s0":
+                raise argument_error("domain", "domain applies only to EXOS triage_port")
+            if not eos:
+                require(domain in listed("services"), "services")
+            return
         if tool == "triage_routing":
-            require(section.catalog_platform() == "fortinet", "platform")
-            require({"system_status", "route_lookup"} <= set(section.enabled_queries), "enabled_queries")
+            profile = section.catalog_platform()
+            require(profile in JUNOS_PROFILES | {"fortinet"}, "platform")
+            identity = "version" if profile in JUNOS_PROFILES else "system_status"
+            require({identity, "route_lookup"} <= set(section.enabled_queries), "enabled_queries")
             require(_valid_typed_inventory_value(args["address"], "ipv4_address")
                     and args["address"] in listed("addresses"), "addresses")
+            return
+        if tool == "triage_nxos_path":
+            from .triage_flow import NXOS_PATH_REQUIRED, nxos_path_plan
+
+            profile = "cisco_nxos"
+            require(section.catalog_platform() == profile, "platform")
+            for query, parameters in nxos_path_plan(args["interface"], args["address"]):
+                if query in NXOS_PATH_REQUIRED or query in section.enabled_queries:
+                    cls._authorize_tool("ssh_read", {"platform": profile, "query": query,
+                                                      "parameters": parameters}, entry, section)
             return
         if tool == "triage_flow":
             require(section.catalog_platform() == "fortinet", "platform")
@@ -2844,23 +4076,66 @@ class Proxy:
             require("system_status" in section.enabled_queries, "enabled_queries")
             require(args["path"] in listed("schema_paths"), "schema_paths")
             return
+        if tool == "vpc_compare":
+            for query, parameters in (("vpc_status", {}), ("vpc_member_consistency", {"vpc_id": args["vpc_id"]})):
+                cls._authorize_tool("ssh_read", {"platform": "cisco_nxos", "query": query,
+                                                 "parameters": parameters}, entry, section)
+            if section.rate_limit["requests"] < 2:
+                raise PolicyScopeError(data={
+                    "hint": "Set helper.rate_limit.requests to at least 2 for the two vpc_compare queries.",
+                })
+            return
         if tool == "locate_endpoint":
-            from netops_helper.locate import is_reader
+            from netops_helper.locate import c9800_reader, is_reader, name_reads, ruckus_reader, selector
             from netops_helper.normalization import IDENTITY_PROFILES
-            if section.catalog_platform() not in IDENTITY_PROFILES | {'fortinet'} or not is_reader(section):
+            if section.catalog_platform() == "ruckus_unleashed":
+                require(ruckus_reader(section), "enabled_queries")
+                return
+            kind, value = selector(args['endpoint'])
+            if (section.catalog_platform() not in IDENTITY_PROFILES | {'fortinet'}
+                    or not (is_reader(section) or c9800_reader(section)
+                            or kind == 'hostname' and any(name_reads(section, value)))):
                 raise PolicyScopeError()
             return
         if tool == "switch_read":
             from netops_helper.tables import request
             profile = section.catalog_platform()
+            table = args['table']
+            if args.get('baseline') is not None:
+                # The same check as the engine, before any read: a refused token names the field, not a role failure.
+                from netops_helper import port_errors
+                try:
+                    port_errors.decode_baseline(args['baseline'], port_errors._key(
+                        args.get('target'), profile, args.get('interface'), args.get('managed_switch')))
+                except ValueError as exc:
+                    raise argument_error('baseline', str(exc)) from None
             try:
-                query, parameters, _ = request(profile, args['table'], args.get('vlan_id'), args.get('mac'), args.get('ip'), section.device_types,
-                                               args.get('interface'), args.get('managed_switch'))
+                enabled = section.enabled_queries if profile in ('arista_eos', 'cisco_ios', 'cisco_xe', 'cisco_nxos') else None
+                query, parameters, _ = request(profile, table, args.get('vlan_id'), args.get('mac'), args.get('ip'), section.device_types,
+                                               args.get('interface'), args.get('managed_switch'), vr=args.get('vr'),
+                                               vrf=args.get('vrf'), address_family=args.get('address_family'),
+                                               enabled_queries=enabled)
             except ValueError as exc:
+                if field := _SWITCH_ROUTING_SELECTOR_ERRORS.get(str(exc)):
+                    raise argument_error(field, str(exc)) from None
+                if re.search(r'\bvr\b', str(exc)):  # EXOS vr; NX-OS vrf errors keep their own handling
+                    raise argument_error('vr', str(exc)) from None
                 if 'managed_switch' in str(exc):
                     raise argument_error('managed_switch', str(exc)) from None
+                if profile == 'fortinet' and args.get('managed_switch') is None and args['table'] != 'route':
+                    # FortiGate-local tables: the fixed message of fortigate_tables.request names the cause.
+                    message = str(exc)
+                    raise argument_error('address_family' if 'address_family' in message else
+                                         'interface' if 'interface' in message else 'table', message) from None
+                if profile in ('cisco_ios', 'cisco_xe') and table in ('mac_entry', 'neighbor_l3'):
+                    field = next((name for name in ('interface', 'address_family', 'vrf') if name in str(exc)), 'table')
+                    raise argument_error(field, str(exc)) from None
+                if args['table'] == 'dhcp_binding':
+                    raise argument_error('table', str(exc)) from None
                 if args['table'] == 'interface_errors':
                     raise argument_error('interface', 'Provide an interface name in the format supported by this platform; on Junos interface is required and must be enrolled') from None
+                if profile == 'cisco_nxos' and args['table'] in ('lag_member', 'optics_port') and args.get('interface') is None:
+                    raise argument_error('interface', str(exc)) from None
                 raise argument_error('ip', 'route requires ip on this profile (an enrolled address for catalogue lookup)') from None
             if query is None:
                 # Unsupported output is harmless, but still requires an enrolled
@@ -2869,19 +4144,69 @@ class Proxy:
                 if profile not in IDENTITY_PROFILES | {'fortinet'}:
                     raise PolicyScopeError()
                 return
+            if profile == 'cisco_nxos' and table == 'interface_errors' and args.get('interface') is not None:
+                from netops_helper.port_errors import nxos_detail_scope
+                scope = nxos_detail_scope(args['interface'], section.enabled_queries, section.read_inventory)
+                if scope is not None:
+                    query, parameters = 'interface_details', scope
+            if profile == 'cisco_xe' and table == 'interface_errors' and args.get('interface') is not None:
+                from netops_helper.port_errors import bounded_queries
+                queries = bounded_queries(profile, args['interface'], section.enabled_queries, section.read_inventory)
+                if queries:
+                    for name, query_parameters in queries.items():
+                        cls._authorize_tool('ssh_read', {'platform': profile, 'query': name,
+                                                         'parameters': query_parameters}, entry, section)
+                    return
+            if profile == 'cisco_ios' and table == 'interface_errors' and args.get('interface') is not None:
+                # Authorize the queries port_errors.read can use for an enrolled IOS port.
+                from netops_helper import port_errors
+                queries = port_errors.bounded_queries(profile, args['interface'], section.enabled_queries,
+                                                      section.read_inventory)
+                if not queries and enrolled_interface(args['interface'], 'cisco_ios_physical_interface',
+                                                      listed('interfaces')):
+                    queries = {query: parameters, 'interfaces_details': {}}
+                if queries:
+                    for name, query_parameters in queries.items():
+                        cls._authorize_tool('ssh_read', {'platform': profile, 'query': name,
+                                                         'parameters': query_parameters}, entry, section)
+                    return
+            if profile == 'arista_eos' and table == 'mac_entry' and query not in section.enabled_queries:
+                from netops_helper.eos_ports import mac_queries
+                raise PolicyScopeError(data={"field": "enabled_queries", "queries": mac_queries(
+                    args.get('vlan_id'), args.get('mac'), args.get('interface'))})
             return cls._authorize_tool('ssh_read', {'platform': profile, 'query': query, 'parameters': parameters}, entry, section)
         if tool == "ssh_read":
             platform = args["platform"]
             query = args["query"]
             require(section.ssh_platform is not None and platform == section.catalog_platform(), "platform")
             require(bool(section.enabled_queries) and query in section.enabled_queries, "enabled_queries")
+            if platform in JUNOS_PROFILES and query in JUNOS_CONFIG_READS:
+                require("read" in listed("config_access"), "config_access")
+            if platform in JUNOS_PROFILES and query == LOG_HISTORY_QUERY:
+                require("uptime" in section.enabled_queries, "enabled_queries")
+            xe_history = platform in {"cisco_ios", "cisco_xe"} and query == XE_LOG_HISTORY
+            if xe_history:
+                require("clock" in section.enabled_queries, "enabled_queries")
+            if platform == "fortiadc" and query == "certificate_inventory":
+                require(section.fortios_rest_certificate_sha256 is not None, "fortios_rest_certificate_sha256")
+                require(cls._port_allowed(section.fortios_rest_port, egress, "tcp"), "egress")
             slots = READ_QUERY_SLOTS[platform].get(query, {})
             parameters = args.get("parameters") or {}
             required = {name for name, slot in slots.items() if not slot.get("optional")}
             if not required <= set(parameters) <= set(slots):
                 refuse("parameters")
-            # A literal slot (no inventory) is validated by its type only. A wtp_id outside the enrolled
-            # list is verified by the Helper engine against the access points the target itself listed.
+            if platform in JUNOS_PROFILES and query == LOG_HISTORY_QUERY:
+                try:
+                    log_window(parameters)
+                except ValueError as exc:
+                    raise argument_error("parameters", str(exc)) from None
+            if xe_history:
+                try:
+                    xe_log_window(parameters)
+                except (TypeError, ValueError) as exc:
+                    raise argument_error("parameters", str(exc)) from None
+            # A literal slot (no inventory) is validated by its type only. A wtp_id (or Ruckus WLAN name) outside the
+            # enrolled list is verified by the Helper engine against the access points (WLANs) the target itself listed.
             refused = [
                 (name, "lookup_prefixes" if slot["kind"] in LOOKUP_SLOT_KINDS and "/" in parameters[name]
                  else slot["inventory"] or "parameters") for name in parameters for slot in (slots[name],)
@@ -2889,14 +4214,21 @@ class Proxy:
                     parameters[name], slot["kind"], lookup_only=slot.get("lookup_only", False))
                 or not (_lookup_enrolled(parameters[name], LOOKUP_SLOT_KINDS[slot["kind"]], section.read_inventory)
                         if slot["kind"] in LOOKUP_SLOT_KINDS else
-                        slot["inventory"] in (None, "literal") or slot["kind"] == "fortios_wtp_id"
-                        or parameters[name] in listed(slot["inventory"]))
+                        slot["inventory"] in (None, "literal") or slot["kind"] in ("fortios_wtp_id", "ruckus_wlan_name")
+                        or enrolled_interface(parameters[name], slot["kind"], listed(slot["inventory"])))
             ]
             if refused:
                 raise PolicyScopeError(data={
                     "field": refused[0][1], "parameter": refused[0][0],
                     "parameters": [name for name, _ in refused],
                 })
+            try:
+                if platform == "cisco_nxos" and query == NXOS_LOG_HISTORY:
+                    nxos_log_window(parameters)
+                if platform == "extreme_exos" and query == "log_history":
+                    check_log_range(parameters)
+            except ValueError as exc:
+                raise argument_error("parameters", str(exc)) from None
             return
         if tool == "sftp_stat":
             require(cls._path_in_roots(args["remote_path"], section.sftp_roots), "sftp_roots")
@@ -2963,11 +4295,60 @@ class Proxy:
             self.continuations[key] = (next_offset, now + CONTINUATION_TTL_SECONDS)
 
     @staticmethod
-    def _rate_cost(tool: str, rest_token: str | None, section: Any = None, args: dict[str, Any] | None = None) -> int:
+    def _rate_cost(tool: str, rest_token: str | None, section: Any = None, args: dict[str, Any] | None = None,
+                   *, c9800_location: bool = False) -> int:
         # A Wi-Fi REST tool costs its two REST reads with an enrolled token; without one it costs one
         # request, although it then answers unsupported without contacting the device.
+        if tool == "firewall_policy_hits":
+            return 1
+        if tool == "triage_vpn" and section is not None:
+            from netops_helper.triage_vpn import STEPS, DETAIL_STEPS
+
+            queries = section.enabled_queries
+            steps = (*STEPS, *DETAIL_STEPS) if "ipsec_summary" in queries else STEPS
+            return sum(query in queries for _, query in steps)
+        if tool == "ssh_read" and args and args.get("platform") == "fortinet" and args.get("query") == "interface_list":
+            # The listing plus three telemetry reads, each preceded by an identity check.
+            return 8
+        if tool == "ssh_read" and args and args.get("platform") == "ruckus_unleashed":
+            # The enrolled identity query can accompany a fresh read; redeemed pages are free.
+            return 1 + (not args.get("offset") and args.get("query") != "system_info"
+                        and section is not None and "system_info" in section.enabled_queries)
+        if tool == "ssh_read" and args and args.get("platform") in JUNOS_PROFILES and args.get("query") == LOG_HISTORY_QUERY:
+            return 2  # The log read can also read the enrolled device clock.
+        if tool == "ssh_read" and args and args.get("platform") in {"cisco_ios", "cisco_xe"} and args.get("query") == XE_LOG_HISTORY:
+            return 2  # Includes the independent read of the enrolled clock.
         if tool in WIFI_REST_TOOLS:
             return (4 if tool == "wifi_rogue" else 3 if tool == "wifi_clients" else WIFI_REST_READS) if rest_token else 1
+        if tool in {"triage_port", "triage_routing", "triage_flow"} and section is not None and args is not None:
+            from .triage_routing import CISCO_RUNBOOK_TESTED, cisco_runbook_plan
+
+            profile = section.catalog_platform()
+            if profile in CISCO_RUNBOOK_TESTED:
+                queries = set(section.enabled_queries)
+                plan = {query for query, _ in cisco_runbook_plan(tool, args)} - {"version"}
+                if tool == "triage_flow" and profile == "cisco_ios":
+                    global_reads = {"route_lookup", "cef_lookup"}
+                    vrf_reads = {"vrf_route_lookup", "vrf_cef_lookup"} if section.read_inventory.get("vrfs") else set()
+                    routing_reads = (max(len(queries & global_reads), len(queries & vrf_reads))
+                                     if "ip_interface_details" in queries else 0)
+                    return 1 + 2 * (routing_reads + len(queries & (plan - global_reads)))
+                if tool == "triage_flow":
+                    # Each scoped read substitutes for one global read.
+                    if "vrf_route_lookup" in queries:
+                        queries.add("route_lookup")
+                    if "vrf_cef_lookup" in queries:
+                        queries.add("cef_lookup")
+                return 1 + 2 * len(queries & plan)
+        if tool == "triage_nxos_path" and section is not None and args is not None:
+            from .triage_flow import nxos_path_plan
+
+            # Fresh catalogue reads each check identity; the version read itself costs one.
+            return 1 + 2 * sum(query != "version" and query in section.enabled_queries
+                               for query, _ in nxos_path_plan(args["interface"], args["address"]))
+        if tool == "vpc_compare":
+            # Reserve both vPC queries and as many of their identity checks as the rate limit allows.
+            return min(4, section.rate_limit["requests"]) if section is not None else 4
         if tool == "locate_endpoint" and section is not None:
             # Reserve an upper bound, capped by the enrolled rate limit. The
             # worker enforces this same per-alias cap on actual transport reads.
@@ -2975,19 +4356,30 @@ class Proxy:
             # and own-interface fallback (including joins). Each managed switch
             # reserves MAC/LLDP, optional port stats and two VLAN reads; only
             # edge candidates consume auxiliary reads, after all MAC tables.
+            from netops_helper.locate import name_reads, selector
             from netops_helper.port_vlan import BINDINGS, CAMPUS
             profile = section.catalog_platform()
+            if profile == 'ruckus_unleashed':
+                return min(2, section.rate_limit["requests"])
+            name_reads_cost = 0
+            if args is not None:
+                kind, value = selector(args['endpoint'])
+                if kind == 'hostname':
+                    name_reads_cost = sum(1 for _ in name_reads(section, value))
+            ap_reads = (sum(query in section.enabled_queries for query in ("cdp_neighbor_interface", "power_inline_detail"))
+                        + sum(query in section.enabled_queries for query in ("interface_errors", "interface_details"))
+                        if c9800_location and profile in ("cisco_ios", "cisco_xe") and "switch" in section.device_types else 0)
             vlan_reads = (1 + (profile in CAMPUS or profile == 'extreme_exos')) if BINDINGS.get(profile) in section.enabled_queries else 0
             # A usable REST token adds the Wi-Fi step's three possible GETs (client,
             # managed_ap, device query) under the same caps.
-            return min(LOCATE_MAX_READS, section.rate_limit["requests"], 7 + (profile == "extreme_exos") + vlan_reads
+            return min(LOCATE_MAX_READS, section.rate_limit["requests"], 7 + (profile == "extreme_exos") + vlan_reads + ap_reads
                        + (2 + (profile == 'fortinet' and 'managed_switch_port_stats' in section.enabled_queries)
                             + 2 * (profile == 'fortinet' and all(q in section.enabled_queries for q in (
                                 'managed_switch_port_vlans', 'interface_vlan_ids'))))
                        * len(section.read_inventory.get("managed_switches", ()))
-                       + (3 if rest_token else 0))
+                       + name_reads_cost + (3 if rest_token else 0))
         if tool == "switch_read" and section is not None and args is not None:
-            from netops_helper.port_vlan import CAMPUS
+            from netops_helper.port_vlan import CAMPUS, IOS_VOICE_PROFILES, SWITCHPORT
             profile, table = section.catalog_platform(), args.get('table')
             if (profile in ('cisco_ios', 'cisco_xe') and table == 'route'
                     and isinstance(args.get('ip'), str) and ':' not in args['ip']):
@@ -2996,9 +4388,13 @@ class Proxy:
                 return 2
             if profile == 'fortinet' and table == 'interface_errors':
                 return 1
+            if profile == 'extreme_exos' and table == 'interface':
+                return 1 + ('vlan_detail' in section.enabled_queries) + ('ports_description' in section.enabled_queries)
             if table == 'port_vlan':
                 secondary = 'interfaces' if profile in CAMPUS else 'ports' if profile == 'extreme_exos' else None
-                return 1 + (secondary is not None and secondary in section.enabled_queries)
+                voice = (profile in IOS_VOICE_PROFILES and args.get('interface') is not None
+                         and 'interfaces' in section.enabled_queries and SWITCHPORT in section.enabled_queries)
+                return 1 + (secondary is not None and secondary in section.enabled_queries) + voice
             if table == 'vlan' and profile in ('cisco_ios', 'cisco_xe'):
                 return 1 + ('interfaces_trunk' in section.enabled_queries)
             if table == "interface_errors":
@@ -3006,6 +4402,8 @@ class Proxy:
                 return read_cost(profile, args.get("interface"), section.enabled_queries)
             # A Junos ELS MAC table is joined with a second read of the VLAN table, an ip_interface
             # table with the route table (IOS, IOS XE, NX-OS) or the VLAN table (EXOS).
+            if profile == "cisco_nxos" and table == "ip_interface" and args.get("vrf") is not None:
+                return 1 + ("route_table_vrf" in section.enabled_queries)
             from netops_helper.ip_interfaces import join_queries
             return 1 + (section.catalog_platform() == "juniper_junos_els" and args.get("table") == "mac_entry"
                         and "vlans" in section.enabled_queries) + (
@@ -3014,10 +4412,31 @@ class Proxy:
         if tool == "config_read" and args is not None and args.get("platform") == "extreme_exos":
             # Fresh capture: show version, show switch and show configuration; a cached page reads nothing.
             return 0 if args.get("snapshot_id") else 3
+        if tool == "config_diff" and args is not None and args.get("platform") == "extreme_exos":
+            from .config_exos_adapter import live_comparison
+            if live_comparison(args.get("base_snapshot"), args.get("other_snapshot")):
+                return 4 + args["base_snapshot"].startswith("saved:")
+        if tool == "config_diff" and args is not None and args.get("platform") in ("juniper_junos",
+                                                                                   "juniper_junos_els"):
+            from .config_junos_adapter import live_comparison
+            if live_comparison(args.get("base_snapshot"), args.get("other_snapshot")):
+                # show version, the visibility probe and show configuration | compare rollback <n> (G136).
+                return 3
+        if tool == "config_read" and args is not None and args.get("platform") == "ruckus_unleashed":
+            if args.get("snapshot_id"):
+                return 0
+            return 1 + (section is not None and "system_info" in section.enabled_queries)
         if tool == "config_read" and args is not None and args.get("platform") in ("cisco_ios", "cisco_xe", "cisco_nxos",
-                                                                                   "arista_eos"):
+                                                                                   "arista_eos", "juniper_junos",
+                                                                                   "juniper_junos_els"):
             # Fresh capture: show version and show running-config; a cached page reads nothing.
             return 0 if args.get("snapshot_id") else 2
+        if tool == "config_diff" and args is not None and (
+                args.get("base_snapshot"), args.get("other_snapshot")) == ("startup", "running"):
+            if args.get("platform") in ("arista_eos", "cisco_ios", "cisco_xe"):
+                return 5  # Two identity/capture pairs and the native diff status.
+            if args.get("platform") == "cisco_nxos":
+                return 7  # Identical plan plus a device line count for each capture.
         return TRIAGE_READS.get(tool, 1) + (8 if tool == "wifi_triage" and rest_token else 0)
 
     def _consume_rate_limit(self, alias: str, limit: dict[str, int], cost: int = 1, *, triage: bool = False) -> None:
@@ -3313,8 +4732,8 @@ class Proxy:
         if has_id:
             with self.pending_lock:
                 self.pending_tools[request_id] = tool
-                if tool in {"config_read", "config_diff", "triage_slb", "triage_health", "triage_routing", "triage_vpn",
-                            "wifi_triage", "triage_flow"}:
+                if tool in {"triage_port", "config_read", "config_diff", "triage_slb", "triage_health", "triage_routing", "triage_vpn",
+                            "wifi_triage", "triage_flow", "triage_nxos_path"}:
                     self.pending_deadlines[request_id] = time.monotonic() + 670.0
         if tool == "target_scope":
             if set(args) != {"target"} or not self._valid_alias(args.get("target")):
@@ -3342,12 +4761,16 @@ class Proxy:
                 payload = self._helper_status_payload()
                 if has_id:
                     self.control_payloads[request_id] = payload
-            elif tool == "locate_endpoint":
+            elif tool in {"locate_endpoint", "vpc_compare"}:
                 contexts, materials, scopes = {}, [], []
-                from netops_helper.tables import literal
-                kind, value = literal(args['endpoint'])
-                # The worker's Wi-Fi step searches a station table by MAC or IPv4 only.
-                wifi_endpoint = kind == 'mac' or (kind == 'ip' and ':' not in value)
+                wifi_endpoint = False
+                kind = None
+                targets = []
+                if tool == "locate_endpoint":
+                    from netops_helper.locate import selector
+                    kind, value = selector(args['endpoint'])
+                    # The worker's Wi-Fi step searches a station table by MAC or IPv4 only.
+                    wifi_endpoint = kind in ('mac', 'hostname') or (kind == 'ip' and ':' not in value)
                 for alias in args['targets']:
                     entry, section, vault = self._target(alias)
                     try:
@@ -3367,11 +4790,19 @@ class Proxy:
                             raise AuthenticationMaterialError(data={
                                 "hint": "Replace the referenced api-token credential with a valid FortiOS REST token; see docs/fortios-wifi-rest.md",
                             }) from None
-                    context = self._auth_context(entry, section, credential, None, tool, rest_token)
+                    targets.append((alias, entry, section, credential, rest_token))
+                c9800_location = kind in ('mac', 'hostname') and any(
+                    section.catalog_platform() == "cisco_xe" and "c9800_clients" in section.enabled_queries
+                    for _, _, section, _, _ in targets
+                )
+                for alias, entry, section, credential, rest_token in targets:
+                    context = self._auth_context(entry, section, credential, None, tool, rest_token,
+                                                 tool_args=args, c9800_location=c9800_location)
                     contexts[alias] = context
                     materials.extend((*self._session_secrets(credential, None), context,
                                       *((rest_token,) if rest_token else ())))
-                    scopes.append((alias, section.rate_limit, self._rate_cost(tool, rest_token, section, args)))
+                    cost = self._rate_cost(tool, rest_token, section, args, c9800_location=c9800_location)
+                    scopes.append((alias, section.rate_limit, cost))
                 # Every target is charged the reads planned on it, or no target is charged.
                 self._consume_rate_limits(scopes)
                 args[AUTH_FIELD] = json.dumps(contexts, separators=(',', ':'))
@@ -3391,7 +4822,7 @@ class Proxy:
                 credential = self._credential(vault, entry.credential)
                 usm = self._snmp_usm(section, vault, tool == "snmp_get")
                 rest_token = None
-                if tool in {"wifi_clients", "wifi_aps_live", "wifi_rogue", "wifi_triage"} and section.fortios_rest_credential:
+                if tool in WIFI_REST_TOOLS | {"wifi_triage"} and section.fortios_rest_credential:
                     rest_token = self._credential(vault, section.fortios_rest_credential).use()
                     from .wifi_rest import checked_token
                     try:
@@ -3406,7 +4837,7 @@ class Proxy:
                 if self._rate_costs_slot(tool, args) or not self._redeem_continuation(tool, args):
                     self._consume_rate_limit(
                         alias, section.rate_limit, self._rate_cost(tool, rest_token, section, args),
-                        triage=tool in TRIAGE_READS,
+                        triage=tool in TRIAGE_READS or tool == "triage_nxos_path",
                     )
                 if has_id and tool in CONTINUATION_TOOLS:
                     with self.pending_lock:
@@ -3425,15 +4856,15 @@ class Proxy:
             if has_id:
                 self._clear_pending(request_id)
             return None
-        if tool in PAGED_TOOLS or (tool in ("config_read", "config_diff") and args.get("platform") in (
-                "extreme_exos", "cisco_ios", "cisco_xe", "cisco_nxos", "arista_eos")):
+        if tool in PAGED_TOOLS or tool in ("config_read", "config_diff"):
             # Existing private proxy -> server handoff; never accepted from a client.
             # Separate from auth_context to avoid recursively growing session envelopes.
             # EXOS config_read stores and hashes its text with the same session secrets that the
             # final reply redacts (84-N1); its page metadata stays the configuration kind.
             # Cisco IOS config_read takes the same private handoff (task 128), Cisco IOS XE too (task 140),
             # Arista EOS too (task 143), Cisco NX-OS too (task 153); config_diff of these platforms too (task 157),
-            # whose engine applies the config_read snapshot guard to both snapshots.
+            # whose engine applies the config_read snapshot guard to both snapshots. FortiOS and FortiADC
+            # also use this private handoff when persisting redacted configuration history.
             args[REDACTION_FIELD] = list(dict.fromkeys((*secrets, *self.session_secrets, *self.transport_secrets)))
         if has_id:
             self.response_secrets[request_id] = secrets
@@ -3724,6 +5155,9 @@ class Proxy:
                     if isinstance(properties, dict):
                         for private in PRIVATE_ARGUMENTS:
                             properties.pop(private, None)
+                        if name == "config_diff" and properties.get("secret_offset") == "<REDACTED>":
+                            # Install the public counter schema without forwarding any remote field value.
+                            properties["secret_offset"] = {"default": 0, "type": "integer"}
                     required = schema.get("required") or []
                     if isinstance(required, list):
                         schema["required"] = [name for name in required if name not in PRIVATE_ARGUMENTS]

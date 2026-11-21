@@ -1,0 +1,8 @@
+interface Ethernet12
+   description Kancelář 2.patro – tiskárna HP, zásuvka D12/3 "A" | !x #y; Žluťoučký kůň úpěl ďábelské ódy, telefon ☎ linka 245
+   switchport trunk native vlan 3990
+   switchport phone vlan 3991
+   switchport phone trunk untagged
+   switchport mode trunk phone
+   dot1x pae authenticator
+   dot1x mac based authentication

@@ -17,7 +17,9 @@ from netops_core.platforms import PlatformError, normalize as normalize_canonica
 from netops_core.vault import PRIVATE_KEY_HEADER
 from netops_core.snmp import validate_snmp_usm
 
-from .inventory import INVENTORY_CATEGORIES, InventoryError, unique_object
+from .inventory import (INVENTORY_CATEGORIES, InventoryError, ios_management_read_only,
+                        nxos_config_access_only, unique_object)
+from .query_catalog.cisco import IOS_XE_ADMIN_READS
 from .query_catalog.model import DEVICE_TYPES
 from .read_policy import (
     READ_QUERIES,
@@ -56,7 +58,7 @@ class EgressScopeError(PolicyScopeError):
 LEGACY_SSH_PROFILES = ("rsa-sha1", "rsa-sha1-dh14")
 CREDENTIAL_KINDS = ("password", "ssh-key")
 _CATALOG_PLATFORMS = {"fortios": "fortinet", "exos": "extreme_exos"}
-ADMIN_BOUNDED_PLATFORMS = frozenset({"fortinet", "fortiadc", "ruckus_unleashed"})
+ADMIN_BOUNDED_PLATFORMS = frozenset({"fortinet", "fortiadc", "ruckus_unleashed", "cisco_ios", "cisco_xe", "cisco_nxos"})
 _ENVELOPE_KEYS = {
     "alias",
     "host",
@@ -65,6 +67,7 @@ _ENVELOPE_KEYS = {
     "credential_kind",
     "secret",
     "host_key_fingerprint",
+    "host_key",
     "sftp_roots",
     "read_inventory",
     "configuration_limits",
@@ -398,6 +401,7 @@ class TargetAuth:
     fortios_rest_rate_limit: dict = field(default_factory=lambda: {"requests": 30, "window_seconds": 60})
     output_secrets: tuple[str, ...] = field(default=(), repr=False)
     device_types: tuple[str, ...] = ()
+    host_key: str | None = None
 
     @classmethod
     def decode(cls, expected_alias: str, context: str) -> "TargetAuth":
@@ -515,6 +519,7 @@ class TargetAuth:
                 login=login,
                 secret=secret,
                 host_key_fingerprint=host_key_fingerprint,
+                host_key=data.get("host_key"),
                 credential_kind=credential_kind,
                 sftp_roots=normalized_roots,
                 read_inventory=read_inventory,
@@ -556,6 +561,19 @@ class TargetAuth:
                 "target is not explicitly enrolled as a read-only account or as an"
                 " admin-bounded account on a supported platform"
             )
+        if result.ssh_platform == "cisco_xe" and result.account_role == "admin-bounded" and (
+            set(result.enabled_queries) - IOS_XE_ADMIN_READS or
+            (not result.enabled_queries and "read" not in result.read_inventory.get("config_access", ()))
+        ):
+            raise AuthenticationContextError("an IOS XE admin-bounded account is limited to supported diagnostic queries")
+        if result.ssh_platform == "cisco_ios" and result.account_role == "admin-bounded" and not (
+            ios_management_read_only(result.enabled_queries, result.sftp_roots, result.read_inventory, result.snmp_usm)
+        ):
+            raise AuthenticationContextError("an IOS admin-bounded account is limited to supported diagnostic queries")
+        if result.ssh_platform == "cisco_nxos" and result.account_role == "admin-bounded" and not (
+            nxos_config_access_only(result.enabled_queries, result.sftp_roots, result.read_inventory, result.snmp_usm)
+        ):
+            raise AuthenticationContextError("an NX-OS admin-bounded account is limited to config_access")
         literal_host = _canonical_ipv4(result.host)
         if literal_host is not None:
             if not result.egress.allows_address(literal_host):

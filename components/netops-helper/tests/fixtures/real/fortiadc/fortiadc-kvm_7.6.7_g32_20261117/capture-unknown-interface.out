@@ -1,0 +1,6 @@
+diagnose sniffer packet port9 'host 198.51.100.100' 4 3 a
+interfaces=[port9]
+filters=[host 198.51.100.100]
+pcap_open_live: port9: No such device exists (SIOCGIFHWADDR: No such device) for port9
+
+FortiADC-KVM #

@@ -1,0 +1,4 @@
+    DHCP Address Range   : 192.0.2.30->192.0.2.49
+    Netlogin Lease Timer : Not configured (Default = 10 seconds)
+    DHCP Lease Timer     : Not configured (Default = 7200 seconds)
+    Ports DHCP Enabled   : No ports enabled

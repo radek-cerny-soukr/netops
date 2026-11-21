@@ -1,0 +1,10 @@
+Ethernet2
+  Model:        DCS-7150S-64-CL
+  Type:         10GBASE-CR
+  Speed/Duplex: 10G/full,40G/full,auto
+  Flowcontrol:  rx-(off,on,desired),tx-(off,on,desired)
+Ethernet18
+  Model:        DCS-7150S-64-CL
+  Type:         10GBASE-SR
+  Speed/Duplex: 10G/full
+  Flowcontrol:  rx-(off,on),tx-(off,on)

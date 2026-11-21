@@ -481,8 +481,8 @@ def test_a_client_that_stops_reading_ends_the_proxy_without_a_traceback(tmp_path
     assert process.returncode in (0, 120), text
 
 
-def test_managed_switch_table_without_serial_is_refused_before_forwarding(tmp_path, monkeypatch):
-    """A FortiSwitch request needs its selector even after generic table validation."""
+def test_local_vlan_table_with_only_fortilink_queries_is_refused_before_forwarding(tmp_path, monkeypatch):
+    """Managed-switch enrollment does not authorize the local VLAN read."""
     _enroll(tmp_path, monkeypatch, snmp=False)
     inventory = json.loads(MODULE.INVENTORY.read_text())
     helper = inventory['devices'][0]['helper']
@@ -494,7 +494,108 @@ def test_managed_switch_table_without_serial_is_refused_before_forwarding(tmp_pa
     assert proxy.request(_call(84, 'switch_read', {'target': 'device-a', 'table': 'port_vlan'})) is None
     assert len(emitted) == 1
     refusal = emitted[0]
-    assert refusal['id'] == 84 and refusal['error']['code'] == -32602
-    assert refusal['error']['data']['field'] == 'managed_switch'
+    assert refusal['id'] == 84 and refusal['error']['code'] == -32009
+    assert refusal['error']['data']['field'] == 'enabled_queries'
     assert 84 not in proxy.pending and 84 not in proxy.response_secrets
     assert not any(secret in json.dumps(refusal) for secret in SECRETS)
+
+
+def test_invalid_ipv6_diagnostic_is_refused_before_forwarding(monkeypatch):
+    proxy, emitted = _proxy(monkeypatch)
+    assert proxy.request(_call(85, "fortios_diagnostics", {
+        "target": "device-a", "recipe": "ping", "address": "2001:db8::xyz", "interface": "port2",
+    })) is None
+    answer, = emitted
+    assert answer["id"] == 85 and answer["error"]["code"] == -32602
+    assert "2001:db8::xyz" not in json.dumps(answer)
+    assert not proxy.pending and not proxy.response_secrets
+
+
+class _UnresponsiveProcess:
+    """Popen boundary for a process whose reap and pipe close fail independently."""
+
+    def __init__(self, *, pipes=True):
+        from io import BytesIO
+
+        self.stdin = self if pipes else None
+        self.stdout = BytesIO()
+        self.stderr = BytesIO()
+        self.events = []
+
+    def wait(self, timeout):
+        self.events.append(("wait", timeout))
+        raise MODULE.subprocess.TimeoutExpired("fixture-ssh", timeout)
+
+    def poll(self):
+        return None
+
+    def terminate(self):
+        self.events.append("terminate")
+
+    def kill(self):
+        self.events.append("kill")
+
+    def close(self):
+        self.events.append("close")
+        raise OSError("fixture pipe failure")
+
+
+def test_server_start_without_pipes_finishes_even_if_child_cannot_be_reaped(monkeypatch, capsys):
+    child = _UnresponsiveProcess(pipes=False)
+    monkeypatch.setattr(MODULE.subprocess, "Popen", lambda *args, **kwargs: child)
+    connection = _connection(Proxy(), "")
+    assert connection.start() is False
+    assert child.events == ["terminate", ("wait", 5), "kill", ("wait", 5)]
+    assert "category=ssh_transport" in capsys.readouterr().err
+
+
+def test_server_session_kill_finishes_even_if_reap_and_pipe_close_fail(monkeypatch):
+    child = _UnresponsiveProcess()
+    monkeypatch.setattr(MODULE.subprocess, "Popen", lambda *args, **kwargs: child)
+    proxy = Proxy()
+    connection = _connection(proxy, "")
+    epoch = proxy.open_session()
+    proxy.close_session("response_timeout", epoch)
+    assert proxy.finish_session(connection.kill) == "response_timeout"
+    assert connection.killed and not proxy.accepting(epoch)
+    assert child.events == ["kill", ("wait", 5), "close"]
+
+
+def test_server_orderly_stop_reports_timeout_when_child_cannot_be_reaped(monkeypatch, capsys):
+    child = _UnresponsiveProcess()
+    monkeypatch.setattr(MODULE.subprocess, "Popen", lambda *args, **kwargs: child)
+    connection = _connection(Proxy(), "")
+    assert connection.stop() == 1
+    assert child.events == ["close", ("wait", 10), "terminate", ("wait", 5), "kill", ("wait", 5)]
+    assert "category=ssh_timeout" in capsys.readouterr().err
+
+
+def test_server_response_sanitizer_failure_withholds_answer(monkeypatch, capsys):
+    proxy = Proxy()
+    sanitize = MODULE.sanitize_object
+
+    def exhausted(answer, secrets):
+        if answer.get("id") == 86:
+            raise MemoryError("selected-secret")
+        return sanitize(answer, secrets)
+
+    monkeypatch.setattr(MODULE, "sanitize_object", exhausted)
+    connection = _connection(proxy, """import json, sys
+for line in sys.stdin:
+    request = json.loads(line)
+    print(json.dumps({"jsonrpc": "2.0", "id": request["id"],
+                      "result": {"tools": [], "canary": "selected-secret"}}), flush=True)
+""")
+    controller = MODULE._SessionController(proxy, lambda: connection if connection.start() else None)
+    assert controller.start()
+    try:
+        assert controller.forward(MODULE._encoded(
+            {"jsonrpc": "2.0", "id": 86, "method": "tools/list"}))
+        assert _until(lambda: 86 not in proxy.pending)
+        assert proxy.accepting() and 86 not in proxy.response_secrets
+    finally:
+        assert controller.stop() == 0
+    output = capsys.readouterr()
+    assert "selected-secret" not in output.out + output.err
+    answer = json.loads(output.out)
+    assert answer["id"] is None and answer["error"]["data"]["category"] == MODULE.InternalProxyError.category

@@ -1,0 +1,2 @@
+VTP version running             : 1
+VTP Operating Mode                : Server

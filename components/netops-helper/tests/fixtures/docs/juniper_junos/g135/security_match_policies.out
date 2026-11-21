@@ -1,0 +1,13 @@
+Policy: p1, action-type: permit, State: enabled, Index: 4
+  Sequence number: 1
+  From zone: z1, To zone: z2
+  Source addresses:
+    a2: 203.0.113.0/24
+    a3: 203.0.113.252/32
+  Destination addresses:
+    d2: 203.0.113.251/24
+    d3: 198.51.100.1/32
+  Application: junos-ftp
+    IP protocol: tcp, ALG: ftp, Inactivity timeout: 1800
+    		Source port range: [0-0]
+    		Destination port range: [21-21]

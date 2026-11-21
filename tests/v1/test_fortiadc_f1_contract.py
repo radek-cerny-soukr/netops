@@ -242,13 +242,15 @@ class FortiAdcF1Contract(unittest.TestCase):
         queries = read_policy.READ_QUERIES["fortiadc"]
         self.assertEqual(set(queries), {
             "system_status", "system_performance", "vm_license", "interface_state",
+            "interface_list", "interface_state_all", "nic_detail_all", "interface_summary",
             "interface_counters", "routing_table", "arp_table", "firewall_timeouts", "slb_load",
-            "cpu_info", "nic_detail", "slb_vs_stat", "waf_signature_status",
+            "cpu_info", "nic_detail", "slb_vs_stat", "slb_vs_overview", "slb_rs_stat", "waf_signature_status",
             "log_list_attack", "waf_block_ip", "slb_sessions", "log_list_traffic",
             "persistence_sessions", "autoupdate_contract", "tls_handshake_stats", "tls_session_reuse",
             "dos_access_limit", "dos_conn_limit", "dos_req_limit",
             "system_date", "log_files", "lldp_neighbors", "bgp_summary", "bgp_neighbors",
-            "ospf_neighbors", "ha_status", "traffic_group_status", "llb_policy",
+            "ospf_neighbors", "ha_status", "ha_standby_status", "traffic_group_status", "llb_policy",
+            "certificate_inventory",
         }, "F1-ADC-REVIEWED-QUERY-SET")
         self.assertEqual(dict(queries["system_status"].slots), {}, "F1-ADC-NO-COMMAND-PARAMETERS")
         self.assertEqual(

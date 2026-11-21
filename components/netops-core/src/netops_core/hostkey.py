@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import ipaddress
 import os
+import re
 import subprocess
 import tempfile
 import time
@@ -12,6 +14,9 @@ from . import ssh as ssh_module
 
 PREFIX = "SHA256:"
 DIGEST_LENGTH = 43
+PUBLIC_KEY_MAX_BYTES = 16384
+KEY_ALGORITHM = re.compile(r"ssh-ed25519|ssh-rsa|ecdsa-sha2-nistp(?:256|384|521)")
+HOST_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,252}")
 KEYSCAN_BINARY = "ssh-keyscan"
 KEY_TYPES = ("ed25519", "ecdsa", "rsa")
 PROBE_LOGIN = "netops-hostkey"
@@ -72,6 +77,74 @@ def fingerprint_of(blob) -> str:
         raise HostKeyError("host key blob is not valid base64") from None
     digest = base64.b64encode(hashlib.sha256(material).digest()).decode("ascii").rstrip("=")
     return "%s%s" % (PREFIX, digest)
+
+
+def _public_key_fields(material):
+    # Each supported public key encodes its algorithm and parameters as SSH strings/mpints.
+    fields = []
+    while material and len(fields) < 3:
+        if len(material) < 4:
+            break
+        size = int.from_bytes(material[:4], "big")
+        if not 0 < size <= len(material) - 4:
+            break
+        fields.append(material[4:4 + size])
+        material = material[4 + size:]
+    return fields if not material else []
+
+
+def checked_public_key(value, pin) -> str:
+    """Validate the enrolled public key against the independently stored SHA-256 pin."""
+    if value is None or value == "":
+        raise HostKeyError("missing Fortinet public host key; add host_key at enrollment")
+    malformed = "host_key must be an OpenSSH public key in '<type> <base64>' form"
+    if not isinstance(value, str) or len(value) > PUBLIC_KEY_MAX_BYTES:
+        raise HostKeyError(malformed)
+    parts = value.split(" ")
+    if len(parts) != 2 or KEY_ALGORITHM.fullmatch(parts[0]) is None:
+        raise HostKeyError(malformed)
+    algorithm, blob = parts
+    try:
+        fields = _public_key_fields(base64.b64decode(blob, validate=True))
+    except (ValueError, TypeError):
+        raise HostKeyError(malformed) from None
+    if not fields or fields[0] != algorithm.encode("ascii"):
+        raise HostKeyError(malformed)
+    if algorithm == "ssh-ed25519":
+        valid = len(fields) == 2 and len(fields[1]) == 32
+    elif algorithm == "ssh-rsa":
+        valid = len(fields) == 3
+    else:
+        curve = algorithm.removeprefix("ecdsa-sha2-")
+        point_size = 1 + 2 * ((int(curve[5:]) + 7) // 8)
+        valid = (len(fields) == 3 and fields[1] == curve.encode("ascii")
+                 and len(fields[2]) == point_size and fields[2].startswith(b"\x04"))
+    if not valid:
+        raise HostKeyError(malformed)
+    try:
+        fingerprint = checked_pin(pin)
+    except HostKeyError:
+        raise HostKeyError("host_key_fingerprint must be an OpenSSH SHA-256 fingerprint") from None
+    if fingerprint_of(blob) != fingerprint:
+        raise HostKeyError("host_key does not match host_key_fingerprint")
+    return value
+
+
+def pinned_line(host, port, pin, public_key) -> str:
+    """Build a known_hosts record for the exact endpoint without contacting it."""
+    if not isinstance(host, str) or HOST_NAME.fullmatch(host) is None:
+        try:
+            if not isinstance(host, str) or "%" in host:
+                raise ValueError
+            ipaddress.IPv6Address(host)
+        except ValueError:
+            raise HostKeyError("SSH address must be a bare host name or IP address") from None
+    try:
+        number = _checked_port(port)
+    except HostKeyError:
+        raise HostKeyError("SSH port must be a whole number between 1 and 65535") from None
+    name = host if number == 22 else "[%s]:%d" % (host, number)
+    return "%s %s" % (name, checked_public_key(public_key, pin))
 
 
 def _checked_host(value) -> str:

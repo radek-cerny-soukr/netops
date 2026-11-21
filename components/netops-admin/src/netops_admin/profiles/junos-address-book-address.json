@@ -1,0 +1,32 @@
+{
+  "platform": "junos",
+  "table": "address-book-address",
+  "versions": [
+    "26.2R1.7"
+  ],
+  "exact_versions": true,
+  "ops": [
+    "create",
+    "update",
+    "delete"
+  ],
+  "table_scoped_key": true,
+  "key_pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,62}$",
+  "protected_keys": [],
+  "attributes": {
+    "prefix": {
+      "type": "text",
+      "required_on_create": true,
+      "update": true,
+      "unset": false,
+      "referenced_update": false,
+      "max_length": 50,
+      "pattern": "^[0-9A-Fa-f:./]+$"
+    }
+  },
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "Uses the Junos commit confirmed safeguard and scoped inverse (G132). SRX only: the preview is refused on a device without the security hierarchy. Verified against Juniper documentation outputs only (no SRX in the lab). Global address book entry (IPv4/IPv6 host or prefix). Changing an address that policies or sets use needs endpoint_impact."
+}

@@ -1,0 +1,72 @@
+FortiADC-KVM # == [ port1 ]
+	type: physical
+	vdom: root
+	redundant-master: 0
+	ip: 203.0.113.40/24
+	ip6: ::/0
+	allowaccess: https ping ssh snmp 
+	status: up 
+	traffic-group: 
+	floating: disable
+	promisc: disable
+	recv-seg-offload-override: disable
+	send-seg-offload-override: disable
+
+== [ port2 ]
+	type: physical
+	vdom: root
+	redundant-master: 0
+	ip: 198.51.100.1/24
+	ip6: ::/0
+	allowaccess: ping 
+	status: up 
+	traffic-group: 
+	floating: disable
+	promisc: disable
+	recv-seg-offload-override: disable
+	send-seg-offload-override: disable
+
+== [ port3 ]
+	type: physical
+	vdom: root
+	redundant-master: 0
+	ip: 192.0.2.1/24
+	ip6: ::/0
+	allowaccess: ping 
+	status: up 
+	traffic-group: 
+	floating: disable
+	promisc: disable
+	recv-seg-offload-override: disable
+	send-seg-offload-override: disable
+
+== [ port4 ]
+	type: physical
+	vdom: root
+	redundant-master: 0
+	ip: 0.0.0.0/0
+	ip6: ::/0
+	allowaccess: 
+	status: up 
+	traffic-group: 
+	floating: disable
+	promisc: disable
+	recv-seg-offload-override: disable
+	send-seg-offload-override: disable
+
+== [ port5 ]
+	type: physical
+	vdom: root
+	redundant-master: 0
+	ip: 0.0.0.0/0
+	ip6: ::/0
+	allowaccess: 
+	status: up 
+	traffic-group: 
+	floating: disable
+	promisc: disable
+	recv-seg-offload-override: disable
+	send-seg-offload-override: disable
+
+
+FortiADC-KVM # 

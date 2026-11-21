@@ -69,7 +69,20 @@ _QUOTED_STOP = re.compile(r'[\\"]')
 _HOST = r'[A-Za-z0-9][A-Za-z0-9._-]{0,62}'
 _ECHO = re.compile(_HOST + r'#[ ]?show[ ]+run(?:ning-config)?[ ]*')
 _PREAMBLE = re.compile(r'Building configuration\.\.\.[ ]*|Current configuration : [0-9]{1,12} bytes[ ]*')
+_STARTUP_ECHO = re.compile(_HOST + r'#[ ]?show[ ]+start(?:up-config)?[ ]*')
+_STARTUP_FRAME = re.compile(r'Using [0-9]{1,12} out of [0-9]{1,12} bytes'
+                            r'(?:, uncompressed size = [0-9]{1,12} bytes)?[ ]*'
+                            r'|Uncompressed configuration from [0-9]{1,12} bytes to [0-9]{1,12} bytes[ ]*')
+_COMPARISON_COMMENT = re.compile(r'! (?:Last configuration change|NVRAM config last updated) at .+')
 _PROMPT = re.compile(_HOST + r'#[ ]*')
+_RUNNING_SIZE = re.compile(r'Current configuration : ([1-9][0-9]{0,11}) bytes[ ]*')
+_STARTUP_SIZE = re.compile(r'Using ([1-9][0-9]{0,11}) out of [0-9]{1,12} bytes'
+                           r'(?:, uncompressed size = ([1-9][0-9]{0,11}) bytes)?[ ]*')
+_STARTUP_COMPRESSED = re.compile(r'Uncompressed configuration from ([1-9][0-9]{0,11}) bytes'
+                                 r' to ([1-9][0-9]{0,11}) bytes[ ]*')
+_CAPTURE_ECHO = re.compile(_HOST + r'#[ ]?show (?:running|startup)-config[ ]*')
+_NO_STARTUP = re.compile(r'(?:startup-config is not present|Non-volatile configuration memory is not present)[.]?',
+                         re.I)
 
 # Global statements.
 _VERSION = re.compile(r'version [0-9]{1,3}(?:\.[0-9]{1,3}){1,3}[ ]*')
@@ -181,7 +194,7 @@ def _banner_delimiter(line):
 class StreamRedactor:
     """Incremental IOS consumer: ``feed(bytes)`` ... ``finish()`` -> (Content, HiddenRecords, count)."""
 
-    def __init__(self, forbidden, section, *, limits=None):
+    def __init__(self, forbidden, section, *, limits=None, comparison=False, comparison_view=None):
         if type(section) is not str or section != 'all':
             raise ValueError('invalid configuration section')
         self.limits = ConfigurationLimits() if limits is None else limits
@@ -201,6 +214,12 @@ class StreamRedactor:
         self._line_memory = 0
         self._work = 0
         self._phase = 'preamble'      # preamble -> body -> ended
+        self._comparison = comparison
+        self._comparison_fields = set()
+        self._comparison_view = comparison_view
+        self._declared_size = None
+        self._startup_sizes = None
+        self._body_size = 0
         self._context = 'global'      # global | interface | vlan | unknown | crypto
         self._block = None            # None | 'banner' | 'macro' | 'continuation'
         self._delimiter = None
@@ -350,6 +369,7 @@ class StreamRedactor:
 
     def _line(self, end):
         line = ''.join(self._physical)
+        size = self._physical_bytes
         self._physical.clear()
         self._physical_bytes = self._physical_memory = 0
         self._line_memory = _LINE_COPIES * sys.getsizeof(line)
@@ -358,6 +378,13 @@ class StreamRedactor:
         self._error_line = self._line_number
         if _PAGER.search(line):
             raise ValueError('pager prompt in configuration stream')
+        if self._comparison_view is not None:
+            if self._comparison_frame(line):
+                self._line_memory = 0
+                return
+            end = '\n' if end else ''
+            if self._phase != 'ended':
+                self._body_size += size + len(end)
         if self._block == 'banner':
             self._banner_line(line, end)
         elif self._block == 'macro':
@@ -380,6 +407,36 @@ class StreamRedactor:
         self._lines += 1
         if self._lines % 1024 == 0:
             _budget(self._memory())
+
+    def _comparison_frame(self, line):
+        if self._phase == 'ended':
+            return _BLANK.fullmatch(line) is not None or _PROMPT.fullmatch(line) is not None
+        if self._phase != 'preamble':
+            return False
+        running = self._comparison_view == 'running'
+        size = (_RUNNING_SIZE if running else _STARTUP_SIZE).fullmatch(line)
+        if size and self._declared_size is None:
+            stored_size = int(size[1])
+            expanded_size = int(size[2]) if not running and size[2] else None
+            self._declared_size = expanded_size or stored_size
+            if not running:
+                self._startup_sizes = (stored_size, expanded_size)
+            return True
+        if not running and (compression := _STARTUP_COMPRESSED.fullmatch(line)):
+            stored_size, expanded_size = map(int, compression.groups())
+            if self._startup_sizes not in ((stored_size, None), (stored_size, expanded_size)):
+                raise self._failure('stream-incomplete')
+            self._startup_sizes = None
+            self._declared_size = expanded_size
+            return True
+        if _BLANK.fullmatch(line) or _CAPTURE_ECHO.fullmatch(line) or (
+                running and line.rstrip(' ') == 'Building configuration...'):
+            return True
+        if not running and _NO_STARTUP.fullmatch(line):
+            raise ConfigurationRefusedError()
+        if self._declared_size is None and not (_AUTOCOMMAND.fullmatch(line) or line.startswith('%')):
+            raise self._failure('stream-incomplete')
+        return False
 
     @staticmethod
     def _controls(line, allowed=None):
@@ -496,15 +553,20 @@ class StreamRedactor:
     def _record(self, line, end, indented):
         blank = _BLANK.fullmatch(line) is not None
         if self._phase == 'preamble':
-            if blank or _ECHO.fullmatch(line) or _PREAMBLE.fullmatch(line):
-                self._keep(line, end)
+            if (blank or _ECHO.fullmatch(line) or _PREAMBLE.fullmatch(line)
+                    or (self._comparison and (_STARTUP_FRAME.fullmatch(line) or _STARTUP_ECHO.fullmatch(line)))):
+                if not self._comparison:
+                    self._keep(line, end)
                 return
             self._phase = 'body'
         elif self._phase == 'ended':
             if blank or _PROMPT.fullmatch(line):
-                self._keep(line, end)
+                if not self._comparison:
+                    self._keep(line, end)
                 return
             raise ValueError('data after configuration end')
+        if self._comparison and self._context == 'global' and _COMPARISON_COMMENT.fullmatch(line):
+            return
         if blank:
             if self._context == 'crypto':
                 self._grow(line, end)  # an empty line inside the current crypto/key record
@@ -531,6 +593,8 @@ class StreamRedactor:
     def _global(self, line, end):
         self._context = 'global'
         if _VERSION.fullmatch(line) or _HOSTNAME.fullmatch(line):
+            if self._comparison:
+                self._comparison_fields.add(line.split(' ', 1)[0])
             self._keep(line, end)
         elif _INTERFACE.fullmatch(line):
             self._context = 'interface' if self._keep(line, end) else 'unknown'
@@ -592,6 +656,8 @@ class StreamRedactor:
                          hashlib.sha256(label.encode('ascii')).digest()[:16])
 
     def _emit(self, text):
+        if self._comparison:
+            text = text.replace('\r\n', '\n').replace('\r', '\n')
         self._builder.add(text)
         self._memory()
 
@@ -610,7 +676,11 @@ class StreamRedactor:
             self._line('\r')
         elif self._physical:
             self._line('')
-        if self._block is not None or self._phase != 'ended':
+        if (self._block is not None or self._phase != 'ended'
+                or (self._comparison and self._comparison_fields != {'hostname', 'version'})):
+            raise self._failure('stream-incomplete')
+        # IOS XE can include the configuration file's extra final newline in its reported byte count.
+        if self._comparison_view is not None and self._declared_size not in (self._body_size, self._body_size + 1):
             raise self._failure('stream-incomplete')
         _budget(self._memory())
         count = self.credential_count + self.unverified_count

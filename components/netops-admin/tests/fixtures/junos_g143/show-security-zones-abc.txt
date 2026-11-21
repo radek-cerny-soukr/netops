@@ -1,0 +1,7 @@
+Security zone: abc
+   Description: This is the abc zone.
+   Send reset for non-SYN session TCP packets: Off
+   Policy configurable: Yes
+   Interfaces bound: 1
+   Interfaces:
+     ge-0/0/1.0

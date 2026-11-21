@@ -1,0 +1,202 @@
+{
+    "vrfs": {
+        "default": {
+            "instList": {
+                "29": {
+                    "instanceId": 29,
+                    "maxLsaInformation": {
+                        "maxLsa": 12000,
+                        "maxLsaThreshold": 75,
+                        "maxLsaWarningOnly": false,
+                        "maxLsaIgnoreTime": 5,
+                        "maxLsaResetTime": 5,
+                        "maxLsaAllowedIgnoreCount": 5,
+                        "maxLsaCurrentIgnoreCount": 0,
+                        "maxLsaIgnoring": false
+                    },
+                    "routerId": "203.0.113.3",
+                    "referenceBandwidth": 0,
+                    "asbr": false,
+                    "abr": false,
+                    "spfInformation": {
+                        "spfInterval": 5,
+                        "spfStartInterval": 0,
+                        "spfHoldInterval": 5000,
+                        "spfCurrHoldInterval": 5000,
+                        "spfMaxW***[x435-8p-4s:login]***tInterval": 5000,
+                        "lastSpf": 11,
+                        "nextSpf": 0,
+                        "ldpShortcutNextSpf": 0,
+                        "ldpShortcutLastSpf": 913707
+                    },
+                    "lsaInformation": {
+                        "lsaArrivalInterval": 1000,
+                        "lsaStartInterval": 1000,
+                        "lsaHoldInterval": 5000,
+                        "lsaMaxW***[x435-8p-4s:login]***tInterval": 5000,
+                        "numLsa": 6
+                    },
+                    "externalLsaInformation": {
+                        "treeSize": 0,
+                        "asExternalCksum": 0
+                    },
+                    "opaqueLsaInformation": {
+                        "opaque": true,
+                        "opaqueTreeSize": 0,
+                        "opaqueCksum": 0
+                    },
+                    "vrf": "default",
+                    "numAreas": 1,
+                    "numNormalAreas": 1,
+                    "numStubAreas": 0,
+                    "numNssaAreas": 0,
+                    "adjacencyExchangeStartThreshold": 20,
+                    "lsaRetransmissionThreshold": 10,
+                    "ecmpMaximumNexthops": 128,
+                    "floodPacing": 0,
+                    "areaList": {
+                        "0.0.0.0": {
+                            "areaId": "0.0.0.0",
+                            "numIntf": 2,
+                            "stubArea": false,
+                            "normalArea": true,
+                            "teEnabled": false,
+                            "spfCount": 91,
+                            "lsaInformation": {
+                                "treeSize": 6,
+                                "asExternalCksum": 163994
+                            },
+                            "opaqueLsaInformation": {
+                                "opaqueTreeSize": 0,
+                                "opaqueCksum": 0
+                            },
+                            "opaqueAreaLsaInformation": {
+                                "opaqueTreeSize": 0,
+                                "opaqueCksumSum": 0
+                            },
+                            "rangeList": {},
+                            "areaFiltersConfigured": false,
+                            "dcClearCount": 1,
+                            "indLsaCount": 0
+                        }
+                    },
+                    "gracefulRestartInfo": {
+                        "gracefulRestart": false,
+                        "gracePeriod": 120.0,
+                        "plannedOnly": false,
+                        "state": "none",
+                        "restartExpirationTime": null,
+                        "lastExitReason": "lastExitNone",
+                        "lastExitTime": null,
+                        "helperMode": true,
+                        "helperLooseLsaCheck": true,
+                        "lastRestartReason": "Unknown",
+                        "restartDuration": null
+                    },
+                    "shutDown": false,
+                    "numBackboneNeighbors": 4,
+                    "tunnelRoutesEnabled": false,
+                    "secondaryDom***[x435-8p-4s:login]***nIds": [],
+                    "ldpShortcutActive": false
+                },
+                "126": {
+                    "instanceId": 126,
+                    "maxLsaInformation": {
+                        "maxLsa": 12000,
+                        "maxLsaThreshold": 75,
+                        "maxLsaWarningOnly": false,
+                        "maxLsaIgnoreTime": 5,
+                        "maxLsaResetTime": 5,
+                        "maxLsaAllowedIgnoreCount": 5,
+                        "maxLsaCurrentIgnoreCount": 0,
+                        "maxLsaIgnoring": false
+                    },
+                    "routerId": "203.0.113.3",
+                    "referenceBandwidth": 0,
+                    "asbr": false,
+                    "abr": false,
+                    "spfInformation": {
+                        "spfInterval": 5,
+                        "spfStartInterval": 0,
+                        "spfHoldInterval": 5000,
+                        "spfCurrHoldInterval": 5000,
+                        "spfMaxW***[x435-8p-4s:login]***tInterval": 5000,
+                        "lastSpf": 6,
+                        "nextSpf": 0,
+                        "ldpShortcutNextSpf": 0,
+                        "ldpShortcutLastSpf": 913707
+                    },
+                    "lsaInformation": {
+                        "lsaArrivalInterval": 1000,
+                        "lsaStartInterval": 1000,
+                        "lsaHoldInterval": 5000,
+                        "lsaMaxW***[x435-8p-4s:login]***tInterval": 5000,
+                        "numLsa": 1
+                    },
+                    "externalLsaInformation": {
+                        "treeSize": 0,
+                        "asExternalCksum": 0
+                    },
+                    "opaqueLsaInformation": {
+                        "opaque": true,
+                        "opaqueTreeSize": 0,
+                        "opaqueCksum": 0
+                    },
+                    "vrf": "default",
+                    "numAreas": 1,
+                    "numNormalAreas": 1,
+                    "numStubAreas": 0,
+                    "numNssaAreas": 0,
+                    "adjacencyExchangeStartThreshold": 20,
+                    "lsaRetransmissionThreshold": 10,
+                    "ecmpMaximumNexthops": 128,
+                    "floodPacing": 0,
+                    "areaList": {
+                        "198.51.100.126": {
+                            "areaId": "198.51.100.126",
+                            "numIntf": 1,
+                            "stubArea": false,
+                            "normalArea": true,
+                            "teEnabled": false,
+                            "spfCount": 2,
+                            "lsaInformation": {
+                                "treeSize": 1,
+                                "asExternalCksum": 61939
+                            },
+                            "opaqueLsaInformation": {
+                                "opaqueTreeSize": 0,
+                                "opaqueCksum": 0
+                            },
+                            "opaqueAreaLsaInformation": {
+                                "opaqueTreeSize": 0,
+                                "opaqueCksumSum": 0
+                            },
+                            "rangeList": {},
+                            "areaFiltersConfigured": false,
+                            "dcClearCount": 0,
+                            "indLsaCount": 0
+                        }
+                    },
+                    "gracefulRestartInfo": {
+                        "gracefulRestart": false,
+                        "gracePeriod": 120.0,
+                        "plannedOnly": false,
+                        "state": "none",
+                        "restartExpirationTime": null,
+                        "lastExitReason": "lastExitNone",
+                        "lastExitTime": null,
+                        "helperMode": true,
+                        "helperLooseLsaCheck": true,
+                        "lastRestartReason": "Unknown",
+                        "restartDuration": null
+                    },
+                    "shutDown": false,
+                    "numBackboneNeighbors": 0,
+                    "tunnelRoutesEnabled": false,
+                    "secondaryDom***[x435-8p-4s:login]***nIds": [],
+                    "ldpShortcutActive": false
+                }
+            }
+        }
+    }
+}

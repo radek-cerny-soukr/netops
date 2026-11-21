@@ -1,0 +1,46 @@
+{
+  "platform": "ruckus",
+  "table": "dhcp-relay",
+  "versions": [
+    "200.15.6.212 build 27"
+  ],
+  "exact_versions": true,
+  "ops": [
+    "create",
+    "update",
+    "delete"
+  ],
+  "table_scoped_key": true,
+  "key_pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,31}$",
+  "protected_keys": [],
+  "attributes": {
+    "first": {
+      "type": "ipv4-address",
+      "required_on_create": true,
+      "update": true,
+      "unset": false,
+      "referenced_update": true
+    },
+    "second": {
+      "type": "ipv4-address",
+      "required_on_create": false,
+      "update": true,
+      "unset": true,
+      "referenced_update": true
+    },
+    "description": {
+      "type": "text",
+      "max_length": 64,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$",
+      "required_on_create": false,
+      "update": true,
+      "unset": true,
+      "referenced_update": true
+    }
+  },
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "1.0.12 G112 R23, measured on Ruckus R610 Unleashed 200.15.6.212 build 27 (task-evidence/g112): a DHCP relay server entry is created and changed in the config context 'dhcp <name>' with 'first <ip>', 'second <ip>' ('no second' removes it), 'description <word>' ('description \"\"' clears it) and saved by 'end'; 'no dhcp <name>' deletes it ('has been deleted.'). The Unleashed CLI has no on-device timer, so Admin returns an unverified change itself in the same run by writing the inverse (compensation). The binding of a WLAN to a relay entry is not offered by this firmware (tunnel-mode: 'Only allowed in dedicated mode.'), so Admin writes only the server entries and refuses to change one while any WLAN lists an enabled DHCP relay. Only entries named in the device entry (wlans) are written."
+}

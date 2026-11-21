@@ -1,0 +1,32 @@
+{
+  "platform": "nxos",
+  "table": "dhcp-relay",
+  "versions": [
+    "9.3(12)"
+  ],
+  "exact_versions": true,
+  "ops": [
+    "create",
+    "update",
+    "delete"
+  ],
+  "key_pattern": "^Vlan[1-9][0-9]{0,3}:[0-9]{1,3}(?:\\.[0-9]{1,3}){3}$",
+  "protected_keys": [],
+  "attributes": {
+    "vrf": {
+      "type": "text",
+      "max_length": 32,
+      "update": true,
+      "unset": true,
+      "referenced_update": false,
+      "required_on_create": false,
+      "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,31}$"
+    }
+  },
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "G102 NX-M022, Nexus 9000v NX-OS 9.3(12). Per-SVI relay addresses with and without use-vrf were added and removed. The DHCP feature and relay agent must already be enabled. NX-OS scheduler and configure replace protect the change. Confirmation compares show ip dhcp relay address from the check identity with show running-config dhcp.",
+  "table_scoped_key": true
+}

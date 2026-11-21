@@ -1,0 +1,9 @@
+ Port 2 (Ethernet1/2) of VLAN0020 is designated forwarding
+   Port path cost 4, Port priority 128, Port Identifier 128.2
+   Designated root has priority 32788, address 0000.5e00.5303
+   Designated bridge has priority 32788, address 0000.5e00.5302
+   Designated port id is 128.2, designated path cost 4
+   Timers: message age 0, forward delay 0, hold 0
+   Number of transitions to forwarding state: 1
+   Link type is point-to-point by default
+   BPDU: sent 106615, received 0

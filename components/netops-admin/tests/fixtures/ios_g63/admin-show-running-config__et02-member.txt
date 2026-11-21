@@ -1,0 +1,170 @@
+Building configuration...
+
+Current configuration : 4109 bytes
+!
+! Last configuration change at 05:59:11 UTC Thu Nov 19 2026 by user01
+!
+version 15.2
+service timestamps debug datetime msec
+service timestamps log datetime msec
+no service password-encryption
+service compress-config
+!
+hostname host08
+!
+boot-start-marker
+boot-end-marker
+!
+!
+enable secret 5 <REDIGOVANO>
+!
+username user02    secret 5 <REDIGOVANO>
+username user01       privilege 15 secret 5 <REDIGOVANO>
+no aaa new-model
+!
+!
+!
+!
+!
+!
+!
+!
+no ip domain-lookup
+ip domain-name d-lab.invalid
+ip cef
+no ipv6 cef
+!
+!
+archive
+ path flash:netops-archive
+ maximum 14
+!
+spanning-tree mode pvst
+spanning-tree extend system-id
+!
+lldp run
+!
+! 
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+interface Port-channel41
+!
+interface GigabitEthernet0/0
+ switchport access vlan 99
+ switchport mode access
+ negotiation auto
+ spanning-tree portfast edge
+!
+interface GigabitEthernet0/1
+ switchport trunk allowed vlan 10,20
+ switchport trunk encapsulation dot1q
+ switchport mode trunk
+ negotiation auto
+!
+interface GigabitEthernet0/2
+ switchport trunk allowed vlan 10,20
+ switchport trunk encapsulation dot1q
+ switchport mode trunk
+ negotiation auto
+!
+interface GigabitEthernet0/3
+ switchport access vlan 10
+ switchport mode access
+ negotiation auto
+!
+interface GigabitEthernet1/0
+ switchport mode access
+ shutdown
+ negotiation auto
+!
+interface GigabitEthernet1/1
+ switchport mode access
+ negotiation auto
+!
+interface GigabitEthernet1/2
+ switchport mode access
+ negotiation auto
+ channel-group 41 mode active
+!
+interface GigabitEthernet1/3
+ negotiation auto
+!
+interface Vlan10
+ ip address 192.0.2.2  255.255.255.0
+!
+interface Vlan20
+ ip address 198.51.100.2 255.255.255.0
+!
+interface Vlan99
+ ip address 203.0.113.52   255.255.255.0
+!
+ip default-gateway 203.0.113.1
+ip forward-protocol nd
+!
+ip http server
+ip http secure-server
+!
+ip route 0.0.0.0 0.0.0.0 203.0.113.1
+ip ssh rsa keypair-name host08.d-lab.invalid
+ip ssh version 2
+ip ssh server algorithm encryption aes128-ctr aes192-ctr aes256-ctr
+ip ssh client algorithm encryption aes128-ctr aes192-ctr aes256-ctr
+!
+!
+!
+!
+!
+!
+control-plane
+!
+privilege exec level 15 show spanning-tree inconsistentports
+privilege exec level 1 show spanning-tree
+privilege exec level 15 show logging
+privilege exec level 1 show
+banner exec ^C
+IOSv - Cisco Systems Confidential -
+
+Supplemental End User License Restrictions
+
+This IOSv software is provided AS-IS without warranty of any kind. Under no circumstances may this software be used separate from the Cisco Modeling Labs Software that this software was provided with, or deployed or used as part of a production environment.
+
+By using the software, you agree to abide by the terms and conditions of the Cisco End User License Agreement at http://www.cisco.com/go/eula. Unauthorized use or distribution of this software is expressly prohibited.
+^C
+banner incoming ^C
+IOSv - Cisco Systems Confidential -
+
+Supplemental End User License Restrictions
+
+This IOSv software is provided AS-IS without warranty of any kind. Under no circumstances may this software be used separate from the Cisco Modeling Labs Software that this software was provided with, or deployed or used as part of a production environment.
+
+By using the software, you agree to abide by the terms and conditions of the Cisco End User License Agreement at http://www.cisco.com/go/eula. Unauthorized use or distribution of this software is expressly prohibited.
+^C
+banner login ^C
+IOSv - Cisco Systems Confidential -
+
+Supplemental End User License Restrictions
+
+This IOSv software is provided AS-IS without warranty of any kind. Under no circumstances may this software be used separate from the Cisco Modeling Labs Software that this software was provided with, or deployed or used as part of a production environment.
+
+By using the software, you agree to abide by the terms and conditions of the Cisco End User License Agreement at http://www.cisco.com/go/eula. Unauthorized use or distribution of this software is expressly prohibited.
+^C
+!
+line con 0
+line aux 0
+line vty 0 4
+ exec-timeout 15 0
+ login local
+ transport input ssh
+!
+!
+end

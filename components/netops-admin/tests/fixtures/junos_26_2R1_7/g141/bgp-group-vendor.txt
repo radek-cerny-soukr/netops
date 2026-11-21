@@ -1,0 +1,3 @@
+Group Type: External    AS: 64512                   Local AS: 64513
+  Name: transit         Index: 0                    Flags: <Export Eval>
+  Total peers: 1        Established: 0

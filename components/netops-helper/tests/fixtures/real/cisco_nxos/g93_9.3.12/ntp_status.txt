@@ -1,0 +1,2 @@
+Distribution : Disabled
+Last operational state: No session

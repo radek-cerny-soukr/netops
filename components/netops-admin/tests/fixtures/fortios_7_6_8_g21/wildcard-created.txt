@@ -1,0 +1,9 @@
+host01        $ config firewall address
+    edit "netops-g21-wildcard"
+        set uuid 00000000-0000-4000-8000-00000000000a
+        set type fqdn
+        set fqdn "*.example.invalid"
+    next
+end
+
+host01        $

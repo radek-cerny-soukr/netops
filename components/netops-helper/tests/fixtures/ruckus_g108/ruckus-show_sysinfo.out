@@ -1,0 +1,31 @@
+show sysinfo
+System Overview:
+  Name= ssid02
+  IP Address= 198.51.100.5
+  MAC Address= 00:00:5e:00:53:01
+  Uptime= 41d 1h 3m
+  Model= r610
+  Serial Number= 000000000001
+  Version= 200.15.6.212 build 27
+
+Devices Overview:
+  Number of APs= 1
+  Number of Client Devices= 14
+  Number of Rogue Devices= 4
+
+Usage Summary:
+  Usage of 1 hr:
+    Max. Concurrent Users= 16
+    Bytes Transmitted= 58.16M
+    Number of Rogue Devices= 4
+  Usage of 24 hr:
+    Max. Concurrent Users= 16
+    Bytes Transmitted= 35.33G
+    Number of Rogue Devices= 14
+
+Memory Utilization:
+  Used Bytes= 235000(kB)
+  Used Percentage= 50%
+  Free Bytes= 235956(kB)
+  Free Percentage= 50%
+

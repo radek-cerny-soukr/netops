@@ -1,0 +1,4 @@
+Syntax error while parsing 'show interface port-channel 140 | json'
+
+
+Cmd exec error.

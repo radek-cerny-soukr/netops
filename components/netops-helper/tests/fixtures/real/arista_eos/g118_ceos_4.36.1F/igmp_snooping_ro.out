@@ -1,0 +1,55 @@
+   Global IGMP Snooping configuration:
+-------------------------------------------
+IGMP snooping                  : Enabled
+IGMPv2 immediate leave         : Enabled
+Robustness variable            : 2
+Report flooding                : Disabled
+
+Vlan 1 :
+----------
+IGMP snooping                  : Enabled
+IGMPv2 immediate leave         : Default
+Multicast router learning mode : pim-dvmrp
+IGMP max group limit           : No limit set 
+Recent attempt to exceed limit : No 
+Report flooding                : Disabled
+IGMP snooping pruning active   : False
+Flooding traffic to VLAN       : True
+IGMP snooping proxy active     : False
+EVPN proxy active              : False
+Vlan 10 :
+----------
+IGMP snooping                  : Enabled
+IGMPv2 immediate leave         : Default
+Multicast router learning mode : pim-dvmrp
+IGMP max group limit           : No limit set 
+Recent attempt to exceed limit : No 
+Report flooding                : Disabled
+IGMP snooping pruning active   : True
+Flooding traffic to VLAN       : False
+IGMP snooping proxy active     : False
+EVPN proxy active              : False
+Vlan 20 :
+----------
+IGMP snooping                  : Enabled
+IGMPv2 immediate leave         : Default
+Multicast router learning mode : pim-dvmrp
+IGMP max group limit           : No limit set 
+Recent attempt to exceed limit : No 
+Report flooding                : Disabled
+IGMP snooping pruning active   : True
+Flooding traffic to VLAN       : False
+IGMP snooping proxy active     : False
+EVPN proxy active              : False
+Vlan 304 :
+----------
+IGMP snooping                  : Enabled
+IGMPv2 immediate leave         : Default
+Multicast router learning mode : pim-dvmrp
+IGMP max group limit           : No limit set 
+Recent attempt to exceed limit : No 
+Report flooding                : Disabled
+IGMP snooping pruning active   : False
+Flooding traffic to VLAN       : True
+IGMP snooping proxy active     : False
+EVPN proxy active              : False

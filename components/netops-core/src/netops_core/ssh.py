@@ -55,10 +55,12 @@ REASONS = (
     ("Connection refused", "the device refused the connection"),
     ("Connection reset", "the device closed the connection"),
     ("Connection closed", "the device closed the connection"),
+    ("closed by remote host", "the device closed the connection"),
     ("Connection timed out", "the connection timed out"),
     ("Operation timed out", "the connection timed out"),
     ("No route to host", "the device was not reachable"),
     ("Network is unreachable", "the device was not reachable"),
+    ("Network unreachable", "the device was not reachable"),
     ("Could not resolve hostname", "the name did not resolve"),
     ("Permission denied (publickey)", "the device refused the credential"),
     ("not found", "the remote path is not there"),
@@ -270,6 +272,12 @@ def reason(said) -> str:
         if marker in said:
             return meaning
     return UNKNOWN_REASON
+
+
+def _client_log_tail(path) -> bytes:
+    with open(path, "rb") as log:
+        log.seek(max(0, os.fstat(log.fileno()).st_size - STDERR_MAX_BYTES))
+        return log.read(STDERR_MAX_BYTES)
 
 
 def _secret_bytes(name, secret) -> bytes:
@@ -641,6 +649,8 @@ def run_command(
     capture_max_bytes=CAPTURE_MAX_BYTES,
     stdout_consumer=None,
     idle_timeout_seconds=None,
+    separate_client_log=False,
+    suppress_login_banner=False,
     run=None,
     now=None,
 ) -> Result:
@@ -670,6 +680,14 @@ def run_command(
         call = argv(
             name, number, user, known_hosts, line, identity=identity, legacy=profile
         )
+        if suppress_login_banner:
+            # OpenSSH renders SSH user-authentication banners at INFO or above.
+            # Lowering this leaves channel stderr and client errors available.
+            call[1:1] = ["-o", "LogLevel=ERROR"]
+        client_log = Path(workspace) / "client.log" if separate_client_log else None
+        if client_log is not None:
+            # Keep the remote command's stderr separate from OpenSSH's own diagnostics.
+            call[1:1] = ["-E", str(client_log)]
         started_at = _moment(clock)
         try:
             result = runner(
@@ -696,13 +714,19 @@ def run_command(
         said = _said(result)
         err = getattr(result, "stderr", None)
         code = getattr(result, "returncode", None)
+        failure_stderr = err
+        if client_log is not None and isinstance(code, int) and (code < 0 or code == CLIENT_FAILURE_CODE):
+            try:
+                failure_stderr = (err or b"") + b"\n" + _client_log_tail(client_log)
+            except FileNotFoundError:
+                pass
         if isinstance(code, int) and not isinstance(code, bool) and code < 0:
             raise SshError(
                 "ssh to %s was ended by signal %d before it finished; what it wrote is not an"
                 " answer" % (name, -code),
                 code,
                 said,
-                final_said(err),
+                final_said(failure_stderr),
             )
         if (
             isinstance(code, bool)
@@ -710,7 +734,7 @@ def run_command(
             or code == CLIENT_FAILURE_CODE
         ):
             # The client's closing message names the reason; a device banner printed before it never does.
-            final = final_said(err)
+            final = final_said(failure_stderr)
             verdict = final or said
             detail = "; %s" % reason(verdict) if verdict else ""
             remedy = ""

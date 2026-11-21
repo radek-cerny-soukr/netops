@@ -1,0 +1,2 @@
+Port       Name                                                                                                            Status       Vlan     Duplex Speed  Type            Flags Encapsulation
+Et12       Kancelář 2.patro – tiskárna HP, zásuvka D12/3 "A" | !x #y; Žluťoučký kůň úpěl ďábelské ódy, telefon ☎ linka 245 connected    trunk    full   1G     EbraTestPhyPort                   

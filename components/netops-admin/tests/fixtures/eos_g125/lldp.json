@@ -1,0 +1,88 @@
+{
+    "tablesLastChangeTime": 1795058652.5007453,
+    "tablesInserts": 36,
+    "tablesDeletes": 23,
+    "tablesDrops": 0,
+    "tablesAgeOuts": 23,
+    "lldpNeighbors": [
+        {
+            "port": "Ethernet1",
+            "neighborDevice": "host01",
+            "neighborPort": "Gi0/2",
+            "ttl": 120
+        },
+        {
+            "port": "Ethernet2",
+            "neighborDevice": "host02",
+            "neighborPort": "1",
+            "ttl": 120
+        },
+        {
+            "port": "Ethernet4",
+            "neighborDevice": "host03",
+            "neighborPort": "521",
+            "ttl": 120
+        },
+        {
+            "port": "Ethernet5",
+            "neighborDevice": "host04",
+            "neighborPort": "Et0/1",
+            "ttl": 120
+        },
+        {
+            "port": "Ethernet14",
+            "neighborDevice": "host02",
+            "neighborPort": "5",
+            "ttl": 120
+        },
+        {
+            "port": "Ethernet15",
+            "neighborDevice": "host05",
+            "neighborPort": "5",
+            "ttl": 120
+        },
+        {
+            "port": "Management0",
+            "neighborDevice": "host06",
+            "neighborPort": "Gi0/0",
+            "ttl": 120
+        },
+        {
+            "port": "Management0",
+            "neighborDevice": "host04",
+            "neighborPort": "Et0/0",
+            "ttl": 120
+        },
+        {
+            "port": "Management0",
+            "neighborDevice": "host07",
+            "neighborPort": "mgmt0",
+            "ttl": 120
+        },
+        {
+            "port": "Management0",
+            "neighborDevice": "host01",
+            "neighborPort": "Gi0/0",
+            "ttl": 120
+        },
+        {
+            "port": "Management0",
+            "neighborDevice": "host08",
+            "neighborPort": "Et0/0",
+            "ttl": 120
+        },
+        {
+            "port": "Management0",
+            "neighborDevice": "host05",
+            "neighborPort": "mgmt",
+            "ttl": 120
+        },
+        {
+            "port": "Management0",
+            "neighborDevice": "host02",
+            "neighborPort": "mgmt",
+            "ttl": 120
+        }
+    ],
+    "lldpSwagNeighbors": []
+}

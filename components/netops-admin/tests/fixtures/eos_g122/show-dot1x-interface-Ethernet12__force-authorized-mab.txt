@@ -1,0 +1,17 @@
+Dot1X Information for Ethernet12
+--------------------------------------------
+Port control: force-authorized
+Forced phone authorization: disabled
+EAPOL: enabled
+Host mode: multi-host
+MAC-based authentication: enabled
+MAC-based authentication host mode: Unconfigured
+MAC-based authentication always: disabled
+Quiet period: 60 seconds
+TX period: 5 seconds
+Maximum reauth requests: 2
+Ignore reauth timeout: No
+Auth failure VLAN: Unconfigured
+Unauthorized access VLAN egress: No
+Unauthorized native VLAN egress: No
+EAPOL authentication failure fallback: Unconfigured

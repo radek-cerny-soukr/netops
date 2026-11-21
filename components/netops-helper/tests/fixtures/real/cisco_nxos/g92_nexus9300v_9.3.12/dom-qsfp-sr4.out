@@ -1,0 +1,67 @@
+Ethernet2/2
+     transceiver is present
+     type is QSFP-40G-SR4
+     name is CISCO
+     revision is 02
+     nominal bitrate is 10300 MBit/sec per channel
+     Link length supported for 50/125um OM2 fiber is 30 m
+     Link length supported for 50/125um OM3 fiber is 100 m
+     cisco id is 13
+     cisco extended id number is 16
+     number of lanes 4
+Lane Number:1 Network Lane
+       SFP Detail Diagnostics Information (internal calibration)
+  ----------------------------------------------------------------------------
+               Current                Alarms                   Warnings
+               Measurement    High        Low        High         Low
+ ----------------------------------------------------------------------------
+ Temperature   24.65 C       75.00 C   -5.00 C      70.00 C         0.00 C
+ Voltage        3.40 V        3.63 V    2.97 V       3.46 V         3.09 V
+ Current           N/A           N/A       N/A          N/A            N/A
+ Tx Power          N/A           N/A       N/A          N/A            N/A
+ Rx Power          N/A           N/A       N/A          N/A            N/A
+ Transmit Fault Count = 0
+ ----------------------------------------------------------------------------
+ Note: ++  high-alarm; +  high-warning; --  low-alarm; -  low-warning
+Lane Number:2 Network Lane
+       SFP Detail Diagnostics Information (internal calibration)
+  ----------------------------------------------------------------------------
+               Current                Alarms                   Warnings
+               Measurement    High        Low        High         Low
+ ----------------------------------------------------------------------------
+ Temperature   24.65 C       75.00 C   -5.00 C      70.00 C         0.00 C
+ Voltage        3.40 V        3.63 V    2.97 V       3.46 V         3.09 V
+ Current           N/A           N/A       N/A          N/A            N/A
+ Tx Power          N/A           N/A       N/A          N/A            N/A
+ Rx Power          N/A           N/A       N/A          N/A            N/A
+ Transmit Fault Count = 0
+ ----------------------------------------------------------------------------
+ Note: ++  high-alarm; +  high-warning; --  low-alarm; -  low-warning
+Lane Number:3 Network Lane
+       SFP Detail Diagnostics Information (internal calibration)
+  ----------------------------------------------------------------------------
+               Current                Alarms                   Warnings
+               Measurement    High        Low        High         Low
+ ----------------------------------------------------------------------------
+ Temperature   24.65 C       75.00 C   -5.00 C      70.00 C         0.00 C
+ Voltage        3.40 V        3.63 V    2.97 V       3.46 V         3.09 V
+ Current           N/A           N/A       N/A          N/A            N/A
+ Tx Power          N/A           N/A       N/A          N/A            N/A
+ Rx Power          N/A           N/A       N/A          N/A            N/A
+ Transmit Fault Count = 0
+ ----------------------------------------------------------------------------
+ Note: ++  high-alarm; +  high-warning; --  low-alarm; -  low-warning
+Lane Number:4 Network Lane
+       SFP Detail Diagnostics Information (internal calibration)
+  ----------------------------------------------------------------------------
+               Current                Alarms                   Warnings
+               Measurement    High        Low        High         Low
+ ----------------------------------------------------------------------------
+ Temperature   24.65 C       75.00 C   -5.00 C      70.00 C         0.00 C
+ Voltage        3.40 V        3.63 V    2.97 V       3.46 V         3.09 V
+ Current           N/A           N/A       N/A          N/A            N/A
+ Tx Power          N/A           N/A       N/A          N/A            N/A
+ Rx Power          N/A           N/A       N/A          N/A            N/A
+ Transmit Fault Count = 0
+ ----------------------------------------------------------------------------
+ Note: ++  high-alarm; +  high-warning; --  low-alarm; -  low-warning

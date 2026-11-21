@@ -1,0 +1,67 @@
+{
+  "platform": "nxos",
+  "table": "l3-interface",
+  "versions": [
+    "9.3(12)"
+  ],
+  "exact_versions": true,
+  "ops": [
+    "create",
+    "update",
+    "delete"
+  ],
+  "key_pattern": "^(?:Vlan[1-9][0-9]{0,3}|loopback(?:0|[1-9][0-9]{0,3})|Ethernet[1-9][0-9]{0,2}/[1-9][0-9]{0,2}(?:/[1-9][0-9]{0,2})?)$",
+  "protected_keys": [],
+  "attributes": {
+    "ipv4-address": {
+      "type": "text",
+      "max_length": 18,
+      "update": true,
+      "unset": true,
+      "referenced_update": false,
+      "required_on_create": false
+    },
+    "ipv6-address": {
+      "type": "text",
+      "max_length": 43,
+      "update": true,
+      "unset": true,
+      "referenced_update": false,
+      "required_on_create": false
+    },
+    "admin-state": {
+      "type": "text",
+      "max_length": 8,
+      "update": true,
+      "unset": true,
+      "referenced_update": false,
+      "required_on_create": false,
+      "pattern": "^(enabled|disabled)$",
+      "default": "enabled"
+    },
+    "mode": {
+      "type": "text",
+      "max_length": 10,
+      "update": true,
+      "unset": true,
+      "referenced_update": false,
+      "required_on_create": false,
+      "pattern": "^(routed|switchport)$",
+      "default": "switchport"
+    },
+    "vrf": {
+      "type": "text",
+      "max_length": 32,
+      "update": false,
+      "unset": false,
+      "referenced_update": false,
+      "required_on_create": false,
+      "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,31}$"
+    }
+  },
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "G102 NX-M017, Nexus 9000v NX-OS 9.3(12). Vlan<ID> and loopback<ID> accept create, update and delete. Ethernet takes updates only. Mode conversion on an unused port resets its administrative state to the destination mode default and erases L2 access VLAN settings. Ports with potentially lost configuration are refused. The VLAN and a named VRF must already exist. An SVI is enabled by default on create. NX-OS scheduler and configure replace protect the change."
+}

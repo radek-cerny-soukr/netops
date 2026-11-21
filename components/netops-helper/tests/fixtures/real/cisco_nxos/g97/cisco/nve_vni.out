@@ -1,0 +1,9 @@
+Codes: CP - Control Plane        DP - Data Plane         
+UC - Unconfigured         
+	
+Interface VNI      Multicast-group   State Mode Type [BD/VRF]      Flags
+--------- -------- ----------------- ----- ---- ------------------ -----
+nve1      900001   n/a               Up    CP   L3 [vxlan-900001]      
+nve1      2001001  225.4.0.1         Up    CP   L2 [1001]            
+nve1      2001002  225.4.0.1         Up    CP   L2 [1002]           
+						

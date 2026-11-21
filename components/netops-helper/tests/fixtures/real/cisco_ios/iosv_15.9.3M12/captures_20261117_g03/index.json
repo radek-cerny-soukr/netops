@@ -1,0 +1,26 @@
+{
+ "interfaces_counters_errors_t1": {
+  "captured_at": "2026-11-17T09:42:20.455551+00:00",
+  "command": "show interfaces counters errors",
+  "lines": 4,
+  "rc": 0
+ },
+ "interfaces_counters_errors_t2": {
+  "captured_at": "2026-11-17T09:43:42.890013+00:00",
+  "command": "show interfaces counters errors",
+  "lines": 4,
+  "rc": 0
+ },
+ "interfaces_details_t1": {
+  "captured_at": "2026-11-17T09:42:21.223398+00:00",
+  "command": "show interfaces",
+  "lines": 152,
+  "rc": 0
+ },
+ "interfaces_details_t2": {
+  "captured_at": "2026-11-17T09:43:43.489640+00:00",
+  "command": "show interfaces",
+  "lines": 152,
+  "rc": 0
+ }
+}

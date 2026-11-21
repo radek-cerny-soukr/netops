@@ -1,0 +1,5 @@
+# G11 r3 FortiOS fixtures
+
+- `stp-active` is the first active port and its bridge and root framing from the pre-restart `get system stp list` example in [Fortinet’s STP troubleshooting tip for FortiOS 7.6](https://community.fortinet.com/fortigate-3/troubleshooting-tip-stp-ports-remain-in-discard-state-after-restarting-stp-230452). The bridge, VDOM and MAC address are anonymized. Read-only checks found five down ports on the lab 60F and three on IT-case. The regression also removes the root line to simulate an incomplete capture.
+- `virtual-switch` uses the VLAN 10 example from [Fortinet’s FortiOS 7.6.6 Virtual VLAN switch guide](https://docs.fortinet.com/document/fortigate/7.6.6/administration-guide/183531/virtual-vlan-switch). `switch-interfaces` uses the physical-port line format from the lab 60F `r2-live.json` capture with `trunk: enable` for `internal5`, the guide’s designated trunk. This derived fixture contains the access VLAN but supplies no separate allowed VLAN list.
+- Transport failures are injected at the SSH transport boundary. The link, counters and speed data come from the existing `captures.json` and `r2-live.json` lab 60F captures.

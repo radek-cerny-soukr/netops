@@ -1,0 +1,11 @@
+{
+    "vrfs": {
+        "g124-route": {
+            "routingDisabled": false,
+            "allRoutesProgrammedHardware": true,
+            "allRoutesProgrammedKernel": true,
+            "defaultRouteState": "notReachable",
+            "routes": {}
+        }
+    }
+}

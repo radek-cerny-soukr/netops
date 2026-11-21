@@ -1,0 +1,189 @@
+{
+  "device": "nxos",
+  "port": 2255,
+  "profile": "cisco_nxos",
+  "captures": [
+    {
+      "command": "show version",
+      "role": "RO",
+      "rc": 0,
+      "stdout": "Cisco Nexus Operating System (NX-OS) Software\nTAC support: http://www.cisco.com/tac\nDocuments: http://www.cisco.com/en/US/products/ps9372/tsd_products_support_series_home.html\nCopyright (c) 2002-2023, Cisco Systems, Inc. All rights reserved.\nThe copyrights to certain works contained herein are owned by\nother third parties and are used and distributed under license.\nSome parts of this software are covered under the GNU Public\nLicense. A copy of the license is available at\nhttp://www.gnu.org/licenses/gpl.html.\n\nNexus 9000v is a demo version of the Nexus Operating System\n\nSoftware\n  BIOS: version \n NXOS: version 9.3(12)\n  BIOS compile time:  \n  NXOS image file is: bootflash:///nxos.9.3.12.bin\n  NXOS compile time:  6/20/2023 12:00:00 [06/23/2023 17:33:36]\n\n\nHardware\n  cisco Nexus9000 C9300v Chassis \n  Intel(R) Core(TM) i5-6500T CPU @ 2.50GHz with 8158300 kB of memory.\n  Processor Board ID 9XFEHV5221U\n\n  Device name: host01\n  bootflash:    4287040 kB\nKernel uptime is 1 day(s), 11 hour(s), 24 minute(s), 47 second(s)\n\nLast reset \n  Reason: Unknown\n  System version: \n  Service: \n\nplugin\n  Core Plugin, Ethernet Plugin\n\nActive Package(s):\n\t\n",
+      "error": ""
+    },
+    {
+      "command": "show hosts",
+      "role": "RO",
+      "rc": 30,
+      "stdout": "% Permission denied for the role\n\nCmd exec error.\n",
+      "error": "User Access Verification\n"
+    },
+    {
+      "command": "show snmp",
+      "role": "RO",
+      "rc": 0,
+      "stdout": "sys contact: \nsys location: \n\n0 SNMP packets input\n\t0 Bad SNMP versions\n\t0 Unknown community <REDACTED>\n\t0 Illegal operation for community <REDACTED> supplied\n\t0 Encoding errors\n\t0 Number of requested variables\n\t0 Number of altered variables\n\t0 Get-request PDUs\n\t0 Get-next PDUs\n\t0 Set-request PDUs\n\t0 No such name PDU\n\t0 Bad value PDU\n\t0 Read Only PDU\n\t0 General errors\n\t0 Get Responses\n\t0 Unknown Context name\n\t0 Access policy violation\n37 SNMP packets output\n\t37 Trap PDU\n\t0 Too big errors (Maximum packet size 1500)\n\t0 No such name errors\n\t0 Bad values errors\n\t0 General errors\n\t0 Get Requests\n\t0 Get Next Requests\n\t0 Set Requests\n\t0 Get Responses\n\t0 Silent drops\n\nMax packetsize: 1500\n\n\nUser does not have permission to view community <REDACTED>\n\n\n______________________________________________________________\n\t\t  SNMP USERS \n______________________________________________________________\n\nUser                Auth      Priv(enforce) Groups              acl_filter          \n____                ____      _____________ ______              __________          \nadmin               md5       des(no)       network-admin       \nuser01              md5       des(no)       network-operator    \nuser02              md5       des(no)       network-admin       \n______________________________________________________________\n NOTIFICATION TARGET USERS (configured  for sending V3 Inform) \n______________________________________________________________\n\nUser                          Auth      Priv          \n____                          ____      ____          \n\n\nSNMP Tcp Authentication Flag : Enabled.\n\nSNMP protocol : Enabled\n\n\n--------------------------------------------------------------------\nContext                          [Protocol instance, VRF, Topology,]\n                                 [vlan, MST]\n--------------------------------------------------------------------\n1                                ,\n                                ,\n                                ,\n                                ,\n                                 1,\n                                 \n-------------------------------------------------------------------\n10                                ,\n                                ,\n                                ,\n                                ,\n                                 10,\n                                 \n-------------------------------------------------------------------\n20                                ,\n                                ,\n                                ,\n                                ,\n                                 20,\n                                 \n-------------------------------------------------------------------\nvlan-1                                ,\n                                ,\n                                ,\n                                ,\n                                 1,\n                                 \n-------------------------------------------------------------------\nvlan-10                                ,\n                                ,\n                                ,\n                                ,\n                                 10,\n                                 \n-------------------------------------------------------------------\nvlan-20                                ,\n                                ,\n                                ,\n                                ,\n                                 20,\n                                 \n-------------------------------------------------------------------\n",
+      "error": ""
+    },
+    {
+      "command": "show snmp engineID",
+      "role": "RO",
+      "rc": 0,
+      "stdout": "Local SNMP engineID: [Hex] 80000009030CFC00001B01\n                     [Dec] 128:000:000:009:003:012:252:000:000:027:001\n",
+      "error": ""
+    },
+    {
+      "command": "show aaa authentication",
+      "role": "RO",
+      "rc": 0,
+      "stdout": "\t default: local\n\t console: local\n",
+      "error": ""
+    },
+    {
+      "command": "show radius-server statistics",
+      "role": "RO",
+      "rc": 19,
+      "stdout": "Syntax error while parsing 'show radius-server statistics'\n\n\nCmd exec error.\n",
+      "error": "User Access Verification\n"
+    },
+    {
+      "command": "show tacacs-server statistics",
+      "role": "RO",
+      "rc": 16,
+      "stdout": "Syntax error while parsing 'show tacacs-server statistics'\n\n\nCmd exec error.\n",
+      "error": "User Access Verification\n"
+    },
+    {
+      "command": "show users",
+      "role": "RO",
+      "rc": 0,
+      "stdout": "NAME     LINE         TIME         IDLE          PID COMMENT\nNAME     LINE         TIME         IDLE          PID COMMENT\n",
+      "error": ""
+    },
+    {
+      "command": "show ssh server session",
+      "role": "RO",
+      "rc": 20,
+      "stdout": "Syntax error while parsing 'show ssh server session'\n\n\nCmd exec error.\n",
+      "error": "User Access Verification\n"
+    },
+    {
+      "command": "show configuration session summary",
+      "role": "RO",
+      "rc": 0,
+      "stdout": "Session Manager Database:\n--------------------------------------------------------------------\nName                    Session Owner           Creation Time\n--------------------------------------------------------------------\nThere are no active configuration sessions\n",
+      "error": ""
+    },
+    {
+      "command": "show radius-server statistics 192.0.2.123",
+      "role": "RO",
+      "rc": 1,
+      "stdout": "RADIUS server not found\n",
+      "error": "User Access Verification\n"
+    },
+    {
+      "command": "show tacacs-server statistics 192.0.2.123",
+      "role": "RO",
+      "rc": 16,
+      "stdout": "Syntax error while parsing 'show tacacs-server statistics 192.0.2.123'\n\n\nCmd exec error.\n",
+      "error": "User Access Verification\n"
+    },
+    {
+      "command": "show ssh server",
+      "role": "RO",
+      "rc": 0,
+      "stdout": "ssh version 2 is enabled\n",
+      "error": ""
+    },
+    {
+      "command": "show version",
+      "role": "ADMIN",
+      "rc": 0,
+      "stdout": "Cisco Nexus Operating System (NX-OS) Software\nTAC support: http://www.cisco.com/tac\nDocuments: http://www.cisco.com/en/US/products/ps9372/tsd_products_support_series_home.html\nCopyright (c) 2002-2023, Cisco Systems, Inc. All rights reserved.\nThe copyrights to certain works contained herein are owned by\nother third parties and are used and distributed under license.\nSome parts of this software are covered under the GNU Public\nLicense. A copy of the license is available at\nhttp://www.gnu.org/licenses/gpl.html.\n\nNexus 9000v is a demo version of the Nexus Operating System\n\nSoftware\n  BIOS: version \n NXOS: version 9.3(12)\n  BIOS compile time:  \n  NXOS image file is: bootflash:///nxos.9.3.12.bin\n  NXOS compile time:  6/20/2023 12:00:00 [06/23/2023 17:33:36]\n\n\nHardware\n  cisco Nexus9000 C9300v Chassis \n  Intel(R) Core(TM) i5-6500T CPU @ 2.50GHz with 8158300 kB of memory.\n  Processor Board ID 9XFEHV5221U\n\n  Device name: host01\n  bootflash:    4287040 kB\nKernel uptime is 1 day(s), 11 hour(s), 25 minute(s), 0 second(s)\n\nLast reset \n  Reason: Unknown\n  System version: \n  Service: \n\nplugin\n  Core Plugin, Ethernet Plugin\n\nActive Package(s):\n\t\n",
+      "error": ""
+    },
+    {
+      "command": "show hosts",
+      "role": "ADMIN",
+      "rc": 0,
+      "stdout": "DNS lookup enabled\nName/address lookup uses domain service\nName servers are 255.255.255.255\n\n\nHost \t\tAddress\n",
+      "error": ""
+    },
+    {
+      "command": "show snmp",
+      "role": "ADMIN",
+      "rc": 0,
+      "stdout": "sys contact: \nsys location: \n\n0 SNMP packets input\n\t0 Bad SNMP versions\n\t0 Unknown community <REDACTED>\n\t0 Illegal operation for community <REDACTED> supplied\n\t0 Encoding errors\n\t0 Number of requested variables\n\t0 Number of altered variables\n\t0 Get-request PDUs\n\t0 Get-next PDUs\n\t0 Set-request PDUs\n\t0 No such name PDU\n\t0 Bad value PDU\n\t0 Read Only PDU\n\t0 General errors\n\t0 Get Responses\n\t0 Unknown Context name\n\t0 Access policy violation\n37 SNMP packets output\n\t37 Trap PDU\n\t0 Too big errors (Maximum packet size 1500)\n\t0 No such name errors\n\t0 Bad values errors\n\t0 General errors\n\t0 Get Requests\n\t0 Get Next Requests\n\t0 Set Requests\n\t0 Get Responses\n\t0 Silent drops\n\nMax packetsize: 1500\n\n\nCommunity             <REDACTED> / Access      context    acl_filter                 \n<REDACTED>\n\n\n______________________________________________________________\n\t\t  SNMP USERS \n______________________________________________________________\n\nUser                Auth      Priv(enforce) Groups              acl_filter          \n____                ____      _____________ ______              __________          \nadmin               md5       des(no)       network-admin       \nuser01              md5       des(no)       network-operator    \nuser02              md5       des(no)       network-admin       \n______________________________________________________________\n NOTIFICATION TARGET USERS (configured  for sending V3 Inform) \n______________________________________________________________\n\nUser                          Auth      Priv          \n____                          ____      ____          \n\n\nSNMP Tcp Authentication Flag : Enabled.\n\nSNMP protocol : Enabled\n\n\n--------------------------------------------------------------------\nContext                          [Protocol instance, VRF, Topology,]\n                                 [vlan, MST]\n--------------------------------------------------------------------\n1                                ,\n                                ,\n                                ,\n                                ,\n                                 1,\n                                 \n-------------------------------------------------------------------\n10                                ,\n                                ,\n                                ,\n                                ,\n                                 10,\n                                 \n-------------------------------------------------------------------\n20                                ,\n                                ,\n                                ,\n                                ,\n                                 20,\n                                 \n-------------------------------------------------------------------\nvlan-1                                ,\n                                ,\n                                ,\n                                ,\n                                 1,\n                                 \n-------------------------------------------------------------------\nvlan-10                                ,\n                                ,\n                                ,\n                                ,\n                                 10,\n                                 \n-------------------------------------------------------------------\nvlan-20                                ,\n                                ,\n                                ,\n                                ,\n                                 20,\n                                 \n-------------------------------------------------------------------\n",
+      "error": ""
+    },
+    {
+      "command": "show snmp engineID",
+      "role": "ADMIN",
+      "rc": 0,
+      "stdout": "Local SNMP engineID: [Hex] 80000009030CFC00001B01\n                     [Dec] 128:000:000:009:003:012:252:000:000:027:001\n",
+      "error": ""
+    },
+    {
+      "command": "show aaa authentication",
+      "role": "ADMIN",
+      "rc": 0,
+      "stdout": "\t default: local\n\t console: local\n",
+      "error": ""
+    },
+    {
+      "command": "show radius-server statistics",
+      "role": "ADMIN",
+      "rc": 19,
+      "stdout": "Syntax error while parsing 'show radius-server statistics'\n\n\nCmd exec error.\n",
+      "error": "User Access Verification\n"
+    },
+    {
+      "command": "show tacacs-server statistics",
+      "role": "ADMIN",
+      "rc": 16,
+      "stdout": "Syntax error while parsing 'show tacacs-server statistics'\n\n\nCmd exec error.\n",
+      "error": "User Access Verification\n"
+    },
+    {
+      "command": "show users",
+      "role": "ADMIN",
+      "rc": 0,
+      "stdout": "NAME     LINE         TIME         IDLE          PID COMMENT\nNAME     LINE         TIME         IDLE          PID COMMENT\n",
+      "error": ""
+    },
+    {
+      "command": "show ssh server session",
+      "role": "ADMIN",
+      "rc": 20,
+      "stdout": "Syntax error while parsing 'show ssh server session'\n\n\nCmd exec error.\n",
+      "error": "User Access Verification\n"
+    },
+    {
+      "command": "show configuration session summary",
+      "role": "ADMIN",
+      "rc": 0,
+      "stdout": "Session Manager Database:\n--------------------------------------------------------------------\nName                    Session Owner           Creation Time\n--------------------------------------------------------------------\nThere are no active configuration sessions\n",
+      "error": ""
+    },
+    {
+      "command": "show radius-server statistics 192.0.2.123",
+      "role": "ADMIN",
+      "rc": 1,
+      "stdout": "RADIUS server not found\n",
+      "error": "User Access Verification\n"
+    },
+    {
+      "command": "show tacacs-server statistics 192.0.2.123",
+      "role": "ADMIN",
+      "rc": 16,
+      "stdout": "Syntax error while parsing 'show tacacs-server statistics 192.0.2.123'\n\n\nCmd exec error.\n",
+      "error": "User Access Verification\n"
+    },
+    {
+      "command": "show ssh server",
+      "role": "ADMIN",
+      "rc": 0,
+      "stdout": "ssh version 2 is enabled\n",
+      "error": ""
+    }
+  ]
+}

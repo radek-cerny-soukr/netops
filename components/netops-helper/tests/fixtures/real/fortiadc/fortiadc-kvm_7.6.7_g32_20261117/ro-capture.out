@@ -1,0 +1,5 @@
+diagnose sniffer packet port2 'host 198.51.100.100' 4 3 a
+Parsing error at 'sniffer'. err=1
+Command fail. Return code is -284 (CLI parsing error.)
+
+FortiADC-KVM $

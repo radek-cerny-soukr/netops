@@ -1,0 +1,106 @@
+{
+    "ospf3-interface-information" : [
+    {
+        "attributes" : {"xmlns" : "http://xml.juniper.net/junos/26.2R0/junos-routing"},
+        "ospf3-interface" : [
+        {
+            "interface-name" : [
+            {
+                "data" : "irb.3920"
+            }
+            ],
+            "ospf-area" : [
+            {
+                "data" : "0.0.0.7"
+            }
+            ],
+            "ospf-interface-state" : [
+            {
+                "data" : "Down"
+            }
+            ],
+            "dr-id" : [
+            {
+                "data" : "0.0.0.0"
+            }
+            ],
+            "bdr-id" : [
+            {
+                "data" : "0.0.0.0"
+            }
+            ],
+            "neighbor-count" : [
+            {
+                "data" : "0"
+            }
+            ],
+            "interface-address" : [
+            {
+                "data" : "fe80::10"
+            }
+            ],
+            "prefix-length" : [
+            {
+                "data" : "64"
+            }
+            ],
+            "ospf3-interface-index" : [
+            {
+                "data" : "1"
+            }
+            ],
+            "interface-type" : [
+            {
+                "data" : "LAN"
+            }
+            ],
+            "mtu" : [
+            {
+                "data" : "1514"
+            }
+            ],
+            "interface-cost" : [
+            {
+                "data" : "18"
+            }
+            ],
+            "adj-count" : [
+            {
+                "data" : "0"
+            }
+            ],
+            "passive" : [
+            {
+                "data" : "Passive"
+            }
+            ],
+            "hello-interval" : [
+            {
+                "data" : "10"
+            }
+            ],
+            "dead-interval" : [
+            {
+                "data" : "40"
+            }
+            ],
+            "retransmit-interval" : [
+            {
+                "data" : "5"
+            }
+            ],
+            "ospf-stub-type" : [
+            {
+                "data" : "Not Stub"
+            }
+            ],
+            "ospf-interface-protection-type" : [
+            {
+                "data" : "None"
+            }
+            ]
+        }
+        ]
+    }
+    ]
+}

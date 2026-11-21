@@ -1,0 +1,14 @@
+FortiADC-KVM # config load-balance virtual-server
+  edit "LAB_VS_SMTP"
+    set status disable
+    set interface port2
+    set ip 203.0.113.10
+    set port 25
+    set load-balance-profile LB_PROF_TCP
+    set load-balance-method LB_METHOD_ROUND_ROBIN
+    set load-balance-pool LAB_POOL_SMTP
+    set traffic-log enable
+  next
+end
+
+FortiADC-KVM #

@@ -1,0 +1,7 @@
+{
+    "ipV4Neighbors": [],
+    "totalEntries": 0,
+    "staticEntries": 0,
+    "dynamicEntries": 0,
+    "notLearnedEntries": 0
+}

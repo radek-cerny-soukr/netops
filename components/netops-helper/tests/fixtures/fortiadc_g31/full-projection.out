@@ -1,0 +1,45 @@
+host01         # config system global
+end
+config system interface
+end
+config system admin
+end
+config system vdom
+  edit "root"
+  next
+end
+config load-balance persistence
+  edit "LB_PERSIS_SRC_ADDR"
+    set type source-address
+    set timeout 300
+  next
+  edit "LB_PERSIS_HASH_SRC_ADDR"
+    set type consistent-hash-ip
+  next
+  edit "LB_PERSIS_HASH_SRC_ADDR_PORT"
+    set type hash-source-address-port
+  next
+  edit "LB_PERSIS_HASH_COOKIE"
+    set type hash-cookie
+  next
+  edit "LB_PERSIS_SSL_SESS_ID"
+    set type ssl-session-id
+    set timeout 300
+  next
+  edit "LB_PERSIS_SIP_CALL_ID"
+    set type sip-call-id
+    set timeout 300
+  next
+  edit "LB_PERSIS_RDP_COOKIE"
+    set type rdp-cookie
+  next
+  edit "LB_PERSIS_PASSIVE_COOKIE"
+    set type passive-cookie
+    set timeout 300
+  next
+end
+config security web-vulnerability-scanner task
+end
+config security web-vulnerability-scanner integration
+end
+host01         #

@@ -1,0 +1,11 @@
+GigabitEthernet0/0/1.94 - Group 94 (version 2)
+  State is Standby
+    1 state change, last state change 01:06:09
+    Track object 8 state Up
+  Virtual IP address is 192.0.2.1
+  Hello time 1 sec, hold time 4 sec
+  Authentication MD5, key-string
+  Active router is 192.0.2.2, priority 110 (expires in 4.272 sec)
+  Standby router is local
+  Priority 105 (configured 105)
+  FLAGS: 0/1

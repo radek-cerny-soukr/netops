@@ -1,0 +1,51 @@
+{
+  "platform": "junos",
+  "table": "ospf3-interface",
+  "versions": [
+    "26.2R1.7"
+  ],
+  "exact_versions": true,
+  "ops": [
+    "create",
+    "update",
+    "delete"
+  ],
+  "table_scoped_key": true,
+  "key_pattern": "^(?:[a-z][a-z0-9]*-[0-9]+/[0-9]+/[0-9]+(?::[0-9]+)?|irb|[a-z][a-z0-9-]*[0-9]+)\\.[0-9]+$",
+  "protected_keys": [],
+  "attributes": {
+    "area": {
+      "type": "text",
+      "required_on_create": true,
+      "update": true,
+      "unset": false,
+      "referenced_update": false,
+      "max_length": 15,
+      "pattern": "^([0-9]{1,3}\\.){3}[0-9]{1,3}$"
+    },
+    "passive": {
+      "type": "text",
+      "required_on_create": false,
+      "update": true,
+      "unset": true,
+      "referenced_update": false,
+      "max_length": 3,
+      "pattern": "^(yes|no)$",
+      "default": "no"
+    },
+    "metric": {
+      "type": "integer",
+      "required_on_create": false,
+      "update": true,
+      "unset": true,
+      "referenced_update": false,
+      "minimum": 1,
+      "maximum": 65535
+    }
+  },
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "Uses the Junos commit confirmed safeguard and scoped inverse (G132). Scoped interface under protocols ospf3 area; operational readback checks area, passive mode and cost."
+}

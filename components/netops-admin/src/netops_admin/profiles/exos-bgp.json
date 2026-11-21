@@ -1,0 +1,29 @@
+{
+  "platform": "exos",
+  "table": "bgp",
+  "versions": [
+    "33.6.1.14"
+  ],
+  "ops": [
+    "update"
+  ],
+  "table_scoped_key": true,
+  "key_pattern": "^VR-Default$",
+  "protected_keys": [],
+  "attributes": {
+    "local-as": {
+      "type": "integer",
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "required_on_create": false,
+      "minimum": 1,
+      "maximum": 4294967295
+    }
+  },
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "G46 X20. Set the local AS in VR-Default while BGP is disabled and has no peers. An unset AS is restored with AS-number 0. See the G46 measurements on ExtremeXOS 33.6.1.14 (task netops-20261119-611)."
+}

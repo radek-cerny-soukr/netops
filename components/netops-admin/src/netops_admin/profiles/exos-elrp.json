@@ -1,0 +1,39 @@
+{
+  "platform": "exos",
+  "table": "elrp",
+  "versions": [
+    "33.6.1.14",
+    "33.7.1.6"
+  ],
+  "ops": [
+    "create",
+    "update",
+    "delete"
+  ],
+  "key_pattern": "^[A-Za-z][A-Za-z0-9_-]{0,31}$",
+  "protected_keys": [],
+  "attributes": {
+    "ports": {
+      "type": "name-list",
+      "update": true,
+      "unset": false,
+      "referenced_update": true,
+      "required_on_create": true
+    },
+    "interval": {
+      "type": "integer",
+      "update": true,
+      "unset": false,
+      "referenced_update": true,
+      "required_on_create": true,
+      "minimum": 1,
+      "maximum": 600
+    }
+  },
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "table_scoped_key": true,
+  "rollback_evidence": "One periodic log-only ELRP session per VLAN. Undo restores the port list and interval. Global ELRP state is preserved."
+}

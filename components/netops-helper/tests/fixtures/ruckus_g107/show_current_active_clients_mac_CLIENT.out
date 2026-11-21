@@ -1,0 +1,45 @@
+show current-active-clients mac 00:00:5e:00:53:04
+
+Current Active Clients:
+
+  Clients:
+
+    Mac Address= 00:00:5e:00:53:04
+
+    OS/Type= Android
+
+    Host Name= host-01
+
+    User/IP= 198.51.100.6
+
+    Role= 
+
+    Access Point= 00:00:5e:00:53:02
+
+    BSSID= 00:00:5e:00:53:05
+
+    Connect Since=2026/11/17 19:30:46
+
+    Auth Method= Open
+
+    WLAN= ssid01
+
+    VLAN= 20
+
+    Channel= 11
+
+    Radio= 802.11gn
+
+    Signal= 67
+
+    Status= Authorized
+
+    Received from client= 401 pkts / 44510 bytes
+
+    Transmitted to client= 312 pkts / 22580 bytes
+
+    Tx. drops due to retry failure= 0 pkts
+
+ 
+
+Last 300 Events/Activities:

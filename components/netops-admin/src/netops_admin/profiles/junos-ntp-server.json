@@ -1,0 +1,34 @@
+{
+  "platform": "junos",
+  "table": "ntp-server",
+  "versions": [
+    "26.2R1.7"
+  ],
+  "exact_versions": true,
+  "ops": [
+    "create",
+    "update",
+    "delete"
+  ],
+  "table_scoped_key": true,
+  "key_pattern": "^[0-9A-Fa-f:.]{2,39}$",
+  "protected_keys": [],
+  "attributes": {
+    "prefer": {
+      "type": "text",
+      "max_length": 3,
+      "pattern": "^(yes|no)$",
+      "default": "no",
+      "update": true,
+      "unset": false,
+      "referenced_update": true,
+      "required_on_create": false,
+      "undo_to_default": true
+    }
+  },
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "1.0.12 G145 (J31-J33), measured on vJunos-switch 26.2R1.7 (d-vjunos, GNS3 lab on PC-Radek KVM, task-evidence/g145/probe1-3) with the safeguard of the Junos interface profile: an empty 'commit confirmed 10 comment \"netops-<id>\"' first, the change committed with 'commit confirmed 10 comment \"netops-change\"', the confirmation 'commit comment \"netops-<id>-ok\"'; an expiry returns the configuration before the change. The key is the address of the server as Junos shows it (IPv4, or IPv6 compressed in lower case). Lines: 'set system ntp server <ip>' or 'set system ntp server <ip> prefer' (one display set line; deleting prefer leaves the bare line), 'delete system ntp server <ip> prefer' and 'delete system ntp server <ip>' (the last server removes the ntp stanza, no empty container is left). Other servers and the rest of the ntp stanza are not touched; a server with key, version, routing-instance or nts is refused."
+}

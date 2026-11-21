@@ -1,0 +1,9 @@
+config router static
+    edit 21
+        set dst 192.0.2.0    255.255.255.0
+        set device "wan1"
+        set comment "port-desc-01"
+        set dynamic-gateway enable
+    next
+end
+

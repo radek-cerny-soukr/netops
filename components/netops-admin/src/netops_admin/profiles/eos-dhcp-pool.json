@@ -1,0 +1,51 @@
+{
+  "platform": "eos",
+  "table": "dhcp-pool",
+  "versions": ["4.36.1F"],
+  "exact_versions": true,
+  "ops": ["create", "update", "delete"],
+  "key_pattern": "^[0-9]{1,3}(?:\\.[0-9]{1,3}){3}/[0-9]{1,2}$",
+  "table_scoped_key": true,
+  "protected_keys": [],
+  "attributes": {
+    "range": {
+      "type": "text",
+      "max_length": 31,
+      "pattern": "^[0-9.]+ [0-9.]+$",
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "required_on_create": false
+    },
+    "default-gateway": {
+      "type": "ipv4-address",
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "required_on_create": false
+    },
+    "lease-minutes": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2881439,
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "required_on_create": false
+    },
+    "reservations": {
+      "type": "text",
+      "max_length": 2048,
+      "pattern": "^[0-9a-fA-F:.=, ]+$",
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "required_on_create": false
+    }
+  },
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "EOS configuration session timer, running-config comparison and show dhcp server ipv4 from the check identity protect an IPv4 pool with one range and MAC/IP reservations."
+}

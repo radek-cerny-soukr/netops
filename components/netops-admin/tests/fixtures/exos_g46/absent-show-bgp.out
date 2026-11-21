@@ -1,0 +1,22 @@
+
+Enabled             : No                OperStatus          : Down
+RouterId            : 0.0.0.0           AS                  : 0
+LocalPref           : 100               MED                 : None
+Always-Compare-MED  : Disabled          Aggregation         : Disabled
+Route Reflector     : No                RR ClusterId        : 0
+Routes from EBGP    : 0                 Routes from IBGP    : 0
+Routes redistributed: 0                 Out Updates queued  : 0
+Fast Ext Fallover   : Disabled          MPLS LSP as Next-Hop: No
+Adj-RIB-Out Storage : Enabled           Max AS-Path length  : None
+ConfedId            : 0                 Multipath Relax     : Disabled
+Confed Peers        :
+Networks            : 0
+Aggregate Networks  : 0
+Redistribute        :
+Advertise Inactive Routes:
+ ipv4-unicast   : Disabled
+ ipv4-multicast : Disabled
+ ipv6-unicast   : Disabled
+ ipv6-multicast : Disabled
+ ipv4-vxlan     : Enabled
+ l2vpn-evpn     : Enabled

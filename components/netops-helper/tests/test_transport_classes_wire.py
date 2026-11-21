@@ -2,9 +2,9 @@
 
 Only the OpenSSH programs are fake: `ssh-keyscan` and `ssh` on PATH answer the way the
 real clients do for an unreachable, silent, refusing or answering host, a wrong host key,
-a refused password and a dropped connection (their exit codes and their own last
-messages). Every read runs the real host-key scan, probe, exec or PTY session, parser
-and the persisted Helper audit; no engine function is replaced.
+a refused password and a dropped connection. Fortinet errors come from one pinned
+PTY client's diagnostic log. Other platforms retain the scan, probe and exec
+coverage. All reads use the real parser and persisted Helper audit.
 """
 from dataclasses import replace
 import json
@@ -25,13 +25,16 @@ import json, os, sys, time
 plan = json.load(open({plan!r}))
 argv = sys.argv[1:]
 mode = "probe" if "netops-hostkey" in argv else "pty" if "-tt" in argv else "exec"
+pinned = mode == "pty" and "-E" in argv
 with open({log!r}, "a") as handle:
     handle.write(json.dumps({{"program": "ssh", "mode": mode}}) + "\\n")
-step = plan[mode]
-if mode == "pty":
-    # One terminal carries both streams, as for the real client in a PTY session.
-    sys.stdout.write(step.get("banner", "") + step["said"] + "\\r\\n")
+step = plan["pinned"] if pinned else plan[mode]
+if pinned:
+    banner, _, verdict = step["said"].rpartition("\\n")
+    sys.stdout.write(step.get("banner", "") + banner)
     sys.stdout.flush()
+    with open(argv[argv.index("-E") + 1], "a") as client_log:
+        client_log.write(verdict + "\\n")
 else:
     sys.stderr.write(step["said"] + "\\n")
 sys.exit(step["code"])
@@ -86,6 +89,9 @@ NEGOTIATION = {"code": 255, "said": "Unable to negotiate with 127.0.0.1 port 222
                                     " Their offer: ssh-rsa"}
 SCENARIOS["negotiation"] = (HOST_KEY_BLOB, UNUSED, NEGOTIATION, NEGOTIATION)
 NETWORK_CLASSES = ("unreachable", "timeout", "connection_refused", "host_key_unavailable")
+# The answered credential-free probe is specific to scan-based transports.
+PINNED_CLASSES = [code for code in CLASSES if code != "host_key_unavailable"]
+PINNED_CLIENTS = [{"program": "ssh", "mode": "pty"}]
 
 
 @pytest.fixture()
@@ -102,7 +108,12 @@ def fake_openssh(tmp_path, monkeypatch):
 
     def use(code):
         keyscan, probe, exec_step, pty_step = SCENARIOS[code]
-        plan.write_text(json.dumps({"keyscan": keyscan, "probe": probe, "exec": exec_step, "pty": pty_step}))
+        if code == "host_key_mismatch":
+            pinned = {"code": 255, "said": "Host key verification failed."}
+        else:
+            pinned = probe if code in NETWORK_CLASSES else pty_step
+        plan.write_text(json.dumps({"keyscan": keyscan, "probe": probe, "exec": exec_step,
+                                    "pty": pty_step, "pinned": pinned}))
 
     def clients():
         return [json.loads(line) for line in log.read_text().splitlines()] if log.exists() else []
@@ -183,18 +194,17 @@ def test_locate_endpoint_missing_names_the_cause(fake_openssh, code):
     _private_free(result, events())
 
 
-@pytest.mark.parametrize("platform,query,auth", [
-    ("extreme_exos", "version", lambda: replace(switch_auth(), enabled_queries=("version",))),
-    ("fortiadc", "system_status", adc_auth),
-], ids=["switch", "fortiadc"])
-@pytest.mark.parametrize("code", CLASSES)
+@pytest.mark.parametrize("platform,query,auth,code", [
+    pytest.param("extreme_exos", "version", lambda: replace(switch_auth(), enabled_queries=("version",)),
+                 code, id=f"switch-{code}") for code in CLASSES
+] + [pytest.param("fortiadc", "system_status", adc_auth, code, id=f"fortiadc-{code}") for code in PINNED_CLASSES])
 def test_ssh_read_failure_has_class_advice_and_audit_detail(fake_openssh, code, platform, query, auth):
     use, clients, events = fake_openssh
     use(code)
     result = engine.ssh_read(auth(), platform, query, None, 0, 16000)
     assert result["ok"] is False
     assert (result["error_code"], result["error"]) == (code, engine._TRANSPORT_ADVICE[code])
-    assert clients() == _expected_clients(code, ["exec"])
+    assert clients() == (PINNED_CLIENTS if platform == "fortiadc" else _expected_clients(code, ["exec"]))
     assert _failed_details(events(), "ssh_read") == [code]
     _private_free(result, events())
 
@@ -202,31 +212,31 @@ def test_ssh_read_failure_has_class_advice_and_audit_detail(fake_openssh, code, 
 @pytest.mark.parametrize("recipe,address,count", [
     ("ping", "192.0.2.11", 3), ("system_event_logs", "", 10), ("session_list", "VS_APP_HTTP", 10),
 ])
-@pytest.mark.parametrize("code", CLASSES)
+@pytest.mark.parametrize("code", PINNED_CLASSES)
 def test_fortiadc_diagnostics_return_the_class_instead_of_a_role_failure(fake_openssh, code, recipe, address, count):
     use, clients, events = fake_openssh
     use(code)
     result = engine.fortios_diagnostics(adc_auth(), recipe, address, "", count=count, timeout=5, max_bytes=16000)
     assert result == {"ok": False, "target": "wire-test", "platform": "fortiadc", "recipe": recipe,
                       "error_code": code, "error": engine._TRANSPORT_ADVICE[code]}
-    assert clients() == _expected_clients(code, ["pty"])
+    assert clients() == PINNED_CLIENTS
     assert _failed_details(events(), "fortios_diagnostics") == [code]
     _private_free(result, events())
 
 
-@pytest.mark.parametrize("code", CLASSES)
+@pytest.mark.parametrize("code", PINNED_CLASSES)
 def test_fortiadc_config_read_returns_the_class(fake_openssh, code):
     use, clients, events = fake_openssh
     use(code)
     result = engine.config_read(adc_auth(), "fortiadc", "all", include_all=True, redaction="full")
     assert result == {"ok": False, "target": "wire-test", "platform": "fortiadc", "section": "all",
                       "error_code": code, "error": engine._TRANSPORT_ADVICE[code]}
-    assert clients() == _expected_clients(code, ["exec"])
+    assert clients() == PINNED_CLIENTS
     assert _failed_details(events(), "config_read") == [code]
     _private_free(result, events())
 
 
-@pytest.mark.parametrize("code", CLASSES)
+@pytest.mark.parametrize("code", PINNED_CLASSES)
 def test_triage_slb_identity_failure_explains_the_class(fake_openssh, code):
     use, _, events = fake_openssh
     use(code)
@@ -240,7 +250,7 @@ def test_triage_slb_identity_failure_explains_the_class(fake_openssh, code):
     _private_free(result, events())
 
 
-@pytest.mark.parametrize("code", CLASSES)
+@pytest.mark.parametrize("code", PINNED_CLASSES)
 def test_fortios_triage_and_diagnostics_carry_the_class(fake_openssh, code):
     use, _, events = fake_openssh
     use(code)
@@ -278,7 +288,7 @@ def test_unreachable_target_never_points_at_the_pin(fake_openssh):
     assert "before changing the account or the pinned host key" in result["error"]
 
 
-@pytest.mark.parametrize("code", CLASSES)
+@pytest.mark.parametrize("code", PINNED_CLASSES)
 def test_schema_read_returns_the_class(fake_openssh, tmp_path, monkeypatch, code):
     from hashlib import sha256
     from conftest import HOST_KEY_PIN
@@ -292,11 +302,12 @@ def test_schema_read_returns_the_class(fake_openssh, tmp_path, monkeypatch, code
         "schema": "library.json", "sha256": sha256(library.read_bytes()).hexdigest(),
         "host_key_fingerprint": HOST_KEY_PIN}}}))
     monkeypatch.setenv("NETOPS_SCHEMA_REGISTRY", str(registry))
-    auth = replace(schema_auth(), host=LOOPBACK, port=PORT, host_key_fingerprint=HOST_KEY_PIN, egress=_egress())
+    auth = replace(schema_auth(), host=LOOPBACK, port=PORT, host_key_fingerprint=HOST_KEY_PIN,
+                   host_key=f"ssh-ed25519 {HOST_KEY_BLOB}", egress=_egress())
     result = engine.schema_read(auth, "firewall address", "get", None, None, 0, 1000)
     assert result == {"ok": False, "target": "device-a", "platform": "fortinet", "query": "schema_read",
                       "error_code": code, "error": engine._TRANSPORT_ADVICE[code]}
-    assert clients() == _expected_clients(code, ["exec"])
+    assert clients() == PINNED_CLIENTS
     assert _failed_details(events(), "schema_read") == [code]
     _private_free(result, events())
 
@@ -368,7 +379,7 @@ def test_a_banner_naming_no_matching_keeps_the_refused_login(fake_openssh):
         assert result["ok"] is False
         assert (result["error_code"], result["error"]) == ("auth", advice)
         assert "legacy_ssh" not in json.dumps(result)
-    assert [c["mode"] for c in clients() if c["program"] == "ssh"] == ["exec"] * 3
+    assert [c["mode"] for c in clients() if c["program"] == "ssh"] == ["pty", "exec", "exec"]
     assert _failed_details(events(), "ssh_read") == ["auth", "auth"]
     assert _failed_details(events(), "switch_read") == ["auth"]
     diagnostic = engine.fortios_diagnostics(adc_auth(), "ping", "192.0.2.11", "", count=3, timeout=5)
@@ -487,7 +498,7 @@ def test_a_refused_login_of_a_multi_vdom_fortios_table_read_names_the_vdom_inter
     result = engine.switch_read(vdom_auth, "neighbor_l3")
     assert result["ok"] is False and result["records"] == [] and result["status"] == "transport_error"
     assert (result["error_code"], result["error"]) == ("auth", advice)
-    assert clients() == _expected_clients("auth", ["exec"])
+    assert clients() == PINNED_CLIENTS
     assert _failed_details(events(), "normalized_query") == ["auth"]
     assert _failed_details(events(), "switch_read") == ["auth"]
     # The same FortiOS table read without diagnostic_vdoms keeps the plain advice.

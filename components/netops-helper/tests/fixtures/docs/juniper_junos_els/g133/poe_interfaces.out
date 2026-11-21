@@ -1,0 +1,3 @@
+Interface Admin        Oper        Max       Priority Power             Class
+          status       status      power              consumption
+ ge-0/0/0 Enabled      ON          15.4W     Low      7.9W                0

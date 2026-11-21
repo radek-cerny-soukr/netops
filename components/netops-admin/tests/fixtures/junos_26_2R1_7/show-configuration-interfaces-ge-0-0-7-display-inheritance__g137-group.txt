@@ -1,0 +1,23 @@
+##
+## '0' was inherited from group 'g137-grp'
+##
+unit 0 {
+    ##
+    ## 'ethernet-switching' was inherited from group 'g137-grp'
+    ##
+    family ethernet-switching {
+        ##
+        ## 'access' was inherited from group 'g137-grp'
+        ##
+        interface-mode access;
+        ##
+        ## 'vlan' was inherited from group 'g137-grp'
+        ##
+        vlan {
+            ##
+            ## 'g137-data' was inherited from group 'g137-grp'
+            ##
+            members g137-data;
+        }
+    }
+}

@@ -1,0 +1,9 @@
+{
+    "unicastTable": {
+        "tableEntries": []
+    },
+    "multicastTable": {
+        "tableEntries": []
+    },
+    "disabledMacLearningVlans": []
+}

@@ -1,0 +1,41 @@
+{
+  "platform": "iosxe",
+  "table": "inline-power",
+  "versions": [
+    "17.18.2"
+  ],
+  "exact_versions": true,
+  "ops": [
+    "update"
+  ],
+  "table_scoped_key": true,
+  "key_pattern": "^[A-Z][A-Za-z-]{1,24}[0-9]{1,3}(?:/[0-9]{1,3}){0,2}(?:\\.[0-9]{1,4})?$",
+  "protected_keys": [],
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "attributes": {
+    "mode": {
+      "type": "text",
+      "max_length": 6,
+      "pattern": "^(auto|never|static)$",
+      "default": "auto",
+      "update": true,
+      "unset": false,
+      "referenced_update": true,
+      "required_on_create": false,
+      "undo_to_default": true
+    },
+    "max-milliwatts": {
+      "type": "text",
+      "max_length": 5,
+      "pattern": "^[0-9]{4,5}$",
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "required_on_create": false
+    }
+  },
+  "rollback_evidence": "G79 (XE-M024): power inline auto, never or static max, with the prior mode and limit retained for undo. Running configuration verifies mode and the configured limit; the check account verifies the operational PoE admin mode. Syntax and output are documented by Cisco. The operation was not measured on PoE hardware; IOL XE refuses show power inline."
+}

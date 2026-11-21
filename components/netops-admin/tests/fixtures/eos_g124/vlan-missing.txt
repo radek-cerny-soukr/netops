@@ -1,0 +1,3 @@
+
+> show vlan id 3984
+% VLAN 3984 not found in current VLAN database at line 1

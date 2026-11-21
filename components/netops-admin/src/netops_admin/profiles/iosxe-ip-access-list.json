@@ -1,0 +1,31 @@
+{
+  "platform": "iosxe",
+  "table": "ip-access-list",
+  "versions": [
+    "17.18.2"
+  ],
+  "exact_versions": true,
+  "ops": [
+    "create",
+    "update",
+    "delete"
+  ],
+  "table_scoped_key": true,
+  "key_pattern": "^(?:ipv4|ipv6):[A-Za-z][A-Za-z0-9_.-]{0,63}$",
+  "protected_keys": [],
+  "attributes": {
+    "rules": {
+      "type": "text",
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "required_on_create": false,
+      "max_length": 8192
+    }
+  },
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "G82 (XE-M029), measured on IOL XE 17.18.2 (router) in the GNS3 lab, task netops-20261119-639. The key is ipv4:<name> or ipv6:<name> of a named extended ACL. Rules are comma-separated '<seq> permit|deny <protocol> <source> <destination> [eq <port>]' entries of IP/IPv6, TCP, UDP or ICMP with the addresses any, host <address> or a CIDR prefix of the family; the device prints named ports and wildcard masks, Admin compares the canonical form. Lines: 'ip access-list extended NAME' with '<seq> permit ...' and 'no <seq>', 'ipv6 access-list NAME' with 'sequence <seq> permit ...' and 'no sequence <seq>'; a changed rule is removed and added again. An IPv4 ACL without rules stays configured, an IPv6 ACL without rules does not exist (it is created with a rule and removed by delete). The device refuses a second sequence number with the same rule body, so the profile does too. The safeguard is the revert timer of the interface profile (configure terminal revert timer, configure confirm); apply needs the approved expected_plan_sha256. An ACL that is attached to an interface is changed only with its rules kept non-empty; on an up interface the change needs endpoint_impact naming the key; a management interface, a protected interface or an ACL that is also used by a route-map, NAT, line or another feature is refused. The check account reads show ip access-lists NAME and show ipv6 access-list NAME."
+}

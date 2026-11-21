@@ -1,0 +1,44 @@
+Info: Command executed. Please use new command: show switch management
+CLI idle timeout                 : Enabled (20 minutes)
+CLI max number of login attempts : 3
+CLI max number of sessions       : 8
+CLI paging                       : Enabled
+CLI space-completion             : Disabled (this session only)
+CLI configuration logging        : Disabled (without expansion)
+CLI journal size                 : 100
+CLI password prompting only      : [REDACTED]
+CLI display moved-keywords       : Hidden
+CLI moved-keywords hidden release: 33.7
+CLI RADIUS cmd authorize tokens  : 2
+CLI scripting                    : Disabled (this session only)
+CLI scripting error mode         : Ignore-Error (this session only)
+CLI script search path           : ".:/usr/local/cfg" (this session only)
+CLI persistent mode              : Persistent (this session only)
+CLI prompting                    : Disabled (this session only)
+CLI screen size                  : 0 Lines 0 Columns (this session only)
+CLI refresh                      : Enabled
+CLI history expansion            : Disabled
+Image integrity checking         : Off 
+Current system port notation     : port
+Configured system port notation  : port
+Telnet access                    : Disabled (tcp port 23 vr all)
+                                 : Access Profile : not set
+SSH access                       : Enabled (Key valid, tcp port 22 vr all)
+                                 : Secure-Mode    : Off
+                                 : Access Profile : not set
+SSH2 idle time                   : 60 minutes
+SSH2 rekey interval              : 4096 MB and no time limit
+Web access                       : Enabled (tcp port 80)
+                                 : Access Profile : not set
+Web secure access                : Enabled (tcp port 443)
+Total Read Only Communities	 : [REDACTED]
+Total Read Write Communities	 : [REDACTED]
+RMON                             : Disabled
+SNMP access                      : Disabled
+                                 : Access Profile : not set
+SNMP Notifications               : Enabled
+SNMP Notification Receivers  : None
+SNMP stats:	InPkts 0       OutPkts   0       Errors 0       AuthErrors 0
+		Gets   0       GetNexts  0       Sets   0       Drops      0       
+SNMP traps:	Sent   0       AuthTraps Enabled
+SNMP inform:	Sent   0       Retries   0       Failed 0

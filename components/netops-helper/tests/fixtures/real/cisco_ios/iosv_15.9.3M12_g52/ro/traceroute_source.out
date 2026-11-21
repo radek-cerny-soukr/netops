@@ -1,0 +1,3 @@
+traceroute 192.0.2.1   source Loopback0 numeric timeout 1 probe 1 ttl 1 5
+                       ^
+% Invalid input detected at '^' marker.

@@ -55,7 +55,13 @@ ALLOWED_LITERALS = frozenset(
         "1.0.1.8", "21.1.2.6", "2.2.1.3",
         # IANA well-known multicast groups printed by real devices: OSPF AllSPFRouters, PIM, VRRP,
         # Cisco-RP-Announce, Cisco-RP-Discovery and PTP (NX-OS control-plane ACLs, Junos route table)
-        "224.0.0.5", "224.0.0.13", "224.0.0.18", "224.0.1.39", "224.0.1.40", "224.0.1.129",)
+        "224.0.0.5", "224.0.0.13", "224.0.0.18", "224.0.1.39", "224.0.1.40", "224.0.1.129",
+        # the broadcast MAC, which EOS also prints as the all-ones VARP MAC mask (a constant like 00:00:00:00:00:00)
+        "ff:ff:ff:ff:ff:ff",
+        # Ruckus Unleashed firmware version of the measured Admin profiles (like the EXOS versions above)
+        "200.15.6.212",
+        # non-contiguous IOS wildcard mask of the measured IOS XE ACL fixture (a mask, not an address)
+        "0.0.0.254",)
 )
 # EXOS "show interfaces detail" prints the all-ones IPv6 flow key mask
 ALLOWED_IPV6_LITERALS = frozenset(("ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",))
@@ -67,6 +73,12 @@ EXOS_REAL_FIXTURES = re.compile(r"components/netops-helper/tests/fixtures/real/e
 EXOS_PROCESS_ROW = re.compile(r"[A-Za-z][\w.-]*[ \t]+(\d+(?:\.\d+){3})[ \t]+\d+[ \t]+[A-Z]")
 EXOS_EVENT_NAME = re.compile(r"<(?:Crit|Erro|Warn|Noti|Info|Summ|Verb|Data):[A-Za-z0-9_.]+>")
 DOCUMENTATION_MAC_PREFIX = "00:00:5e:00:53:"
+# RFC 7042 2.1.2 documentation range of multicast MAC addresses (01-00-5E-90-10-00 to 01-00-5E-90-10-FF)
+DOCUMENTATION_MULTICAST_MAC_PREFIX = "01:00:5e:90:10:"
+# RFC 4291 2.7.1: a node joins the solicited-node group ff02::1:ffXX:XXXX of every unicast address (low 24 bits);
+# accept groups whose 24-bit suffix has a zero high byte; this covers the groups derived from short fixture
+# addresses such as 2001:db8::1 or fe80::12
+SOLICITED_NODE = ipaddress.ip_network("ff02::1:ff00:0/104")
 IPV4_PATTERN = re.compile(r"(?<![0-9A-Za-z.])([0-9]{1,3}(?:\.[0-9]{1,3}){3})(?![0-9A-Za-z]|\.[0-9])")
 IPV6_PATTERN = re.compile(r"(?<![0-9A-Za-z:.])([0-9A-Fa-f]{0,4}(?::[0-9A-Fa-f]{0,4}){2,7})(?![0-9A-Za-z:]|\.[0-9])")
 DOMAIN_PATTERN = re.compile(
@@ -153,6 +165,8 @@ def _documented_ipv6(candidate: str) -> bool | None:
     if address.is_loopback or address.is_unspecified:
         return True
     if any(address in network for network in DOCUMENTATION_IPV6):
+        return True
+    if address in SOLICITED_NODE and (int(address) & 0xFFFFFF) < 0x10000:
         return True
     groups = [
         (int(address) >> shift) & 0xFFFF for shift in range(112, -1, -16)
@@ -255,7 +269,7 @@ def _address_errors(relative: str, text: str, domains: bool) -> list[str]:
                 )
         for match in MAC_PATTERN.finditer(line):
             value = match.group(0).lower()
-            if value in ALLOWED_LITERALS or value.startswith(DOCUMENTATION_MAC_PREFIX):
+            if value in ALLOWED_LITERALS or value.startswith((DOCUMENTATION_MAC_PREFIX, DOCUMENTATION_MULTICAST_MAC_PREFIX)):
                 continue
             errors.append(
                 f"{relative}:{number} holds a MAC address: {match.group(0)}"

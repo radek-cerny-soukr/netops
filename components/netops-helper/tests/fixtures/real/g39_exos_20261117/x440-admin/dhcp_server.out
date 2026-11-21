@@ -1,0 +1,7 @@
+VLAN "x07test":
+    DHCP Address Range   : 192.0.2.10->192.0.2.12
+    Netlogin Lease Timer : Not configured (Default = 10 seconds)
+    DHCP Lease Timer     : 600 seconds
+    Default Gateway      : 192.0.2.1
+    Ports DHCP Enabled   : 14
+

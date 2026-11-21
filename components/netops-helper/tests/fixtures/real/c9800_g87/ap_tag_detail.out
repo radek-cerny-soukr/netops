@@ -1,0 +1,25 @@
+AP Name            : AP2802-01
+AP Mac             : 0000.5e00.532e
+
+Tag Type             Tag Name
+-----------------------------
+Policy Tag           PT1
+RF Tag               default-rf-tag
+Site Tag             default-site-tag
+
+Policy tag mapping
+------------------
+WLAN Profile Name                Policy Name                      VLAN                             Central Switching                IPv4 ACL                         IPv6 ACL
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+psk-pbl-ewlc                     ctrl-vl2602                      VLAN0210                         ENABLED                          Not Configured                   Not Configured
+
+Site tag mapping
+----------------
+Flex Profile         : default-flex-profile
+AP Profile           : default-ap-profile
+Local-site           : Yes
+
+RF tag mapping
+--------------
+5ghz RF Policy       : Global Config
+2.4ghz RF Policy     : Global Config

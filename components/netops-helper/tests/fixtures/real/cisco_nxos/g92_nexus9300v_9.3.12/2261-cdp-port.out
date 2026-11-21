@@ -1,0 +1,23 @@
+----------------------------------------
+Device ID:host05(0S0SS1SSSSS)
+System Name: host05
+
+Interface address(es): 1
+    IPv4 Address: 198.51.100.62
+Platform: N9K-C9300v, Capabilities: Router Switch IGMP Filtering Supports-STP-Dispute
+Interface: Ethernet1/2, Port ID (outgoing port): Ethernet1/2
+Holdtime: 167 sec
+
+Version:
+Cisco Nexus Operating System (NX-OS) Software, Version 9.3(12)
+
+Advertisement Version: 2
+
+Native VLAN: 1
+Duplex: full
+
+MTU: 1500
+Mgmt address(es):
+    IPv4 Address: 198.51.100.62
+Local Interface MAC: 00:00:5e:00:53:0c
+Remote Interface MAC: 00:00:5e:00:53:0d

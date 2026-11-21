@@ -1,0 +1,4 @@
+Number of domain suffixes: 1
+Domain Suffix 0:        example.test  (DHCP)
+Number of domain servers: 1
+Name Server 0:  192.0.2.1  VR-Default  (DHCP)

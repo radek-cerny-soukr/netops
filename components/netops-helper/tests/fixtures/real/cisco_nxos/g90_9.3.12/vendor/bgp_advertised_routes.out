@@ -1,0 +1,7 @@
+Peer 198.51.100.1 routes for address family IPv4 Unicast:
+BGP table version is 318, Local Router ID is 203.0.113.6
+Status: s-suppressed, x-deleted, S-stale, d-dampened, h-history, *-valid, >-best
+Path type: i-internal, e-external, c-confed, l-local, a-aggregate, r-redist, I-injected
+Origin codes: i - IGP, e - EGP, ? - incomplete, | - multipath, & - backup
+   Network            Next Hop            Metric     LocPrf     Weight Path
+*>r104.0.0.0/8        0.0.0.0                  0        100      32768 ?

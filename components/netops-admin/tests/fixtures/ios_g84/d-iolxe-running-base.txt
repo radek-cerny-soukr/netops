@@ -1,0 +1,6 @@
+Building configuration...
+Current configuration : 6581 bytes
+version 17.18
+hostname host02
+clock timezone CET 1 0
+end

@@ -1,0 +1,36 @@
+Interface Ethernet1/5 is invalid
+  Channel group is 0 port channel is
+  PDUs sent: 0
+  PDUs rcvd: 0
+  Markers sent: 0
+  Markers rcvd: 0
+  Marker response sent: 0
+  Marker response rcvd: 0
+  Unknown packets rcvd: 0
+  Illegal packets rcvd: 0
+Lag Id: [ [(0, 0-0-0-0-0-0, 0, 0, 0), (0, 0-0-0-0-0-0, 0, 0, 0)] ]
+Operational as aggregated link since Thu Jan  1 00:00:00 1970
+
+Local Port: Eth1/5   MAC Address= 0-0-5e-0-53-8
+  System Identifier=0x8000,  Port Identifier=0x8000,0x0
+  Operational key=0
+  LACP_Activity=passive
+  LACP_Timeout=Long Timeout (30s)
+  Synchronization=NOT_IN_SYNC
+  Collecting=false
+  Distributing=false
+  Partner information refresh timeout=Long Timeout (90s)
+Actor Admin State=0
+Actor Oper State=0
+Neighbor: 0x0
+  MAC Address= 0-0-0-0-0-0
+  System Identifier=0x0,  Port Identifier=0x0,0x0
+  Operational key=0
+  LACP_Activity=unknown
+  LACP_Timeout=Long Timeout (30s)
+  Synchronization=NOT_IN_SYNC
+  Collecting=false
+  Distributing=false
+Partner Admin State=0
+Partner Oper State=0
+Aggregate or Individual(True=1)= 2

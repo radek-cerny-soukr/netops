@@ -1,0 +1,7 @@
+Chassis/Stack Mac Address : 0000.5e00.532c - Local Mac Address
+Mac persistency wait time: Indefinite
+                                             H/W   Current
+Chassis#   Role    Mac Address     Priority Version  State                 IP                RMI-IP
+--------------------------------------------------------------------------------------------------------
+*1       Active   0000.5e00.532c     2      V02     Ready                198.51.100.131     203.0.113.131
+ 2       Standby  0000.5e00.532d     1      V02     Ready                198.51.100.132     203.0.113.132

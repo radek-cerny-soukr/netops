@@ -1,0 +1,17 @@
+session filter:
+	vd: any
+	sintf: any
+	dintf: any
+	proto: 6-6
+	proto-state: any
+	source ip: 192.0.2.20-192.0.2.20
+	NAT'd source ip: any
+	dest ip: 198.51.100.1-198.51.100.1
+	source port: 62531-62531
+	NAT'd source port: any
+	dest port: 443-443
+	policy id: any
+	expire: any
+	duration: any
+	state1: (0 mask:80000100)
+	state2: any

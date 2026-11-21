@@ -1,0 +1,33 @@
+{
+  "platform": "eos",
+  "table": "dns-server",
+  "versions": [
+    "4.36.1F"
+  ],
+  "ops": [
+    "create",
+    "update",
+    "delete"
+  ],
+  "table_scoped_key": true,
+  "exact_versions": true,
+  "key_pattern": "^(?:(?:[A-Za-z0-9_][A-Za-z0-9_.-]{0,62})/)?[0-9A-Fa-f:.]{2,39}$",
+  "protected_keys": [],
+  "attributes": {
+    "priority": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 15,
+      "default": "0",
+      "update": true,
+      "unset": true,
+      "required_on_create": false,
+      "referenced_update": true
+    }
+  },
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "EOS timed configuration safeguard and a scoped inverse from running-config. Operational readback uses the separate check account. G129 fixtures identify measured and documented cases."
+}

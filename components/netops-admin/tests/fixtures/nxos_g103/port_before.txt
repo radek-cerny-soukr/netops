@@ -1,0 +1,9 @@
+
+!Command: show running-config interface Ethernet1/64
+!Running configuration last done at: Thu Nov 19 16:58:30 2026
+!Time: Thu Nov 19 17:05:52 2026
+
+version 9.3(12) Bios:version
+
+interface Ethernet1/64
+

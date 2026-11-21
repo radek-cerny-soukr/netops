@@ -1,0 +1,2 @@
+Number of domain suffixes: 0
+Number of domain servers: 0

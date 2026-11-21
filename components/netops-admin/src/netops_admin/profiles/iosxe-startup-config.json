@@ -1,0 +1,20 @@
+{
+  "platform": "iosxe",
+  "table": "startup-config",
+  "versions": [
+    "17.18.2"
+  ],
+  "exact_versions": true,
+  "ops": [
+    "save"
+  ],
+  "table_scoped_key": true,
+  "key_pattern": "^startup-config$",
+  "protected_keys": [],
+  "attributes": {},
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "The approved running configuration overwrites startup-config. Readback compares the saved configuration against the approved running configuration. This operation has no automatic inverse."
+}

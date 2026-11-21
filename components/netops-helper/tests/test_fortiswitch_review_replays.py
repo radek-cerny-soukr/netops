@@ -24,6 +24,7 @@ def test_allowed_vlans_all_survives_projection_and_respects_context(tmp_path, mo
         for name in ('host_key_line', '_lane_directory', '_now', '_sleep'):
             scoped.setattr(engine, name, getattr(engine, name))
         scoped.setattr(engine.core_ssh, 'run_command', engine.core_ssh.run_command)
+        scoped.setattr(engine.core_session, 'fortinet_session', engine.core_session.fortinet_session)
         result = switch(proxy, code, scoped, {'table': 'port_vlan', 'managed_switch': SERIALS[0], 'interface': 'port3'})
     assert result['status'] == 'ok', result
     row = result['records'][0]

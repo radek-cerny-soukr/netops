@@ -1,0 +1,289 @@
+{
+  "http_method": "GET",
+  "results": [
+    {
+      "poe": {
+        "value": 8.199999809265137,
+        "max_value": 180,
+        "unit": "watts"
+      },
+      "summary": {
+        "poe": {
+          "value": 95.44444455040826,
+          "rating": "good"
+        },
+        "cpu": {
+          "value": 15,
+          "rating": "good"
+        },
+        "memory": {
+          "value": 53,
+          "rating": "good"
+        },
+        "uptime": {
+          "value": 746220,
+          "rating": "good"
+        },
+        "temperature": {
+          "value": 57.75,
+          "rating": "good"
+        },
+        "fan": {
+          "fan1": {
+            "value": "OK",
+            "rating": "good",
+            "fan_speed": {
+              "value": 45.09803771972656,
+              "unit": "%"
+            }
+          }
+        },
+        "psu": {
+          "PSU1": {
+            "value": "OK",
+            "rating": "good"
+          }
+        },
+        "overall": "good"
+      },
+      "switch-id": "S000SSSS00000001",
+      "serial": "S000SSSS00000001",
+      "performance": {
+        "cpu": {
+          "user": {
+            "value": 4,
+            "unit": "%"
+          },
+          "system": {
+            "value": 11,
+            "unit": "%"
+          },
+          "nice": {
+            "value": 0,
+            "unit": "%"
+          },
+          "idle": {
+            "value": 85,
+            "unit": "%"
+          }
+        },
+        "memory": {
+          "used": {
+            "value": 53,
+            "unit": "%"
+          }
+        },
+        "network": {
+          "in-1min": {
+            "value": 0,
+            "unit": "kbps"
+          },
+          "in-10min": {
+            "value": 0,
+            "unit": "kbps"
+          },
+          "in-30min": {
+            "value": 0,
+            "unit": "kbps"
+          }
+        },
+        "uptime": {
+          "days": {
+            "value": 8,
+            "unit": "days"
+          },
+          "hours": {
+            "value": 15,
+            "unit": "hours"
+          },
+          "minutes": {
+            "value": 17,
+            "unit": "minutes"
+          }
+        }
+      },
+      "temperature": [
+        {
+          "module": "Sensor1",
+          "status": {
+            "value": 60.0,
+            "unit": "celsius"
+          }
+        },
+        {
+          "module": "Sensor2",
+          "status": {
+            "value": 55.5,
+            "unit": "celsius"
+          }
+        }
+      ],
+      "fan": [
+        {
+          "module": "fan1",
+          "status": "OK",
+          "speed": {
+            "value": 45.09803771972656,
+            "unit": "%"
+          }
+        }
+      ],
+      "psu": [
+        {
+          "name": "PSU1",
+          "status": "OK"
+        },
+        {
+          "name": "PSU2",
+          "connection": "Not inserted"
+        }
+      ]
+    },
+    {
+      "poe": {
+        "value": 9.5,
+        "max_value": 180,
+        "unit": "watts"
+      },
+      "summary": {
+        "poe": {
+          "value": 94.72222222222223,
+          "rating": "good"
+        },
+        "cpu": {
+          "value": 15,
+          "rating": "good"
+        },
+        "memory": {
+          "value": 53,
+          "rating": "good"
+        },
+        "uptime": {
+          "value": 746160,
+          "rating": "good"
+        },
+        "temperature": {
+          "value": 47.375,
+          "rating": "good"
+        },
+        "fan": {
+          "fan1": {
+            "value": "OK",
+            "rating": "good",
+            "fan_speed": {
+              "value": 40.39215850830078,
+              "unit": "%"
+            }
+          }
+        },
+        "psu": {
+          "PSU1": {
+            "value": "OK",
+            "rating": "good"
+          }
+        },
+        "overall": "good"
+      },
+      "switch-id": "S000SSSS00000002",
+      "serial": "S000SSSS00000002",
+      "performance": {
+        "cpu": {
+          "user": {
+            "value": 4,
+            "unit": "%"
+          },
+          "system": {
+            "value": 11,
+            "unit": "%"
+          },
+          "nice": {
+            "value": 0,
+            "unit": "%"
+          },
+          "idle": {
+            "value": 85,
+            "unit": "%"
+          }
+        },
+        "memory": {
+          "used": {
+            "value": 53,
+            "unit": "%"
+          }
+        },
+        "network": {
+          "in-1min": {
+            "value": 0,
+            "unit": "kbps"
+          },
+          "in-10min": {
+            "value": 0,
+            "unit": "kbps"
+          },
+          "in-30min": {
+            "value": 0,
+            "unit": "kbps"
+          }
+        },
+        "uptime": {
+          "days": {
+            "value": 8,
+            "unit": "days"
+          },
+          "hours": {
+            "value": 15,
+            "unit": "hours"
+          },
+          "minutes": {
+            "value": 16,
+            "unit": "minutes"
+          }
+        }
+      },
+      "temperature": [
+        {
+          "module": "Sensor1",
+          "status": {
+            "value": 49.0,
+            "unit": "celsius"
+          }
+        },
+        {
+          "module": "Sensor2",
+          "status": {
+            "value": 45.75,
+            "unit": "celsius"
+          }
+        }
+      ],
+      "fan": [
+        {
+          "module": "fan1",
+          "status": "OK",
+          "speed": {
+            "value": 40.39215850830078,
+            "unit": "%"
+          }
+        }
+      ],
+      "psu": [
+        {
+          "name": "PSU1",
+          "status": "OK"
+        },
+        {
+          "name": "PSU2",
+          "connection": "Not inserted"
+        }
+      ]
+    }
+  ],
+  "vdom": "root",
+  "path": "switch-controller",
+  "name": "managed-switch",
+  "action": "health-status",
+  "status": "success",
+  "serial": "SSS00SSS00000003",
+  "version": "v8.0.2",
+  "build": 251
+}

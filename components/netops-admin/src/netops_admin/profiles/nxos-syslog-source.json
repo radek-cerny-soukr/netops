@@ -1,0 +1,31 @@
+{
+  "platform": "nxos",
+  "table": "syslog-source",
+  "versions": [
+    "9.3(12)"
+  ],
+  "exact_versions": true,
+  "table_scoped_key": true,
+  "ops": [
+    "update"
+  ],
+  "key_pattern": "^global$",
+  "protected_keys": [],
+  "attributes": {
+    "source-interface": {
+      "type": "text",
+      "update": true,
+      "unset": true,
+      "referenced_update": false,
+      "required_on_create": false,
+      "pattern": "^(?:Ethernet[0-9]+(?:/[0-9]+){1,2}|Vlan[0-9]+|loopback[0-9]+|port-channel[0-9]+|mgmt[0-9]+)$",
+      "max_length": 32
+    }
+  },
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "NX-OS scheduler, configure replace and scoped inverse; G104 Nexus 9300v 9.3(12).",
+  "implicit_keys": true
+}

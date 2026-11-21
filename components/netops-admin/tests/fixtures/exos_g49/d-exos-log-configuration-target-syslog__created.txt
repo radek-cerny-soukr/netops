@@ -1,0 +1,7 @@
+Log Target      : syslog; 192.0.2.25:514 (vr VR-Mgmt), local1
+    Enabled     : no
+    Filter Name : DefaultFilter
+    Match regex : Any
+    Severity    : Debug-Data (through Critical)
+    Format      : PRI Mmm DD HH:MM:SS HOSTNAME TAG:
+    Port Type   : UDP

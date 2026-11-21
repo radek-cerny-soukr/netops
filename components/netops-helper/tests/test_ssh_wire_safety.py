@@ -6,6 +6,7 @@ from dataclasses import replace
 import importlib.util
 import json
 import os
+from pathlib import Path
 import sys
 
 import pytest
@@ -26,6 +27,7 @@ from conftest import (
     RUCKUS_BANNER,
     RUCKUS_OUTPUT,
     _calls,
+    _fortinet_wire,
     _plain_query,
     _ruckus_wire,
     _target,
@@ -69,7 +71,13 @@ def _options(argv: list[str]) -> list[str]:
 
 
 def _assert_hardened(argv: list[str], secret: str, environment: dict) -> None:
-    assert argv[0] == "-F" and argv[1] == "/dev/null", argv
+    if argv[:2] == ["-e", "none"]:
+        assert argv[:6] == ["-e", "none", "-o", "UpdateHostKeys=no", "-o", "LogLevel=ERROR"]
+        assert argv[6] == "-E"
+        (known_hosts,) = (option.split("=", 1)[1] for option in _options(argv) if option.startswith("UserKnownHostsFile="))
+        assert Path(argv[7]) == Path(known_hosts).with_name("client.log")
+        argv = argv[8:]
+    assert argv[:2] == ["-F", "/dev/null"], argv
     options = _options(argv)
     for option in BASE_OPTIONS:
         assert option in options, option
@@ -88,7 +96,7 @@ def _assert_hardened(argv: list[str], secret: str, environment: dict) -> None:
 EXEC_PLATFORMS = tuple(
     platform
     for platform, transport in sorted(engine._SSH_TRANSPORTS.items())
-    if transport == "exec"
+    if transport == "exec" and platform not in {"fortinet", "fortiadc"}
 )
 
 
@@ -204,10 +212,7 @@ PROMPTED_BODY = FORTIOS_STATUS + "Serial-Number: replace-me\n"
 
 
 def test_a_read_only_prompt_is_cleaned_out_of_the_answer(wire) -> None:
-    _write_client(
-        wire["binaries"], "ssh",
-        EXEC_CLIENT.format(log=str(wire["log"]), output=PROMPTED_OUTPUT, code=0),
-    )
+    _fortinet_wire(wire, {}, prompt=f"{PROMPT_NAME} $ ", fallback=PROMPTED_BODY)
     query_name, _ = _plain_query("fortinet")
     result = engine.ssh_read(
         _target("fortinet", query_name), "fortinet", query_name, {}, 0, 16_000,
@@ -231,16 +236,13 @@ ADC_PROMPTED_CRLF_OUTPUT = (
 
 
 def _device_calls(wire) -> list[dict]:
-    return _calls(wire)[1:]
+    return [call for call in _calls(wire) if "stdin_isatty" in call]
 
 
 def test_a_prompted_fortiadc_answer_passes_the_identity_check_and_is_returned_without_the_prompt(
     wire,
 ) -> None:
-    _write_client(
-        wire["binaries"], "ssh",
-        EXEC_CLIENT.format(log=str(wire["log"]), output=ADC_PROMPTED_OUTPUT, code=0),
-    )
+    _fortinet_wire(wire, {}, prompt=f"{ADC_HOST} # ", fallback=ADC_BODY + "\n")
     result = engine.ssh_read(
         _target("fortiadc", "system_status"), "fortiadc", "system_status", {}, 0, 16_000,
     )
@@ -249,14 +251,11 @@ def test_a_prompted_fortiadc_answer_passes_the_identity_check_and_is_returned_wi
     assert body.startswith(FORTIADC_STATUS)
     assert body.rstrip("\n") == ADC_BODY.rstrip("\n")
     assert f"{ADC_HOST} #" not in body
-    assert [call["argv"][-1] for call in _device_calls(wire)] == [engine._IDENTITY_COMMAND]
+    assert wire["transcript"].read_text().splitlines() == [engine._IDENTITY_COMMAND]
 
 
 def test_a_prompted_fortiadc_answer_with_crlf_line_ends_passes_the_identity_check(wire) -> None:
-    _write_client(
-        wire["binaries"], "ssh",
-        EXEC_CLIENT.format(log=str(wire["log"]), output=ADC_PROMPTED_CRLF_OUTPUT, code=0),
-    )
+    _fortinet_wire(wire, {}, prompt=f"{ADC_HOST} # ", fallback=ADC_PROMPTED_CRLF_OUTPUT.split("# ", 1)[1].rsplit(ADC_HOST, 1)[0])
     result = engine.ssh_read(
         _target("fortiadc", "system_status"), "fortiadc", "system_status", {}, 0, 16_000,
     )
@@ -274,14 +273,7 @@ def test_a_prompted_answer_of_the_other_product_is_refused_without_its_output(
     wire, platform, foreign,
 ) -> None:
     leak = "Hostname: wire-leak-marker\n"
-    _write_client(
-        wire["binaries"], "ssh",
-        EXEC_CLIENT.format(
-            log=str(wire["log"]),
-            output=f"{ADC_HOST} # {foreign}{leak}\n\n{ADC_HOST} # ",
-            code=0,
-        ),
-    )
+    _fortinet_wire(wire, {}, prompt=f"{ADC_HOST} # ", fallback=foreign + leak + "\n")
     result = engine.ssh_read(
         _target(platform, "system_status"), platform, "system_status", {}, 0, 16_000,
     )
@@ -396,7 +388,7 @@ def test_a_login_that_never_answers_names_no_transcript(wire, monkeypatch) -> No
 
 
 FORTIOS_PTY_CLIENT = '''#!/usr/bin/env python3
-import json, os, sys, time
+import json, os, sys, time, tty
 
 record = {{"argv": sys.argv[1:], "env": dict(os.environ), "stdin_isatty": sys.stdin.isatty()}}
 for item in sys.argv:
@@ -407,6 +399,7 @@ with open({log!r}, "a") as handle:
 if not sys.stdin.isatty():
     sys.stdout.write({status!r})
     sys.exit(0)
+tty.setraw(0)
 transcript = open({transcript!r}, "a")
 sys.stdout.write("\\n" + {prompt!r})
 sys.stdout.flush()
@@ -414,8 +407,16 @@ while True:
     line = sys.stdin.readline()
     if not line:
         break
+    if line == "\\n":
+        sys.stdout.write(line + {prompt!r})
+        sys.stdout.flush()
+        continue
     transcript.write(line)
     transcript.flush()
+    if line.rstrip() == "get system status":
+        sys.stdout.write({status!r} + {prompt!r})
+        sys.stdout.flush()
+        continue
     sys.stdout.write(__import__('pathlib').Path({body!r}).read_text())
     if {answers!r}:
         sys.stdout.write("\\n" + {prompt!r})
@@ -462,13 +463,12 @@ def test_the_fortios_dns_caches_are_read_on_a_terminal_behind_the_ha_prompt(
     assert result["rc"] is None
     assert result["untrusted_device_output"] == DNS_CACHE_BODY
     calls = _device_calls(wire)
-    assert [call["stdin_isatty"] for call in calls] == [False, True]
-    assert calls[0]["argv"][-1] == engine._IDENTITY_COMMAND
-    assert calls[1]["argv"][:3] == ["-F", "/dev/null", "-tt"]
+    assert [call["stdin_isatty"] for call in calls] == [True]
+    assert calls[0]["argv"][8:11] == ["-F", "/dev/null", "-tt"]
     for call in calls:
         _assert_hardened(call["argv"], PASSWORD, call["env"])
         assert call["known_hosts"] == KNOWN_HOSTS_LINE + "\n"
-    assert wire["transcript"].read_text(encoding="utf-8").splitlines() == [command]
+    assert wire["transcript"].read_text(encoding="utf-8").splitlines() == [engine._IDENTITY_COMMAND, command]
 
 
 def test_a_fortios_terminal_read_still_requires_the_verified_output_standard(wire) -> None:
@@ -507,7 +507,7 @@ def test_a_full_fortios_dns_cache_is_read_whole_and_paged(wire) -> None:
     assert all(page["ok"] for page in pages), pages[-1]
     assert pages[0]["total_bytes"] == len(body.encode())
     assert "".join(page["untrusted_device_output"] for page in pages) == body
-    assert len(_device_calls(wire)) == 2
+    assert len(_device_calls(wire)) == 1
 
 
 def test_a_fortios_dns_cache_over_the_capture_cap_is_refused_by_name(wire, monkeypatch) -> None:

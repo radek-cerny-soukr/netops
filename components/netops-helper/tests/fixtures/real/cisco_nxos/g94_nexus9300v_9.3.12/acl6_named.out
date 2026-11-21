@@ -1,0 +1,6 @@
+
+IPv6 access list copp-system-p-acl-ndp
+	10 permit icmp any any router-solicitation
+	20 permit icmp any any router-advertisement
+	30 permit icmp any any nd-ns
+	40 permit icmp any any nd-na

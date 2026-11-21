@@ -1,0 +1,3 @@
+sequence 70 permit icmp any any
+% Duplicate entry exists at sequence 30
+host01(config-ipv6-acl)#

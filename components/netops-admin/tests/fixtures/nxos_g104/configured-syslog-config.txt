@@ -1,0 +1,2 @@
+logging server 198.51.100.20 5 use-vrf management
+logging source-interface loopback104

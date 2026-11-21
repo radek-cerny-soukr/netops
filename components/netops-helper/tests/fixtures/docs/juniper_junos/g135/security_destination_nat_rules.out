@@ -1,0 +1,17 @@
+
+Total destination-nat rules: 1
+Total referenced IPv4/IPv6 ip-prefixes: 2/0
+
+Destination NAT rule: r4                   Rule-set: rs4
+  Rule-Id                    : 2
+  Rule position              : 2
+  From zone                  : untrust
+  Match
+    Source addresses         : 198.51.100.0 - 198.51.100.255
+    Destination addresses    : 203.0.113.0  - 203.0.113.255
+    Application              : configured
+  Action                     : off
+  Translation hits           : 0
+    Successful sessions      : 0
+    Failed sessions          : 0
+  Number of sessions         : 0

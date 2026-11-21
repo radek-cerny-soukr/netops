@@ -1,0 +1,7 @@
+Port     Link         Rx              Peak Rx         Tx              Peak Tx
+         State        pkts/sec        pkts/sec        pkts/sec        pkts/sec[K
+================================================================================
+1         A                   20             613              13             166
+================================================================================
+          > indicates Port Display Name truncated past 8 characters
+          Link State: A-Active, R-Ready, NP-Port Not Present, L-Loopback

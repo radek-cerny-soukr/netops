@@ -94,7 +94,8 @@ def summarize(text: str, capture_state: str | None = "ok") -> dict[str, Any]:
                 continue
             current = tables[section] = {"name": section, "header": False, "rows": [], "malformed": False}
             continue
-        if _FOOTER.match(line):
+        if _FOOTER.match(line) or stripped in (
+                "consistency reason of down vpc and for type-2 consistency reasons for", "any vpc."):
             current = None
             continue
         if not stripped:
@@ -108,9 +109,19 @@ def summarize(text: str, capture_state: str | None = "ok") -> dict[str, Any]:
             if not current["header"]:
                 if stripped.lower().split() == _COLUMNS[name]:
                     current["header"] = True
+                    if name == "members":  # column starts, for a Reason wrapped onto the next line
+                        current["reason_at"] = line.lower().find("reason")
+                        current["vlans_at"] = line.lower().find("active vlans")
                 else:
                     current["malformed"] = True
                 continue
+            reason_at = current.get("reason_at", -1)
+            if (current.get("wrap") and 0 < reason_at < current["vlans_at"] and not line[:reason_at].strip()
+                    and len(line.rstrip()) <= current["vlans_at"]):
+                # NX-OS wraps a long Reason inside its own column, e.g. `Compatibility check` / `failed for MTU`.
+                current["rows"][-1]["reason"] += " " + " ".join(line.split())
+                continue
+            current["wrap"] = False
             match = _ROWS[name].match(line)
             if match is None:
                 current["malformed"] = True
@@ -118,6 +129,7 @@ def summarize(text: str, capture_state: str | None = "ok") -> dict[str, Any]:
             row: dict[str, Any] = dict(zip(_ROW_KEYS[name], match.groups()))
             row["id"] = int(row["id"])
             current["rows"].append(row)
+            current["wrap"] = name == "members"
             continue
         if _LEGEND.match(line) or _SEPARATOR.match(line):
             continue
@@ -178,4 +190,85 @@ def summarize(text: str, capture_state: str | None = "ok") -> dict[str, Any]:
             result["state"] = "partial"
         missing.append("capture")
     result["missing_fields"] = missing
+    return result
+
+
+def consistency(text, capture_state):
+    """Read the NX-OS per-vPC and per-interface fixed-width consistency table."""
+    rows = {}
+    unknown = False
+    columns = None
+    current = None
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped or _SEPARATOR.fullmatch(line) or stripped in (
+                "Legend:", "Type 1 : vPC will be suspended in case of mismatch"):
+            continue
+        header = re.fullmatch(r"Name +(?P<type>Type) +(?P<local>Local Value) +(?P<peer>Peer Value) *", line)
+        if header and columns is None:
+            columns = [header.start(key) for key in ("type", "local", "peer")]
+            continue
+        if columns is None:
+            unknown = True
+            continue
+        kind, local, peer = columns
+        name, type_id, local_value, peer_value = (piece.strip() for piece in
+                                                  (line[:kind], line[kind:local], line[local:peer], line[peer:]))
+        # NX-OS wraps the LAG ID across multiple lines in both columns.
+        if not name and not type_id and current == "lag-id" and local_value and peer_value:
+            rows[current]["local"] += " " + local_value
+            rows[current]["peer"] += " " + peer_value
+        elif name and name not in rows and type_id in ("1", "2", "-") and local_value and peer_value:
+            current = name
+            rows[name] = {"type": type_id, "local": local_value, "peer": peer_value}
+        else:
+            current = None
+            unknown = True
+    if not rows:
+        state = "empty" if capture_state == "empty" else "unparsed"
+    else:
+        state = "partial" if unknown or capture_state != "ok" else "measured"
+    return {"state": state, "parameters": rows}
+
+
+def compare(observations, vpc_id):
+    """Correlate both peers: local values against the other device's view, each device's local against peer
+    value, the per-vPC and global consistency (``success``) and the peer adjacency.  ``matched`` only when none
+    of these differs."""
+    result = {"vpc_id": vpc_id, "state": "incomplete", "peers": observations, "differences": []}
+    briefs = [item["vpc"] for item in observations]
+    consistency_tables = [item["consistency"] for item in observations]
+    if any(item.get("state") != "measured" for item in (*briefs, *consistency_tables)):
+        return result
+    first, second = briefs
+    if first["domain_id"] != second["domain_id"]:
+        result.update(state="different_domain", differences=["domain_id"])
+        return result
+    member_rows = [[row for row in item["members"] if row["id"] == vpc_id] for item in briefs]
+    if any(len(rows) != 1 for rows in member_rows):
+        return result
+    for item, rows in zip(observations, member_rows):
+        item["member"] = rows[0]
+    left, right = (item["parameters"] for item in consistency_tables)
+    differences = []
+    for name in sorted(left.keys() | right.keys()):
+        a, b = left.get(name), right.get(name)
+        # Cross-check between the peers, and on each device its own local and peer value: a mismatch NX-OS
+        # reports (also mirrored on both peers, e.g. MTU 1500/9000 and 9000/1500) is a vPC inconsistency.
+        if (a is None or b is None or (a["type"], a["local"], a["peer"]) != (b["type"], b["peer"], b["local"])
+                or a["local"] != a["peer"] or b["local"] != b["peer"]):
+            differences.append("parameter:" + name)
+    for field in ("status", "consistency", "active_vlans"):
+        if member_rows[0][0][field] != member_rows[1][0][field] or (
+                field == "consistency" and any(rows[0][field].lower() != "success" for rows in member_rows)):
+            differences.append("member:" + field)
+    for field in ("peer_status", "keepalive_status", "consistency_status"):
+        expected = {"peer_status": "peer adjacency formed ok", "consistency_status": "success"}.get(field)
+        if first[field] != second[field] or (
+                expected is not None and any(item[field].lower() != expected for item in briefs)):
+            differences.append("peer:" + field)
+    roles = {item["role"].split(",")[0].strip().lower() for item in briefs}
+    if roles != {"primary", "secondary"}:
+        differences.append("peer:role")
+    result.update(state="different" if differences else "matched", differences=differences)
     return result

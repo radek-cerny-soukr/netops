@@ -1,0 +1,8 @@
+
+
+
+198.51.100.1/32, epoch 0, flags [attached]
+  Adj source: IP adj out of Ethernet0/2, addr 198.51.100.1 00000000
+    Dependent covered prefix type adjfib, cover 198.51.100.0/24
+  1 RR source [no flags]
+  attached to Ethernet0/2

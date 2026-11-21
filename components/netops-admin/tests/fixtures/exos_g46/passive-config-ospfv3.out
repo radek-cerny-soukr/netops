@@ -1,0 +1,5 @@
+#
+# Module ospfv3 configuration.
+#
+create ospfv3 area 0.0.0.15
+configure ospfv3 add vlan netops-g46 instance-id 0 area 0.0.0.15 link-type auto passive

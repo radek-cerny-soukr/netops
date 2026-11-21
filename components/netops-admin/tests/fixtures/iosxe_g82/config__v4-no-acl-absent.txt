@@ -1,0 +1,2 @@
+no ip access-list extended NETOPS-G82-NOPE
+host01(config)#

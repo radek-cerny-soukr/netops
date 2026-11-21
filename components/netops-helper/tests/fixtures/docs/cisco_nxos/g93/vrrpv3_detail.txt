@@ -1,0 +1,12 @@
+Vlan2 - Group 1 - Address-Family IPv4
+  State is MASTER
+  State duration 2 days 0 hours 52 mins
+  Virtual IP address is 192.0.2.100
+  Advertisement interval is 2000 msec
+  Priority is 101
+  Master Router is 192.0.2.2 (local), priority is 101
+  Master Advertisement interval is 2000 msec (expires in 1533 msec)
+  Master Down interval is unknown
+  Group State transition:
+    Init to master: 0
+    Init to backup: 1 (Last change Fri Aug 03 07:11:48.658 UTC)

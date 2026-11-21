@@ -1,0 +1,10 @@
+============================================================
+Port               Mode   Oper (VL bmap)   RxPPP      TxPPP
+============================================================
+Ethernet1/1     On     On   (8)          9638881   12024
+Ethernet1/2     On     On   (8)           0          0
+Ethernet1/3     On     On   (8)           0          511
+Ethernet1/4     On     On   (8)          35079      1205
+Ethernet1/5     Auto   Off              0          0
+Ethernet1/6     Auto   Off               0          0
+--truncated--- 

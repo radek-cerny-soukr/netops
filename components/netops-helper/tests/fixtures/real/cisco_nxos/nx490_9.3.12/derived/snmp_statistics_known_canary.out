@@ -1,0 +1,108 @@
+sys contact: 
+sys location: 
+
+0 SNMP packets input
+	0 Bad SNMP versions
+	0 Unknown community name
+	0 Illegal operation for community name supplied
+	0 Encoding errors
+	0 Number of requested variables
+	0 Number of altered variables
+	0 Get-request PDUs
+	0 Get-next PDUs
+	0 Set-request PDUs
+	0 No such name PDU
+	0 Bad value PDU
+	0 Read Only PDU
+	0 General errors
+	0 Get Responses
+	0 Unknown Context name
+	0 Access policy violation
+37 SNMP packets output
+	37 Trap PDU
+	0 Too big errors (Maximum packet size 1500)
+	0 No such name errors
+	0 Bad values errors
+	0 General errors
+	0 Get Requests
+	0 Get Next Requests
+	0 Set Requests
+	0 Get Responses
+	0 Silent drops
+
+Max packetsize: 1500
+
+
+Community             Group / Access      context    acl_filter                 
+_________             ______________      _______    __________                 
+"nx490 canary known"  network-operator    
+
+
+______________________________________________________________
+		  SNMP USERS 
+______________________________________________________________
+
+User                Auth      Priv(enforce) Groups              acl_filter          
+____                ____      _____________ ______              __________          
+admin               md5       des(no)       network-admin       
+user01              md5       des(no)       network-operator    
+user02              md5       des(no)       network-admin       
+______________________________________________________________
+ NOTIFICATION TARGET USERS (configured  for sending V3 Inform) 
+______________________________________________________________
+
+User                          Auth      Priv          
+____                          ____      ____          
+
+
+SNMP Tcp Authentication Flag : Enabled.
+
+SNMP protocol : Enabled
+
+
+--------------------------------------------------------------------
+Context                          [Protocol instance, VRF, Topology,]
+                                 [vlan, MST]
+--------------------------------------------------------------------
+1                                ,
+                                ,
+                                ,
+                                ,
+                                 1,
+                                 
+-------------------------------------------------------------------
+10                                ,
+                                ,
+                                ,
+                                ,
+                                 10,
+                                 
+-------------------------------------------------------------------
+20                                ,
+                                ,
+                                ,
+                                ,
+                                 20,
+                                 
+-------------------------------------------------------------------
+vlan-1                                ,
+                                ,
+                                ,
+                                ,
+                                 1,
+                                 
+-------------------------------------------------------------------
+vlan-10                                ,
+                                ,
+                                ,
+                                ,
+                                 10,
+                                 
+-------------------------------------------------------------------
+vlan-20                                ,
+                                ,
+                                ,
+                                ,
+                                 20,
+                                 
+-------------------------------------------------------------------

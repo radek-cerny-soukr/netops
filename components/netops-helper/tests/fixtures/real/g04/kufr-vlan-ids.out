@@ -1,0 +1,34 @@
+config system interface
+            edit "fixture-vlan-001"
+                set interface "fixture-vlan-019"
+                set vlanid 1
+            next
+            edit "fixture-vlan-002"
+                set interface "fixture-vlan-019"
+                set vlanid 4093
+            next
+            edit "fixture-vlan-025"
+                set interface "fixture-vlan-019"
+                set vlanid 4091
+            next
+            edit "fixture-vlan-026"
+                set interface "fixture-vlan-019"
+                set vlanid 4090
+            next
+            edit "fixture-vlan-027"
+                set interface "fixture-vlan-019"
+                set vlanid 4092
+            next
+            edit "fixture-vlan-028"
+                set interface "fixture-vlan-019"
+                set vlanid 4089
+            next
+            edit "fixture-vlan-029"
+                set interface "fixture-vlan-019"
+                set vlanid 4088
+            next
+            edit "fixture-vlan-003"
+                set interface "fixture-vlan-019"
+                set vlanid 100
+            next
+end

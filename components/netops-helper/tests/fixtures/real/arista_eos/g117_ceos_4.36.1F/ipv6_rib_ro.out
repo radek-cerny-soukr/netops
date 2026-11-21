@@ -1,0 +1,16 @@
+VRF: default, Protocol: route-input
+Codes: C - Connected, S - Static, P - Route Input, G - Gribi
+       B - BGP, O - Ospf, O3 - Ospf3, I - Isis, R - Rip, VL - VRF Leak
+       > - Best Route, * - Unresolved Next hop
+       EM - Exact match of the SR-TE Policy
+       NM - Null endpoint match of the SR-TE Policy
+       AM - Any endpoint match of the SR-TE Policy
+       L - Part of a recursive route resolution loop
+       A - Next hop not resolved in ARP/ND
+       NF - Not in FEC
+>P    ::/96 [1 pref/0 metric] updated 8d14h ago
+         via Null0, directly connected [NF]
+>P    ::ffff:127.0.0.0/104 [1 pref/0 metric] updated 8d14h ago
+         via :: [1 pref/1 metric] type ipv6
+            via , directly connected
+>P    fe80::10/10 [1 pref/0 metric] updated 8d14h ago

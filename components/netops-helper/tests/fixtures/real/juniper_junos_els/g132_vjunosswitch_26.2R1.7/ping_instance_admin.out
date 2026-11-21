@@ -1,0 +1,10 @@
+PING 198.51.100.132 (198.51.100.132): 56 data bytes
+64 bytes from 198.51.100.132: icmp_seq=0 ttl=64 time=0.801 ms
+64 bytes from 198.51.100.132: icmp_seq=1 ttl=64 time=3.861 ms
+64 bytes from 198.51.100.132: icmp_seq=2 ttl=64 time=1.045 ms
+64 bytes from 198.51.100.132: icmp_seq=3 ttl=64 time=5.848 ms
+64 bytes from 198.51.100.132: icmp_seq=4 ttl=64 time=199.270 ms
+
+--- 198.51.100.132 ping statistics ---
+5 packets transmitted, 5 packets received, 0% packet loss
+round-trip min/avg/max/stddev = 0.801/42.165/199.270/78.575 ms

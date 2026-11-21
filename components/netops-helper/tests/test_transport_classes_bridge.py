@@ -1,12 +1,10 @@
 """FortiADC transport failures through the real proxy, worker bridge, engine and SSH transport (live 1.0.7 N1-N3).
 
-Only the OpenSSH programs are fake: `ssh-keyscan` and `ssh` on PATH answer like the real clients for an
-unreachable host, a refused connection, a host key that is not the pin, a refused password and a dropped
-connection. Every tool answers a structured result with the transport class and its advice instead of the
+The fake pinned OpenSSH client reports an unreachable host, a refused connection, a host key that is not
+the pin, a refused password and a dropped connection. Every tool answers a structured result with the transport class and its advice instead of the
 JSON-RPC error -32603 "Role operation failed", and the Helper operation summary records the same class.
 It lives in the Helper suite, whose temporary directory may hold executables; the image selftest mounts /tmp noexec.
 """
-import base64
 import hashlib
 import json
 import os
@@ -17,6 +15,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
+from conftest import HOST_KEY_BLOB
 from netops import worker
 from netops.files import write_private
 from netops_core.audit import Recorder
@@ -24,34 +23,24 @@ from netops_core.hostkey import fingerprint_of
 from netops_helper import audit as helper_audit, engine, proxy, server
 from netops_helper.proxy import TRIAGE_SLB_REQUIRED_QUERIES
 
-PIN_BLOB = base64.b64encode(b"bridge-transport-class-host-key").decode()
-OTHER_BLOB = base64.b64encode(b"another-host-key-not-the-pin").decode()
 PASSWORD = "synthetic-bridge-password-only"
 FAKE_SSH = """#!{python}
 import json, sys
-plan = json.load(open({plan!r}))
-mode = "probe" if "netops-hostkey" in sys.argv else "pty" if "-tt" in sys.argv else "exec"
-step = plan[mode]
-(sys.stdout if mode == "pty" else sys.stderr).write(step["said"] + "\\n")
-sys.exit(step["code"])
+step = json.load(open({plan!r}))
+assert "-tt" in sys.argv and "StrictHostKeyChecking=yes" in sys.argv
+with open(sys.argv[sys.argv.index("-E") + 1], "a") as client_log:
+    client_log.write(step + "\\n")
+sys.exit(255)
 """
 FAKE_KEYSCAN = """#!{python}
-import json, sys
-blob = json.load(open({plan!r}))["keyscan"]
-if not blob:
-    sys.exit(1)
-sys.stdout.write("%s ssh-ed25519 %s\\n" % (sys.argv[-1], blob))
+raise SystemExit(99)
 """
-UNUSED = {"code": 99, "said": "must not run"}
-DENIED = {"code": 255, "said": "fixture-user@192.0.2.40: Permission denied (password,keyboard-interactive)."}
 SCENARIOS = {
-    "unreachable": ("", {"code": 255, "said": "ssh: connect to host 192.0.2.40 port 22: No route to host"}, UNUSED, UNUSED),
-    "connection_refused": ("", {"code": 255, "said": "ssh: connect to host 192.0.2.40 port 22: Connection refused"},
-                           UNUSED, UNUSED),
-    "host_key_mismatch": (OTHER_BLOB, UNUSED, UNUSED, UNUSED),
-    "auth": (PIN_BLOB, UNUSED, DENIED, DENIED),
-    "disconnected": (PIN_BLOB, UNUSED, {"code": 255, "said": "Connection closed by 192.0.2.40 port 22"},
-                     {"code": 255, "said": "Connection to 192.0.2.40 closed by remote host."}),
+    "unreachable": "ssh: connect to host 192.0.2.40 port 22: No route to host",
+    "connection_refused": "ssh: connect to host 192.0.2.40 port 22: Connection refused",
+    "host_key_mismatch": "Host key verification failed.",
+    "auth": "fixture-user@192.0.2.40: Permission denied (password,keyboard-interactive).",
+    "disconnected": "Connection to 192.0.2.40 closed by remote host.",
 }
 CALLS = (
     ("ssh_read", {"target": "adc-a", "platform": "fortiadc", "query": "system_status"}),
@@ -76,7 +65,8 @@ class TransportClassesThroughTheBridge(unittest.IsolatedAsyncioTestCase):
         helper.mkdir(mode=0o700)
         device = {
             "name": "adc-a", "platform": "fortiadc", "address": "192.0.2.40", "port": 22, "role": "lab",
-            "credential": "fixture-ro", "host_key_fingerprint": fingerprint_of(PIN_BLOB), "legacy_ssh": None,
+            "credential": "fixture-ro", "host_key_fingerprint": fingerprint_of(HOST_KEY_BLOB),
+            "host_key": f"ssh-ed25519 {HOST_KEY_BLOB}", "legacy_ssh": None,
             "auditor": None, "helper": {
                 "account_role": "read-only", "rate_limit": {"requests": 60, "window_seconds": 1},
                 "egress": {"addresses": ["192.0.2.40"], "tcp_ports": [22], "udp_ports": [], "tcp_port_ranges": [],
@@ -98,7 +88,7 @@ class TransportClassesThroughTheBridge(unittest.IsolatedAsyncioTestCase):
         binaries = self.state / "bin"
         binaries.mkdir()
         _program(binaries / "ssh", FAKE_SSH.replace("{plan!r}", repr(str(self.plan))))
-        _program(binaries / "ssh-keyscan", FAKE_KEYSCAN.replace("{plan!r}", repr(str(self.plan))))
+        _program(binaries / "ssh-keyscan", FAKE_KEYSCAN)
         self.enterContext(patch.dict(os.environ, {"PATH": "%s:%s" % (binaries, os.environ.get("PATH", ""))}))
         self.enterContext(patch.object(worker, "STATE", self.state))
         self.enterContext(patch.object(proxy, "INVENTORY", helper / "inventory.json"))
@@ -112,8 +102,7 @@ class TransportClassesThroughTheBridge(unittest.IsolatedAsyncioTestCase):
         self.enterContext(patch.object(self.bridge.proxy, "_consume_rate_limits", create=True))
 
     def use(self, code):
-        keyscan, probe, exec_step, pty_step = SCENARIOS[code]
-        self.plan.write_text(json.dumps({"keyscan": keyscan, "probe": probe, "exec": exec_step, "pty": pty_step}))
+        self.plan.write_text(json.dumps(SCENARIOS[code]))
         engine._HOST_KEY_LINE_CACHE.clear()
 
     def summaries(self, event):

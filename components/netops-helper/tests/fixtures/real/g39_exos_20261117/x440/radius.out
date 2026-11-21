@@ -1,0 +1,28 @@
+RADIUS Default State:   disabled
+RADIUS Default Timeout: 3 seconds
+RADIUS Algorithm: standard
+RADIUS Retries: 3
+RADIUS port bounce VSA: off
+RADIUS dynamic-authorization: disabled
+RADIUS TLS TCP Timeout: default
+RADIUS TLS OCSP: on
+RADIUS TLS OCSP Attributes:
+  Nonce               : off
+  Signer ocsp-nocheck : off
+  Override Server URL : none
+RADIUS TLS Ciphers On : aes128-sha,aes128-sha256,aes256-sha256,dhe-rsa-aes128-sha256,dhe-rsa-aes256-sha256,ecdhe-rsa-aes128-sha256,ecdhe-rsa-aes256-sha384
+RADIUS TLS Ciphers Off: None
+RADIUS TLS reference identifier: none
+Switch Management RADIUS: disabled *
+Switch Management RADIUS server connect time out: 3 seconds *
+Switch Management RADIUS Accounting: disabled *
+Switch Management RADIUS Accounting server connect time out: 3 seconds
+Netlogin RADIUS: disabled *
+Netlogin RADIUS server connect time out: 3 seconds *
+Netlogin RADIUS server keep alive: off
+Netlogin RADIUS server keep alive interval: 120 seconds
+Netlogin RADIUS server's last known reachability status: unknown
+Netlogin RADIUS Accounting: disabled *
+Netlogin RADIUS Accounting server connect time out: 3 seconds
+
+Legend: An asterisk (*) indicates a global value is in use.

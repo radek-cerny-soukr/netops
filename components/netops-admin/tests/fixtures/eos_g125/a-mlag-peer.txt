@@ -1,0 +1,8 @@
+mlag configuration
+   domain-id host09
+   local-interface Vlan4094
+   peer-address 192.0.2.2
+   peer-address heartbeat 198.51.100.64
+   peer-link Port-Channel200
+   reload-delay mlag 30
+   reload-delay non-mlag 30

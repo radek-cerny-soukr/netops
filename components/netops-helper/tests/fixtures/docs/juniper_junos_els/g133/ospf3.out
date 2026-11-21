@@ -1,0 +1,3 @@
+ID               Interface              State     Pri   Dead
+192.0.2.1        fe-1/1/0.0             Full      128   35
+  Neighbor-address fe80::10

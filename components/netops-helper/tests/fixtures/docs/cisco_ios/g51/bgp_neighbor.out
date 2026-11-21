@@ -1,0 +1,22 @@
+BGP neighbor is 192.0.2.2,  remote AS 45000, internal link
+  BGP version 4, remote router ID 192.0.2.99
+.
+.
+.
+ For address family: IPv4 Unicast
+  BGP table version 5, neighbor version 5/0
+.
+.
+.
+  Address tracking is enabled, the RIB does have a route to 192.0.2.2
+  Address tracking requires at least a /24 route to the peer
+  Connections established 3; dropped 2
+  Last reset 00:00:35, due to Router ID changed
+  Transport(tcp) path-mtu-discovery is enabled
+.
+.
+.
+SRTT: 146 ms, RTTO: 1283 ms, RTV: 1137 ms, KRTT: 0 ms
+minRTT: 8 ms, maxRTT: 300 ms, ACK hold: 200 ms
+Flags: higher precedence, retransmission timeout, nagle, path mtu capable
+

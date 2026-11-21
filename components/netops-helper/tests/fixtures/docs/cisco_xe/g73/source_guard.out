@@ -1,0 +1,4 @@
+Interface  Filter-type  Filter-mode  IP-address      Mac-address       BD
+---------  -----------  -----------  --------------  ----------------  ----------
+Gi0/0/5    ip           active       192.0.2.2                          10
+Gi0/0/5    ip           active       192.0.2.3                          10

@@ -1,0 +1,20 @@
+Load Sharing Monitor
+Config    Current Agg     Min    Ld Share        Ld Share  Agg Link  Link Up
+Master    Master  Control Active Algorithm Flags Group     Mbr State Transitions
+================================================================================
+    13     13     LACP       1    L3_L4     A     13        Y     A       1
+                                  L3_L4           14        -     R       0
+                                  L3_L4           15        Y     A      10
+                                  L3_L4           16        -     R       0
+================================================================================
+Link State: A-Active, D-Disabled, R-Ready, NP-Port not present, L-Loopback
+Minimum Active: (<) Group is down. # active links less than configured minimum
+Load Sharing Algorithm: (L2) Layer 2 address based, (L3) Layer 3 address based
+                        (L3_L4) Layer 3 address and Layer 4 port based
+Flags:
+    A - All: Distribute to all members,
+    d - Dynamically created shared port,
+    L - Local Slot: Distribute to members local to ingress slot,
+    P - Port Lists: Distribute to per-slot configurable subset of members,
+    R - Resilient Hashing enabled.
+Number of load sharing trunks: 1

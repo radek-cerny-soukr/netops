@@ -1,0 +1,42 @@
+{
+  "igmp_snooping_interfaces_admin": {
+    "file": "igmp_interface.out",
+    "rc": 0,
+    "account": "network"
+  },
+  "igmp_snooping_membership_admin": {
+    "file": "igmp_membership.out",
+    "rc": 0,
+    "account": "network"
+  },
+  "interface_class_of_service_admin": {
+    "file": "cos.out",
+    "rc": 0,
+    "account": "network"
+  },
+  "interface_queue_admin": {
+    "file": "queue.out",
+    "rc": 0,
+    "account": "network"
+  },
+  "mac_table_vlan_admin": {
+    "file": "mac_vlan.out",
+    "rc": 0,
+    "account": "network"
+  },
+  "stp_interface_detail_admin": {
+    "file": "stp_detail.out",
+    "rc": 0,
+    "account": "network"
+  },
+  "stp_interface_statistics_admin": {
+    "file": "stp_stats.out",
+    "rc": 0,
+    "account": "network"
+  },
+  "vlan_details_admin": {
+    "file": "vlan_detail.out",
+    "rc": 0,
+    "account": "network"
+  }
+}

@@ -1,0 +1,10 @@
+Total number of netstack tcp sockets: 5
+Active connections (including servers)
+        Protocol State/       Recv-Q/   Local Address(port)/
+                 Context      Send-Q    Remote Address(port)
+[host]: tcp      ESTABLISHED  0         198.51.100.55(22)
+                 management   92        198.51.100.60(52862)
+
+
+Kernel Socket Connection:
+State      Recv-Q Send-Q Local Address:Port               Peer Address:Port

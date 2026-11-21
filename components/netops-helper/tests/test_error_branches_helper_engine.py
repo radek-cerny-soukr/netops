@@ -29,6 +29,7 @@ from conftest import (
     LOOPBACK,
     PASSWORD,
     _calls,
+    _fortinet_wire,
     _target,
     _write_client,
 )
@@ -68,7 +69,7 @@ def _device_output(wire, output: str, code: int = 0) -> None:
 
 
 def test_a_page_offset_inside_a_character_is_refused_and_audited(wire, audit_log) -> None:
-    _device_output(wire, "é" * 1500 + "\n" + FORTIOS_STATUS)
+    _fortinet_wire(wire, {"get system status": "é" * 1500 + "\n" + FORTIOS_STATUS})
     target = _target("fortinet", "system_status")
     first = engine.ssh_read(target, "fortinet", "system_status", None, 0, 1000)
     assert first["ok"] is True and first["next_offset"] == 1000
@@ -120,13 +121,13 @@ def test_a_diagnostic_session_that_the_device_ends_is_a_closed_failure(wire, aud
     _schema_registry(tmp_path, monkeypatch)
     _device_output(wire, "Permission denied, please try again.\n", code=255)
     target = _diagnostic_target()
-    # The client's own last line names the refused password; only its class and advice are answered.
+    # Core reports a disconnect before the first terminal prompt without exposing the transcript.
     assert engine.fortios_diagnostics(target, "ping", "192.0.2.183", "port2", 1, 1, 1000) == {
         "ok": False, "target": target.alias, "recipe": "ping",
-        "error_code": "auth", "error": engine._TRANSPORT_ADVICE["auth"]}
-    _assert_audit(audit_log, "fortios_diagnostics", ["started", "failed"], "auth")
+        "error_code": "disconnected", "error": engine._TRANSPORT_ADVICE["disconnected"]}
+    _assert_audit(audit_log, "fortios_diagnostics", ["started", "failed"], "disconnected")
     calls = _calls(wire)
-    assert len(calls) == 2 and calls[-1]["stdin_isatty"] is True
+    assert len(calls) == 1 and calls[0]["stdin_isatty"] is True
 
 
 class _OpenSession:
@@ -141,7 +142,7 @@ class _OpenSession:
 
 
 def _vdom_diagnostic(monkeypatch, shell) -> object:
-    monkeypatch.setattr(engine.core_session, "Session", _OpenSession)
+    monkeypatch.setattr(engine.core_session, "fortinet_session", _OpenSession)
     monkeypatch.setattr(engine, "_FortiosDiagnosticShell", lambda session: shell)
     target = _diagnostic_target()
     return replace(target, read_inventory={**target.read_inventory, "diagnostic_vdoms": ("VD1",)})
@@ -172,33 +173,20 @@ def test_a_diagnostic_transport_failure_stays_a_closed_session_with_its_cause(wi
     _assert_audit(audit_log, "fortios_diagnostics", ["started", "failed"], "ValueError")
 
 
-SCHEMA_DEVICE = """#!/usr/bin/env python3
-import json, sys
-
-with open({log!r}, "a") as handle:
-    handle.write(json.dumps({{"argv": sys.argv[1:]}}) + "\\n")
-command = sys.argv[-1]
-if command == {failing!r}:
-    sys.stderr.write("Connection to 127.0.0.1 closed by remote host.\\n")
-    sys.exit(255)
-if command == "get system status":
-    sys.stdout.write("Version: FortiGate-VM64-KVM v8.0.0,build0167,release\\nCurrent virtual domain: root\\n")
-sys.exit(0)
-"""
-
-
 @pytest.mark.parametrize("failing", ["get system status", "show full-configuration"])
 def test_a_schema_read_whose_device_connection_fails_names_only_the_class(
     wire, audit_log, tmp_path, monkeypatch, failing,
 ) -> None:
     _schema_registry(tmp_path, monkeypatch)
-    _write_client(wire["binaries"], "ssh", SCHEMA_DEVICE.format(log=str(wire["log"]), failing=failing))
+    status = "Version: FortiGate-VM64-KVM v8.0.0,build0167,release\nCurrent virtual domain: root\n"
+    _fortinet_wire(wire, {"get system status": status, failing: None})
     target = replace(_target("fortinet", "system_status"), read_inventory={"schema_paths": ("firewall address",)})
     assert engine.schema_read(target, "firewall address", "get", None, None, 0, 1000) == {
         "ok": False, "target": target.alias, "platform": "fortinet", "query": "schema_read",
         "error_code": "disconnected", "error": engine._TRANSPORT_ADVICE["disconnected"]}
     _assert_audit(audit_log, "schema_read", ["started", "failed"], "disconnected")
-    sent = [call["argv"][-1] for call in _calls(wire) if "-t" not in call["argv"]]
+    assert len(_calls(wire)) == 1
+    sent = wire["transcript"].read_text().splitlines()
     assert sent[-1] == failing
     assert "show full-configuration" not in sent[:-1]
 
@@ -318,12 +306,12 @@ def test_a_passive_port_outside_the_allowlist_is_refused_when_closing_the_client
 
 
 def test_a_triage_read_whose_device_connection_fails_is_a_reasoned_answer(wire, audit_log) -> None:
-    # Text on standard output is the device's, not the client's: exit 255 without a client message is unclassified.
+    # Output before the initial prompt cannot steer a typed Fortinet disconnect.
     _device_output(wire, "Permission denied, please try again.\n", code=255)
     answer = engine.triage_vpn_read(_target("fortinet", "system_status"), "fortinet", "system_status")
     assert answer == {"ok": False, "platform": "fortinet", "query": "system_status", "reason": "transport_error",
-                      "error_code": "transport_failure", "error": engine._TRANSPORT_ADVICE["transport_failure"]}
-    _assert_audit(audit_log, "triage_vpn_read", ["started", "failed"], "transport_failure")
+                      "error_code": "disconnected", "error": engine._TRANSPORT_ADVICE["disconnected"]}
+    _assert_audit(audit_log, "triage_vpn_read", ["started", "failed"], "disconnected")
     assert _calls(wire)
 
 
@@ -345,3 +333,13 @@ def test_a_named_passive_host_is_pinned_to_the_control_peer(passive_host, accept
     else:
         with pytest.raises(EgressScopeError, match="FTP passive host differs from the enrolled control target"):
             client.makepasv()
+
+
+def test_malformed_fortios_ping_destination_is_withheld_from_audit(wire, audit_log):
+    auth = replace(_diagnostic_target(), read_inventory={"diagnostic_recipes": ("ping",)})
+    with pytest.raises(ValueError):
+        engine.fortios_diagnostics(auth, "ping", "malformed:fixture-destination", "")
+    entries = _assert_audit(audit_log, "fortios_diagnostics", ["started", "failed"], "ValueError")
+    assert all("destination_address" not in entry for entry in entries)
+    assert "malformed:fixture-destination" not in audit_log.read_text()
+    assert not _calls(wire)

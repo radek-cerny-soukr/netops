@@ -1,0 +1,10 @@
+Neighbor ID     Pri State              Up/Dead Time              Address      Interface
+          BFD Session State
+=========================================================================================
+160.26.26.2      10 FULL      /BDR     10:16:42:57/00:00:00:00  160.26.26.2   CHI_160_26_26
+          Disabled
+10.0.2.2         10 FULL      /BDR     07:17:55:29/00:00:00:09  10.0.2.2      HQ_10_0_2
+          Active
+10.0.3.2         10 FULL      /BDR     07:17:54:56/00:00:00:03  10.0.3.2      HQ_10_0_3
+          Error (Session Limit Exceeded)
+Total number of neighbors: 3 (All neighbors in Full state)

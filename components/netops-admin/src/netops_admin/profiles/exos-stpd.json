@@ -1,0 +1,31 @@
+{
+  "platform": "exos",
+  "table": "stpd",
+  "versions": [
+    "33.6.1.14",
+    "33.7.1.6"
+  ],
+  "ops": [
+    "update"
+  ],
+  "table_scoped_key": true,
+  "key_pattern": "^[A-Za-z][A-Za-z0-9_-]{0,31}$",
+  "protected_keys": [],
+  "attributes": {
+    "priority": {
+      "type": "integer",
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "required_on_create": false,
+      "minimum": 0,
+      "maximum": 61440,
+      "default": "32768"
+    }
+  },
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "Read the configured bridge priority. Undo writes the previous priority."
+}

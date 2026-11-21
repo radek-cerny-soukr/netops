@@ -1,0 +1,12 @@
+
+!Command: show running-config interface port-channel200
+!Running configuration last done at: Wed Nov 18 11:50:29 2026
+!Time: Thu Nov 19 16:41:27 2026
+
+version 9.3(12) Bios:version
+
+interface port-channel200
+  switchport mode trunk
+  switchport trunk allowed vlan 428
+  spanning-tree port type network
+  vpc peer-link

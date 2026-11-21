@@ -1,0 +1,33 @@
+ Neighbor 203.0.113.250, interface address 203.0.113.1
+    Process ID 29 VRF default, in area 0.0.0.0 via interface Vlan10
+    State is TWOWAY, 2 state changes, last change 1d13h
+    Neighbor priority is 1
+    DR is 203.0.113.7 BDR is 203.0.113.3
+    Hello options 0x12, dbd options 0
+    Last non-hello packet received never
+      Dead timer due in 00:00:33
+ Neighbor 203.0.113.249, interface address 203.0.113.3
+    Process ID 29 VRF default, in area 0.0.0.0 via interface Vlan10
+    State is FULL, 4 state changes, last change 1d14h
+    Neighbor priority is 1
+    DR is 203.0.113.7 BDR is 203.0.113.3
+    Hello options 0x2, dbd options 0x42
+    Last non-hello packet received 00:02:07
+      Dead timer due in 00:00:36
+ Neighbor 203.0.113.247, interface address 203.0.113.6
+    Process ID 29 VRF default, in area 0.0.0.0 via interface Vlan10
+    State is TWOWAY, 3 state changes, last change 1d14h
+    Neighbor priority is 128
+    DR is 203.0.113.7 BDR is 203.0.113.3
+    Hello options 0x12, dbd options 0
+    Last non-hello packet received 1d14h
+      Dead timer due in 00:00:35
+ Neighbor 203.0.113.246, interface address 203.0.113.7
+    Process ID 29 VRF default, in area 0.0.0.0 via interface Vlan10
+    State is FULL, 5 state changes, last change 1d14h
+    Neighbor priority is 1
+    DR is 203.0.113.7 BDR is 203.0.113.3
+    Hello options 0x12, dbd options 0x52
+    Last non-hello packet received 00:02:05
+      Dead timer due in 00:00:40
+

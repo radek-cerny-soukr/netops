@@ -1,0 +1,11 @@
+
+
+BGP routing table entry for 192.0.2.0/24, version 2
+Paths: (1 available, best #1, table default, RIB-failure(17))
+  Not advertised to any peer
+  Refresh Epoch 1
+  65001
+    192.0.2.1  from 192.0.2.1  (198.51.100.1)
+      Origin IGP, metric 0, localpref 100, valid, external, best
+      rx pathid: 0, tx pathid: 0x0
+      Updated on Nov 17 2026 20:12:33 CET

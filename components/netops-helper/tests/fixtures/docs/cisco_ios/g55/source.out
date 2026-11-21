@@ -1,0 +1,11 @@
+Interface  Filter-type  Filter-mode  IP-address       Mac-address        Vlan
+---------  -----------  -----------  ---------------  -----------------  ---------
+gi1/0/1    ip           active       203.0.113.247                       10
+gi1/0/1    ip           active       deny-all                            11-20
+gi1/0/2    ip           inactive-trust-port
+gi1/0/3    ip           inactive-no-snooping-vlan
+gi1/0/4    ip-mac       active       203.0.113.246    0000.5e00.5305     10
+gi1/0/4    ip-mac       active       203.0.113.245    0000.5e00.5306     11
+gi1/0/4    ip-mac       active       deny-all         deny-all           12-20
+gi1/0/5    ip-mac       active       203.0.113.244    permit-all         10
+gi1/0/5    ip-mac       active       deny-all         permit-all         11-20

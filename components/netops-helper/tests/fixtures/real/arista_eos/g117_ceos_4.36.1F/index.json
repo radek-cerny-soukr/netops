@@ -1,0 +1,766 @@
+{
+  "version_ro": {
+    "query": "version",
+    "command": "show version",
+    "parameters": {},
+    "role": "RO",
+    "rc": 0,
+    "file": "version_ro.out"
+  },
+  "version_admin": {
+    "query": "version",
+    "command": "show version",
+    "parameters": {},
+    "role": "ADMIN",
+    "rc": 0,
+    "file": "version_admin.out"
+  },
+  "vrfs_ro": {
+    "query": "vrfs",
+    "command": "show vrf",
+    "parameters": {},
+    "role": "RO",
+    "rc": 0,
+    "file": "vrfs_ro.out"
+  },
+  "vrfs_admin": {
+    "query": "vrfs",
+    "command": "show vrf",
+    "parameters": {},
+    "role": "ADMIN",
+    "rc": 0,
+    "file": "vrfs_admin.out"
+  },
+  "ipv6_route_table_ro": {
+    "query": "ipv6_route_table",
+    "command": "show ipv6 route",
+    "parameters": {},
+    "role": "RO",
+    "rc": 0,
+    "file": "ipv6_route_table_ro.out"
+  },
+  "ipv6_route_table_admin": {
+    "query": "ipv6_route_table",
+    "command": "show ipv6 route",
+    "parameters": {},
+    "role": "ADMIN",
+    "rc": 0,
+    "file": "ipv6_route_table_admin.out"
+  },
+  "route_table_vrf_ro": {
+    "query": "route_table_vrf",
+    "command": "show ip route vrf default",
+    "parameters": {
+      "vrf": "default"
+    },
+    "role": "RO",
+    "rc": 0,
+    "file": "route_table_vrf_ro.out"
+  },
+  "route_table_vrf_admin": {
+    "query": "route_table_vrf",
+    "command": "show ip route vrf default",
+    "parameters": {
+      "vrf": "default"
+    },
+    "role": "ADMIN",
+    "rc": 0,
+    "file": "route_table_vrf_admin.out"
+  },
+  "ipv6_route_table_vrf_ro": {
+    "query": "ipv6_route_table_vrf",
+    "command": "show ipv6 route vrf default",
+    "parameters": {
+      "vrf": "default"
+    },
+    "role": "RO",
+    "rc": 0,
+    "file": "ipv6_route_table_vrf_ro.out"
+  },
+  "ipv6_route_table_vrf_admin": {
+    "query": "ipv6_route_table_vrf",
+    "command": "show ipv6 route vrf default",
+    "parameters": {
+      "vrf": "default"
+    },
+    "role": "ADMIN",
+    "rc": 0,
+    "file": "ipv6_route_table_vrf_admin.out"
+  },
+  "route_lookup_vrf_ro": {
+    "query": "route_lookup_vrf",
+    "command": "show ip route vrf default 127.0.0.1",
+    "parameters": {
+      "vrf": "default",
+      "address": "127.0.0.1"
+    },
+    "role": "RO",
+    "rc": 0,
+    "file": "route_lookup_vrf_ro.out"
+  },
+  "route_lookup_vrf_admin": {
+    "query": "route_lookup_vrf",
+    "command": "show ip route vrf default 127.0.0.1",
+    "parameters": {
+      "vrf": "default",
+      "address": "127.0.0.1"
+    },
+    "role": "ADMIN",
+    "rc": 0,
+    "file": "route_lookup_vrf_admin.out"
+  },
+  "ipv6_route_lookup_vrf_ro": {
+    "query": "ipv6_route_lookup_vrf",
+    "command": "show ipv6 route vrf default ::1",
+    "parameters": {
+      "vrf": "default",
+      "address": "::1"
+    },
+    "role": "RO",
+    "rc": 0,
+    "file": "ipv6_route_lookup_vrf_ro.out"
+  },
+  "ipv6_route_lookup_vrf_admin": {
+    "query": "ipv6_route_lookup_vrf",
+    "command": "show ipv6 route vrf default ::1",
+    "parameters": {
+      "vrf": "default",
+      "address": "::1"
+    },
+    "role": "ADMIN",
+    "rc": 0,
+    "file": "ipv6_route_lookup_vrf_admin.out"
+  },
+  "arp_table_vrf_ro": {
+    "query": "arp_table_vrf",
+    "command": "show ip arp vrf default",
+    "parameters": {
+      "vrf": "default"
+    },
+    "role": "RO",
+    "rc": 0,
+    "file": "arp_table_vrf_ro.out"
+  },
+  "arp_table_vrf_admin": {
+    "query": "arp_table_vrf",
+    "command": "show ip arp vrf default",
+    "parameters": {
+      "vrf": "default"
+    },
+    "role": "ADMIN",
+    "rc": 0,
+    "file": "arp_table_vrf_admin.out"
+  },
+  "ipv6_neighbors_vrf_ro": {
+    "query": "ipv6_neighbors_vrf",
+    "command": "show ipv6 neighbors vrf default",
+    "parameters": {
+      "vrf": "default"
+    },
+    "role": "RO",
+    "rc": 0,
+    "file": "ipv6_neighbors_vrf_ro.out"
+  },
+  "ipv6_neighbors_vrf_admin": {
+    "query": "ipv6_neighbors_vrf",
+    "command": "show ipv6 neighbors vrf default",
+    "parameters": {
+      "vrf": "default"
+    },
+    "role": "ADMIN",
+    "rc": 0,
+    "file": "ipv6_neighbors_vrf_admin.out"
+  },
+  "bgp_peer_ro": {
+    "query": "bgp_peer",
+    "command": "show ip bgp neighbors 192.0.2.1",
+    "parameters": {
+      "address": "192.0.2.1"
+    },
+    "role": "RO",
+    "rc": 1,
+    "file": "bgp_peer_ro.out"
+  },
+  "bgp_peer_admin": {
+    "query": "bgp_peer",
+    "command": "show ip bgp neighbors 192.0.2.1",
+    "parameters": {
+      "address": "192.0.2.1"
+    },
+    "role": "ADMIN",
+    "rc": 1,
+    "file": "bgp_peer_admin.out"
+  },
+  "bgp_peer_vrf_ro": {
+    "query": "bgp_peer_vrf",
+    "command": "show ip bgp neighbors 192.0.2.1 vrf default",
+    "parameters": {
+      "address": "192.0.2.1",
+      "vrf": "default"
+    },
+    "role": "RO",
+    "rc": 1,
+    "file": "bgp_peer_vrf_ro.out"
+  },
+  "bgp_peer_vrf_admin": {
+    "query": "bgp_peer_vrf",
+    "command": "show ip bgp neighbors 192.0.2.1 vrf default",
+    "parameters": {
+      "address": "192.0.2.1",
+      "vrf": "default"
+    },
+    "role": "ADMIN",
+    "rc": 1,
+    "file": "bgp_peer_vrf_admin.out"
+  },
+  "bgp_peer_routes_ro": {
+    "query": "bgp_peer_routes",
+    "command": "show ip bgp neighbors 192.0.2.1 routes",
+    "parameters": {
+      "address": "192.0.2.1"
+    },
+    "role": "RO",
+    "rc": 1,
+    "file": "bgp_peer_routes_ro.out"
+  },
+  "bgp_peer_routes_admin": {
+    "query": "bgp_peer_routes",
+    "command": "show ip bgp neighbors 192.0.2.1 routes",
+    "parameters": {
+      "address": "192.0.2.1"
+    },
+    "role": "ADMIN",
+    "rc": 1,
+    "file": "bgp_peer_routes_admin.out"
+  },
+  "bgp_peer_routes_vrf_ro": {
+    "query": "bgp_peer_routes_vrf",
+    "command": "show ip bgp neighbors 192.0.2.1 routes vrf default",
+    "parameters": {
+      "address": "192.0.2.1",
+      "vrf": "default"
+    },
+    "role": "RO",
+    "rc": 1,
+    "file": "bgp_peer_routes_vrf_ro.out"
+  },
+  "bgp_peer_routes_vrf_admin": {
+    "query": "bgp_peer_routes_vrf",
+    "command": "show ip bgp neighbors 192.0.2.1 routes vrf default",
+    "parameters": {
+      "address": "192.0.2.1",
+      "vrf": "default"
+    },
+    "role": "ADMIN",
+    "rc": 1,
+    "file": "bgp_peer_routes_vrf_admin.out"
+  },
+  "bgp_peer_advertised_routes_ro": {
+    "query": "bgp_peer_advertised_routes",
+    "command": "show ip bgp neighbors 192.0.2.1 advertised-routes",
+    "parameters": {
+      "address": "192.0.2.1"
+    },
+    "role": "RO",
+    "rc": 1,
+    "file": "bgp_peer_advertised_routes_ro.out"
+  },
+  "bgp_peer_advertised_routes_admin": {
+    "query": "bgp_peer_advertised_routes",
+    "command": "show ip bgp neighbors 192.0.2.1 advertised-routes",
+    "parameters": {
+      "address": "192.0.2.1"
+    },
+    "role": "ADMIN",
+    "rc": 1,
+    "file": "bgp_peer_advertised_routes_admin.out"
+  },
+  "bgp_peer_advertised_routes_vrf_ro": {
+    "query": "bgp_peer_advertised_routes_vrf",
+    "command": "show ip bgp neighbors 192.0.2.1 advertised-routes vrf default",
+    "parameters": {
+      "address": "192.0.2.1",
+      "vrf": "default"
+    },
+    "role": "RO",
+    "rc": 1,
+    "file": "bgp_peer_advertised_routes_vrf_ro.out"
+  },
+  "bgp_peer_advertised_routes_vrf_admin": {
+    "query": "bgp_peer_advertised_routes_vrf",
+    "command": "show ip bgp neighbors 192.0.2.1 advertised-routes vrf default",
+    "parameters": {
+      "address": "192.0.2.1",
+      "vrf": "default"
+    },
+    "role": "ADMIN",
+    "rc": 1,
+    "file": "bgp_peer_advertised_routes_vrf_admin.out"
+  },
+  "ospf_neighbors_detail_ro": {
+    "query": "ospf_neighbors_detail",
+    "command": "show ip ospf neighbor detail",
+    "parameters": {},
+    "role": "RO",
+    "rc": 0,
+    "file": "ospf_neighbors_detail_ro.out"
+  },
+  "ospf_neighbors_detail_admin": {
+    "query": "ospf_neighbors_detail",
+    "command": "show ip ospf neighbor detail",
+    "parameters": {},
+    "role": "ADMIN",
+    "rc": 0,
+    "file": "ospf_neighbors_detail_admin.out"
+  },
+  "ospf_neighbors_detail_vrf_ro": {
+    "query": "ospf_neighbors_detail_vrf",
+    "command": "show ip ospf neighbor detail vrf default",
+    "parameters": {
+      "vrf": "default"
+    },
+    "role": "RO",
+    "rc": 0,
+    "file": "ospf_neighbors_detail_vrf_ro.out"
+  },
+  "ospf_neighbors_detail_vrf_admin": {
+    "query": "ospf_neighbors_detail_vrf",
+    "command": "show ip ospf neighbor detail vrf default",
+    "parameters": {
+      "vrf": "default"
+    },
+    "role": "ADMIN",
+    "rc": 0,
+    "file": "ospf_neighbors_detail_vrf_admin.out"
+  },
+  "ospf_interface_detail_ro": {
+    "query": "ospf_interface_detail",
+    "command": "show ip ospf interface Vlan10",
+    "parameters": {
+      "interface": "Vlan10"
+    },
+    "role": "RO",
+    "rc": 0,
+    "file": "ospf_interface_detail_ro.out"
+  },
+  "ospf_interface_detail_admin": {
+    "query": "ospf_interface_detail",
+    "command": "show ip ospf interface Vlan10",
+    "parameters": {
+      "interface": "Vlan10"
+    },
+    "role": "ADMIN",
+    "rc": 0,
+    "file": "ospf_interface_detail_admin.out"
+  },
+  "ospf_interface_detail_vrf_ro": {
+    "query": "ospf_interface_detail_vrf",
+    "command": "show ip ospf interface Vlan10 vrf default",
+    "parameters": {
+      "interface": "Vlan10",
+      "vrf": "default"
+    },
+    "role": "RO",
+    "rc": 0,
+    "file": "ospf_interface_detail_vrf_ro.out"
+  },
+  "ospf_interface_detail_vrf_admin": {
+    "query": "ospf_interface_detail_vrf",
+    "command": "show ip ospf interface Vlan10 vrf default",
+    "parameters": {
+      "interface": "Vlan10",
+      "vrf": "default"
+    },
+    "role": "ADMIN",
+    "rc": 0,
+    "file": "ospf_interface_detail_vrf_admin.out"
+  },
+  "ospf_database_ro": {
+    "query": "ospf_database",
+    "command": "show ip ospf database",
+    "parameters": {},
+    "role": "RO",
+    "rc": 0,
+    "file": "ospf_database_ro.out"
+  },
+  "ospf_database_admin": {
+    "query": "ospf_database",
+    "command": "show ip ospf database",
+    "parameters": {},
+    "role": "ADMIN",
+    "rc": 0,
+    "file": "ospf_database_admin.out"
+  },
+  "ospf_database_vrf_ro": {
+    "query": "ospf_database_vrf",
+    "command": "show ip ospf database vrf default",
+    "parameters": {
+      "vrf": "default"
+    },
+    "role": "RO",
+    "rc": 0,
+    "file": "ospf_database_vrf_ro.out"
+  },
+  "ospf_database_vrf_admin": {
+    "query": "ospf_database_vrf",
+    "command": "show ip ospf database vrf default",
+    "parameters": {
+      "vrf": "default"
+    },
+    "role": "ADMIN",
+    "rc": 0,
+    "file": "ospf_database_vrf_admin.out"
+  },
+  "ospfv3_interface_detail_ro": {
+    "query": "ospfv3_interface_detail",
+    "command": "show ipv6 ospf interface Vlan10",
+    "parameters": {
+      "interface": "Vlan10"
+    },
+    "role": "RO",
+    "rc": 0,
+    "file": "ospfv3_interface_detail_ro.out"
+  },
+  "ospfv3_interface_detail_admin": {
+    "query": "ospfv3_interface_detail",
+    "command": "show ipv6 ospf interface Vlan10",
+    "parameters": {
+      "interface": "Vlan10"
+    },
+    "role": "ADMIN",
+    "rc": 0,
+    "file": "ospfv3_interface_detail_admin.out"
+  },
+  "ospfv3_interface_detail_vrf_ro": {
+    "query": "ospfv3_interface_detail_vrf",
+    "command": "show ipv6 ospf interface Vlan10 vrf default",
+    "parameters": {
+      "interface": "Vlan10",
+      "vrf": "default"
+    },
+    "role": "RO",
+    "rc": 1,
+    "file": "ospfv3_interface_detail_vrf_ro.out"
+  },
+  "ospfv3_interface_detail_vrf_admin": {
+    "query": "ospfv3_interface_detail_vrf",
+    "command": "show ipv6 ospf interface Vlan10 vrf default",
+    "parameters": {
+      "interface": "Vlan10",
+      "vrf": "default"
+    },
+    "role": "ADMIN",
+    "rc": 1,
+    "file": "ospfv3_interface_detail_vrf_admin.out"
+  },
+  "ospfv3_database_ro": {
+    "query": "ospfv3_database",
+    "command": "show ipv6 ospf database",
+    "parameters": {},
+    "role": "RO",
+    "rc": 0,
+    "file": "ospfv3_database_ro.out"
+  },
+  "ospfv3_database_admin": {
+    "query": "ospfv3_database",
+    "command": "show ipv6 ospf database",
+    "parameters": {},
+    "role": "ADMIN",
+    "rc": 0,
+    "file": "ospfv3_database_admin.out"
+  },
+  "ospfv3_database_vrf_ro": {
+    "query": "ospfv3_database_vrf",
+    "command": "show ipv6 ospf database vrf default",
+    "parameters": {
+      "vrf": "default"
+    },
+    "role": "RO",
+    "rc": 1,
+    "file": "ospfv3_database_vrf_ro.out"
+  },
+  "ospfv3_database_vrf_admin": {
+    "query": "ospfv3_database_vrf",
+    "command": "show ipv6 ospf database vrf default",
+    "parameters": {
+      "vrf": "default"
+    },
+    "role": "ADMIN",
+    "rc": 1,
+    "file": "ospfv3_database_vrf_admin.out"
+  },
+  "vrrp_ro": {
+    "query": "vrrp",
+    "command": "show vrrp",
+    "parameters": {},
+    "role": "RO",
+    "rc": 1,
+    "file": "vrrp_ro.out"
+  },
+  "vrrp_admin": {
+    "query": "vrrp",
+    "command": "show vrrp",
+    "parameters": {},
+    "role": "ADMIN",
+    "rc": 0,
+    "file": "vrrp_admin.out"
+  },
+  "varp_ro": {
+    "query": "varp",
+    "command": "show ip virtual-router",
+    "parameters": {},
+    "role": "RO",
+    "rc": 0,
+    "file": "varp_ro.out"
+  },
+  "varp_admin": {
+    "query": "varp",
+    "command": "show ip virtual-router",
+    "parameters": {},
+    "role": "ADMIN",
+    "rc": 0,
+    "file": "varp_admin.out"
+  },
+  "bfd_peers_ro": {
+    "query": "bfd_peers",
+    "command": "show bfd peers",
+    "parameters": {},
+    "role": "RO",
+    "rc": 0,
+    "file": "bfd_peers_ro.out"
+  },
+  "bfd_peers_admin": {
+    "query": "bfd_peers",
+    "command": "show bfd peers",
+    "parameters": {},
+    "role": "ADMIN",
+    "rc": 0,
+    "file": "bfd_peers_admin.out"
+  },
+  "ospfv3_neighbors_vrf_ro": {
+    "query": "ospfv3_neighbors_vrf",
+    "command": "show ipv6 ospf neighbor vrf default",
+    "parameters": {
+      "vrf": "default"
+    },
+    "role": "RO",
+    "rc": 1,
+    "file": "ospfv3_neighbors_vrf_ro.out"
+  },
+  "ospfv3_neighbors_vrf_admin": {
+    "query": "ospfv3_neighbors_vrf",
+    "command": "show ipv6 ospf neighbor vrf default",
+    "parameters": {
+      "vrf": "default"
+    },
+    "role": "ADMIN",
+    "rc": 1,
+    "file": "ospfv3_neighbors_vrf_admin.out"
+  },
+  "bgp_summary_vrf_ro": {
+    "query": "bgp_summary_vrf",
+    "command": "show ip bgp summary vrf default",
+    "parameters": {
+      "vrf": "default"
+    },
+    "role": "RO",
+    "rc": 1,
+    "file": "bgp_summary_vrf_ro.out"
+  },
+  "bgp_summary_vrf_admin": {
+    "query": "bgp_summary_vrf",
+    "command": "show ip bgp summary vrf default",
+    "parameters": {
+      "vrf": "default"
+    },
+    "role": "ADMIN",
+    "rc": 1,
+    "file": "bgp_summary_vrf_admin.out"
+  },
+  "ipv6_bgp_summary_vrf_ro": {
+    "query": "ipv6_bgp_summary_vrf",
+    "command": "show ipv6 bgp summary vrf default",
+    "parameters": {
+      "vrf": "default"
+    },
+    "role": "RO",
+    "rc": 1,
+    "file": "ipv6_bgp_summary_vrf_ro.out"
+  },
+  "ipv6_bgp_summary_vrf_admin": {
+    "query": "ipv6_bgp_summary_vrf",
+    "command": "show ipv6 bgp summary vrf default",
+    "parameters": {
+      "vrf": "default"
+    },
+    "role": "ADMIN",
+    "rc": 1,
+    "file": "ipv6_bgp_summary_vrf_admin.out"
+  },
+  "ping_ro": {
+    "query": "ping",
+    "command": "ping vrf default 127.0.0.1 source 127.0.0.1 repeat 5",
+    "parameters": {
+      "vrf": "default",
+      "address": "127.0.0.1",
+      "source": "127.0.0.1"
+    },
+    "role": "RO",
+    "rc": 1,
+    "file": "ping_ro.out"
+  },
+  "ping_admin": {
+    "query": "ping",
+    "command": "ping vrf default 127.0.0.1 source 127.0.0.1 repeat 5",
+    "parameters": {
+      "vrf": "default",
+      "address": "127.0.0.1",
+      "source": "127.0.0.1"
+    },
+    "role": "ADMIN",
+    "rc": 0,
+    "file": "ping_admin.out"
+  },
+  "traceroute_ro": {
+    "query": "traceroute",
+    "command": "traceroute vrf default 127.0.0.1",
+    "parameters": {
+      "vrf": "default",
+      "address": "127.0.0.1"
+    },
+    "role": "RO",
+    "rc": 0,
+    "file": "traceroute_ro.out"
+  },
+  "traceroute_admin": {
+    "query": "traceroute",
+    "command": "traceroute vrf default 127.0.0.1",
+    "parameters": {
+      "vrf": "default",
+      "address": "127.0.0.1"
+    },
+    "role": "ADMIN",
+    "rc": 0,
+    "file": "traceroute_admin.out"
+  },
+  "traceroute_source_ro": {
+    "query": "traceroute_source",
+    "command": "traceroute vrf default 127.0.0.1 source 127.0.0.1",
+    "parameters": {
+      "vrf": "default",
+      "address": "127.0.0.1",
+      "source": "127.0.0.1"
+    },
+    "role": "RO",
+    "rc": 0,
+    "file": "traceroute_source_ro.out"
+  },
+  "traceroute_source_admin": {
+    "query": "traceroute_source",
+    "command": "traceroute vrf default 127.0.0.1 source 127.0.0.1",
+    "parameters": {
+      "vrf": "default",
+      "address": "127.0.0.1",
+      "source": "127.0.0.1"
+    },
+    "role": "ADMIN",
+    "rc": 0,
+    "file": "traceroute_source_admin.out"
+  },
+  "vrrp_vrf_ro": {
+    "query": "vrrp_vrf",
+    "command": "show vrrp vrf default",
+    "parameters": {
+      "vrf": "default"
+    },
+    "role": "RO",
+    "rc": 1,
+    "file": "vrrp_vrf_ro.out"
+  },
+  "vrrp_vrf_admin": {
+    "query": "vrrp_vrf",
+    "command": "show vrrp vrf default",
+    "parameters": {
+      "vrf": "default"
+    },
+    "role": "ADMIN",
+    "rc": 0,
+    "file": "vrrp_vrf_admin.out"
+  },
+  "varp_vrf_ro": {
+    "query": "varp_vrf",
+    "command": "show ip virtual-router vrf default",
+    "parameters": {
+      "vrf": "default"
+    },
+    "role": "RO",
+    "rc": 0,
+    "file": "varp_vrf_ro.out"
+  },
+  "varp_vrf_admin": {
+    "query": "varp_vrf",
+    "command": "show ip virtual-router vrf default",
+    "parameters": {
+      "vrf": "default"
+    },
+    "role": "ADMIN",
+    "rc": 0,
+    "file": "varp_vrf_admin.out"
+  },
+  "bfd_peers_vrf_ro": {
+    "query": "bfd_peers_vrf",
+    "command": "show bfd peers vrf default",
+    "parameters": {
+      "vrf": "default"
+    },
+    "role": "RO",
+    "rc": 0,
+    "file": "bfd_peers_vrf_ro.out"
+  },
+  "bfd_peers_vrf_admin": {
+    "query": "bfd_peers_vrf",
+    "command": "show bfd peers vrf default",
+    "parameters": {
+      "vrf": "default"
+    },
+    "role": "ADMIN",
+    "rc": 0,
+    "file": "bfd_peers_vrf_admin.out"
+  },
+  "ipv6_rib_ro": {
+    "query": "ipv6_rib",
+    "command": "show rib route ipv6",
+    "parameters": {},
+    "role": "RO",
+    "rc": 0,
+    "file": "ipv6_rib_ro.out"
+  },
+  "ipv6_rib_admin": {
+    "query": "ipv6_rib",
+    "command": "show rib route ipv6",
+    "parameters": {},
+    "role": "ADMIN",
+    "rc": 0,
+    "file": "ipv6_rib_admin.out"
+  },
+  "ipv6_rib_vrf_ro": {
+    "query": "ipv6_rib_vrf",
+    "command": "show rib route ipv6 vrf default",
+    "parameters": {
+      "vrf": "default"
+    },
+    "role": "RO",
+    "rc": 0,
+    "file": "ipv6_rib_vrf_ro.out"
+  },
+  "ipv6_rib_vrf_admin": {
+    "query": "ipv6_rib_vrf",
+    "command": "show rib route ipv6 vrf default",
+    "parameters": {
+      "vrf": "default"
+    },
+    "role": "ADMIN",
+    "rc": 0,
+    "file": "ipv6_rib_vrf_admin.out"
+  }
+}

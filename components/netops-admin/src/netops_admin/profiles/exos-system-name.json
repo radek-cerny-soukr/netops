@@ -1,0 +1,30 @@
+{
+  "platform": "exos",
+  "table": "system-name",
+  "versions": [
+    "33.6.1.14",
+    "33.7.1.6"
+  ],
+  "ops": [
+    "update"
+  ],
+  "table_scoped_key": true,
+  "key_pattern": "^system-name$",
+  "protected_keys": [],
+  "attributes": {
+    "sysname": {
+      "type": "text",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,62}$",
+      "max_length": 63,
+      "required_on_create": false,
+      "update": true,
+      "unset": false,
+      "referenced_update": true
+    }
+  },
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "Replaces an explicit sysName and follows both prompt names. Undo writes the original name. Readback uses the check account. Changes are applied to running configuration."
+}

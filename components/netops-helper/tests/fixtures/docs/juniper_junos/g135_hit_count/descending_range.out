@@ -1,0 +1,6 @@
+index   from zone    to zone       name       policy count
+ 2       untrust      trust        policy2         100
+ 1       untrust      vrtrust      policy1         90
+ 3       untrust      trust        policy3         80
+
+Number of policy: 3

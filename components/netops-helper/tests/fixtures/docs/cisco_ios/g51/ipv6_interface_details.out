@@ -1,0 +1,21 @@
+  GigabitEthernet0/1 is up, line protocol is up
+    IPv6 is enabled, link-local address is fe80::10
+    Description: Management network (dual stack)
+    Global unicast address(es):
+      2001:db8:2::130, subnet is 2001:db8:2::0/64
+    Joined group address(es):
+      FF02::1
+      FF02::2
+      FF02::1:FF00:130
+    MTU is 1500 bytes
+    ICMP error messages limited to one every 100 milliseconds
+    ICMP redirects are enabled
+    ND DAD is enabled, number of DAD attempts: 1
+    ND reachable time is 30000 milliseconds
+    ND advertised reachable time is 0 milliseconds
+    ND advertised retransmit interval is 0 milliseconds
+    ND router advertisements are sent every 200 seconds
+    ND router advertisements live for 1800 seconds
+    ND advertised default router preference is Low
+    Hosts use stateless autoconfig for addresses.
+

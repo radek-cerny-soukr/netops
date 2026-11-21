@@ -1,0 +1,8 @@
+
+
+
+
+            OSPFv3 Router with ID (198.51.100.7) (Process ID 69)
+
+Neighbor ID     Pri   State           Dead Time   Interface ID    Interface
+198.51.100.1      1   FULL/BDR        00:00:32    10              Ethernet0/1.10

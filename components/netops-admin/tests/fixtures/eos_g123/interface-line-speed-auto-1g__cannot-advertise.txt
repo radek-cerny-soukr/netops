@@ -1,0 +1,6 @@
+configure terminal
+host01(config)#interface Ethernet12
+host01(config-if-Et12)#speed auto 1g
+% Cannot advertise desired speeds and duplex settings for interface Ethernet12.
+host01(config-if-Et12)#end
+host01#

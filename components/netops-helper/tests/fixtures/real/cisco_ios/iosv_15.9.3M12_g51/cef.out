@@ -1,0 +1,8 @@
+
+
+
+192.0.2.0/24, epoch 0, flags [attached, connected, cover dependents, need deagg]
+  Covered dependent prefixes: 8
+    need deagg: 2
+    notify cover updated: 6
+  attached to GigabitEthernet0/1.10

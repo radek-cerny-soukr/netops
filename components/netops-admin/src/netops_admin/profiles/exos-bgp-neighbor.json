@@ -1,0 +1,68 @@
+{
+  "platform": "exos",
+  "table": "bgp-neighbor",
+  "versions": [
+    "33.6.1.14"
+  ],
+  "ops": [
+    "create",
+    "update",
+    "delete"
+  ],
+  "table_scoped_key": true,
+  "key_pattern": "^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$",
+  "protected_keys": [],
+  "attributes": {
+    "remote-as": {
+      "type": "integer",
+      "update": false,
+      "unset": false,
+      "referenced_update": true,
+      "required_on_create": true,
+      "minimum": 1,
+      "maximum": 4294967295
+    },
+    "admin-state": {
+      "type": "text",
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "required_on_create": false,
+      "max_length": 8,
+      "pattern": "^(enabled|disabled)$",
+      "default": "disabled"
+    },
+    "import-policy": {
+      "type": "text",
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "required_on_create": false,
+      "max_length": 32,
+      "pattern": "^[A-Za-z0-9_][A-Za-z0-9_.-]{0,31}$"
+    },
+    "export-policy": {
+      "type": "text",
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "required_on_create": false,
+      "max_length": 32,
+      "pattern": "^[A-Za-z0-9_][A-Za-z0-9_.-]{0,31}$"
+    }
+  },
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {
+    "import-policy": [
+      "none",
+      "all"
+    ],
+    "export-policy": [
+      "none",
+      "all"
+    ]
+  },
+  "inverse_identity_changes": {},
+  "rollback_evidence": "G46 X20. Directly connected IPv4 unicast peer in VR-Default. A route-policy names a policy already available on the switch. Disable or enable the selected peer and manage its own inbound and outbound attachments. The remote AS is set at creation. See the G46 measurements on ExtremeXOS 33.6.1.14 (task netops-20261119-611)."
+}

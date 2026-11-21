@@ -1,0 +1,21 @@
+{
+  "vrfs": {
+    "default": {
+      "peerList": [
+        {
+          "peerAddress": "198.51.100.6",
+          "asn": "65127",
+          "localAsn": "65126",
+          "linkType": "external",
+          "vrf": "default",
+          "state": "Established",
+          "ifName": "Vlan3930",
+          "routeMapInbound": "I597-BGP-IN",
+          "routeMapInboundDefined": true,
+          "routeMapOutbound": "I597-BGP-OUT",
+          "routeMapOutboundDefined": true
+        }
+      ]
+    }
+  }
+}

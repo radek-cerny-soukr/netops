@@ -1,0 +1,53 @@
+{
+  "aclList": [
+    {
+      "type": "Ip4Acl",
+      "name": "netops-g127-v4",
+      "readonly": false,
+      "standard": false,
+      "countersEnabled": false,
+      "dynamic": false,
+      "sequenceLength": 2,
+      "configuredIngressIntfs": [
+        {
+          "name": "Ethernet5"
+        }
+      ],
+      "configuredEgressIntfs": [],
+      "activeIngressIntfs": [
+        {
+          "name": "Ethernet5"
+        }
+      ],
+      "activeEgressIntfs": [],
+      "notFullySupportedByHardware": false,
+      "sequence": [
+        {
+          "text": "deny tcp host 192.0.2.1    host 192.0.2.2    eq https",
+          "sequenceNumber": 10,
+          "ruleFilter": {
+            "dstPort": {
+              "oper": "eq",
+              "ports": [
+                443
+              ],
+              "maxPorts": 10
+            }
+          }
+        },
+        {
+          "text": "permit ip any any",
+          "sequenceNumber": 30,
+          "ruleFilter": {
+            "dstPort": {
+              "oper": "any",
+              "ports": [],
+              "maxPorts": 10
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "phoneAclBypass": false
+}

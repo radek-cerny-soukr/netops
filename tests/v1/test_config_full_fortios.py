@@ -66,10 +66,22 @@ class FortiOSFullConfiguration(TestCase):
         status = 'Version: FortiGate-60F v7.6.8,build3744,260929 (GA.M)\nVirtual domain configuration: disable\n'
         firmware, metadata = f.verify_identity(status)
         self.assertEqual(firmware, FW)
+        self.assertEqual(f.firmware_support(firmware)['status'], 'tested')
         self.assertTrue(metadata['identity_scope_verified'])
         self.assertFalse(metadata['configuration_complete'])
-        for invalid in (status.replace('3744', '3745'), status.replace('7.6.8', '7.6.7'),
-                        status + status, status.replace('FortiGate-', 'FortiADC-')):
+        for variant, expected in ((status.replace('3744', '3745'), ('FortiGate-60F', '7.6.8', '3745')),
+                                  (status.replace('7.6.8', '7.6.7'), ('FortiGate-60F', '7.6.7', '3744'))):
+            with self.subTest(firmware=expected):
+                firmware, variant_metadata = f.verify_identity(variant)
+                self.assertEqual(firmware, expected)
+                self.assertEqual(variant_metadata, metadata)
+                support = f.firmware_support(firmware)
+                self.assertEqual(support['status'], 'untested')
+                self.assertEqual(support['device_version'], '%s build%s' % expected[1:])
+                self.assertTrue(support['message'])
+                self.assertEqual(f.policy_firmware(firmware), '7.6.8')
+                self.assertEqual(f.policy_for(firmware), f.policy_for(FW))
+        for invalid in (status.replace('3744', '374'), status + status, status.replace('FortiGate-', 'FortiADC-')):
             with self.subTest(status=invalid[:60]), self.assertRaises(ValueError):
                 f.verify_identity(invalid)
         _, metadata = f.verify_identity(status.replace('disable', 'enable'))

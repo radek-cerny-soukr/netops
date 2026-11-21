@@ -1,0 +1,32 @@
+{
+  "platform": "fortiadc",
+  "table": "load-balance virtual-server",
+  "versions": [
+    "7.6.7 build0676"
+  ],
+  "exact_versions": true,
+  "table_scoped_key": true,
+  "ops": [
+    "update"
+  ],
+  "key_pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$",
+  "protected_keys": [],
+  "attributes": {
+    "status": {
+      "type": "text",
+      "default": "enable",
+      "update": true,
+      "unset": false,
+      "referenced_update": true,
+      "max_length": 8,
+      "pattern": "^(enable|disable|maintain)$",
+      "undo_to_default": true,
+      "required_on_create": false
+    }
+  },
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "The Admin engine verifies the change with the check account and restores the previous configuration through the inverse CLI commands. FortiADC has no on-device timer used by Admin."
+}

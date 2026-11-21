@@ -1,0 +1,4 @@
+set protocols ospf area 0.0.0.7 interface irb.3920 passive
+set protocols ospf area 0.0.0.7 interface irb.3920 metric 17
+set protocols ospf3 area 0.0.0.7 interface irb.3920 passive
+set protocols ospf3 area 0.0.0.7 interface irb.3920 metric 18

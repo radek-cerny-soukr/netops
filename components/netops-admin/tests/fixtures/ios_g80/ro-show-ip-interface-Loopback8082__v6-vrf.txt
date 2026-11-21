@@ -1,0 +1,5 @@
+
+
+
+Loopback8082 is up, line protocol is up
+  Internet protocol processing disabled

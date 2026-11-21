@@ -13,7 +13,7 @@ from fake_fortiadc_admin import FakeADC, measured
 from netops_admin import (cli, engine, enrollment, exec_fortiadc, execute, fortiadc_plan, readiness)
 from netops_admin.config import DEFAULT_LIMITS, Config, Device
 from netops_admin.errors import Rejected
-from netops_admin.profiles import find_profile, load_profiles
+from netops_admin.profiles import find_profile, firmware_support, load_profiles
 from netops_admin.request import parse_request
 
 SECRET = "SECRET-MARKER-0306"
@@ -137,11 +137,13 @@ def test_snapshot_without_the_firmware_line_or_a_section_is_refused():
     assert "7.6.7 build0676" in other.value.reasons[0]
 
 
-def test_profile_is_exact_to_the_measured_build():
+def test_profile_lists_the_tested_build_and_reports_others_untested():
     profile = load_profiles()[("fortiadc", TABLE)]
     assert profile.versions == ("7.6.7 build0676",) and profile.exact_versions
-    with pytest.raises(Rejected):
-        find_profile("fortiadc", TABLE, "7.6.8 build0700")
+    other = find_profile("fortiadc", TABLE, "7.6.8 build0700")
+    assert other.versions == profile.versions
+    assert firmware_support(other, "7.6.8 build0700")["status"] == "untested"
+    assert firmware_support(other, "7.6.7 build0676")["status"] == "tested"
 
 
 def test_offline_plan_command_accepts_fortiadc(tmp_path, capsys):
@@ -442,7 +444,10 @@ def test_doctor_reads_identity_rights_and_enrollment(tmp_path):
         assert found[name]["status"] == readiness.OK, (name, found[name])
     assert found["check account"]["detail"] == "reads system status hostname"
     assert found["audit policy"]["status"] == readiness.UNVERIFIED
-    assert report["firmware"] == "7.6.7 build0676" and report["operations"] == {TABLE: "create update delete"}
+    assert report["firmware"] == "7.6.7 build0676"
+    assert report["operations"] == {TABLE: "create update delete",
+                                    fortiadc_plan.REAL_SERVERS: "create update",
+                                    fortiadc_plan.VIRTUAL_SERVERS: "update"}
     assert device.applied_blocks == []
 
 

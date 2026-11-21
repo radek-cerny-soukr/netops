@@ -9,7 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from .audit import AuditPersistenceError
 from . import tables, port_vlan
-from .normalization import normalize_port
+from .normalization import normalize_mac, normalize_port, response_envelope, source_record
 
 MAX_TARGETS = 64
 MAX_PARALLEL = 8
@@ -62,6 +62,231 @@ def managed_switch_reader(target):
 
 def is_reader(target):
     return bool(l3_queries(target)) or mac_reader(target) or managed_switch_reader(target)
+
+
+def ruckus_reader(target):
+    return profile_of(target) == 'ruckus_unleashed' and {'clients', 'access_points'} <= set(target.enabled_queries)
+
+
+_HOST_LABEL = re.compile(r'[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?')
+
+
+def selector(value):
+    """Parse a literal or a DNS-style hostname without resolving it."""
+    if not isinstance(value, str):
+        raise ValueError('endpoint must be an IP, MAC or hostname')
+    try:
+        return tables.literal(value)
+    except ValueError:
+        name = value.lower().removesuffix('.')
+        if (len(name) <= 253 and re.search(r'[a-z]', name)
+                and all(_HOST_LABEL.fullmatch(label) for label in name.split('.'))):
+            return 'hostname', name
+        raise ValueError('endpoint must be an IP, MAC or hostname') from None
+
+
+def name_reads(auth, name):
+    """Hostname inputs are used in a device command only as explicitly enrolled DNS names."""
+    queries = auth.enabled_queries
+    inventory = auth.read_inventory
+    profile = profile_of(auth)
+    if profile == 'fortinet' and 'firewall' in auth.device_types:
+        if 'dhcp_leases' in queries:
+            for interface in inventory.get('interfaces', ()):
+                if interface != 'any':
+                    yield 'dhcp_lease', 'dhcp_leases', {'interface': interface}
+        if 'user_devices' in queries:
+            yield 'device_name', 'user_devices', None
+    if (profile == 'extreme_exos' and 'dns_lookup' in queries
+            and name in inventory.get('diagnostic_names', ())):
+        yield 'dns', 'dns_lookup', {'name': name}
+
+
+_LEASE_HEADER = re.compile(r'IP\s+MAC-Address\s+Hostname\s+VCI\s+SSID\s+AP\s+SERVER-ID\s+Expiry')
+_LEASE_EXPIRY = re.compile(
+    r'(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun) (?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)'
+    r' +\d{1,2} \d{2}:\d{2}:\d{2} \d{4}')
+_DNS_ROW = re.compile(r'Host (name|IPv4 Address|IPv6 Address)\s*:\s*(\S+)')
+NAME_TABLES = ('dhcp_lease', 'device_name', 'dns')
+
+
+def _lease_rows(text, interface):
+    # The FortiOS 8.0.2 table uses tabs before the fixed-width hostname and VCI columns.
+    lines = [line for line in text.splitlines() if line.strip()]
+    if len(lines) < 2 or lines[0].strip() != interface or not _LEASE_HEADER.fullmatch(lines[1].strip()):
+        return [], 1
+    rows, unknown = [], 0
+    for line in lines[2:]:
+        fields = line.strip().split('\t', 2)
+        try:
+            address, mac, columns = fields
+            if not columns[100:120].strip().isdigit() or not _LEASE_EXPIRY.fullmatch(columns[120:].strip()):
+                raise ValueError('unrecognized lease columns')
+            rows.append({'ip': str(ipaddress.IPv4Address(address.strip())), 'mac': normalize_mac(mac.strip()),
+                         'hostname': columns[:30].strip() or None})
+        except ValueError:
+            unknown += 1
+    return rows, unknown
+
+
+def _dns_rows(text, name):
+    rows, unknown, host_seen = [], 0, False
+    for raw in text.splitlines():
+        if not raw.strip():
+            continue
+        match = _DNS_ROW.fullmatch(raw.strip())
+        if not match:
+            unknown += 1
+            continue
+        field, value = match.groups()
+        if field == 'name':
+            host_seen = not host_seen and value.lower().removesuffix('.') == name
+            if not host_seen:
+                unknown += 1
+            continue
+        try:
+            cls = ipaddress.IPv4Address if field == 'IPv4 Address' else ipaddress.IPv6Address
+            rows.append({'ip': str(cls(value))})
+        except ValueError:
+            unknown += 1
+    return rows, unknown + (not host_seen or not rows)
+
+
+def parse_name_read(profile, table, query, text, state, parameters):
+    """Project only the address/name binding and its capture status."""
+    records, unknown = [], 0
+    if state in ('ok', 'empty'):
+        if table == 'dhcp_lease':
+            records, unknown = _lease_rows(text, parameters['interface'])
+        elif table == 'dns':
+            records, unknown = _dns_rows(text, parameters['name'])
+        else:
+            from .fortigate_tables import user_devices
+            found = user_devices(text, 0, len(text.encode()))
+            records = [{k: row[k] for k in ('hostname', 'ip', 'ipv6', 'mac', 'interface')}
+                       for row in found['devices']]
+            unknown = found['unreadable_lines'] + found['devices_without_seen_line']
+        state = 'unparsed' if unknown else 'ok' if records else 'empty'
+    result = response_envelope(profile, state, [source_record(query, text, state)])
+    result.update(ok=state in ('ok', 'empty'), table=table, records=records,
+                  coverage={'complete': state in ('ok', 'empty'), 'parsed_records': len(records),
+                            'unparsed_lines': unknown, 'missing_fields': []})
+    return result
+
+
+def _source_warnings(answer):
+    from netops_core import tested
+
+    warnings = list(answer.get('warnings', ()))
+    if 'firmware_support' in answer:
+        warning = tested.warning(answer['firmware_support'])
+        if warning:
+            warnings.append(warning)
+    return warnings
+
+
+def resolve_name(auths, name, budget, read, progress):
+    """Resolve a name from enrolled reads and require a lease and current IP/MAC evidence."""
+    aliases = [a.alias for a in auths]
+    budget.max_reads = MAX_READS if len(auths) <= 8 else 8 * len(auths)
+    evidence, vantage, missing = [], [], []
+    result = {'ok': True, 'endpoint': {'hostname': name}, 'verdict': 'incomplete',
+              'findings': [], 'own_interfaces': [], 'neighbors_l3': [], 'missing': missing, 'vantage': vantage,
+              'resolution': {'evidence': evidence, 'ip': None, 'mac': None},
+              'coverage': {'complete': False, 'requested_targets': aliases, 'completed_targets': [],
+                           'unfinished_targets': aliases},
+              'limits': {'targets': MAX_TARGETS, 'reads': budget.max_reads, 'seconds': MAX_SECONDS,
+                         'parallel': MAX_PARALLEL,
+                         'target_reads': {a.alias: a.locate_read_limit for a in auths}}}
+
+    def emit(reads):
+        result.update(reads=reads, elapsed_seconds=round(budget.now() - budget.started, 3))
+        progress(result)
+
+    budget.on_read = emit
+
+    def miss(target, table, reason, **details):
+        missing.append({'vantage': target, 'table': table, 'reason': reason, **details})
+
+    def capture(auth, table, query=None, parameters=None, ip=None):
+        try:
+            answer = read(auth, table, query, parameters, ip)
+        except LimitReached as exc:
+            miss(auth.alias, 'budget', str(exc))
+            return []
+        except AuditPersistenceError:
+            raise
+        except Exception:
+            miss(auth.alias, table, 'read_failed')
+            return []
+        status = answer['status']
+        coverage = answer['coverage']
+        item = {'target': auth.alias, 'table': table, 'status': status, 'sources': answer['sources'],
+                'captured_at': answer['captured_at'], 'coverage': coverage, 'profile': auth.ssh_platform,
+                'device_types': list(auth.device_types), 'warnings': _source_warnings(answer),
+                **{k: answer[k] for k in ('vdom_mode', 'vdom', 'data_scope', 'firmware_support') if k in answer}}
+        if parameters and 'interface' in parameters:
+            item['interface'] = parameters['interface']
+        vantage.append(item)
+        # ARP tables may omit VLAN/state fields without omitting an IP/MAC binding.
+        refusal = 'refusal_like_line_in_data'
+        partial = refusal in coverage.get('warnings', ()) or refusal in item['warnings']
+        if status not in ('ok', 'empty') or partial or (table != 'neighbor_l3' and not coverage['complete']):
+            reason = status if status not in ('ok', 'empty') else 'incomplete'
+            miss(auth.alias, table, reason, **{'error_code': answer['error_code']} if 'error_code' in answer else {})
+            return []
+        return [{**row, 'target': auth.alias, 'table': table,
+                 **({'interface': item['interface']} if 'interface' in item else {})}
+                for row in answer['records']]
+
+    def matches(row):
+        label = (row.get('hostname') or '').lower().removesuffix('.')
+        return label == name or ('.' not in name and label.split('.')[0] == name)
+
+    leases = []
+    for auth in auths:
+        for table, query, parameters in name_reads(auth, name):
+            rows = capture(auth, table, query, parameters)
+            if table == 'dhcp_lease':
+                leases.extend(rows)
+            evidence.extend(row for row in rows if table == 'dns' or matches(row))
+    ips = {row['ip'] for row in evidence if row.get('ip')}
+    macs = {row['mac'] for row in evidence if row.get('mac')}
+    # A DNS answer or device inventory can name the address of a lease with no hostname.
+    for lease in leases:
+        if lease in evidence or not (lease['ip'] in ips or lease['mac'] in macs):
+            continue
+        evidence.append(lease)
+    ips.update(row['ip'] for row in evidence if row.get('ip'))
+    macs.update(row['mac'] for row in evidence if row.get('mac'))
+    if len(ips) > 1 or len(macs) > 1:
+        result['verdict'] = 'ambiguous'
+        miss(None, 'hostname', 'conflicting_address_bindings')
+    elif not any(row['table'] == 'dhcp_lease' for row in evidence):
+        miss(None, 'dhcp_lease', 'matching_lease_not_observed')
+    else:
+        ip, mac = next(iter(ips)), next(iter(macs))
+        for auth in auths:
+            if not {'arp_table', 'neighbors'}.intersection(l3_queries(auth)):
+                continue
+            evidence.extend(row for row in capture(auth, 'neighbor_l3', ip=ip)
+                            if row.get('ip') == ip and row.get('mac'))
+        observed_macs = {row['mac'] for row in evidence if row['table'] == 'neighbor_l3'}
+        if observed_macs - {mac}:
+            result['verdict'] = 'ambiguous'
+            miss(None, 'neighbor_l3', 'lease_arp_mismatch')
+        elif not observed_macs:
+            miss(None, 'neighbor_l3', 'matching_arp_not_observed')
+        else:
+            result['resolution'].update(ip=ip, mac=mac)
+    unfinished = [alias for alias in aliases if any(item['vantage'] == alias for item in missing)]
+    result['coverage'].update(completed_targets=[a for a in aliases if a not in unfinished], unfinished_targets=unfinished)
+    emit(budget.reads)
+    return result
+
+
+def c9800_reader(target):
+    return profile_of(target) == 'cisco_xe' and 'c9800_clients' in target.enabled_queries
 
 
 class Budget:
@@ -147,7 +372,8 @@ def is_switch_peer_port(peers, aliases, hosts=frozenset()):
     return any(is_switch_neighbor(n, aliases, hosts) for n in peers)
 
 
-def run(auths, endpoint, read, budget=None, progress=lambda result: None, identify=None):
+def run(auths, endpoint, read, budget=None, progress=lambda result: None, identify=None, *, port_vlan_id=None,
+        ap_backhaul=False, client_mac=None):
     """`identify(auth)` answers the host names of an enrolled target from its identity reads (or nothing)."""
     kind, value = tables.literal(endpoint)
     if not 1 <= len(auths) <= MAX_TARGETS or len({a.alias for a in auths}) != len(auths):
@@ -171,8 +397,9 @@ def run(auths, endpoint, read, budget=None, progress=lambda result: None, identi
         progress(result)
     budget.on_read = count_read
     macs = {value} if kind == 'mac' else set()
-    aliases = {a.alias for a in auths}
-    hosts = {a.host for a in auths}
+    # G108: an enrolled Ruckus Unleashed controller is itself an AP; its address in an LLDP neighbour is not a switch.
+    aliases = {a.alias for a in auths if profile_of(a) != 'ruckus_unleashed'}
+    hosts = {a.host for a in auths if profile_of(a) != 'ruckus_unleashed'}
     host_names = {}
     identity_locks = {a.alias: threading.Lock() for a in auths}
     observations = []
@@ -217,7 +444,7 @@ def run(auths, endpoint, read, budget=None, progress=lambda result: None, identi
         """Match a different enrolled target by alias, enrolled address or verified host name."""
         name = system_name(neighbor.get('neighbor'))
         for other in auths:
-            if other.alias == reader.alias:
+            if other.alias == reader.alias or (profile_of(other) == 'ruckus_unleashed' or c9800_reader(other)):
                 continue
             if (name and name in (system_name(other.alias), system_name(other.host))
                     or neighbor.get('management_ip') == other.host
@@ -267,9 +494,10 @@ def run(auths, endpoint, read, budget=None, progress=lambda result: None, identi
                 unavailable.add(auth.alias)
             result['vantage'].append({'target': vantage, 'profile': auth.ssh_platform, 'device_types': list(auth.device_types), 'table': table,
                                       'status': state, 'captured_at': found['captured_at'], 'sources': found['sources'],
-                                      'coverage': found['coverage'], 'warnings': list(found.get('warnings', ())),
+                                      'coverage': found['coverage'], 'warnings': _source_warnings(found),
                                       # FortiOS VDOM scope of this read (absent when the device names none).
-                                      **{key: found[key] for key in ('vdom_mode', 'vdom', 'data_scope') if key in found}})
+                                      **{key: found[key] for key in ('vdom_mode', 'vdom', 'data_scope', 'firmware_support')
+                                         if key in found}})
             result['reads'] = budget.reads
             warning = 'refusal_like_line_in_data'
             refusal_data = warning in found['coverage'].get('warnings', ()) or warning in found.get('warnings', ())
@@ -309,7 +537,9 @@ def run(auths, endpoint, read, budget=None, progress=lambda result: None, identi
         # Start with ARP/ND only for an IP, in its own address family.
         l3_auths = []
         for auth in auths:
-            if not is_reader(auth) and auth.enabled_queries and not auth.device_types:
+            # Untyped wireless controllers participate through locate_wifi.
+            if (not is_reader(auth) and auth.enabled_queries and not auth.device_types
+                    and profile_of(auth) != 'ruckus_unleashed' and not c9800_reader(auth)):
                 miss(auth.alias, 'device_type', 'device_type_not_declared')
             query = ('neighbors' if profile_of(auth) == 'linux' else
                      'ipv6_neighbors' if ':' in value else 'arp_table')
@@ -456,8 +686,15 @@ def run(auths, endpoint, read, budget=None, progress=lambda result: None, identi
                 # Unknown LLDP capabilities on an advertised neighbor cannot
                 # establish that it is an endpoint. No neighbor is normal.
                 unknown_peer = 'unknown' in kinds
-                edge = not uplink and lldp_complete and mac_complete and lag_complete and not unknown_peer
-                judged.append((row, local, peers, interface, vlan_id, behind, uplink, unknown_peer, edge))
+                # A client's MAC may be learned on an AP port. Only a match to the AP's
+                # own advertised address or a controller-proven AP backhaul establishes an edge.
+                through_ap = behind == 'ap' and not ap_backhaul and not any(
+                    peer_kind(peer, aliases, hosts) == 'ap' and (
+                        row['mac'] == (peer.get('neighbor_port') or '').lower()
+                        or kind == 'ip' and value == peer.get('management_ip'))
+                    for peer in peers)
+                edge = not (uplink or unknown_peer or through_ap) and lldp_complete and mac_complete and lag_complete
+                judged.append((row, local, peers, interface, vlan_id, behind, uplink, unknown_peer, through_ap, edge))
             # FortiLink VLAN configuration only describes a confirmed edge port: one read, then.
             if serial and any(item[-1] for item in judged):
                 from . import fortiswitch_ports
@@ -465,25 +702,33 @@ def run(auths, endpoint, read, budget=None, progress=lambda result: None, identi
                     memberships, memberships_complete = detail_capture(auth, 'port_vlan', fortiswitch_ports.CONFIG, parameters, vantage)
                 else:
                     miss(vantage, 'port_vlan', 'configured_vlan_reads_not_enabled')
-            for row, local, peers, interface, vlan_id, behind, uplink, unknown_peer, edge in judged:
-                if not uplink and not edge:
+            for row, local, peers, interface, vlan_id, behind, uplink, unknown_peer, through_ap, edge in judged:
+                if through_ap and not uplink:
+                    miss(vantage, 'wifi_station', 'client_ap_association_unverified', row['port'])
+                elif not uplink and not edge:
                     miss(vantage, 'edge', 'aggregation_not_verified' if not lag_complete and lldp_complete and mac_complete and not unknown_peer
                          else 'lldp_or_mac_incomplete')
                 member = next((r for r in memberships if physical(r['port']) == local), None)
-                membership = port_vlan.membership(member, vlan_id) if memberships_complete else port_vlan.membership(None, vlan_id)
-                if member and member.get('source') == 'configuration':
-                    membership['source'] = 'configuration'
+                def membership_for(vlan):
+                    membership = port_vlan.membership(member if memberships_complete else None, vlan)
+                    if member and member.get('source') == 'configuration':
+                        membership['source'] = 'configuration'
+                    return membership
+                membership = membership_for(vlan_id)
                 if (membership['tagging'] == 'missing' and (edge if serial else candidates)
                         and (serial or port_vlan.BINDINGS.get(profile_of(auth)) in auth.enabled_queries)):
                     miss(vantage, 'port_vlan', 'vlan_membership_missing', row['port'])
-                result['findings'].append({'vantage': vantage, 'mac': row['mac'], 'port': row['port'],
-                                            'vlan_id': vlan_id, 'vlan_name': row.get('vlan_name'),
-                                            'vlan_membership': membership,
-                                            'edge': edge, 'behind': behind if edge else None,
-                                            'role': ('transit' if uplink else
-                                                     'edge_behind_' + behind if edge and behind else
-                                                     'edge' if edge else 'unverified'),
-                                            'lldp_neighbors': peers, 'interface': interface or None})
+                finding = {
+                    'vantage': vantage, 'mac': row['mac'], 'port': row['port'],
+                    'vlan_id': vlan_id, 'vlan_name': row.get('vlan_name'), 'vlan_membership': membership,
+                    'edge': edge, 'behind': behind if edge or through_ap else None,
+                    'role': ('transit' if uplink else 'edge_behind_' + behind if edge and behind else
+                             'edge' if edge else 'behind_ap' if through_ap else 'unverified'),
+                    'lldp_neighbors': peers, 'interface': interface or None,
+                }
+                if edge and port_vlan_id is not None:
+                    finding['requested_vlan_membership'] = membership_for(port_vlan_id)
+                result['findings'].append(finding)
                 if vlan_id is None:
                     miss(vantage, 'vlan', 'vlan_id_absent')
             progress(result)
@@ -498,6 +743,13 @@ def run(auths, endpoint, read, budget=None, progress=lambda result: None, identi
                 read_details((auth, serial, vantage, {'managed_switch': serial} if serial else None, matches, complete))
         parallel(captures, correlate_late)
         parallel(deferred, read_details)
+        if client_mac:
+            ap_ports = {(item['vantage'], physical(item['port'])) for item in result['findings'] if item['edge']}
+            result['client_mac_observations'] = [
+                {'vantage': vantage, 'mac': client_mac, 'port': row['port'], 'vlan_id': row['vlan_id'],
+                 'source': 'managed_switch_mac' if serial else 'mac_table'}
+                for _, serial, vantage, rows, complete, _ in sorted(captures, key=lambda capture: capture[2]) if complete
+                for row in rows if row['mac'] == client_mac and (vantage, physical(row['port'])) in ap_ports]
         if not switch_count:
             miss(None, 'mac_entry', 'no_enrolled_switch_reader')
         # An unresolved MAC may be a router's own address. Only then consult

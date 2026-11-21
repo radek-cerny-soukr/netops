@@ -1,0 +1,5 @@
+Mode: standalone
+State: Standalone
+Config-Sync Source: N/A
+Config-Sync: N/A
+Peer Count: 0

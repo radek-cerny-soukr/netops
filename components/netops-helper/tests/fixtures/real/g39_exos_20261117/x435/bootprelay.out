@@ -1,0 +1,13 @@
+Bootprelay : Disabled on virtual router "VR-Default"
+
+
+DHCP/BOOTP relay statistics for virtual router "VR-Default"
+    Received from client =          0  Received from server =          0
+    Requests relayed     =          0  Responses relayed    =          0
+    DHCP Discover        =          0  DHCP Offer           =          0
+    DHCP Request         =          0  DHCP Ack             =          0
+    DHCP Decline         =          0  DHCP NAck            =          0
+    DHCP Release         =          0
+    DHCP Inform          =          0
+
+Note: Default Remote-ID : System MAC Address

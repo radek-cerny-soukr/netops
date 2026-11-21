@@ -1,0 +1,25 @@
+config firewall policy
+    edit 230679
+        set status disable
+        set name "netops-g23-679"
+        set uuid 00000000-0000-4000-8000-000000000002
+        set srcintf "host01"
+        set dstintf "host01"
+        set action accept
+        set srcaddr "all"
+        set dstaddr "netops-g23-679-vip"
+        set schedule "always"
+        set service "ALL_TCP"
+        set utm-status enable
+        set ssl-ssh-profile "certificate-inspection"
+        set av-profile "default"
+        set webfilter-profile "default"
+        set dnsfilter-profile "default"
+        set ips-sensor "default"
+        set application-list "default"
+        set logtraffic all
+        set nat enable
+        set ippool enable
+        set poolname "netops-g23-679-pool"
+    next
+end

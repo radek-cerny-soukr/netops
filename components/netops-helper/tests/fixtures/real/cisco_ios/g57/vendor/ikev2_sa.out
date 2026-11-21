@@ -1,0 +1,4 @@
+Tunnel-id   Local          Remote           fvrf/ivrf          Status
+2           203.0.113.1/500    203.0.113.2/500 	(none)/(none)      READY
+      Encr: 3DES, Hash: SHA96, DH Grp:2, Auth: PSK
+      Life/Active Time: 86400/361 sec

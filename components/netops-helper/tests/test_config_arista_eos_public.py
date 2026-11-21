@@ -1,7 +1,7 @@
-"""Tasks 143/153: the public config_read path for the single admitted Arista EOS profile.
+"""Tasks 143/153: the public config_read path for the Arista EOS profile (G00: other identities read with a warning).
 
-Only ``arista_eos`` / ``Arista cEOSLab`` with ``Software image version: 4.36.1F`` (any build suffix, which
-is kept in the firmware record) is admitted (``config_arista_eos_adapter``), the same pattern as the
+``arista_eos`` / ``Arista cEOSLab`` with ``Software image version: 4.36.1F`` (any build suffix, which
+is kept in the firmware record) is the tested identity (``config_arista_eos_adapter``), the same pattern as the
 cisco_xe path (task 140) and the accepted ``cisco_ios`` path (task 128).  Task 153: the capture goes
 through the indentation-based ``config_indented.EosStreamRedactor`` (task 147), so hostname,
 descriptions, addresses, VLAN names and static/BGP/OSPF statements stay readable and every secret is
@@ -74,26 +74,26 @@ ROWS = (
     ('k', '!'),
     ('h', '! boot system flash:/cEOS-lab.swi'),
     ('k', '!'),
-    ('h', 'no aaa root'),
+    ('k', 'no aaa root'),
     ('k', '!'),
     ('h', 'username admin privilege 15 role network-admin secret sha512 $6$salt$SECRET-PASSWORD-SENTINEL'),
     ('k', '!'),
     ('h', 'enable password sha512 $6$salt$SECRET-ENABLE-SENTINEL'),
     ('k', '!'),
-    ('h', 'management api http-commands'),
-    ('h', '   no shutdown'),
-    ('h', '   !'),
-    ('h', '   vrf MGMT'),
-    ('h', '      no shutdown'),
+    ('k', 'management api http-commands'),
+    ('k', '   no shutdown'),
+    ('k', '   !'),
+    ('k', '   vrf MGMT'),
+    ('k', '      no shutdown'),
     ('k', '!'),
     ('h', 'daemon TerminAttr'),
     ('h', '   exec /usr/bin/TerminAttr -cvauth=token,SECRET-EAPI-SENTINEL -taillogs'),
     ('h', '   no shutdown'),
     ('k', '!'),
-    ('h', 'service routing protocols model multi-agent'),
+    ('k', 'service routing protocols model multi-agent'),
     ('k', '!'),
     ('k', 'hostname lab-eos1'),
-    ('h', 'ip name-server vrf default 192.0.2.53'),
+    ('k', 'ip name-server vrf default 192.0.2.53'),
     ('k', '!'),
     ('h', 'banner login'),
     ('c', 'SECRET-BANNER-SENTINEL'),
@@ -130,7 +130,7 @@ ROWS = (
     ('k', 'interface Management0'),
     ('k', '   ip address 203.0.113.10/24'),
     ('k', '!'),
-    ('h', 'ip routing'),
+    ('k', 'ip routing'),
     ('k', '!'),
     ('k', 'ip route 0.0.0.0/0 203.0.113.1'),
     ('k', '!'),
@@ -140,7 +140,7 @@ ROWS = (
     ('h', '   neighbor 198.51.100.2 password 7 SECRET-BGP-SENTINEL'),
     ('k', '   !'),
     ('k', '   address-family ipv4'),
-    ('h', '      neighbor 198.51.100.2 activate'),
+    ('k', '      neighbor 198.51.100.2 activate'),
     ('k', '      network 192.0.2.1/32'),
     ('k', '!'),
     ('k', 'router ospf 1'),
@@ -400,6 +400,8 @@ def test_fresh_public_read_pages_and_continues_without_more_ssh(env):
     assert first['redaction_profile'] == adapter.PROFILE
     assert first['firmware'] == {'model': 'cEOSLab', 'version': '4.36.1F',
                                  'build': '4.36.1F-48405728.4361F (engineering build)'}
+    # The tested identity (G00): the reply is as before, without firmware_support or warnings.
+    assert 'firmware_support' not in first and 'warnings' not in first
     assert first['capture_complete'] is True and first['configuration_complete'] is False
     assert first['identity_scope_verified'] is False and first['config_scope'] == 'device-account-visible'
     assert first['visibility_limitations'] == ['account-rights-not-verified', 'formats-not-verified',
@@ -568,19 +570,43 @@ def test_engine_refuses_options_access_and_platform_before_ssh(env):
 
 # ------------------------------------------------------------ identity gates the configuration command
 
-@pytest.mark.parametrize('version, message', [
-    (VERSION.replace(MODEL, 'Arista vEOS-lab'), 'firmware-not-supported for arista_eos; supported cEOSLab 4.36.1F;'),
+@pytest.mark.parametrize('version, firmware', [
+    (VERSION.replace(MODEL, 'Arista vEOS-lab'),
+     {'model': 'vEOS-lab', 'version': '4.36.1F', 'build': '4.36.1F-48405728.4361F (engineering build)'}),
     (VERSION.replace(IMAGE, IMAGE.replace('4.36.1F-', '4.35.1F-')),
-     'firmware-not-supported for arista_eos; supported cEOSLab 4.36.1F;'),
+     {'model': 'cEOSLab', 'version': '4.35.1F', 'build': '4.35.1F-48405728.4361F (engineering build)'}),
+], ids=['derived-other-model', 'derived-other-release'])
+def test_untested_identity_is_read_with_a_warning_through_the_public_chain(env, version, firmware):
+    """G00: an untested identity is read through worker, proxy and engine; same redaction, plus a warning."""
+    wire = _rewire(env, Wire(version=version))
+    first = _page(_call(env, 'config_read', _b(limit=200)))
+    assert wire.commands() == ['show version', 'show running-config']
+    assert first['firmware'] == firmware
+    message = ('Arista EOS %s on %s is not among the versions config_read was tested on (cEOSLab 4.36.1F). '
+               'It may or may not work as designed and tested; check the result.' % (firmware['version'],
+                                                                                      firmware['model']))
+    assert first['firmware_support'] == {
+        'status': 'untested', 'platform': 'Arista EOS', 'device_version': firmware['version'],
+        'model': firmware['model'], 'tested_versions': ['cEOSLab 4.36.1F'], 'message': message}
+    assert first['warnings'] == [{'code': 'firmware_untested', 'message': message}]
+    assert first['redaction_profile'] == adapter.PROFILE
+    pages, text = _pages(env, first, _b(), 200)
+    assert text == expected(B_SECRET) and len(wire.calls) == 2
+    for page in pages:
+        assert page['firmware_support'] == first['firmware_support'] and page['warnings'] == first['warnings']
+        _assert_clean(page)
+
+
+@pytest.mark.parametrize('version, message', [
     (VERSION_XE, 'identity-unverifiable'),
     (VERSION + IMAGE.replace('4.36.1F-', '4.35.1F-') + '\n', 'identity-unverifiable'),
     (VERSION + VERSION, 'identity-unverifiable'),
     (VERSION.replace(MODEL + '\n', ''), 'identity-unverifiable'),
     (VERSION.replace(IMAGE, 'Software image version: 4.36'), 'identity-unverifiable'),
     ('', 'identity-unverifiable'),
-], ids=['derived-other-model', 'derived-other-release', 'real-cisco-xe', 'two-different-releases',
+], ids=['real-cisco-xe', 'two-different-releases',
         'repeated-identity', 'no-model-line', 'malformed-image-line', 'empty'])
-def test_unsupported_or_unverifiable_identity_never_runs_the_config_command(env, version, message):
+def test_unverifiable_identity_never_runs_the_config_command(env, version, message):
     auth = _engine_auth(env)
     wire = _rewire(env, Wire(version=version))
     with pytest.raises(ValueError, match=message) as raised:
@@ -657,16 +683,20 @@ def test_cached_snapshot_keeps_profile_and_platform_binding(env):
         configuration._SNAPSHOTS[identity] = replace(stored, profile=profile)
         with pytest.raises(ValueError, match='invalid configuration profile|capture options mismatch'):
             _read(auth, snapshot_id=identity)
-    for firmware in (adapter.SUPPORTED, ('cEOSLab', '4.35.1F', '4.35.1F'), ('vEOS-lab', '4.36.1F', '4.36.1F'),
-                     ('cEOSLab', '4.36.1F', '4.35.1F-1.4351F'), config_cisco_xe_adapter.SUPPORTED,
-                     config_cisco_ios_adapter.SUPPORTED):
+    # G00: a stored untested record pages with its warning; a record of another shape is refused.
+    for firmware in (('cEOSLab', '4.35.1F', '4.35.1F'), ('vEOS-lab', '4.36.1F', '4.36.1F')):
+        configuration._SNAPSHOTS[identity] = replace(stored, firmware=firmware)
+        page = _read(auth, snapshot_id=identity)
+        assert page['firmware_support']['status'] == 'untested' and page['warnings'][0]['code'] == 'firmware_untested'
+    for firmware in (adapter.TESTED, ('cEOSLab', '4.36.1F', '4.35.1F-1.4351F'), config_cisco_xe_adapter.TESTED,
+                     config_cisco_ios_adapter.TESTED):
         configuration._SNAPSHOTS[identity] = replace(stored, firmware=firmware)
         with pytest.raises(ValueError, match='policy mismatch'):
             _read(auth, snapshot_id=identity)
     # An IOS XE or IOS snapshot (its platform scope and profile) is never paged as EOS.
     for platform, other in (('cisco_xe', config_cisco_xe_adapter), ('cisco_ios', config_cisco_ios_adapter)):
         configuration._SNAPSHOTS[identity] = replace(stored, scope=(stored.scope[0], platform, *stored.scope[2:]),
-                                                     profile=other.PROFILE, firmware=other.SUPPORTED)
+                                                     profile=other.PROFILE, firmware=other.TESTED)
         with pytest.raises(ValueError, match='scope mismatch'):
             _read(auth, snapshot_id=identity)
     configuration._SNAPSHOTS[identity] = stored
@@ -690,3 +720,111 @@ def test_cached_snapshot_keeps_profile_and_platform_binding(env):
                               (adapter.PROFILE.upper(), 'arista_eos'), (None, 'arista_eos')):
         with pytest.raises(ValueError, match='invalid configuration profile'):
             configuration._snapshot_profile(profile, platform)
+
+
+G121 = REAL / 'arista_eos' / 'g121_ceos_4.36.1F'
+
+
+class G121Wire(Wire):
+    def __init__(self, running='running.out', startup='startup.out', native='diff-empty.out'):
+        super().__init__()
+        self.answers = {
+            'show running-config': (G121 / running).read_bytes(),
+            'show startup-config': (G121 / startup).read_bytes(),
+            'show running-config diffs': (G121 / native).read_bytes(),
+        }
+        self.status = {'show startup-config': int(startup == 'startup-denied.out')}
+
+    def __call__(self, host, port, login, credential, key, command, *, stdout_consumer=None, **options):
+        if command == 'show version':
+            return super().__call__(host, port, login, credential, key, command, stdout_consumer=stdout_consumer, **options)
+        self.calls.append({'host': host, 'command': command})
+        output = self.answers[command]
+        if stdout_consumer is not None:
+            for offset in range(0, len(output), 11):
+                try:
+                    stdout_consumer(output[offset:offset + 11])
+                except Exception:
+                    raise core_ssh.OutputConsumerError() from None
+            output = b''
+        return core_ssh.Result(rc=self.status.get(command, 0), stdout=output, said='', started_at='t0', finished_at='t1')
+
+
+def _live_diff(env, **options):
+    return _call(env, 'config_diff', {'target': 'router-b', 'platform': 'arista_eos',
+                                     'base_snapshot': 'startup', 'other_snapshot': 'running', **options})
+
+
+@pytest.mark.parametrize('changed', (False, True))
+def test_g121_live_diff_real_captures_and_continuation(env, changed):
+    _inventory(env['helper'], b_access=('read', 'compare'))
+    wire = _rewire(env, G121Wire('running-changed.out' if changed else 'running.out',
+                                native='diff-changed.out' if changed else 'diff-empty.out'))
+    data = _page(_live_diff(env, limit=80))
+    assert data['unsaved_changes'] is changed and data['identical'] is not changed
+    assert data['comparison_status'] == 'verified'
+    assert not data['hidden_lines_compared']
+    assert data['base_capture']['comparison_view'] == 'startup'
+    assert data['other_capture']['comparison_view'] == 'running'
+    assert wire.commands() == ['show version', 'show startup-config', 'show version',
+                               'show running-config', 'show running-config diffs']
+    text = data['untrusted_device_output']
+    while data['next_offset'] is not None:
+        data = _page(_live_diff(env, base_snapshot=data['base_snapshot'], other_snapshot=data['other_snapshot'],
+                                offset=data['next_offset'], limit=80))
+        text += data['untrusted_device_output']
+    assert len(wire.calls) == 5
+    assert ('+ip access-list G121-VERIFY' in text) is changed
+    assert ('+   10 permit tcp 192.0.2.0/24 any eq https' in text) is changed
+    assert ('+ipv6 access-list G121-VERIFY' in text) is changed
+    assert ('+ip prefix-list G121-VERIFY seq 10 permit 198.51.100.0/24 le 32' in text) is changed
+    assert 'Startup-config last modified' not in text
+
+
+@pytest.mark.parametrize('scenario', ('denied', 'truncated', 'no-compare'))
+def test_g121_live_diff_refuses_invalid_access_or_side(env, scenario):
+    if scenario != 'no-compare':
+        _inventory(env['helper'], b_access=('read', 'compare'))
+    wire = _rewire(env, G121Wire(startup='startup-denied.out' if scenario == 'denied' else 'startup.out'))
+    if scenario == 'truncated':
+        wire.answers['show running-config'] = wire.answers['show running-config'].removesuffix(b'end\n')
+    result = _live_diff(env)
+    shown = str(result)
+    expected_message = {'denied': 'device-refused', 'truncated': 'stream-incomplete', 'no-compare': 'config_access'}[scenario]
+    assert expected_message in shown
+    assert not configuration._SNAPSHOTS
+    assert 'untrusted_device_output' not in shown
+    assert 'show running-config diffs' not in wire.commands()
+
+
+def test_g121_incomplete_native_diff_keeps_the_redacted_difference(env):
+    _inventory(env['helper'], b_access=('read', 'compare'))
+    wire = _rewire(env, G121Wire('running-changed.out', native='diff-changed.out'))
+    # Derived truncation: the last context row is missing even though the line ending is intact.
+    wire.answers['show running-config diffs'] = b''.join(wire.answers['show running-config diffs'].splitlines(keepends=True)[:-1])
+    data = _page(_live_diff(env))
+    assert not data['identical'] and data['unsaved_changes'] is None
+    assert data['comparison_status'] == 'incomplete'
+    assert '+ip access-list G121-VERIFY' in data['untrusted_device_output']
+
+
+def test_g121_public_config_read_preserves_acl_and_routing_with_credentials_masked(env):
+    wire = _rewire(env, G121Wire('running-changed.out'))
+    # Derived negative security cases: inject fictitious credentials into the measured structure,
+    # including a short known credential embedded in the name of an otherwise admissible ACL.
+    _vault(env['helper'], 'xy', replace=True)
+    _call(env, 'ssh_read', {'target': 'router-a', 'platform': 'arista_eos', 'query': 'version'})
+    assert 'xy' in env['bridge'].proxy.session_secrets
+    wire.answers['show running-config'] = wire.answers['show running-config'].replace(
+        b'   20 deny ip any any log\n',
+        b'   20 deny ip any any log\n   30 remark FAKE-ACL-VALUE\n').replace(
+        b'ip routing\n',
+        b'ip access-list g121-xy-hidden\n   10 permit ip any any\n!\n'
+        b'management ssh\n   idle-timeout 10\n   hostkey FAKE-MANAGEMENT-VALUE\n!\nip routing\n')
+    result = _page(_call(env, 'config_read', _b()))
+    text = result['untrusted_device_output']
+    for line in ('ip access-list G121-VERIFY', '   20 deny ip any any log', 'management ssh',
+                 '   idle-timeout 10', 'ip routing', 'router ospf 29', 'aaa authorization exec default local'):
+        assert line in text.splitlines()
+    _assert_clean(result, 'FAKE-ACL-VALUE', 'FAKE-MANAGEMENT-VALUE', 'g121-xy-hidden', '10 permit ip any any')
+    assert result['credential_redactions'] >= 1 and result['unverified_count'] >= 1

@@ -1,0 +1,3 @@
+Can not set duplicate entry.
+object check operator error, -15, discard the setting
+Command fail. Return code -15

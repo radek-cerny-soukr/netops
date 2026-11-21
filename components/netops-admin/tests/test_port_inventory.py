@@ -7,6 +7,7 @@ import pytest
 from conftest import FIXTURES, request_bytes
 from enrollment_helpers import certify
 from fake_020 import ExosMembership
+from test_exos_g43 import G43Exos
 from test_execute_exos import make_runtime as make_exos_runtime
 from test_operations_020 import request
 
@@ -115,6 +116,44 @@ RECOVERY = "#\n# Module devmgr configuration.\n#\nconfigure sys-recovery-level s
 def explicit(router, extra=""):
     text = RECOVERY + FACTORY.replace("create vlan", "configure vlan default delete ports all\n" + router + "create vlan", 1)
     return text + extra
+
+
+class FactoryVlanSwitch(G43Exos):
+    def __init__(self):
+        super().__init__()
+        self.vlans["guest"] = {"tag": "3068"}
+
+    def snapshot(self):
+        accounts = super().snapshot().split("#\n# Module vlan configuration.", 1)[0]
+        return accounts + FACTORY
+
+    def answer(self, command):
+        if command == exos.QUERY_PORTS:
+            return MEASURED_PORTS
+        return super().answer(command)
+
+
+def test_grouped_preview_moves_a_factory_port_from_default(tmp_path):
+    target = FactoryVlanSwitch()
+    runtime = make_exos_runtime(tmp_path, target)
+    body = parse_request(request_bytes(table="vlan", op="update", key="guest", changes={"untagged-ports": ["6"]}))
+    preview = execute.preview(runtime, "sw", body)
+    assert preview["result"] == "ready", preview["reasons"]
+    assert preview["commands"] == ["configure vlan guest add ports 6 untagged"]
+    assert preview["predicted"]["after"] == {"tag": "3068", "untagged-ports": "6"}
+    assert not target.applied_blocks
+
+
+@pytest.mark.parametrize("attribute, port, explicit_members", [
+    ("tagged-ports", "5", "configure vlan Default add ports 1-12 untagged\nconfigure vlan guest add ports 5 tagged\n"),
+    ("untagged-ports", "6", "configure vlan Default add ports 1-5,7-12 untagged\nconfigure vlan guest add ports 6 untagged\n"),
+])
+@pytest.mark.parametrize("router", [EXOS_VM_RENDERING, HARDWARE_RENDERING])
+def test_grouped_verify_accepts_explicit_default_after_a_factory_port_change(attribute, port, explicit_members, router):
+    document = plan(FACTORY, "vlan", "guest", {attribute: [port]}, TWELVE)
+    assert engine.verify(document, FACTORY.encode(), expect="before")["result"] == "match"
+    verdict = engine.verify(document, explicit(router, explicit_members).encode())
+    assert verdict["result"] == "match", verdict["differences"]
 
 
 @pytest.mark.parametrize("router", [EXOS_VM_RENDERING, HARDWARE_RENDERING])

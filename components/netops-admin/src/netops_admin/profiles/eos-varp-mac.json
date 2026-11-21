@@ -1,0 +1,30 @@
+{
+  "platform": "eos",
+  "table": "varp-mac",
+  "versions": [
+    "4.36.1F"
+  ],
+  "exact_versions": true,
+  "ops": [
+    "update"
+  ],
+  "table_scoped_key": true,
+  "key_pattern": "^global$",
+  "protected_keys": [],
+  "attributes": {
+    "mac-address": {
+      "type": "text",
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "required_on_create": false,
+      "max_length": 17,
+      "pattern": "^(?:[0-9A-Fa-f]{2}(?::[0-9A-Fa-f]{2}){5}|[0-9A-Fa-f]{4}(?:\\.[0-9A-Fa-f]{4}){2})$"
+    }
+  },
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "G124 on cEOSLab 4.36.1F. EOS configuration session timer and verified running-config readback apply. Update key global to set the shared VARP MAC. Remove it with a null value after clearing the virtual addresses. Changing this shared setting while a VARP address uses it is refused."
+}

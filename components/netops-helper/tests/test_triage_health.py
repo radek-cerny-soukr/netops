@@ -319,9 +319,29 @@ def test_cluster_checksum_with_one_member_is_unparsed():
     "Version: FortiGate-80F v8.0.1,build0251,260928 (GA.F)\n",
     "Version: FortiGate-60F v7.6.8,build3745,260115 (GA.M)\n",
     "Version: FortiGate-VM64 v7.6.8,build3744,260115 (GA.M)\n",
-    "no identity\n",
 ])
-def test_unqualified_identity_stops_before_any_other_read(status):
+def test_untested_identity_runs_every_read_with_a_warning(status):
+    # G00 (2026-11-17): a model or build outside the tested identities is triaged, not refused.
+    result, calls = run(outputs(system_status=status + "Virtual domain configuration: disable\n"))
+    assert calls[0] == "system_status" and set(calls) == {query for _, query in t.STEPS} - {"ha_checksum"}
+    assert result["ok"] is True and result["verdict"] == "no_fault_in_checked_data"
+    assert result["firmware_support"]["status"] == "untested"
+    assert result["warnings"] == [{"code": "firmware_untested", "message": result["firmware_support"]["message"]}]
+    assert result["firmware_support"]["message"].startswith(
+        "FortiOS %s build%s on %s is not among the versions triage_health was tested on (" % (
+            result["identity"]["version"], result["identity"]["build"], result["identity"]["product"]))
+    assert result["firmware_support"]["tested_versions"] == ["FortiGate-60F 7.6.8 build3744",
+                                                             "FortiGate-80F 8.0.2 build0251"]
+
+
+def test_tested_identity_has_no_warning():
+    result, _ = run(outputs())
+    assert result["firmware_support"]["status"] == "tested" and result["firmware_support"]["message"] is None
+    assert "warnings" not in result
+
+
+@pytest.mark.parametrize("status", ["no identity\n", "Version: FortiADC-KVM v7.6.7,build0676,260522 (GA.M)\n"])
+def test_unreadable_identity_or_other_product_stops_before_any_other_read(status):
     calls = []
 
     def read(query):

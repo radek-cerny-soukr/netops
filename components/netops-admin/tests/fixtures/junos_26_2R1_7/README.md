@@ -32,3 +32,23 @@ the expiry returned the state before the change commit, which equals the state b
 copied from `task-evidence/378/surove/` by `task-evidence/378/nastroj/fixtures378.py` (exec header, echo, `[edit]`
 and prompt removed, commit histories cut below the safeguard row of the measurement); the anonymiser
 (`components/netops-helper/tests/support/anonymize_fixture.py`) changed nothing and `--check` passes.
+
+## 1.0.12 G137 (task netops-20261118-496): files named `*__g137-*` and `show-vlans-g137-*`
+
+Measured on the same lab switch (vJunos-switch 26.2R1.7, GNS3 `netops-d-lab`) on 2026-11-18 09:52-10:41 UTC under the
+measurement's own `commit confirmed 30` with an explicit return (configuration SHA-256 before = after). Test objects:
+VLANs `g137-data` 3901 (with a UTF-8 description and `l3-interface irb.3901`), `g137-voice` 3902, `g137-trunk` 3903,
+port ge-0/0/2 (access with voice VLAN, then trunk with native VLAN, UTF-8 descriptions up to 240 characters),
+ge-0/0/7 (access from the group `g137-grp` applied at the top level), ge-0/0/8 (VLAN member from the wildcard group
+`g137-grpw` `"<ge-0/0/[89]>"` applied at the port), ge-0/0/9 (from the interface-range `g137-rng`) and the renames
+`g137-trunk` -> `g137-trunk2`, `g137-data` -> `g137-data2`. Answers of the write account (`netops-admin`) and of the
+check account (`netops-ro`, files with `ro`) come from interactive sessions; `task-evidence/g137/tools/fixtures137.py`
+keeps the answer between the echo of the command and the prompt and drops the banner of the pending commit confirmed.
+`anonymize_fixture.py --name d-vjunos --check` changed nothing (no address, MAC or host name in these answers).
+
+`show-configuration-display-set__g137-composite.txt` is NOT a single measured answer: it is the reconstructed baseline
+above with the measured G137 statements put in (ge-0/0/2, switch-options and the VLAN g137-data from the answers of
+the first stage; groups, apply-groups, interface-range, ge-0/0/8 and the other VLANs from
+`show-configuration-display-set-match-g137__g137-renamed.txt` with the two renames undone, plus the measured
+`set interfaces ge-0/0/8 unit 0 family ethernet-switching interface-mode access`, which `| match g137` does not list).
+It is the configuration of the first stage, for which the `display inheritance | display set` answers were measured.

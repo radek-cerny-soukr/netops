@@ -1,0 +1,4 @@
+PSELLDPPowerGrantedPort
+Port Enabled Enabled Limit  Power   State   Class  Power Current Voltage Temperature
+---- ------- ------- ------ ------- ------- ------ ----- ------- ------- -----------
+46      True    True 15.40W  15.40W powered class0 1.40W 27.00mA  55.04V      41.25C

@@ -1,0 +1,12 @@
+FortiADC-KVM # config system accprofile
+  edit "netops-read"
+    set system read
+    set load-balance read
+    set log read
+    set link-load-balance read
+    set global-load-balance read
+    set security read
+  next
+end
+
+FortiADC-KVM # 

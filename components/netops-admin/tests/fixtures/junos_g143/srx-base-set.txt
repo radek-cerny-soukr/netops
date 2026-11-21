@@ -1,0 +1,33 @@
+set interfaces ge-0/0/5 unit 0 family inet address 198.51.100.33/27
+set interfaces ge-0/0/6 unit 0 family inet address 198.51.100.65/27
+set interfaces ge-0/0/7 unit 0 family inet address 198.51.100.97/27
+set interfaces ge-0/0/8 unit 0 family inet address 198.51.100.129/27
+set security zones security-zone trust interfaces ge-0/0/6.0
+set security zones security-zone trust host-inbound-traffic system-services ping
+set security zones security-zone trust host-inbound-traffic system-services ssh
+set security zones security-zone DMZ interfaces ge-0/0/5.0
+set security zones security-zone DMZ host-inbound-traffic system-services ping
+set security zones security-zone DMZ description "servers"
+set security zones security-zone untrust
+set security address-book global address PC-Trust 198.51.100.2/32
+set security address-book global address Server-SMTP 198.51.100.36/32
+set security address-book global address Server-HTTP-1 198.51.100.34/32
+set security address-book global address Server-HTTP-2 198.51.100.35/32
+set security address-book global address-set DMZ-address-set-http address Server-HTTP-1
+set security address-book global address-set DMZ-address-set-http address Server-HTTP-2
+set security policies from-zone trust to-zone DMZ policy permit-mail-trust-DMZ match source-address PC-Trust
+set security policies from-zone trust to-zone DMZ policy permit-mail-trust-DMZ match destination-address Server-SMTP
+set security policies from-zone trust to-zone DMZ policy permit-mail-trust-DMZ match application junos-smtp
+set security policies from-zone trust to-zone DMZ policy permit-mail-trust-DMZ then permit
+set security policies from-zone trust to-zone DMZ policy permit-http match source-address any
+set security policies from-zone trust to-zone DMZ policy permit-http match destination-address DMZ-address-set-http
+set security policies from-zone trust to-zone DMZ policy permit-http match application junos-http
+set security policies from-zone trust to-zone DMZ policy permit-http then permit
+set security nat source rule-set rs1 from zone trust
+set security nat source rule-set rs1 to zone untrust
+set security nat source rule-set rs1 rule r1 match source-address 198.51.100.0/27
+set security nat source rule-set rs1 rule r1 then source-nat interface
+set security nat destination pool dst-nat-pool-1 address 198.51.100.34/32
+set security nat destination rule-set rs-dst from zone untrust
+set security nat destination rule-set rs-dst rule r1 match destination-address 203.0.113.200/32
+set security nat destination rule-set rs-dst rule r1 then destination-nat pool dst-nat-pool-1

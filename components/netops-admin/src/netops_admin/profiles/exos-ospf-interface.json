@@ -1,0 +1,48 @@
+{
+  "platform": "exos",
+  "table": "ospf-interface",
+  "versions": [
+    "33.6.1.14"
+  ],
+  "ops": [
+    "create",
+    "update",
+    "delete"
+  ],
+  "table_scoped_key": true,
+  "key_pattern": "^ospf(?:v3)?:[A-Za-z][A-Za-z0-9_-]{0,31}$",
+  "protected_keys": [],
+  "attributes": {
+    "area": {
+      "type": "ipv4-address",
+      "update": true,
+      "unset": false,
+      "referenced_update": true,
+      "required_on_create": true
+    },
+    "cost": {
+      "type": "integer",
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "required_on_create": false,
+      "minimum": 1,
+      "maximum": 65535
+    },
+    "passive": {
+      "type": "text",
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "required_on_create": false,
+      "max_length": 3,
+      "pattern": "^(yes|no)$",
+      "default": "no"
+    }
+  },
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "G46 X19. VR-Default IPv4 OSPF or IPv6 OSPFv3 on a named VLAN. The area must exist. A missing cost is automatic. Changing the area or passive mode reattaches the VLAN and reapplies its cost. See the G46 measurements on ExtremeXOS 33.6.1.14 (task netops-20261119-611)."
+}

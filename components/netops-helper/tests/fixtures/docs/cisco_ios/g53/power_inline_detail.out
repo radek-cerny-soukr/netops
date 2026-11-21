@@ -1,0 +1,19 @@
+Interface: Gi0/0/0
+ Inline Power Mode: auto
+ Operational status: on
+ Device Detected: yes
+ Device Type: Ieee PD
+ IEEE Class: 4
+ Discovery mechanism used/configured: Ieee
+ Police: off
+
+ Power Allocated
+ Admin Value: 30.0
+ Power drawn from the source: 15.4
+ Power available to the device: 15.4
+ 
+ Absent Counter: 0
+ Over Current Counter: 0
+ Short Current Counter: 0
+ Invalid Signature Counter: 0
+ Power Denied Counter: 0

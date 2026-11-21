@@ -22,6 +22,7 @@ class _Session:
         self.chunks = list(chunks)
         self.awaited: list = []
         self.sent: list = []
+        self.closed = False
 
     def expect(self, patterns, timeout):
         self.awaited.append(list(patterns))
@@ -37,6 +38,9 @@ class _Session:
 
     def send(self, text) -> None:
         self.sent.append(text)
+
+    def close(self) -> None:
+        self.closed = True
 
 
 @pytest.mark.parametrize("prompt", [
@@ -130,3 +134,4 @@ def test_a_fortiadc_context_prompt_with_an_unknown_role_is_refused() -> None:
     shell = engine._FortiosDiagnosticShell(session, "fortiadc")
     with pytest.raises(ValueError, match="^the diagnostic context prompt cannot be verified$"):
         shell.navigate("config system ha")
+    assert session.closed

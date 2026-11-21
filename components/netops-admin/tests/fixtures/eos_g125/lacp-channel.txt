@@ -1,0 +1,3 @@
+interface Port-Channel104
+   description port-desc-01
+   switchport access vlan 304

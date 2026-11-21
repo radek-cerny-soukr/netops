@@ -1,7 +1,7 @@
-"""Task 128: the public config_read path for the single admitted Cisco IOS profile.
+"""Task 128: the public config_read path for the Cisco IOS profile.
 
-Only ``cisco_ios`` / IOSv ``15.9(3)M12`` ``fc1`` / ``VIOS-ADVENTERPRISEK9-M`` is admitted
-(``config_cisco_ios_adapter``).  The positive reads run through the real root
+``cisco_ios`` / IOSv ``15.9(3)M12`` ``fc1`` / ``VIOS-ADVENTERPRISEK9-M`` is the tested identity
+(``config_cisco_ios_adapter``); since G00 another identity is read too, with ``firmware_support`` and a warning.  The positive reads run through the real root
 ``netops.worker.HelperBridge.call`` -> ``Proxy.request`` -> FastMCP ``server.config_read``
 (``_paged_auth``) -> ``TargetAuth.decode`` -> ``engine.config_read`` -> ``read_from_device`` ->
 ``_exec_read`` -> the real ``config_cisco_ios.StreamRedactor`` / ``configuration.store`` / page ->
@@ -11,7 +11,7 @@ exec backend (``core_ssh.run_command``), the physical host-key scan and the audi
 replaced; the fake feeds real byte chunks into the consumer callback it receives.
 
 Identity: ``show version`` is the immutable REAL anonymized capture
-``fixtures/real/cisco_ios/iosv_15.9.3M12/version.txt``; the unsupported case also uses the REAL
+``fixtures/real/cisco_ios/iosv_15.9.3M12/version.txt``; the untested case also uses the REAL
 ``fixtures/real/cisco_ios/iosvl2_15.2.20200924/version.txt``.  Other identity texts are DERIVED by
 editing those captures.  Every ``show running-config`` text below is SYNTHETIC, not a live capture.
 Nothing here measures account rights, the full-config format or any hardware/firmware.
@@ -305,6 +305,8 @@ def test_fresh_public_read_pages_and_continues_without_more_ssh(env):
     assert first['include_defaults'] is False
     assert first['redaction_profile'] == adapter.PROFILE
     assert first['firmware'] == {'model': 'IOSv', 'version': '15.9(3)M12', 'build': 'fc1'}
+    # The tested identity (G00): the reply is as before, without firmware_support or warnings.
+    assert 'firmware_support' not in first and 'warnings' not in first
     assert first['capture_complete'] is True and first['configuration_complete'] is False
     assert first['identity_scope_verified'] is False and first['config_scope'] == 'device-account-visible'
     assert first['visibility_limitations'] == ['account-rights-not-verified', 'formats-not-verified',
@@ -328,7 +330,7 @@ def test_fresh_public_read_pages_and_continues_without_more_ssh(env):
 
     stored = configuration._SNAPSHOTS[first['snapshot_id']]
     assert stored.text.sha256 == sha(text) and stored.text.page(0, stored.text.total)[0] == text
-    assert stored.profile == adapter.PROFILE and stored.firmware == adapter.SUPPORTED
+    assert stored.profile == adapter.PROFILE and stored.firmware == adapter.TESTED + (adapter.IMAGE_FAMILY,)
     assert stored.scope[1:3] == ('cisco_ios', 'running') and len(stored.hidden) == 0
     # The caller credential became a marker, not a raw value or <REDACTED>.
     assert ' description owner' not in text and '<REDACTED' not in text
@@ -452,14 +454,42 @@ def test_engine_refuses_options_access_and_platform_before_ssh(env):
 
 # ------------------------------------------------------------ identity gates the configuration command
 
+@pytest.mark.parametrize('version, firmware, shown', [
+    (VERSION_L2, {'model': 'IOSv', 'version': '15.2(20200924:215240)', 'build': None},
+     '15.2(20200924:215240) (vios_l2-ADVENTERPRISEK9-M)'),
+    (VERSION.replace('15.9(3)M12', '15.9(3)M11'), {'model': 'IOSv', 'version': '15.9(3)M11', 'build': 'fc1'},
+     '15.9(3)M11 fc1 (VIOS-ADVENTERPRISEK9-M)'),
+], ids=['real-iosvl2', 'derived-other-release'])
+def test_untested_identity_is_read_with_a_warning_through_the_public_chain(env, version, firmware, shown):
+    """G00: an untested identity is read through worker, proxy and engine; same redaction, plus a warning."""
+    wire = _rewire(env, Wire(version=version))
+    first = _page(_call(env, 'config_read', _b(limit=200)))
+    assert wire.commands() == ['show version', 'show running-config']
+    assert first['firmware'] == firmware
+    message = ('Cisco IOS %s on IOSv is not among the versions config_read was tested on '
+               '(IOSv 15.9(3)M12 fc1 (VIOS-ADVENTERPRISEK9-M)). It may or may not work as designed and tested; '
+               'check the result.' % shown)
+    assert first['firmware_support'] == {
+        'status': 'untested', 'platform': 'Cisco IOS', 'device_version': shown, 'model': 'IOSv',
+        'tested_versions': ['IOSv 15.9(3)M12 fc1 (VIOS-ADVENTERPRISEK9-M)'], 'message': message}
+    assert first['warnings'] == [{'code': 'firmware_untested', 'message': message}]
+    # The same consumer, profile and redaction as on the tested identity: nothing more is shown.
+    assert first['redaction_profile'] == adapter.PROFILE
+    assert {key: first[key] for key in summary(B_SECRET)} == summary(B_SECRET)
+    assert first['redacted_count'] == 1 + summary()['unverified_count']
+    pages, text = _pages(env, first, _b(), 200)
+    assert text == expected(B_SECRET) and len(wire.calls) == 2
+    for page in pages:
+        assert page['firmware_support'] == first['firmware_support'] and page['warnings'] == first['warnings']
+        _assert_clean(page)
+
+
 @pytest.mark.parametrize('version, message', [
-    (VERSION_L2, 'firmware-not-supported for cisco_ios'),
-    (VERSION.replace('15.9(3)M12', '15.9(3)M11'), 'firmware-not-supported for cisco_ios'),
     (VERSION + VERSION, 'identity-unverifiable'),
     (VERSION.replace('Cisco IOSv (revision', 'Cisco IOSvX (revision'), 'identity-unverifiable'),
     ('', 'identity-unverifiable'),
-], ids=['real-iosvl2', 'derived-other-release', 'repeated-header', 'model-mismatch', 'empty'])
-def test_unsupported_or_unverifiable_identity_never_runs_the_config_command(env, version, message):
+], ids=['repeated-header', 'model-mismatch', 'empty'])
+def test_unverifiable_identity_never_runs_the_config_command(env, version, message):
     auth = _engine_auth(env)
     wire = _rewire(env, Wire(version=version))
     with pytest.raises(ValueError, match=message) as raised:
@@ -530,9 +560,14 @@ def test_cached_snapshot_keeps_profile_and_platform_binding(env):
         configuration._SNAPSHOTS[identity] = replace(stored, profile=profile)
         with pytest.raises(ValueError, match='invalid configuration profile|capture options mismatch'):
             _read(auth, snapshot_id=identity)
-    configuration._SNAPSHOTS[identity] = replace(stored, firmware=('IOSv', '15.9(3)M11', 'fc1'))
-    with pytest.raises(ValueError, match='policy mismatch'):
-        _read(auth, snapshot_id=identity)
+    # G00: a stored untested record pages with its warning; a record of another shape is refused.
+    configuration._SNAPSHOTS[identity] = replace(stored, firmware=('IOSv', '15.9(3)M11', 'fc1', adapter.IMAGE_FAMILY))
+    untested = _read(auth, snapshot_id=identity)
+    assert untested['firmware_support']['status'] == 'untested' and untested['warnings'][0]['code'] == 'firmware_untested'
+    for record in (('IOSv', '15.9(3)M11', 'fc1'), adapter.TESTED, ('IOSv', None, 'fc1', adapter.IMAGE_FAMILY)):
+        configuration._SNAPSHOTS[identity] = replace(stored, firmware=record)
+        with pytest.raises(ValueError, match='policy mismatch'):
+            _read(auth, snapshot_id=identity)
     configuration._SNAPSHOTS[identity] = stored
     # Another platform or another credential cannot page this snapshot.
     exos = replace(auth, ssh_platform='extreme_exos')
@@ -549,3 +584,180 @@ def test_cached_snapshot_keeps_profile_and_platform_binding(env):
                               (adapter.PROFILE.upper(), 'cisco_ios'), (None, 'cisco_ios')):
         with pytest.raises(ValueError, match='invalid configuration profile'):
             configuration._snapshot_profile(profile, platform)
+
+
+G58 = REAL / 'g58'
+G58_RUNNING = 'show running-config'
+G58_STARTUP = 'show startup-config'
+G58_DIFF = 'show archive config differences nvram:startup-config system:running-config'
+
+
+class G58Wire(Wire):
+    """Replay anonymized lab output at the SSH backend boundary."""
+
+    def __init__(self, device):
+        super().__init__()
+        self.answers = {
+            command: (G58 / f'{device}-{label}.out').read_bytes()
+            for command, label in (('show version', 'version'), (G58_RUNNING, 'running'),
+                                   (G58_STARTUP, 'startup'), (G58_DIFF, 'native'))
+        }
+
+    def __call__(self, host, port, login, credential, key, command, *, stdout_consumer=None, **options):
+        self.calls.append({'host': host, 'command': command})
+        output = self.answers[command]
+        if stdout_consumer is not None:
+            for offset in range(0, len(output), 13):
+                try:
+                    stdout_consumer(output[offset:offset + 13])
+                except Exception:
+                    raise core_ssh.OutputConsumerError() from None
+            output = b''
+        return core_ssh.Result(rc=0, stdout=output, said='', started_at='t0', finished_at='t1')
+
+
+def _g58_diff(env, **options):
+    return _call(env, 'config_diff', {'target': 'router-b', 'platform': 'cisco_ios',
+                                     'base_snapshot': 'startup', 'other_snapshot': 'running', **options})
+
+
+@pytest.mark.parametrize('device,release', [('iosv', '15.9(3)M12'), ('iosvl2', '15.2(20200924:215240)')])
+def test_g58_public_running_and_startup_read(env, device, release):
+    _inventory(env['helper'], b_access=('read', 'compare'))
+    wire = _rewire(env, G58Wire(device))
+    running = _page(_call(env, 'config_read', _b()))
+    assert running['firmware']['version'] == release
+    assert 'hostname host01\n' in running['untrusted_device_output']
+    assert running['capture_complete'] and not running['configuration_complete']
+    assert ('firmware_support' in running) == (device == 'iosvl2')
+    diff = _page(_g58_diff(env))
+    assert diff['identical'] and diff['unsaved_changes'] is False
+    assert diff['comparison_status'] == 'verified' and not diff['hidden_lines_compared']
+    assert ('firmware_support' in diff) == (device == 'iosvl2')
+    assert diff['base_capture']['comparison_view'] == 'startup'
+    assert diff['other_capture']['comparison_view'] == 'running'
+    assert wire.commands() == ['show version', G58_RUNNING, 'show version', G58_STARTUP,
+                               'show version', G58_RUNNING, G58_DIFF]
+    startup = _page(_call(env, 'config_read', _b(snapshot_id=diff['base_snapshot'])))
+    assert startup['view'] == 'startup' and 'hostname host01\n' in startup['untrusted_device_output']
+    assert startup['command'] == G58_STARTUP
+    assert len(wire.calls) == 7
+
+
+def test_g58_catalyst_identity_remains_readable_with_warning(env):
+    wire = _rewire(env, G58Wire('iosvl2'))
+    wire.answers['show version'] = (REAL.parent.parent / 'identity/cisco_ios.txt').read_bytes()
+    running = _page(_call(env, 'config_read', _b()))
+    assert running['firmware']['model'] == 'WS-C2960-24TC-L'
+    assert running['firmware_support']['status'] == 'untested'
+
+
+@pytest.mark.parametrize('tool, errors', [
+    ('config_read', ('config_platform_not_supported', 'identity-unverifiable')),
+    ('config_diff', ('configuration-capture-failed',)),
+], ids=['config_read', 'config_diff'])
+def test_g58_classic_ios_refuses_older_ios_xe_identity(env, tool, errors):
+    _inventory(env['helper'], b_access=('read', 'compare'))
+    wire = _rewire(env, G58Wire('iosv'))
+    wire.answers['show version'] = (REAL.parent.parent / 'identity/cisco_xe_isr4331.txt').read_bytes()
+    result = _call(env, tool, _b()) if tool == 'config_read' else _g58_diff(env)
+    assert wire.commands() == ['show version']
+    assert all(error in str(result) for error in errors)
+    assert 'untrusted_device_output' not in str(result) and not configuration._SNAPSHOTS
+
+
+@pytest.mark.parametrize('case', ['denied', 'truncated', 'no-compare', 'live-offset'])
+def test_g58_requires_two_complete_reads_and_proxy_authorization(env, case):
+    if case != 'no-compare':
+        _inventory(env['helper'], b_access=('read', 'compare'))
+    wire = _rewire(env, G58Wire('iosvl2'))
+    if case == 'denied':
+        wire.answers[G58_STARTUP] = (G58 / 'iosvl2-refused.out').read_bytes().replace(
+            b'show running-config', b'show startup-config')
+    elif case == 'truncated':
+        running = wire.answers[G58_RUNNING]
+        wire.answers[G58_RUNNING] = running[:running.rindex(b'\nend')]
+    result = _g58_diff(env, offset=int(case == 'live-offset'))
+    error = {'denied': 'device-refused', 'truncated': 'stream-incomplete', 'no-compare': 'config_access',
+             'live-offset': 'offset'}[case]
+    assert error in str(result)
+    assert 'untrusted_device_output' not in str(result)
+    assert not configuration._SNAPSHOTS and G58_DIFF not in wire.commands()
+    if case in ('no-compare', 'live-offset'):
+        assert wire.calls == []
+
+
+@pytest.mark.parametrize('native', ['changed', 'unverified', 'inconsistent'])
+def test_g58_opaque_native_diff_and_redacted_pagination(env, native):
+    _inventory(env['helper'], b_access=('read', 'compare'))
+    wire = _rewire(env, G58Wire('iosv'))
+    wire.answers[G58_RUNNING] = wire.answers[G58_RUNNING].replace(b'hostname host01', b'hostname host02')
+    header = b'!Contextual Config Diffs:\n'
+    if native == 'changed':
+        wire.answers[G58_DIFF] = header + b' +username spare secret SECRET-ENABLE-SENTINEL\n'
+    elif native == 'unverified':
+        # Derived cutoff with just the measured header.
+        wire.answers[G58_DIFF] = header
+    result = _g58_diff(env, limit=32)
+    data = _page(result)
+    _assert_clean(result)
+    assert data['unsaved_changes'] is (True if native == 'changed' else None)
+    assert data['comparison_status'] == ('verified' if native == 'changed' else 'incomplete')
+    assert not data['identical']
+    args = {key: data[key] for key in ('base_snapshot', 'other_snapshot')}
+    text = data['untrusted_device_output']
+    while data['next_offset'] is not None:
+        data = _page(_g58_diff(env, **args, offset=data['next_offset'], limit=32))
+        text += data['untrusted_device_output']
+    assert '-hostname host01' in text and '+hostname host02' in text
+    assert len(wire.calls) == 5
+
+
+def test_g58_proxy_list_exposes_a_valid_configuration_diff_counter_schema(env):
+    from mcp.types import ListToolsResult
+
+    proxy = env['bridge'].proxy
+    request = {'jsonrpc': '2.0', 'id': 58, 'method': 'tools/list'}
+    assert proxy.request(json.dumps(request).encode())
+    tools = [tool.to_mcp_tool().model_dump(by_alias=True, exclude_none=True)
+             for tool in asyncio.run(server.mcp.list_tools())]
+    diff = next(tool for tool in tools if tool['name'] == 'config_diff')
+    diff['inputSchema']['properties']['secret_offset']['description'] = 'never forward this raw field'
+    message = {'jsonrpc': '2.0', 'id': 58, 'result': {'tools': tools}}
+    output = proxy.response(json.dumps(message).encode())
+    assert b'never forward this raw field' not in output
+    catalog = ListToolsResult.model_validate(json.loads(output)['result'])
+    diff = next(tool for tool in catalog.tools if tool.name == 'config_diff')
+    properties = diff.model_dump(by_alias=True)['inputSchema']['properties']
+    assert properties['secret_offset'] == {'default': 0, 'type': 'integer'}
+    assert 'auth_context' not in properties and 'redaction_context' not in properties
+
+
+@pytest.mark.parametrize("stage", [G58_STARTUP, G58_DIFF])
+def test_g58_transport_failure_preserves_only_complete_redacted_snapshots(env, monkeypatch, stage):
+    _inventory(env["helper"], b_access=("read", "compare"))
+    wire = _rewire(env, G58Wire("iosv"))
+    attempted = []
+
+    def read(*args, **kwargs):
+        command = args[5]
+        attempted.append(command)
+        if command == stage:
+            raise core_ssh.SshError("fixture private detail", rc=255, final="Connection timed out")
+        return wire(*args, **kwargs)
+
+    monkeypatch.setattr(engine.core_ssh, "run_command", read)
+    result = _g58_diff(env)
+    assert not result["isError"]
+    data = result["structuredContent"]
+    assert attempted[-1] == stage and attempted[0] == "show version"
+    assert "fixture private detail" not in str(result)
+    if stage == G58_STARTUP:
+        assert not data["ok"] and data["error_code"] == "timeout"
+        assert "untrusted_device_output" not in data and not configuration._SNAPSHOTS
+    else:
+        assert data["ok"] and data["comparison_status"] == "incomplete"
+        assert data["unsaved_changes"] is None
+        assert data["base_snapshot"] in configuration._SNAPSHOTS
+        assert data["other_snapshot"] in configuration._SNAPSHOTS
+        _assert_clean(result)

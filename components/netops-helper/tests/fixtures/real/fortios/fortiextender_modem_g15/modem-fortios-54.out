@@ -1,0 +1,14 @@
+physical_port: Internal
+imsi: <REDACTED>
+signal_strength: 73
+RSSI: -68 dBm
+connection_status: connected
+esn_imei: <REDACTED>
+band: B17
+signal_rsrq: N/A
+signal_rsrp: N/A
+lte_sinr: N/A
+lte_rssi: N/A
+current_snr: N/A
+wireless_signal: 73
+usb_wan_mac: 00:00:5e:00:53:01

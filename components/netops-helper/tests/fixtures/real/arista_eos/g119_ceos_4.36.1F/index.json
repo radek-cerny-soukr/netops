@@ -1,0 +1,338 @@
+{
+  "ipv4_access_lists_summary_ro": {
+    "query": "ipv4_access_lists_summary",
+    "parameters": {},
+    "rc": 1,
+    "text": "> show ip access-lists summary\n% Invalid input (privileged mode required) at line 1"
+  },
+  "ipv4_access_lists_summary_admin": {
+    "query": "ipv4_access_lists_summary",
+    "parameters": {},
+    "rc": 0,
+    "text": "Phone ACL bypass: disabled\nIPV4 ACL default-control-plane-acl [readonly]\n        Total rules configured: 27\n        Configured on Ingress: control-plane(default VRF)\n        Active on     Ingress: control-plane(default VRF)"
+  },
+  "ipv6_access_lists_summary_ro": {
+    "query": "ipv6_access_lists_summary",
+    "parameters": {},
+    "rc": 1,
+    "text": "> show ipv6 access-lists summary\n% Invalid input (privileged mode required) at line 1"
+  },
+  "ipv6_access_lists_summary_admin": {
+    "query": "ipv6_access_lists_summary",
+    "parameters": {},
+    "rc": 0,
+    "text": "Phone ACL bypass: disabled\nIPV6 ACL default-control-plane-acl [readonly]\n        Total rules configured: 27\n        Configured on Ingress: control-plane(default VRF)\n        Active on     Ingress: control-plane(default VRF)"
+  },
+  "ipv4_access_lists_interface_ro": {
+    "query": "ipv4_access_lists_interface",
+    "parameters": {
+      "interface": "Ethernet1"
+    },
+    "rc": 1,
+    "text": "> show ip access-lists interface Ethernet1\n% Invalid input (privileged mode required) at line 1"
+  },
+  "ipv4_access_lists_interface_admin": {
+    "query": "ipv4_access_lists_interface",
+    "parameters": {
+      "interface": "Ethernet1"
+    },
+    "rc": 0,
+    "text": "Phone ACL bypass: disabled"
+  },
+  "ipv6_access_lists_interface_ro": {
+    "query": "ipv6_access_lists_interface",
+    "parameters": {
+      "interface": "Ethernet1"
+    },
+    "rc": 1,
+    "text": "> show ipv6 access-lists interface Ethernet1\n% Invalid input (privileged mode required) at line 1"
+  },
+  "ipv6_access_lists_interface_admin": {
+    "query": "ipv6_access_lists_interface",
+    "parameters": {
+      "interface": "Ethernet1"
+    },
+    "rc": 0,
+    "text": ""
+  },
+  "ipv4_access_lists_ro": {
+    "query": "ipv4_access_lists",
+    "parameters": {
+      "name": "default-control-plane-acl"
+    },
+    "rc": 1,
+    "text": "> show ip access-lists default-control-plane-acl\n% Invalid input (privileged mode required) at line 1"
+  },
+  "ipv4_access_lists_admin": {
+    "query": "ipv4_access_lists",
+    "parameters": {
+      "name": "default-control-plane-acl"
+    },
+    "rc": 0,
+    "text": "Phone ACL bypass: disabled\nIP Access List default-control-plane-acl [readonly]\nWarning: displaying stale counters\n        counters per-entry\n        10 permit icmp any any [match 3004 bytes in 33 packets, 1 day, 21:51:11 ago]\n        20 permit ip any any tracked [match 14037078 bytes in 90327 packets, 0:00:10 ago]\n        30 permit udp any any eq bfd ttl eq 255\n        40 permit udp any any eq bfd-echo ttl eq 254\n        50 permit udp any any eq multihop-bfd micro-bfd sbfd\n        60 permit udp any eq sbfd any eq sbfd-initiator\n        70 permit ospf any any [match 56478612 bytes in 603080 packets, 0:00:10 ago]\n        80 permit tcp any any eq ssh telnet www snmp bgp https msdp ldp netconf-ssh gnmi [match 227120 bytes in 3786 packets, 0:00:10 ago]\n        90 permit udp any any eq bootps bootpc snmp rip ntp ldp ptp-event ptp-general [match 80154 bytes in 237 packets, 11:02:33 ago]\n        100 permit tcp any any eq mlag ttl eq 255\n        110 permit udp any any eq mlag ttl eq 255\n        120 permit vrrp any any\n        130 permit ahp any any\n        140 permit pim any any\n        150 permit igmp any any [match 804352 bytes in 25136 packets, 0:01:04 ago]\n        160 permit tcp any any range 5900 5910\n        170 permit tcp any any range 50000 50100\n        180 permit udp any any range 51000 51100\n        190 permit tcp any any eq 3333\n        200 permit tcp any any eq nat ttl eq 255\n        210 permit tcp any eq bgp any\n        220 permit rsvp any any\n        230 permit tcp any any eq 9340\n        240 permit tcp any any eq 9559\n        250 permit udp any any eq 8503\n        260 permit udp any any eq lsp-ping\n        270 permit udp any eq lsp-ping any range 51900 51999\n        (implicit) deny ip any any\n\n        Total rules configured: 27\n        Configured on Ingress: control-plane(default VRF)\n        Active on     Ingress: control-plane(default VRF)"
+  },
+  "ipv6_access_lists_ro": {
+    "query": "ipv6_access_lists",
+    "parameters": {
+      "name": "default-control-plane-acl"
+    },
+    "rc": 1,
+    "text": "> show ipv6 access-lists default-control-plane-acl\n% Invalid input (privileged mode required) at line 1"
+  },
+  "ipv6_access_lists_admin": {
+    "query": "ipv6_access_lists",
+    "parameters": {
+      "name": "default-control-plane-acl"
+    },
+    "rc": 0,
+    "text": "Phone ACL bypass: disabled\nIPV6 Access List default-control-plane-acl [readonly]\nWarning: displaying stale counters\n        counters per-entry\n        10 permit icmpv6 any any\n        20 permit ipv6 any any tracked\n        30 permit udp any any eq bfd hop-limit eq 255\n        40 permit udp any any eq bfd-echo hop-limit eq 254\n        50 permit udp any any eq multihop-bfd micro-bfd sbfd\n        60 permit udp any eq sbfd any eq sbfd-initiator\n        70 permit ospf any any\n        80 permit 51 any any\n        90 permit 50 any any\n        100 permit tcp any any eq ssh telnet www snmp bgp https netconf-ssh gnmi\n        110 permit udp any any eq bootps bootpc snmp ntp ptp-event ptp-general\n        120 permit tcp any any eq mlag hop-limit eq 255\n        130 permit udp any any eq mlag hop-limit eq 255\n        140 permit tcp any any range 5900 5910\n        150 permit tcp any any range 50000 50100\n        160 permit udp any any range 51000 51100\n        170 permit udp any any eq dhcpv6-client dhcpv6-server\n        180 permit tcp any eq bgp any\n        190 permit tcp any any eq nat hop-limit eq 255\n        200 permit udp any any eq nat hop-limit eq 255\n        210 permit rsvp any any\n        220 permit pim any any\n        230 permit tcp any any eq 9340\n        240 permit tcp any any eq 9559\n        250 permit udp any any eq 8503\n        260 permit udp any any eq lsp-ping\n        270 permit udp any eq lsp-ping any range 51900 51999\n        (implicit) deny ipv6 any any\n\n        Total rules configured: 27\n        Configured on Ingress: control-plane(default VRF)\n        Active on     Ingress: control-plane(default VRF)"
+  },
+  "dhcp_relay_ro": {
+    "query": "dhcp_relay",
+    "parameters": {},
+    "rc": 0,
+    "text": "DHCP relay is not active"
+  },
+  "dhcp_relay_admin": {
+    "query": "dhcp_relay",
+    "parameters": {},
+    "rc": 0,
+    "text": "DHCP relay is not active"
+  },
+  "dhcp_relay_counters_ro": {
+    "query": "dhcp_relay_counters",
+    "parameters": {},
+    "rc": 0,
+    "text": "DHCP Packets\nGlobals   Rcvd Fwdd Drop Last Cleared\n--------- ---- ---- ---- ------------\nAll Req   0    0    0                \nAll Resp  0    0    0                "
+  },
+  "dhcp_relay_counters_admin": {
+    "query": "dhcp_relay_counters",
+    "parameters": {},
+    "rc": 0,
+    "text": "DHCP Packets\nGlobals   Rcvd Fwdd Drop Last Cleared\n--------- ---- ---- ---- ------------\nAll Req   0    0    0                \nAll Resp  0    0    0                "
+  },
+  "dhcp_snooping_ro": {
+    "query": "dhcp_snooping",
+    "parameters": {},
+    "rc": 0,
+    "text": "DHCP Snooping is disabled"
+  },
+  "dhcp_snooping_admin": {
+    "query": "dhcp_snooping",
+    "parameters": {},
+    "rc": 0,
+    "text": "DHCP Snooping is disabled"
+  },
+  "users_ro": {
+    "query": "users",
+    "parameters": {},
+    "rc": 1,
+    "text": "> show users\n% Invalid input (privileged mode required) at line 1"
+  },
+  "users_admin": {
+    "query": "users",
+    "parameters": {},
+    "rc": 0,
+    "text": "   Line User Host(s) Idle Location\n-- ---- ---- ------- ---- --------"
+  },
+  "aaa_sessions_ro": {
+    "query": "aaa_sessions",
+    "parameters": {},
+    "rc": 1,
+    "text": "> show users detail\n% Invalid input (privileged mode required) at line 1"
+  },
+  "aaa_sessions_admin": {
+    "query": "aaa_sessions",
+    "parameters": {},
+    "rc": 0,
+    "text": "Session Username      Roles             TTY  State Duration Auth   Remote Host  \n------- ------------- ----------------- ---- ----- -------- ------ -------------\n3321    user01        network-admin     ssh  E     0:00:02  local  192.0.2.66\n3322    user02        network-operator  ssh  P     0:00:02  local  192.0.2.66"
+  },
+  "radius_ro": {
+    "query": "radius",
+    "parameters": {},
+    "rc": 0,
+    "text": "Last time counters were cleared: never"
+  },
+  "radius_admin": {
+    "query": "radius",
+    "parameters": {},
+    "rc": 0,
+    "text": "Last time counters were cleared: never"
+  },
+  "tacacs_ro": {
+    "query": "tacacs",
+    "parameters": {},
+    "rc": 0,
+    "text": "Last time counters were cleared: never"
+  },
+  "tacacs_admin": {
+    "query": "tacacs",
+    "parameters": {},
+    "rc": 0,
+    "text": "Last time counters were cleared: never"
+  },
+  "dns_hosts_ro": {
+    "query": "dns_hosts",
+    "parameters": {},
+    "rc": 0,
+    "text": "Default domain is not configured\nName/address lookup uses domain service\nName servers are:\nIP Address VRF Priority\n---------- --- --------\n\nStatic Mappings:\nHostname IP Addresses\n-------- -- ---------"
+  },
+  "dns_hosts_admin": {
+    "query": "dns_hosts",
+    "parameters": {},
+    "rc": 0,
+    "text": "Default domain is not configured\nName/address lookup uses domain service\nName servers are:\nIP Address VRF Priority\n---------- --- --------\n\nStatic Mappings:\nHostname IP Addresses\n-------- -- ---------"
+  },
+  "dns_name_servers_ro": {
+    "query": "dns_name_servers",
+    "parameters": {},
+    "rc": 0,
+    "text": "IP Address VRF Priority\n---------- --- --------"
+  },
+  "dns_name_servers_admin": {
+    "query": "dns_name_servers",
+    "parameters": {},
+    "rc": 0,
+    "text": "IP Address VRF Priority\n---------- --- --------"
+  },
+  "dns_lookup_ro": {
+    "query": "dns_lookup",
+    "parameters": {
+      "name": "localhost.localdomain"
+    },
+    "rc": 1,
+    "text": "> ping localhost.localdomain                repeat 1\n% Invalid input (privileged mode required) at line 1"
+  },
+  "dns_lookup_admin": {
+    "query": "dns_lookup",
+    "parameters": {
+      "name": "localhost.localdomain"
+    },
+    "rc": 0,
+    "text": "PING localhost.localdomain                (127.0.0.1) 72(100) bytes of data.\n80 bytes from localhost.localdomain                (127.0.0.1): icmp_seq=1 ttl=64 time=0.048 ms\n\n--- localhost.localdomain                ping statistics ---\n1 packets transmitted, 1 received, 0% packet loss, time 0ms\nrtt min/avg/max/mdev = 0.048/0.048/0.048/0.000 ms"
+  },
+  "snmp_status_ro": {
+    "query": "snmp_status",
+    "parameters": {},
+    "rc": 0,
+    "text": "SNMP agent enabled in VRFs: default\nSNMP agent disabled: Either no communities and no users are configured, or no VRFs are configured."
+  },
+  "snmp_status_admin": {
+    "query": "snmp_status",
+    "parameters": {},
+    "rc": 0,
+    "text": "SNMP agent enabled in VRFs: default\nSNMP agent disabled: Either no communities and no users are configured, or no VRFs are configured."
+  },
+  "snmp_targets_ro": {
+    "query": "snmp_targets",
+    "parameters": {},
+    "rc": 0,
+    "text": ""
+  },
+  "snmp_targets_admin": {
+    "query": "snmp_targets",
+    "parameters": {},
+    "rc": 0,
+    "text": ""
+  },
+  "logging_status_ro": {
+    "query": "logging_status",
+    "parameters": {},
+    "rc": 0,
+    "text": "Syslog logging: enabled\nBuffer logging: level debugging\nConsole logging: level informational\nMonitor logging: level informational\nTrap logging: level informational"
+  },
+  "logging_status_admin": {
+    "query": "logging_status",
+    "parameters": {},
+    "rc": 0,
+    "text": "Syslog logging: enabled\nBuffer logging: level debugging\nConsole logging: level informational\nMonitor logging: level informational\nTrap logging: level informational"
+  },
+  "dot1x_ro": {
+    "query": "dot1x",
+    "parameters": {},
+    "rc": 0,
+    "text": "System authentication control: disabled\nDot1X LLDP bypass: disabled\nDot1X BPDU bypass: disabled\nDot1X dynamic authorization: disabled\nDot1X protocol version: 2\nDot1X unicast identity request on new MAC: disabled\nDot1X unicast identity request when MAC is logged off: disabled\nDot1X EAPOL session move: disabled\nDot1X single host session replace detection: disabled\nDot1X authentication server load-balance: disabled"
+  },
+  "dot1x_admin": {
+    "query": "dot1x",
+    "parameters": {},
+    "rc": 0,
+    "text": "System authentication control: disabled\nDot1X LLDP bypass: disabled\nDot1X BPDU bypass: disabled\nDot1X dynamic authorization: disabled\nDot1X protocol version: 2\nDot1X unicast identity request on new MAC: disabled\nDot1X unicast identity request when MAC is logged off: disabled\nDot1X EAPOL session move: disabled\nDot1X single host session replace detection: disabled\nDot1X authentication server load-balance: disabled"
+  },
+  "dot1x_interface_ro": {
+    "query": "dot1x_interface",
+    "parameters": {
+      "interface": "Ethernet1"
+    },
+    "rc": 0,
+    "text": ""
+  },
+  "dot1x_interface_admin": {
+    "query": "dot1x_interface",
+    "parameters": {
+      "interface": "Ethernet1"
+    },
+    "rc": 0,
+    "text": ""
+  },
+  "dot1x_clients_ro": {
+    "query": "dot1x_clients",
+    "parameters": {
+      "interface": "Ethernet1"
+    },
+    "rc": 0,
+    "text": "Interface host details: Ethernet1"
+  },
+  "dot1x_clients_admin": {
+    "query": "dot1x_clients",
+    "parameters": {
+      "interface": "Ethernet1"
+    },
+    "rc": 0,
+    "text": "Interface host details: Ethernet1"
+  },
+  "dhcp_server_ro": {
+    "query": "dhcp_server",
+    "parameters": {},
+    "rc": 0,
+    "text": "IPv4 DHCP server is inactive\nClient ID echo: enabled\nLease duration: 0 days 2 hours 0 minutes\nActive leases: 0\nIPv4 DHCP interface status:\n   Interface    Status\n--------------- ------\n\n\nIPv6 DHCP server is inactive\nLease duration: 0 days 2 hours 0 minutes\nActive leases: 0\nIPv6 DHCP interface status:\n   Interface    Status\n--------------- ------"
+  },
+  "dhcp_server_admin": {
+    "query": "dhcp_server",
+    "parameters": {},
+    "rc": 0,
+    "text": "IPv4 DHCP server is inactive\nClient ID echo: enabled\nLease duration: 0 days 2 hours 0 minutes\nActive leases: 0\nIPv4 DHCP interface status:\n   Interface    Status\n--------------- ------\n\n\nIPv6 DHCP server is inactive\nLease duration: 0 days 2 hours 0 minutes\nActive leases: 0\nIPv6 DHCP interface status:\n   Interface    Status\n--------------- ------"
+  },
+  "dhcp_server_leases_ro": {
+    "query": "dhcp_server_leases",
+    "parameters": {},
+    "rc": 0,
+    "text": ""
+  },
+  "dhcp_server_leases_admin": {
+    "query": "dhcp_server_leases",
+    "parameters": {},
+    "rc": 0,
+    "text": ""
+  },
+  "dns_lookup_unresolved": {
+    "query": "dns_lookup",
+    "parameters": {
+      "name": "example.invalid"
+    },
+    "rc": 0,
+    "text": "ping: example.invalid: Name or service not known"
+  },
+  "radius_status_ro": {
+    "query": "radius_status",
+    "parameters": {},
+    "rc": 0,
+    "text": "Probe method: Disabled"
+  },
+  "radius_status_admin": {
+    "query": "radius_status",
+    "parameters": {},
+    "rc": 0,
+    "text": "Probe method: Disabled"
+  }
+}

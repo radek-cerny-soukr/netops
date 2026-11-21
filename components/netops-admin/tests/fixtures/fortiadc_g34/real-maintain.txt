@@ -1,0 +1,17 @@
+FortiADC-KVM # config load-balance real-server
+  edit "RS_A"
+    set ip 192.0.2.11
+  next
+  edit "RS_B"
+    set ip 192.0.2.12
+  next
+  edit "netops-tlsca-rs"
+    set ip 198.51.100.45
+  next
+  edit "NETOPS_TEST_G34_IP"
+    set status maintain
+    set ip 192.0.2.11
+  next
+end
+
+FortiADC-KVM #

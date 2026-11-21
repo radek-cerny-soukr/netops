@@ -1,0 +1,4 @@
+Version: FortiGate-60F v7.6.8,build3744,260929 (GA.M)
+Hostname: host01
+Current virtual domain: root
+Virtual domain configuration: disable

@@ -1,0 +1,8 @@
+Number of APs: 4
+
+AP Name          AP Mac         Site Tag Name    Policy Tag Name    RF Tag Name    Misconfigured Tag Source
+---------------------------------------------------------------------------------------------------------------------
+AP0000.5E00.530E 0000.5e00.530e named-site-tag   named-policy-tag   named-rf-tag   No Filter
+AP0000.5E00.530F 0000.5e00.530f named-site-tag   named-policy-tag   named-rf-tag   No Filter
+AP0000.5E00.5310 0000.5e00.5310 default-site-tag default-policy-tag default-rf-tag No AP
+AP0000.5E00.5311 0000.5e00.5311 default-site-tag default-policy-tag default-rf-tag No Default

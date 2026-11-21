@@ -111,15 +111,15 @@ def test_message_names_the_block_for_every_blocking_result():
     from netops_admin import blocking
 
     for result in blocking.BLOCKING_RESULTS:
-        _title, body = notify.message({"result": result, "reason": "interrupted", "plan": {}})
+        _title, body = notify.message({"result": result, "reason": "interrupted", "device_blocked": True})
         assert "the device is blocked until a person investigates it" in body
-    _title, body = notify.message({"result": "reverted", "reason": "interrupted", "plan": {}})
+    _title, body = notify.message({"result": "reverted", "reason": "interrupted", "device_blocked": False})
     assert "the device is blocked" not in body
 
 
 def test_message_names_the_block_for_every_blocking_reason():
     for reason in execute.BLOCKING_REASONS:
-        _title, body = notify.message({"result": "confirmed", "reason": reason, "plan": {}})
+        _title, body = notify.message({"result": "confirmed", "reason": reason, "device_blocked": True})
         assert "the device is blocked until a person investigates it" in body
 
 
@@ -199,3 +199,35 @@ def test_a_redirected_notification_refuses_the_next_change(tmp_path, endpoints):
         execute.apply(runtime, "lab", request(key="other-host", request_id="req-0002-example"))
     assert "was not delivered" in caught.value.reasons[0]
     assert len(device.applied_blocks) == blocks
+
+
+def test_discord_intent_uses_json_with_mentions_disabled_and_waits_for_delivery(monkeypatch):
+    seen = []
+    webhook = "https://discord.com/api/webhooks/123/fixture-only"
+    record = {"plan": "daily", "status": "fail", "checks": [
+        {"target": "sw", "kind": "poe", "status": "fail", "expected": {"port": "1", "min_w": 3}},
+    ]}
+
+    class Endpoint:
+        def open(self, request, timeout):
+            from contextlib import nullcontext
+            from types import SimpleNamespace
+            seen.append(request)
+            assert timeout == 10
+            return nullcontext(SimpleNamespace(status=200, url=request.full_url))
+
+    def deliver(payload):
+        monkeypatch.setattr(notify.urllib.request, "build_opener", lambda *_: Endpoint())
+        return notify._send(payload)
+
+    monkeypatch.setattr(notify, "_deliver", deliver)
+    assert notify.discord_intent(webhook, record) == "sent"
+    assert len(seen) == 1
+    assert seen[0].get_method() == "POST" and seen[0].full_url == webhook + "?wait=true"
+    assert json.loads(seen[0].data) == {"content": "NetOps intent daily: 1 mismatched checks\nsw: poe 1",
+                                        "allowed_mentions": {"parse": []}}
+    assert notify.discord_intent(None, record) == "unconfigured"
+    assert notify.discord_intent("https://not-discord.example/api/webhooks/123/fixture-only", record) == "failed"
+    for status in ("pass", "incomplete"):
+        assert notify.discord_intent(webhook, dict(record, status=status)) == "not_needed"
+    assert len(seen) == 1

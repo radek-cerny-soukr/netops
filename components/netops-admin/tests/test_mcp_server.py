@@ -166,11 +166,13 @@ def test_schema_mcp_shares_the_server_operation_lock(schema_served):
 
 # 109-15 and 109-16 over MCP
 
-def test_seven_tools_include_the_read_only_undo_preview():
-    assert len(mcp_server.TOOL_NAMES) == 7 and "admin_undo_preview" in mcp_server.TOOL_NAMES
-    assert "admin_undo" not in mcp_server.TOOL_NAMES
+def test_ten_tools_include_the_undo_preview_and_the_bound_undo_and_unblock():
+    # 1.0.12 G07: admin_undo and admin_unblock exist, each bound to the hash of its approved preview
+    assert len(mcp_server.TOOL_NAMES) == 10
+    assert {"admin_undo_preview", "admin_undo", "admin_unblock_preview", "admin_unblock"} <= set(mcp_server.TOOL_NAMES)
     assert "admin_undo_preview" in mcp_server.INSTRUCTIONS
-    assert "undo a change" in mcp_server.INSTRUCTIONS and "a person runs" in mcp_server.INSTRUCTIONS
+    assert "approved" in mcp_server.INSTRUCTIONS and "a person runs" in mcp_server.INSTRUCTIONS
+    assert "never confirms the operation" in mcp_server.INSTRUCTIONS
 
 
 def test_apply_bound_to_the_preview_is_confirmed(served):

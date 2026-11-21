@@ -1,0 +1,6 @@
+Dot1x Info for GigabitEthernet1/0/1
+-----------------------------------
+PAE                       = AUTHENTICATOR
+PortControl               = AUTO
+ControlDirection          = Both
+HostMode                  = MULTI_HOST

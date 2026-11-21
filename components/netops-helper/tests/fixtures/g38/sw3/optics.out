@@ -1,0 +1,39 @@
+
+Port :  13       
+
+    Media Type            : LX      
+    SKU                   : N/A     
+    Vendor Name           : OEM     
+    Vendor Date           : 03/02/21 
+    Vendor Revision       : N/A     
+    Part Number           : SFP-GE13-20D     
+    Serial Number         : SSS00000001      
+    Power Up Counter      : N/A     
+    Wavelength            : 1310 nm
+
+    Temp (Celsius)            :  58.70      Status               :  Normal   
+          Low Warn Threshold  :  0.00       High Warn Threshold  :  70.00   
+          Low Alarm Threshold : -5.00       High Alarm Threshold :  75.00   
+
+    Voltage AUX-1/Vcc (Volts) :  3.34       Status               :  Normal   
+          Low Warn Threshold  :  3.10       High Warn Threshold  :  3.60    
+          Low Alarm Threshold :  3.00       High Alarm Threshold :  3.70    
+ 
+
+    Tx Power (dBm)            : -4.04       Status               :  Normal   
+          Low Warn Threshold  : -9.50       High Warn Threshold  : -1.00    
+          Low Alarm Threshold : -13.50      High Alarm Threshold :  1.00    
+          Tx DDM              :  N/A        Tx DDM Last Gasp     :  N/A     
+
+    Rx Power (dBm)            : -5.86       Status               :  Normal   
+          Low Warn Threshold  : -19.00      High Warn Threshold  : -3.00    
+          Low Alarm Threshold : -23.01      High Alarm Threshold :  1.00    
+          Rx DDM              :  N/A        Rx DDM Last Gasp     :  N/A     
+
+    Tx Bias Current (mA)      :  24.42      Status               :  Normal   
+          Low Warn Threshold  :  4.00       High Warn Threshold  :  70.00   
+          Low Alarm Threshold :  3.00       High Alarm Threshold :  75.00   
+=================================================================================
+      N/A  - parameter not applicable to transceiver connected to the port
+      -inf - negative infinity, parameter not defined
+

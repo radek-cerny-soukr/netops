@@ -1,0 +1,25 @@
+       Use Redirects : Disabled
+  Ignore ICMP Bcasts : Enabled
+       IpOption LSRR : Enabled
+       IpOption SSRR : Enabled
+       Route Sharing : Disabled
+   Route Compression : Enabled
+  Originated Packets : Don't require ipforwarding
+  Route Sharing Hash : CRC Lower, Default Method
+     Ping Protection : Enabled for static routes   Interval: 2   Misses: 3
+      IP Anycast MAC : None 
+
+      IRDP:
+         Advertisement Address: 255.255.255.255      Maximum Interval: 600 
+         Minimum Interval: 450     Lifetime: 1800  Preference: 0 
+
+Interface    IP Address          Flags                   nSIA
+Default      192.0.2.111     /24 EU---R--gB--           0 
+
+Flags: (b) Broadcast Forwarding Enabled, (B) BOOTP Enabled,
+       (E) Interface Enabled, (f) Forwarding Enabled,
+       (g) Ignore IP Broadcast Enabled, (h) Directed Broadcast Forwarding by Hardware Enabled,
+       (I) IRDP Advertisement Enabled, (m) Multicast forwarding Enabled,
+       (n) Multinetted VLAN, (nSIA) Number of Secondary IP Addresses,
+       (R) Send Redirects Enabled, (u) Send Unreachables Enabled,
+       (U) Interface Up, (v) VRRP Enabled.

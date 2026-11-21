@@ -1,0 +1,4 @@
+10 deny ip any any
+% Duplicate sequence number
+% Failed to add ace to access-list
+host01(config-ext-nacl)#

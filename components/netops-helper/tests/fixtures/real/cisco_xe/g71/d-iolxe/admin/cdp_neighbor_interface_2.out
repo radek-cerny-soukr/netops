@@ -1,0 +1,23 @@
+-------------------------
+Device ID: host02
+Entry address(es):
+  IP address: 203.0.113.254
+  IPv6 address: 2001:db8:2::1   (global unicast)
+  IPv6 address: fe80::10               (link-local)
+Platform: Cisco ,  Capabilities: Router Source-Route-Bridge
+Interface: Ethernet0/2,  Port ID (outgoing port): GigabitEthernet0/2
+Holdtime : 174 sec
+
+Version :
+Cisco IOS Software, IOSv Software (VIOS-ADVENTERPRISEK9-M), Version 15.9(3)M12, RELEASE SOFTWARE (fc1)
+Technical Support: http://www.cisco.com/techsupport
+Copyright (c) 1986-2025 by Cisco Systems, Inc.
+Compiled Fri 19-Sep-25 07:49 by mcpre
+
+advertisement version: 2
+Peer Source MAC: 0000.5e00.530e
+Management address(es):
+  IP address: 203.0.113.254
+
+
+Total cdp entries displayed : 1

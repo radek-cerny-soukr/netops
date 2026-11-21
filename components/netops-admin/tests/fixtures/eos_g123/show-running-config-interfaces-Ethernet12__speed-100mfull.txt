@@ -1,0 +1,2 @@
+interface Ethernet12
+   speed 100mfull

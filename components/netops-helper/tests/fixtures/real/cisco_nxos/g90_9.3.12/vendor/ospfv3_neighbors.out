@@ -1,0 +1,5 @@
+OSPFv3 Process ID 101 VRF default
+Total number of neighbors: 1
+Neighbor ID     Pri State            Up Time  Interface ID    Interface
+203.0.113.244     1 FULL/DR          02:11:53 107             Eth1/1
+  Neighbor address fe80::10

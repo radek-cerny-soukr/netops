@@ -1,0 +1,5 @@
+diagnose server-load-balance session list
+Parsing error at 'server-load-balance'. err=1
+Command fail. Return code is -284 (CLI parsing error.)
+
+FortiADC-KVM $ 

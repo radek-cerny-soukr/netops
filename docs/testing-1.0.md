@@ -4,6 +4,8 @@ Build production once. The separate tester starts FROM that exact image digest, 
 
 Use the source commit recorded in the verified release manifest. Set `NETOPS_IMAGE` to its complete ghcr image reference with `@sha256:...` and `CANDIDATE_COMMIT` to its source commit. Run the commands from that source checkout. The Dockerfile-specific ignore file admits test sources without changing the production build context.
 
+Device qualification records the model, firmware, account and operation exercised. Label fixture tests and replays separately from live checks against an independent device read. A virtual device can exercise protocol and configuration behavior. Physical PoE, DOM and forwarding each require measurement on the relevant hardware. See [verified platform support](verified-support.md#live-verification-of-netops-1012).
+
 Reports must be written to persistent bind mounts: a tmpfs disappears when the container exits, so it cannot be recovered with docker cp afterwards. The qualification parent is private; only the individual mounted report directories permit the tester UID to write.
 
 ```sh
@@ -18,12 +20,14 @@ for role in core helper auditor admin; do
     mkdir -p "qualification/$role"
     chmod 0777 "qualification/$role"
     status=0
-    docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges --memory 2g --cpus 2 --tmpfs /tmp:rw,nosuid,nodev,exec,size=512m,mode=1777 --tmpfs /pytmp:rw,nosuid,nodev,exec,size=512m,mode=1777 --mount "type=bind,source=$PWD/qualification/$role,target=/reports" netops-engine-tests --role "$role" --candidate-commit "$CANDIDATE_COMMIT" --candidate-image "${NETOPS_IMAGE#*@}" --output /reports/engine-report.json > "qualification/$role.log" 2>&1 || status=$?
+    docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges --memory 2g --cpus 2 --tmpfs /tmp:rw,nosuid,nodev,exec,size=512m,mode=1777 --tmpfs /pytmp:rw,nosuid,nodev,exec,size=2g,mode=1777 --mount "type=bind,source=$PWD/qualification/$role,target=/reports" netops-engine-tests --role "$role" --candidate-commit "$CANDIDATE_COMMIT" --candidate-image "${NETOPS_IMAGE#*@}" --output /reports/engine-report.json > "qualification/$role.log" 2>&1 || status=$?
     printf '%s\n' "$status" > "qualification/$role.exit"
     if [ "$status" -ne 0 ]; then failed=1; fi
 done
 test "$failed" -eq 0
 ```
+
+The Admin suite needs more than 512 MiB in `/pytmp`: with a 512 MiB test tmpfs it ends with `ENOSPC` and the qualification fails, so the command above gives `/pytmp` 2 GiB. Pages written to a tmpfs count against the memory limit of the container (`--memory 2g`). The command runs the roles one after another; allow up to 2 GiB of memory for the running test container, including its tmpfs pages, plus memory for Docker and the build.
 
 Preserve logs, exit codes and reports on every outcome. Run on both supported architectures. A report from another candidate, rebuild or architecture is not replacement evidence.
 

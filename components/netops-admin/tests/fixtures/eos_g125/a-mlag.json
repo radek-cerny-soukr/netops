@@ -1,0 +1,25 @@
+{
+    "domainId": "host09",
+    "localInterface": "Vlan4094",
+    "peerAddress": "192.0.2.2",
+    "peerLink": "Port-Channel200",
+    "heartbeatPeerAddress": "198.51.100.64",
+    "reloadDelay": 30,
+    "reloadDelayNonMlag": 30,
+    "configSanity": "consistent",
+    "state": "active",
+    "negStatus": "connected",
+    "peerLinkStatus": "up",
+    "localIntfStatus": "up",
+    "systemId": "00:00:5e:00:53:04",
+    "mlagPorts": {
+        "Disabled": 0,
+        "Configured": 0,
+        "Inactive": 0,
+        "Active-partial": 0,
+        "Active-full": 1
+    },
+    "portsErrdisabled": false,
+    "dualPrimaryDetectionState": "disabled",
+    "dualPrimaryPortsErrdisabled": false
+}

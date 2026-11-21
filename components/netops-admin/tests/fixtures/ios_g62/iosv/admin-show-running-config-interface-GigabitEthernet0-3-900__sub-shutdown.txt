@@ -1,0 +1,13 @@
+
+
+
+Building configuration...
+
+Current configuration : 153 bytes
+!
+interface GigabitEthernet0/3.900
+ encapsulation dot1Q 900
+ ip address 198.51.100.33 255.255.255.240
+ shutdown
+ ipv6 address 2001:db8:1::1/64
+end

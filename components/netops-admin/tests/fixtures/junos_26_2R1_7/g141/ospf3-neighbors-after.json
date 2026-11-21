@@ -1,0 +1,7 @@
+{
+    "ospf3-neighbor-information" : [
+    {
+        "attributes" : {"xmlns" : "http://xml.juniper.net/junos/26.2R0/junos-routing"}
+    }
+    ]
+}

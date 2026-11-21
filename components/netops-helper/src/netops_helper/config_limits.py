@@ -33,3 +33,6 @@ class ConfigurationLimits:
 
     def identity(self):
         return astuple(self)
+
+# Redacted text plus JSON escaping and bounded capture metadata.
+BASELINE_FILE_BYTES = 2 * ConfigurationLimits().all_bytes + 65536

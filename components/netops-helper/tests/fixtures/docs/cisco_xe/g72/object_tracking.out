@@ -1,0 +1,8 @@
+Track 2
+  IP SLA 1 state
+  State is Down
+    1 change, last change 00:00:47
+  Latest operation return code: over threshold
+  Latest RTT (millisecs) 4
+  Tracked by:
+    HSRP Ethernet0/1 3

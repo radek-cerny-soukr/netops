@@ -1,0 +1,13 @@
+Vlan : 1
+-----------
+ARP Req Forwarded  = 2
+ARP Res Forwarded  = 0
+ARP Req Dropped    = 2
+ARP Res Dropped    = 0
+DHCP Drops         = 2
+DHCP Permits       = 2
+SMAC Fails-ARP Req = 0
+SMAC Fails-ARP Res = 0
+DMAC Fails-ARP Res = 0
+IP Fails-ARP Req   = 0
+IP Fails-ARP Res   = 0

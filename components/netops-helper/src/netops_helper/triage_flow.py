@@ -3,9 +3,12 @@ from __future__ import annotations
 import ipaddress
 import re
 
-from .triage_health import REASONS, missing_read, Unparsed, UnsupportedPlatform, _lines, _utc
+from .triage_health import (REASONS, firmware_fields, firmware_support, missing_read, Unparsed, UnsupportedPlatform,
+                            _lines, _utc)
 from .triage_routing import _INTERFACE_NAME, route_lookup, vdom_mode
 
+# Tested identity (G00): not a gate; another model or build runs with firmware_support "untested" and a warning
+# (the iprope lookup parser reports an unknown shape as unparsed). VDOMs disabled stays a real scope limit.
 IDENTITIES = frozenset({("FortiGate-80F", "8.0.2", "0251")})
 STEPS = ("system_status", "route_dst", "route_src", "policy_lookup", "session")
 PLANNED_READS = len(STEPS)
@@ -70,8 +73,11 @@ def identity(text):
         found = tuple(platforms.version_record(text))
     except platforms.VersionRecordError:
         raise UnsupportedPlatform("config_platform_not_supported: one exact FortiOS identity is required") from None
-    if found not in IDENTITIES:
-        raise UnsupportedPlatform("config_platform_not_supported: triage_flow is not qualified for this model and build")
+    from .fortios_diagnostics import well_formed
+    if not well_formed(found):
+        raise UnsupportedPlatform("config_platform_not_supported: one exact FortiOS identity is required")
+    if not found[0].startswith(platforms.PRODUCT_HARDWARE["fortios"]):
+        raise UnsupportedPlatform("config_platform_not_supported: the target is not a FortiOS product")
     if vdom_mode(text) != "disable":
         raise UnsupportedPlatform("config_platform_not_supported: triage_flow is measured only with VDOMs disabled")
     return {"product": found[0], "version": found[1], "build": found[2]}
@@ -211,6 +217,7 @@ def run(read, clock, flow, alias, read_sessions=None):
     if not first.get("ok"):
         raise UnsupportedPlatform("config_platform_not_supported: the identity read failed")
     ident = identity(first["text"])
+    support = firmware_support(ident, IDENTITIES, "triage_flow")
     sources = {}
     missing = []
     checked = ["system_status"]
@@ -356,8 +363,539 @@ def run(read, clock, flow, alias, read_sessions=None):
         "dataplane_simulated": False,
         "not_simulated": list(NOT_SIMULATED),
         "verdict": verdict,
+        **firmware_fields(support),
     }
 
     if session["state"] in {"restore_unverified", "scope_refused"}:
         result.update(error_code=session["state"], failed_step="session", error=session["detail"])
     return result
+
+
+_SRX_POLICY = re.compile(
+    r"(?mi)^[ \t]*Policy:[ \t]*(\S+?),[ \t]*action-type:[ \t]*([^,\n]+),[^\n]*?"
+    r"\bState:[ \t]*([^,\n]+),[ \t]*Index:[ \t]*(\d+)"
+)
+_SRX_POLICY_ZONE_PAIR = re.compile(r"(?mi)^[ \t]*From zone:[ \t]*([^,\n]+),[ \t]*To zone:[ \t]*([^,\n]+)")
+
+
+def srx_policies(text):
+    """SRX policy and match-policy output share the same policy record header."""
+    rows = []
+    blocks = re.split(r"(?mi)(?=^[ \t]*Policy:)", text)
+    complete = True
+    for block in blocks[1:]:
+        header = _SRX_POLICY.match(block)
+        if header is None:
+            complete = False
+            continue
+        name, action, state, index = header.groups()
+        zones = _SRX_POLICY_ZONE_PAIR.search(block)
+        if zones is None:
+            complete = False
+        rows.append({"name": name, "action": action.strip(), "state": state.strip(), "index": int(index),
+                     "from_zone": zones[1].strip() if zones else None, "to_zone": zones[2].strip() if zones else None})
+    default = re.search(r"(?mi)^[ \t]*Default policy:[ \t]*(\S+)", blocks[0])
+    complete = complete and bool(rows or default)
+    return {"records": rows, "default_policy": default[1] if default else None, "complete": complete}
+
+
+_SRX_HITS_HEADER = re.compile(
+    r"(?i)index[ \t]+from zone[ \t]+to zone[ \t]+name[ \t]+policy count((?:[ \t]+action)(?:[ \t]+redirects?)?)?")
+_SRX_HITS_TOTAL = re.compile(r"(?i)Number of polic(?:y|ies):[ \t]*(\d+)")
+_SRX_HITS_DETAIL = {"url-categories": ("url_categories", re.compile(r"(?i)Name[ \t]+Count")),
+                    "dynamic-applications": ("dynamic_applications", re.compile(r"(?i)Name[ \t]+Application Count"))}
+
+
+def srx_policy_hits(text):
+    """Every documented `show security policies hit-count` layout (Juniper CLI reference J-C7B534872022).
+
+    The classic table (`index ... policy count`) always ends with `Number of policy: N`, so it is complete only
+    with that footer and a matching row count. The Junos 21.2+ table (`Logical system:` heading, `Action` and
+    optional `Redirect(s)` column) has no footer: there it is complete when a heading row was read, every row
+    has all heading columns and policy indexes are unique per logical system; a footer, when present, must still
+    match. `detail` URL-category and dynamic-application sub-tables are attached to the preceding policy. Any
+    line that is none of these makes the result incomplete, so the read is reported as `unparsed`.
+    """
+    rows, sections = [], []
+    section = detail = None
+    complete = True
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        logical = re.fullmatch(r"(?i)Logical system:[ \t]*(\S+)", line)
+        header = _SRX_HITS_HEADER.fullmatch(line)
+        total = _SRX_HITS_TOTAL.fullmatch(line)
+        if logical or header and (section is None or section["columns"] is not None):
+            section = {"logical_system": logical[1] if logical else None, "columns": None, "rows": [], "total": None}
+            sections.append(section)
+            detail = None
+            if logical:
+                continue
+        if header:
+            extra = (header[1] or "").split()
+            section["columns"] = 5 + len(extra)
+            section["redirect"] = len(extra) == 2
+            continue
+        if section is None or section["columns"] is None or section["total"] is not None:
+            complete = False
+            continue
+        if total:
+            section["total"] = int(total[1])
+            detail = None
+            continue
+        fields = line.split()
+        if (len(fields) == section["columns"] and fields[0].isascii() and fields[0].isdecimal()
+                and fields[4].isascii() and fields[4].isdecimal()
+                and (not section["redirect"] or fields[6].isascii() and fields[6].isdecimal())):
+            index, source, destination, name, hits = fields[:5]
+            row = {"index": int(index), "from_zone": source, "to_zone": destination, "name": name, "hits": int(hits),
+                   "action": fields[5] if len(fields) > 5 else None,
+                   "redirect": int(fields[6]) if len(fields) > 6 else None,
+                   "logical_system": section["logical_system"]}
+            section["rows"].append(row)
+            rows.append(row)
+            detail = None
+            continue
+        kind = _SRX_HITS_DETAIL.get(line.lower())
+        if kind and section["rows"]:
+            detail = {"key": kind[0], "heading": kind[1], "seen_heading": False}
+            section["rows"][-1].setdefault(kind[0], [])
+            continue
+        if detail and not detail["seen_heading"] and detail["heading"].fullmatch(line):
+            detail["seen_heading"] = True
+            continue
+        item = re.fullmatch(r"(\S+)[ \t]+(\d+)", line)
+        if detail and detail["seen_heading"] and item:
+            section["rows"][-1][detail["key"]].append({"name": item[1], "count": int(item[2])})
+            continue
+        complete = False
+    for part in sections:
+        if part["columns"] is None:
+            complete = False
+        elif part["total"] is None:
+            # Only the classic layout documents a footer; without it that table may be cut off.
+            complete = complete and part["columns"] > 5
+        else:
+            complete = complete and part["total"] == len(part["rows"])
+        indexes = [row["index"] for row in part["rows"]]
+        complete = complete and len(indexes) == len(set(indexes))
+        for row in part["rows"]:
+            for key, _ in _SRX_HITS_DETAIL.values():
+                complete = complete and bool(row.get(key, True))
+    return {"records": rows, "complete": complete and bool(sections)}
+
+
+_SRX_SESSION = re.compile(r"(?m)^[ \t]*Session ID:\s*(\d+),\s*Policy name:\s*([^,\n]+),([^\n]*)")
+_SRX_WING = re.compile(
+    r"(?m)^[ \t]*(In|Out):\s*(\S+)/(\d+)\s*-->\s*(\S+)/(\d+);(\w+)"
+    r"[^\n]*?\bIf:\s*(\S+?)(?:,|$)"
+)
+
+
+def srx_sessions(text):
+    """Compare the original tuple with the reverse of the reply tuple to identify NAT."""
+    rows = []
+    counts = re.findall(r"(?mi)^[ \t]*Total sessions:\s*(\d+)[ \t]*$", text)
+    headers = list(_SRX_SESSION.finditer(text))
+    for index, header in enumerate(headers):
+        session_id, policy, fields = header.groups()
+        end = headers[index + 1].start() if index + 1 < len(headers) else len(text)
+        wings = {}
+        for direction, src, src_port, dst, dst_port, protocol, interface in _SRX_WING.findall(text, header.end(), end):
+            wings[direction] = {"src": src, "src_port": int(src_port), "dst": dst,
+                                "dst_port": int(dst_port), "protocol": protocol, "interface": interface}
+        timeout = re.search(r"\bTimeout:\s*(\d+)", fields)
+        original, reply = wings.get("In"), wings.get("Out")
+        translation = None
+        if original and reply:
+            translation = {}
+            for side, reverse in (("src", "dst"), ("dst", "src")):
+                translated = {"address": reply[reverse], "port": reply[f"{reverse}_port"]}
+                if (original[side], original[f"{side}_port"]) != (translated["address"], translated["port"]):
+                    translation[side] = translated
+        rows.append({"id": int(session_id), "policy": policy.strip(), "timeout": int(timeout[1]) if timeout else None,
+                     "original": original, "reply": reply, "translation": translation})
+    complete = bool(counts) and sum(map(int, counts)) == len(rows) and all(
+        row["translation"] is not None and row["timeout"] is not None for row in rows
+    )
+    return {"records": rows, "complete": complete}
+
+
+_SRX_NAT_RULE = re.compile(r"(?mi)^[ \t]*(?:source|destination) NAT rule:\s*(\S+)\s+Rule-set:\s*(\S+)")
+
+
+def _srx_nat_addresses(text, name):
+    match = re.search(rf"(?m)^[ \t]*{name} addresses[ \t]*:[ \t]*([^\n]+)", text)
+    if match is None:
+        return []
+    addresses = [match[1].strip()]
+    for line in text[match.end():].splitlines()[1:]:
+        if not re.fullmatch(r"[ \t]+[0-9a-fA-F.:/]+(?:[ \t]+-[ \t]+[0-9a-fA-F.:/]+)?[ \t]*", line):
+            break
+        addresses.append(line.strip())
+    return addresses
+
+
+def srx_nat_rules(text):
+    rows = []
+    headers = list(_SRX_NAT_RULE.finditer(text))
+    for index, header in enumerate(headers):
+        end = headers[index + 1].start() if index + 1 < len(headers) else len(text)
+        block = text[header.end():end]
+        fields = {}
+        for line in block.splitlines():
+            key, separator, value = line.partition(":")
+            if separator:
+                fields[key.strip()] = value.strip()
+        hits = fields.get("Translation hits", "")
+        rows.append({"name": header[1], "rule_set": header[2],
+                     "from": fields.get("From zone") or fields.get("From interface") or fields.get("From routing instance"),
+                     "to": fields.get("To zone") or fields.get("To interface") or fields.get("To routing instance"),
+                     "source_addresses": _srx_nat_addresses(block, "Source"),
+                     "destination_addresses": _srx_nat_addresses(block, "Destination"),
+                     "action": fields.get("Action"), "translation_hits": int(hits) if hits.isdecimal() else None})
+    total = re.search(r"(?mi)^Total (?:destination-nat )?rules:\s*(\d+)", text)
+    complete = bool(total and int(total[1]) == len(rows)) and all(
+        row["action"] and row["translation_hits"] is not None for row in rows
+    )
+    return {"records": rows, "complete": complete}
+
+
+NXOS_PATH_REQUIRED = ('version', 'interface_details', 'route_lookup')
+
+
+def nxos_path_plan(interface, address):
+    """Existing catalogue reads, in the default IPv4 VRF."""
+    from .tables import port
+
+    scoped = {'interface': interface}
+    plan = [
+        ('version', None), ('interface_details', scoped), ('route_lookup', {'address': address}),
+        ('stp_interface_detail', scoped), ('lldp_neighbor_interface', scoped),
+        ('forwarding_ipv4_route', None), ('ipv4_access_lists_summary', None), ('arp_table', None),
+    ]
+    if port(interface).startswith('Port-channel'):
+        plan.append(('vpc_status', None))
+    return plan
+
+
+def _nxos_fib(text, address):
+    """Read matching rows in the default/base FIB, per reported slot."""
+    slots, slot, table, header = {}, None, False, False
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line or re.fullmatch(r'[-+=]+', line):
+            continue
+        label = re.fullmatch(r'slot\s+(\d+)', line)
+        if label and label[1] not in slots:
+            slot, table, header = label[1], False, False
+            slots[slot] = []
+            continue
+        if slot is not None and line == 'IPv4 routes for table default/base' and not table:
+            table = True
+            continue
+        if table and not header and [field.strip() for field in line.split('|')] == [
+            'Prefix', 'Next-hop', 'Interface', 'Labels', 'Partial Install',
+        ]:
+            header = True
+            continue
+        fields = line.split()
+        if not header or len(fields) != 3:
+            return 'unparsed', []
+        prefix, hop, interface = fields
+        try:
+            network = ipaddress.IPv4Network(prefix)
+            if hop not in {'Attached', 'Drop', 'Receive'}:
+                ipaddress.IPv4Address(hop)
+        except ValueError:
+            return 'unparsed', []
+        if not re.fullmatch(r'[A-Za-z][A-Za-z0-9/.-]*', interface):
+            return 'unparsed', []
+        slots[slot].append((network, hop, interface))
+    if not slots or any(not rows for rows in slots.values()):
+        return 'unparsed', []
+    matches = []
+    dest = ipaddress.IPv4Address(address)
+    for slot, rows in slots.items():
+        candidates = [(network, hop, interface) for network, hop, interface in rows if dest in network]
+        longest = max((network.prefixlen for network, _, _ in candidates), default=-1)
+        matches.extend({'slot': int(slot), 'prefix': str(network), 'next_hop': hop, 'interface': interface}
+                       for network, hop, interface in candidates if network.prefixlen == longest)
+    return ('ok' if matches else 'empty'), matches
+
+
+def nxos_path_run(read, interface, address):
+    from . import tables
+    from .triage_routing import nxos_path_route
+
+    profile = 'cisco_nxos'
+    selected_port = tables.port(interface)
+    findings, missing, sources = {}, [], {}
+    routes = []
+    identity = None
+
+    for query, parameters in nxos_path_plan(interface, address):
+        neighbors = {(route['next_hop'] or address, route['interface']) for route in routes
+                     if route['protocol'] != 'local' and route['interface'] != 'Null0'}
+        if query == 'arp_table' and not neighbors:
+            continue
+        answer = read(query, parameters)
+        output = answer.get('untrusted_device_output', '')
+        state = answer.get('_capture_state')
+        records = None
+        if (answer.get('error_code') == 'empty' or answer.get('reason') == 'identity_empty'
+                or (answer['ok'] and not output.strip())):
+            state = 'missing'
+        elif not answer['ok']:
+            state = answer.get('reason') or answer.get('error_code') or answer.get('status') or 'device_cli_error'
+        elif not answer.get('complete') or answer.get('next_offset') is not None:
+            normalized = answer.get('normalized', {})
+            state = normalized.get('status') if normalized.get('status') not in ('ok', 'empty', None) else 'truncated'
+        elif query == 'version' and state == 'ok':
+            identity = answer.get('normalized', {}).get('identity')
+            state = 'ok' if identity else 'unparsed'
+        elif state in ('ok', 'empty'):
+            if query == 'interface_details':
+                header = re.match(r'^([^\s]+) is (up|down)(?:\s|$)', output.lstrip())
+                if (header and tables.port(header[1]) == selected_port and
+                        re.search(r'(?m)^\s*\d+ Tx pause[ \t]*$', output)):
+                    records = [{'port': selected_port, 'link_state': header[2]}]
+                else:
+                    state = 'unparsed'
+            elif query == 'route_lookup':
+                state, routes = nxos_path_route(output, address)
+                records = routes if state in ('ok', 'empty') else None
+            elif query == 'forwarding_ipv4_route':
+                state, fib = _nxos_fib(output, address)
+                records = fib if state in ('ok', 'empty') else None
+            elif query == 'vpc_status':
+                vpc = answer.get('vpc', {})
+                state = vpc.get('state', 'unparsed')
+                if state == 'measured':
+                    state = 'ok'
+                    records = [row for row in vpc.get('members', []) if tables.port(row['port']) == selected_port]
+            else:
+                normalized = answer.get('normalized')
+                if query == 'arp_table':
+                    normalized = tables.parse(profile, 'neighbor_l3', query, output, status=state)
+                    counts = re.findall(r'(?m)^Total number of entries:\s*(\d+)[ \t]*$', output)
+                    if counts != [str(len(normalized['records']))]:
+                        normalized = None
+                state = 'unparsed'
+                if normalized and normalized['coverage']['complete']:
+                    state = normalized['status']
+                    records = normalized['records']
+                    if query == 'arp_table':
+                        records = [row for row in records if (row['ip'], row['interface']) in neighbors]
+                    elif query == 'ipv4_access_lists_summary':
+                        ports = {selected_port, *(route['interface'] for route in routes)}
+                        records = [{'name': row['name'], **{
+                            key: [binding for binding in row[key] if tables.port(binding['interface']) in ports]
+                            for key in ('configured_interfaces', 'active_interfaces')
+                        }} for row in records]
+                        records = [row for row in records if row['configured_interfaces'] or row['active_interfaces']]
+        state = state or 'unparsed'
+        if records is not None and len(records) > 20:
+            records, state = records[:20], 'record_limit'
+        if records is not None and state in ('ok', 'empty', 'record_limit'):
+            findings[query] = {'source': query, 'records': records}
+        elif query != 'version' and state in ('ok', 'empty'):
+            state = 'unparsed'
+        if state not in ('ok', 'empty'):
+            missing.append({'source': query, 'reason': state})
+
+        digest = answer.get('content_sha256')
+        sources[query] = {'status': state, **({'content_sha256': digest} if digest else {})}
+        if query == 'version' and identity is None:
+            break
+
+    return {
+        'ok': not missing, 'verdict': 'incomplete' if missing else 'observed',
+        'platform': profile, 'vrf': 'default', 'interface': selected_port, 'destination': address,
+        'identity': identity, 'findings': findings, 'missing': missing, 'sources': sources,
+        'rib_status': ('route_observed' if routes else 'route_not_found')
+        if 'route_lookup' in findings else 'unknown',
+        'vantage': {'packets_sent': False, 'scope': 'Local port, default IPv4 RIB/FIB, ARP and IPv4 ACL bindings. '
+                    'ACL rules and packet delivery are unevaluated. vPC observations are local to this switch.'},
+    }
+
+
+def _cisco_ingress_vrf(runbook, interface):
+    from .triage_routing import cisco_interface_line
+
+    query = "ip_interface_details"
+    text = runbook.capture(query) or ""
+    if not cisco_interface_line(runbook, query, text, interface):
+        return None
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    vpn = [line for line in lines if re.match(r"(?:VPN|(?:ip )?VRF)\b", line, re.I)]
+    # The WCCP tail follows the VPN field on IOS and IOS XE routed IPv4 ports.
+    # Require it before treating an absent VPN field as the global table.
+    if (not vpn or runbook.platform != "cisco_ios") and not any(
+        re.fullmatch(r"IPv4 WCCP Redirect exclude is (?:enabled|disabled)", line) for line in lines
+    ):
+        return None
+    if not vpn:
+        return ""
+    if len(vpn) == 1:
+        match = re.fullmatch(r'VPN Routing/Forwarding "([A-Za-z0-9][A-Za-z0-9_.:-]{0,63})"', vpn[0])
+        if match:
+            return match[1]
+    return None
+
+
+def _cisco_cef(runbook, destination, vrf):
+    query = "vrf_cef_lookup" if vrf else "cef_lookup"
+    parameters = {"address": destination, "vrf": vrf} if vrf else {"address": destination}
+    table = vrf or "global"
+    text = runbook.capture(query, parameters) or ""
+    prefixes = runbook.lines(query, text, r"(\d+\.\d+\.\d+\.\d+/\d+), epoch \d+(?:, .+)?")
+    paths = runbook.lines(query, text, r"(?:attached to|nexthop \d+\.\d+\.\d+\.\d+) (\S+)")
+    recursions = runbook.lines(query, text, r"recursive via \d+\.\d+\.\d+\.\d+(?:/\d+)?")
+    adjacency = runbook.lines(query, text, r"Adj source: IP adj out of \S+, addr \d+\.\d+\.\d+\.\d+ [0-9A-Fa-f]+"
+                             r"|Dependent covered prefix type adjfib, cover \d+\.\d+\.\d+\.\d+/\d+"
+                             r"|\d+ RR source \[no flags\]")
+    if (len(prefixes) != 1 or not paths
+            or sum(map(len, (prefixes, paths, recursions, adjacency))) != sum(bool(line.strip()) for line in text.splitlines())):
+        runbook.unknown("cef", query, table=table)
+        return
+    try:
+        network = ipaddress.IPv4Network(prefixes[0][0][1])
+    except ValueError:
+        runbook.unknown("cef", query, table=table)
+        return
+    if ipaddress.IPv4Address(destination) not in network:
+        runbook.unknown("cef", query, "destination_not_covered", table=table)
+        return
+    egress = [match[1] for match, _ in paths]
+    runbook.found("cef", "discard_path_observed" if all(name.lower() == "null0" for name in egress) else "path_observed",
+                  *(line for _, line in [*prefixes, *recursions, *paths]), prefix=str(network),
+                  egress_interfaces=egress, table=table)
+
+
+def _cisco_ingress_acl(runbook, interface):
+    from .triage_routing import cisco_interface_line
+
+    query = "ip_interface_details"
+    text = runbook.capture(query) or ""
+    line = cisco_interface_line(runbook, query, text, interface)
+    disabled = runbook.lines(query, text, r"Internet protocol processing disabled")
+    acls = runbook.lines(query, text, r"Inbound\s+(Common\s+)?access list is (not set|[A-Za-z0-9_.-]+)")
+    if line and len(disabled) == 1:
+        runbook.found("ingress_acl", "ipv4_processing_disabled", line[1], disabled[0][1])
+    elif (line and any(match[1] is None for match, _ in acls) and len({bool(match[1]) for match, _ in acls}) == len(acls)
+          and sum(bool(re.match(r"Inbound\s+(?:Common\s+)?access list\b", row.strip())) for row in text.splitlines()) == len(acls)):
+        names = [match[2] for match, _ in acls if match[2] != "not set"]
+        runbook.found("ingress_acl", "bindings_observed" if names else "no_binding", line[1],
+                      *(evidence for _, evidence in acls), access_lists=names)
+        return names
+    else:
+        runbook.unknown("ingress_acl", query)
+    return []
+
+
+def _cisco_policy_maps(runbook, interface):
+    from .normalization import normalize_port
+
+    query = "ip_policy"
+    text = runbook.capture(query) or ""
+    headers = runbook.lines(query, text, r"Interface\s+Route map")
+    bindings = runbook.lines(query, text, r"([A-Za-z][A-Za-z0-9./-]*\d[A-Za-z0-9./-]*)\s+([A-Za-z0-9_.-]+)")
+    if (len(headers) != 1 or len(headers) + len(bindings) != sum(bool(line.strip()) for line in text.splitlines())
+            or any(line["line_number"] < headers[0][1]["line_number"] for _, line in bindings)):
+        runbook.unknown("ip_policy", query)
+        return []
+    port = normalize_port(interface)["name"].lower()
+    selected = [(match, line) for match, line in bindings if normalize_port(match[1])["name"].lower() == port]
+    if not selected:
+        runbook.found("ip_policy", "no_binding", headers[0][1], interface=interface)
+        return []
+    if len(selected) != 1:
+        runbook.unknown("ip_policy", query, "ambiguous_binding")
+        return []
+    match, binding = selected[0]
+    name = match[2]
+    runbook.found("ip_policy", "binding_observed", binding, route_map=name)
+    return _cisco_route_map(runbook, name, binding)
+
+
+def _cisco_route_map(runbook, name, binding):
+    query = "route_maps"
+    text = runbook.capture(query) or ""
+    headings = runbook.lines(query, text, r"route-map (\S+), (permit|deny), sequence (\d+)")
+    matches = runbook.lines(query, text, r"ip address \(access-lists\): ([A-Za-z0-9_. -]+)")
+    sets = runbook.lines(query, text, r"interface (\S+)")
+    counters = runbook.lines(query, text, r"Policy routing matches: (\d+) packets, (\d+) bytes")
+    markers = runbook.lines(query, text, r"(?:Match|Set) clauses:")
+    if len(headings) + len(matches) + len(sets) + len(counters) + len(markers) != sum(
+            bool(line.strip()) for line in text.splitlines()):
+        runbook.unknown("route_map", query)
+        return []
+    clauses, evidence, names = [], [binding], []
+    for index, (header, line) in enumerate(headings):
+        if header[1] != name:
+            continue
+        end = headings[index + 1][1]["line_number"] if index + 1 < len(headings) else float("inf")
+        def block(rows):
+            return [(row, ref) for row, ref in rows if line["line_number"] < ref["line_number"] < end]
+
+        block_matches, block_sets, block_counters, block_markers = map(block, (matches, sets, counters, markers))
+        if len(block_counters) != 1 or [ref["untrusted_device_output"].strip() for _, ref in block_markers] != [
+                "Match clauses:", "Set clauses:"]:
+            runbook.unknown("route_map", query)
+            return []
+        match_marker, set_marker = (ref["line_number"] for _, ref in block_markers)
+        counter_line = block_counters[0][1]["line_number"]
+        if (any(not match_marker < ref["line_number"] < set_marker for _, ref in block_matches)
+                or any(not set_marker < ref["line_number"] < counter_line for _, ref in block_sets)
+                or counter_line <= set_marker):
+            runbook.unknown("route_map", query)
+            return []
+        names.extend(acl for row, _ in block_matches for acl in row[1].split())
+        interfaces = [row[1] for row, _ in block_sets]
+        clauses.append({"sequence": int(header[3]), "action": header[2], "set_interfaces": interfaces,
+                        "sets_null0": header[2] == "permit" and [name.lower() for name in interfaces] == ["null0"],
+                        "policy_matches": int(block_counters[0][0][1])})
+        evidence.extend([line, *(ref for _, ref in [*block_matches, *block_sets, *block_counters])])
+    if not clauses:
+        runbook.unknown("route_map", query, "route_map_not_listed")
+        return []
+    runbook.found("route_map", "clauses_observed", *evidence, route_map=name, clauses=clauses)
+    return names
+
+
+def _cisco_acl_evidence(runbook, names):
+    from .tables import _ios_acl_rows
+
+    query = "ipv4_access_lists"
+    text = runbook.capture(query) or ""
+    parsed, unknown = _ios_acl_rows(text)
+    records = [record for record in parsed if record["family"] == "ipv4" and record["name"] in names]
+    if unknown or len(records) != len(names) or {record["name"] for record in records} != names:
+        runbook.unknown("access_lists", query, "unparsed" if unknown else "access_list_not_listed")
+        return
+    headings = runbook.lines(query, text, r"(?:IPv6|Standard IP|Extended IP) access list (\S+)(?: \([^()]+\))*")
+    evidence = []
+    rules = runbook.lines(query, text, r"(?:\d+ )?(?:permit|deny) .+")
+    for index, (match, line) in enumerate(headings):
+        if match[1] in names:
+            evidence.append(line)
+            end = headings[index + 1][1]["line_number"] if index + 1 < len(headings) else float("inf")
+            evidence.extend(ref for _, ref in rules if line["line_number"] < ref["line_number"] < end)
+    runbook.found("access_lists", "definitions_observed", *evidence, access_lists=sorted(names))
+
+
+def run_cisco_flow(runbook, interface, destination):
+    from .triage_routing import cisco_route
+
+    vrf = _cisco_ingress_vrf(runbook, interface)
+    if vrf is None:
+        for check in ("route", "cef"):
+            runbook.unknown(check, "ip_interface_details", "ingress_vrf_unverified", table=None)
+    else:
+        cisco_route(runbook, destination, vrf)
+        _cisco_cef(runbook, destination, vrf)
+    acl_names = set(_cisco_ingress_acl(runbook, interface) + _cisco_policy_maps(runbook, interface))
+    if acl_names:
+        _cisco_acl_evidence(runbook, acl_names)

@@ -1,0 +1,3 @@
+Field Replaceable Units                                  Temp (C)   Status   Min  Normal   Max
+-------------------------------------------------------  ---------  -------  ---  -------  ---
+Switch                : PCSimStack                         20.10    Normal   -10    0-40  50

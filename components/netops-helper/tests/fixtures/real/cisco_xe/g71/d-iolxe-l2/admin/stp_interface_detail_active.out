@@ -1,0 +1,9 @@
+ Port 9 (Ethernet2/0) of VLAN0001 is designated forwarding
+   Port path cost 100, Port priority 128, Port Identifier 128.9.
+   Designated root has priority 32769, address 0000.5e00.5302
+   Designated bridge has priority 32769, address 0000.5e00.5302
+   Designated port id is 128.9, designated path cost 0
+   Timers: message age 0, forward delay 0, hold 0
+   Number of transitions to forwarding state: 1
+   Link type is point-to-point by default
+   BPDU: sent 86353, received 0

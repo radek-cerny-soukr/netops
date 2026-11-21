@@ -15,11 +15,11 @@ NATIVE_REFUSAL = "the port must have exactly one known native VLAN before and af
 
 
 def _explicit_default(command) -> bool:
-    return tuple(token.casefold() for token in command.tokens) == EXPLICIT_DEFAULT
+    return not command.upm_profile and tuple(token.casefold() for token in command.tokens) == EXPLICIT_DEFAULT
 
 
-def _default_rendering(snapshot, command) -> bool:
-    if snapshot.inventory is None:
+def default_rendering(snapshot, command) -> bool:
+    if snapshot.inventory is None or command.upm_profile:
         return False
     if _explicit_default(command):
         return True
@@ -72,17 +72,21 @@ def states(snapshot):
     return result
 
 
-def lag_ports(snapshot) -> set:
-    affected = set()
+def lag_groups(snapshot) -> list[set]:
+    affected = []
     for command in snapshot.commands:
         t = command.tokens
         if t[:2] == ("enable", "sharing"):
             try:
                 group = t.index("grouping") if "grouping" in t else t.index("group")
-                affected |= ports(t[2]) | ports(t[group + 1])
+                affected.append(ports(t[2], snapshot.inventory) | ports(t[group + 1], snapshot.inventory))
             except (ValueError, IndexError):
                 raise Rejected(["link aggregation cannot be evaluated"]) from None
     return affected
+
+
+def lag_ports(snapshot) -> set:
+    return set().union(*lag_groups(snapshot))
 
 
 def prechecks(snapshot, key, before, after):
@@ -126,7 +130,7 @@ def rest_digest(snapshot, port, commands=None):
              for key, modes in members.items() if key != port}
     lines = [command.text for command in (snapshot.commands if commands is None else commands)
              if (command.tokens[:2] != ("configure", "vlan") or command.tokens[3:5] != ("add", "ports"))
-             and not _default_rendering(snapshot, command)]
+             and not default_rendering(snapshot, command)]
     body = {"other_memberships": other, "configuration": lines}
     return hashlib.sha256(json.dumps(body, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 

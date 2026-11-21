@@ -1,0 +1,48 @@
+{
+  "platform": "eos",
+  "table": "system-services",
+  "versions": [
+    "4.36.1F"
+  ],
+  "ops": [
+    "update"
+  ],
+  "table_scoped_key": true,
+  "exact_versions": true,
+  "key_pattern": "^system-services$",
+  "protected_keys": [],
+  "attributes": {
+    "domain-name": {
+      "type": "text",
+      "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*$",
+      "max_length": 253,
+      "update": true,
+      "unset": true,
+      "required_on_create": false,
+      "referenced_update": true
+    },
+    "facility": {
+      "type": "text",
+      "pattern": "^(?:auth|cron|daemon|kern|local[0-7]|lpr|mail|news|sys(?:9|1[0-4])|syslog|user|uucp)$",
+      "max_length": 6,
+      "update": true,
+      "unset": true,
+      "required_on_create": false,
+      "referenced_update": true
+    },
+    "trap": {
+      "type": "text",
+      "pattern": "^(?:emergencies|alerts|critical|errors|warnings|notifications|informational|debugging|disabled)$",
+      "max_length": 13,
+      "update": true,
+      "unset": true,
+      "required_on_create": false,
+      "referenced_update": true
+    }
+  },
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "EOS timed configuration safeguard and a scoped inverse from running-config. Operational readback uses the separate check account. G129 fixtures identify measured and documented cases."
+}

@@ -1,0 +1,63 @@
+{
+    "interfaces": {
+        "Ethernet12": {
+            "name": "Ethernet12",
+            "forwardingModel": "bridged",
+            "lineProtocolStatus": "up",
+            "interfaceStatus": "connected",
+            "hardware": "ethernet",
+            "interfaceAddress": [],
+            "physicalAddress": "00:00:5e:00:53:01",
+            "burnedInAddress": "00:00:5e:00:53:01",
+            "description": "",
+            "bandwidth": 1000000000,
+            "mtu": 9214,
+            "l3MtuConfigured": false,
+            "l2Mru": 0,
+            "lastStatusChangeTimestamp": 1795028908.1491778,
+            "interfaceStatistics": {
+                "updateInterval": 300.0,
+                "inBitsRate": 0.0,
+                "inPktsRate": 0.0,
+                "outBitsRate": 0.0,
+                "outPktsRate": 0.0
+            },
+            "interfaceCounters": {
+                "inOctets": 0,
+                "inUcastPkts": 0,
+                "inMulticastPkts": 0,
+                "inBroadcastPkts": 0,
+                "inDiscards": 0,
+                "inTotalPkts": 0,
+                "outOctets": 10940,
+                "outUcastPkts": 4,
+                "outMulticastPkts": 107,
+                "outBroadcastPkts": 0,
+                "outDiscards": 0,
+                "outTotalPkts": 111,
+                "linkStatusChanges": 22,
+                "totalInErrors": 0,
+                "inputErrorsDetail": {
+                    "runtFrames": 0,
+                    "giantFrames": 0,
+                    "fcsErrors": 0,
+                    "alignmentErrors": 0,
+                    "symbolErrors": 0,
+                    "rxPause": 0
+                },
+                "totalOutErrors": 0,
+                "outputErrorsDetail": {
+                    "collisions": 0,
+                    "lateCollisions": 0,
+                    "deferredTransmissions": 0,
+                    "txPause": 0
+                },
+                "counterRefreshTime": 1795074754.5669363
+            },
+            "duplex": "duplexFull",
+            "autoNegotiate": "unknown",
+            "loopbackMode": "loopbackNone",
+            "lanes": 0
+        }
+    }
+}

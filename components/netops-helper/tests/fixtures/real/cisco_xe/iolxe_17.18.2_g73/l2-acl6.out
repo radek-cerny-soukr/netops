@@ -1,0 +1,4 @@
+IPv6 access list implicit_deny_v6
+    deny ipv6 any any sequence 10
+IPv6 access list implicit_permit_v6
+    permit ipv6 any any sequence 10

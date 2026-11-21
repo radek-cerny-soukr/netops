@@ -1,0 +1,19 @@
+{
+    "localInterface": "",
+    "peerAddress": "0.0.0.0",
+    "peerLink": "",
+    "heartbeatPeerAddress": "0.0.0.0",
+    "reloadDelay": 300,
+    "reloadDelayNonMlag": 300,
+    "state": "disabled",
+    "mlagPorts": {
+        "Disabled": 0,
+        "Configured": 0,
+        "Inactive": 0,
+        "Active-partial": 0,
+        "Active-full": 0
+    },
+    "portsErrdisabled": false,
+    "dualPrimaryDetectionState": "disabled",
+    "dualPrimaryPortsErrdisabled": false
+}

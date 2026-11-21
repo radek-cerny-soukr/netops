@@ -1,0 +1,31 @@
+{
+  "platform": "eos",
+  "table": "ospf-process",
+  "versions": [
+    "4.36.1F"
+  ],
+  "exact_versions": true,
+  "ops": [
+    "create",
+    "delete"
+  ],
+  "table_scoped_key": true,
+  "key_pattern": "^[1-9][0-9]{0,4}$",
+  "protected_keys": [],
+  "attributes": {
+    "router-id": {
+      "type": "text",
+      "update": false,
+      "unset": false,
+      "referenced_update": true,
+      "required_on_create": true,
+      "max_length": 15,
+      "pattern": "^[0-9.]+$"
+    }
+  },
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "cEOSLab 4.36.1F. A timed EOS configuration session and independent operational readback protect the change. Creates a default-VRF OSPFv2 process with an explicit router ID; deletion requires an empty process."
+}

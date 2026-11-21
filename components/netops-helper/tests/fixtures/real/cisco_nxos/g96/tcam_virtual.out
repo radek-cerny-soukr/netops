@@ -1,0 +1,39 @@
+
+slot  1
+=======
+
+
+
+INSTANCE 0x0
+-------------
+
+
+	 ACL Hardware Resource Utilization (Mod 1)
+	 ----------------------------------------------------------
+                                        Used    Free    Percent 
+                                                        Utilization
+------------------------------------------------------------------- 
+
+LOU                                     0       24      0.00   
+Both LOU Operands                       0       
+Single LOU Operands                     0       
+LOU L4 src port:                        0
+LOU L4 dst port:                        0
+LOU L3 packet len:                      0
+LOU IP tos:                             0
+LOU IP dscp:                            0
+LOU ip precedence:                      0
+LOU ip TTL:                             0
+TCP Flags                               0       16      0.00   
+
+Protocol CAM                            0       246     0.00   
+Mac Etype/Proto CAM                     0       14      0.00   
+
+L4 op labels, Tcam 0                    0       1023    0.00   
+L4 op labels, Tcam 2                    0       63      0.00   
+L4 op labels, Tcam 6                    0       2047    0.00   
+
+Ingress Dest info table                 0       512     0.00   
+Egress Dest info table                  0       512     0.00   
+
+Cmd exec error.

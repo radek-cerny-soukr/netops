@@ -1,0 +1,28 @@
+
+Member     Port      Rx           Sel          Mux            Actor     Partner 
+Port       Priority  State        Logic        State          Flags     Port    
+--------------------------------------------------------------------------------
+5          0         Current      Selected     Collect-Dist   A-GSCD--  15       
+Up            : Yes
+Enabled       : Yes
+Link State    : Up
+Actor Churn   : False
+Partner Churn : False
+Ready_N       : Yes
+Wait pending  : No
+Ack pending   : No
+LAG Id:
+  S.pri:0   , S.id:02:00:00:04:26:04, K:0x0068, P.pri:0   , P.num:1005
+  T.pri:32768, T.id:02:42:96:cf:8d:b4, L:0x0068, Q.pri:32768, Q.num:15
+Stats:
+  Rx - Accepted                                      : 324
+  Rx - Dropped due to error in verifying PDU         : 0
+  Rx - Dropped due to LACP not being up on this port : 0
+  Rx - Dropped due to matching own MAC               : 0
+
+  Tx - Sent successfully                             : 371
+  Tx - Transmit error                                : 0
+================================================================================
+Actor Flags: A-Activity, T-Timeout, G-Aggregation, S-Synchronization
+             C-Collecting, D-Distributing, F-Defaulted, E-Expired
+

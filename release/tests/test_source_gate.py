@@ -11,6 +11,12 @@ class Privacy(unittest.TestCase):
         self.rules = gate.legacy(ROOT)
     def test_os_brand_and_official_client_documentation_are_public(self):
         self.assertEqual(gate.privacy_text(self.rules, "README.md", "Raspberry Pi OS 64; https://learn.chatgpt.com/docs/extend/mcp; ghcr.io"), [])
+    def test_only_the_discord_webhook_hosts_are_public(self):
+        for domain, accepted in (("discord.com", True), ("discordapp.com", True), ("notdiscord.com", False),
+                                 ("discord-app.com", False), ("discord.com.lab.lan", False), ("discordapp.net", False)):
+            with self.subTest(domain=domain):
+                text = "Use an HTTPS webhook on `" + domain + "` with path `/api/webhooks/ID/TOKEN`.\n"
+                self.assertEqual(not gate.privacy_text(self.rules, "docs/helper-configuration.md", text), accepted)
     def test_device_identifiers_and_credential_shapes_are_rejected(self):
         material = "-----BEGIN PRIVATE" + " KEY-----" + chr(10) + "MIIA" + "A" * 120 + chr(10) + "-----END PRIVATE" + " KEY-----"
         for text in ("rpi5" + "-master", "Host 10." + "29.41.55", material):
@@ -55,6 +61,24 @@ class Privacy(unittest.TestCase):
                        "fe80::1", "runner.example", "github.com", "Build 1.2.3.4.5 and 33.7.1.6."):
             with self.subTest(sample=sample):
                 self.assertEqual(gate.privacy_text(self.rules, "README.md", sample), [])
+
+    def test_protocol_constants_and_derived_solicited_node_groups_are_accepted(self):
+        # task 749: constants of the Admin fixtures and tests that are not site material
+        for sample in ("ff:ff:ff:ff:ff:ff", "FF:FF:FF:FF:FF:FF", "01:00:5e:90:10:01", "01:00:5E:90:10:FF",
+                       "firmware 200.15.6.212 build 27", "permit ip 203.0.113.176 0.0.0.254 any",
+                       "FF02::1:FF00:1", "ff02::1:ff00:12", "ff02::1:ff00:0", "FF02::1:FF00:5300"):
+            with self.subTest(sample=sample):
+                self.assertEqual(gate.privacy_text(self.rules, "fixtures/sample.txt", sample), [])
+
+    def test_other_multicast_versions_masks_and_solicited_node_tails_stay_refused(self):
+        # a solicited-node group keeps the low 24 bits of the unicast address: groups whose 24-bit suffix has a
+        # non-zero high byte (ff55, fffc, FF12) stay refused, as does the ff05 group outside the solicited-node range
+        for sample in ("ff02::1:" + "ff55:0", "ff02::1:" + "fffc:0", "FF02::1:" + "FF12:3456", "ff05::1:" + "ff00:1",
+                       "224.0." + "0.9", "01:00:5e:" + "00:00:09", "01:00:5e:" + "90:11:01", "200.15." + "6.213",
+                       "0.0." + "0.253", "fe:ff:ff:" + "ff:ff:ff"):
+            with self.subTest(sample=sample):
+                self.assertIn("network or domain material in fixtures/sample.txt",
+                              gate.privacy_text(self.rules, "fixtures/sample.txt", sample))
 
     def test_source_domains_and_sentence_ending_addresses_are_refused(self):
         relative = "docs/source-gate-fixture.md"
@@ -132,10 +156,21 @@ class Privacy(unittest.TestCase):
 
     def test_only_the_listed_well_known_multicast_groups_are_accepted(self):
         import ipaddress
-        for value, accepted in ((0xE0000005, True), (0xE0000012, True), (0xE0000001, False), (0xEF010203, False)):
+        for value, accepted in ((0xE0000005, True), (0xE0000006, True), (0xE0000012, True), (0xE0000001, False),
+                                (0xE0000007, False), (0xEF010203, False)):
             text = "group " + str(ipaddress.ip_address(value)) + "\n"
             with self.subTest(value=value):
                 self.assertEqual(not self.rules._address_errors("fixture.txt", text, True), accepted)
+
+    def test_only_the_broadcast_mac_constant_is_accepted(self):
+        for octets, accepted in (((0xFF,) * 6, True), ((0xFF,) * 5 + (0xFE,), False), ((0x7F,) + (0xFF,) * 5, False),
+                                 ((0x01, 0x00, 0x5E, 0x00, 0x00, 0x05), False), ((0x33, 0x33, 0, 0, 0, 1), False)):
+            value = ":".join("%02x" % octet for octet in octets)
+            text = "mac " + value + "\n"
+            with self.subTest(value=value):
+                self.assertEqual(not self.rules._address_errors("fixture.txt", text, True), accepted)
+                self.assertEqual(not gate.privacy_text(self.rules, "fixture.json", '{"mac": "' + value + '"}'), accepted)
+                self.assertEqual(not self.rules._address_errors("fixture.txt", text.upper(), True), accepted)
 
     def test_network_mac_path_and_credential_material_are_refused(self):
         import ipaddress

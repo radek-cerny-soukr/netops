@@ -1,0 +1,32 @@
+configure terminal
+
+Enter configuration commands, one per line. End with CNTL/Z.
+
+host01(config)# ip route 198.51.100.0/24 192.0.2.250
+
+
+host01(config)# ipv6 route 2001:db8::/32 2001:db8:ffff::fe
+
+
+host01(config)# interface loopback 900
+
+
+host01(config-if)# no ip address 192.0.2.222/32
+
+
+host01(config-if)# ip address 192.0.2.223/32
+
+
+host01(config-if)# no ipv6 address 2001:db8:900::1/128
+
+
+host01(config-if)# ipv6 address 2001:db8:900::2/128
+
+
+host01(config-if)# exit
+
+
+host01(config)# end
+
+
+host01#

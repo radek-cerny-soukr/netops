@@ -14,7 +14,7 @@ def test_the_endpoint_table_is_the_code_allowlist():
     documented = set(re.findall(r"(?m)^\| `(/api/v2/[^`]+)` \|", text))
     assert documented == set(wifi_rest.PATHS)
     assert {path for path in wifi_rest.PATHS if "?" in path} == {wifi_rest.WIRELESS_LOG}
-    assert "exact allowlist of the %s fixed paths" % {7: "seven"}[len(wifi_rest.PATHS)] in text
+    assert "exact allowlist of the %s fixed paths" % {10: "ten"}[len(wifi_rest.PATHS)] in text
     assert "query string above" not in text and "six monitor endpoints" not in text
 
 

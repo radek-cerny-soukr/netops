@@ -1,0 +1,33 @@
+{
+  "platform": "ios",
+  "table": "port-bounce",
+  "action": "port-bounce",
+  "versions": [
+    "15.2(20200924:215240)"
+  ],
+  "exact_versions": true,
+  "ops": [
+    "update"
+  ],
+  "table_scoped_key": true,
+  "key_pattern": "^[A-Z][A-Za-z-]{1,24}[0-9]{1,3}(?:/[0-9]{1,3}){0,2}(?:\\.[0-9]{1,4})?$",
+  "protected_keys": [],
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "attributes": {
+    "admin-state": {
+      "type": "text",
+      "max_length": 8,
+      "pattern": "^(enabled|disabled)$",
+      "default": "enabled",
+      "update": true,
+      "unset": false,
+      "referenced_update": true,
+      "required_on_create": false,
+      "undo_to_default": true
+    }
+  },
+  "rollback_evidence": "Used only by the port-bounce operation (1.0.12 G61, IOS-C021): 'shutdown', a pause, then 'no shutdown' on one Ethernet port as ONE operation behind the revert timer of Admin (configure terminal revert timer; an expired timer returns the whole running configuration to the archive, the port is enabled again). Measured on IOSvL2 15.2(20200924:215240) (task-evidence/g61/raw): show running-config shows 'shutdown' only while the port is disabled; show interfaces N status of the check account reads the Status column (notconnect or connected before, disabled while shut, notconnect or connected after); show interfaces description reads 'admin down'. A port that is already shutdown is refused (port_disabled). The operation has no undo: it ends on the configuration before it and reports the link before and after. The time until a physical link is up again is not measured on the lab nodes (no peer on the test ports); Admin waits at most 20 s of reads of the check account and reports the observed state."
+}

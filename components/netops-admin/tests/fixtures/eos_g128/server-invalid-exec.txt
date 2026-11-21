@@ -1,0 +1,3 @@
+
+> show dhcp server ipv4 invalid-g128 | json
+% Invalid input at line 1

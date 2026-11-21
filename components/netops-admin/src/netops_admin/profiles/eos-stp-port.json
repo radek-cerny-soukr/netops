@@ -1,0 +1,48 @@
+{
+  "platform": "eos",
+  "table": "stp-port",
+  "versions": [
+    "4.36.1F"
+  ],
+  "exact_versions": true,
+  "ops": [
+    "update"
+  ],
+  "table_scoped_key": true,
+  "key_pattern": "^(?:Ethernet[1-9][0-9]{0,2}(?:/[1-9][0-9]{0,2}){0,2}|Port-Channel[1-9][0-9]{0,5})$",
+  "protected_keys": [],
+  "attributes": {
+    "portfast": {
+      "type": "text",
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "required_on_create": false,
+      "pattern": "^(?:edge|normal|network)$",
+      "max_length": 7
+    },
+    "bpdu-guard": {
+      "type": "text",
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "required_on_create": false,
+      "pattern": "^(?:enable|disable)$",
+      "max_length": 7
+    },
+    "cost": {
+      "type": "integer",
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "required_on_create": false,
+      "minimum": 1,
+      "maximum": 200000000
+    }
+  },
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "G125: configures port-wide settings of an unused Layer 2 interface. Unsetting an attribute returns it to the switch default. The EOS session timer and scoped port readback apply."
+}

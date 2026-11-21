@@ -1,0 +1,10 @@
+PING 192.0.2.1     (192.0.2.1) from 192.0.2.55: 56 data bytes
+64 bytes from 192.0.2.1: icmp_seq=0 ttl=63 time=3.513 ms
+64 bytes from 192.0.2.1: icmp_seq=1 ttl=63 time=3.417 ms
+64 bytes from 192.0.2.1: icmp_seq=2 ttl=63 time=3.55 ms
+64 bytes from 192.0.2.1: icmp_seq=3 ttl=63 time=4.04 ms
+64 bytes from 192.0.2.1: icmp_seq=4 ttl=63 time=7.463 ms
+
+--- 192.0.2.1     ping statistics ---
+5 packets transmitted, 5 packets received, 0.00% packet loss
+round-trip min/avg/max = 3.417/4.396/7.463 ms

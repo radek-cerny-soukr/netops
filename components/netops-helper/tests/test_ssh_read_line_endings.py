@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import hashlib
-from types import SimpleNamespace
 
 from netops_core.audit import Recorder
 import pytest
@@ -19,7 +18,7 @@ ROUTE = "FGT-lab # routing entry for 203.0.113.88/32\r\n  via 192.0.2.1\r\n\r\n\
 def _exec(monkeypatch, stdout):
     monkeypatch.setattr(engine, "_resolve_target_ipv4", lambda auth: ["192.0.2.10"])
     monkeypatch.setattr(engine, "host_key_line", lambda *a: "pinned")
-    monkeypatch.setattr(engine, "_exec_command", lambda *a, **k: SimpleNamespace(rc=0, stdout=stdout))
+    monkeypatch.setattr(engine, "_exec_command", lambda *a, **k: engine.core_ssh.Result(0, stdout, "", "", ""))
 
 
 def test_crlf_of_an_exec_read_becomes_lf_and_the_prompt_is_still_removed(monkeypatch):

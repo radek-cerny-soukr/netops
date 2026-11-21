@@ -21,6 +21,7 @@ def test_nxos_connected_and_local_routes_have_no_ip_gateway(tmp_path, monkeypatc
         scoped.setattr(engine, 'host_key_line', engine.host_key_line)
         scoped.setattr(engine, '_lane_directory', engine._lane_directory)
         scoped.setattr(engine.core_ssh, 'run_command', engine.core_ssh.run_command)
+        scoped.setattr(engine.core_session, 'fortinet_session', engine.core_session.fortinet_session)
         result = switch(proxy, code, scoped, {'table': 'route', **({} if whole else {'ip': '192.0.2.1'})})
     assert result['status'] == 'ok', result
     connected = [r for r in result['records'] if r['protocol'] in ('connected', 'local')]
@@ -61,6 +62,7 @@ def test_junos_lookup_returns_only_active_entry_and_all_its_hops(tmp_path, monke
         scoped.setattr(engine, 'host_key_line', engine.host_key_line)
         scoped.setattr(engine, '_lane_directory', engine._lane_directory)
         scoped.setattr(engine.core_ssh, 'run_command', engine.core_ssh.run_command)
+        scoped.setattr(engine.core_session, 'fortinet_session', engine.core_session.fortinet_session)
         result = switch(proxy, code, scoped, {'table': 'route', 'ip': ip})
     assert result['status'] == 'ok', result
     assert {(r['next_hop'], r['protocol']) for r in result['records']} == {

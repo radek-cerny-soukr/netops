@@ -1,0 +1,8 @@
+Logging server: enabled.
+{syslog.example}
+server status: No errors found
+server severity: notifications
+server facility: local7
+server VRF: default
+server port: 6514
+server transport: secure

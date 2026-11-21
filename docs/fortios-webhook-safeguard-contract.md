@@ -1,10 +1,10 @@
 # FortiOS webhook safeguard contract
 
-Status: contract for NetOps 1.0.5. It states what the code must do before the code is written. The full `admin apply` path on FortiOS 8.0.2 build0251 was measured live on 2026-11-02 ([verified support](verified-support.md#admin-safeguard-on-fortios-76-and-80)).
+Status: contract for NetOps 1.0.5, extended in 1.0.12 ([1.0.12 additions](#1012-additions)). It states what the code must do before the code is written. The full `admin apply` path on FortiOS 8.0.2 build0251 was measured live on 2026-11-02 ([verified support](verified-support.md#admin-safeguard-on-fortios-76-and-80)).
 
 ## 1. Why a second mechanism
 
-Every FortiOS Admin write runs behind a one-shot automation stitch installed before the change. On FortiOS 7.6 and 8.0.0 the stitch runs a `cli-script` action that holds the inverse configuration commands. A Fortinet Technical Tip states that from FortiOS 8.0.1 build0185 the auto-script engine allows only information-gathering commands (`get`, `diagnose`). On FortiOS 8.0.2 build0251 (FortiGate 80F) the `cli-script` action of a fired stitch refused every configuration line, while the 8.0.2 Administration Guide still shows CLI script examples with configuration commands. This is an observed refusal on the measured build and the documented statement of the Technical Tip, not a measurement of every 8.0.x build; Admin therefore does not rely on a `cli-script` action to restore configuration from 8.0.1 (see [verified support](verified-support.md)).
+Every supported FortiOS Admin configuration change runs behind a one-shot automation stitch installed before the change; runtime clear operations (session clear, lease release, tunnel recovery) have no inverse and no timed safeguard. On FortiOS 7.6 and 8.0.0 the stitch runs a `cli-script` action that holds the inverse configuration commands. A Fortinet Technical Tip states that from FortiOS 8.0.1 build0185 the auto-script engine allows only information-gathering commands (`get`, `diagnose`). On FortiOS 8.0.2 build0251 (FortiGate 80F) the `cli-script` action of a fired stitch refused every configuration line, while the 8.0.2 Administration Guide still shows CLI script examples with configuration commands. This is an observed refusal on the measured build and the documented statement of the Technical Tip, not a measurement of every 8.0.x build; Admin therefore does not rely on a `cli-script` action to restore configuration from 8.0.1 (see [verified support](verified-support.md)).
 
 Measured on 2026-11-01 on a FortiGate 80F active-passive HA pair with FortiOS 8.0.2 build0251: a one-shot stitch whose action is `webhook` calling the REST API of the same FortiGate removed a new address (`DELETE`), removed a new policy (`DELETE`) and restored a changed policy attribute (`PUT` with `http-body`), each after the administrator session had ended, without traffic loss and with the HA pair in sync. The device logged the change 4 to 5 seconds after `trigger-datetime`. One manual test run returned HTTP 200.
 
@@ -17,11 +17,11 @@ The mechanism follows the firmware of the snapshot; there is no configuration op
 | FortiOS 7.6.x, 8.0.0 | `cli-script` (unchanged) |
 | FortiOS 8.0.1 and later | `webhook` |
 
-A profile still has to list the exact build; unlisted builds are refused as before. Schema transactions (`admin_schema_apply`) keep their own measured build binding and are not changed; they are not covered by the webhook mechanism.
+Since 1.0.12 a build that the profile does not list gets the `untested` warning in `firmware_support` instead of a refusal. Schema transactions (`admin_schema_apply`) keep their own measured build binding and are not changed; they are not covered by the webhook mechanism.
 
 ## 3. Preflight (before any device write)
 
-On webhook firmware Admin refuses the request after profile validation (an unlisted build is refused first, as before) and before installing anything, when any of these fails. Each refusal names the missing condition. The enrollment self-test, every preview and every apply evaluate all of them. `admin doctor` evaluates the conditions that do not depend on a request, 1 to 6, in its check `webhook safeguard`, with the same refusal texts; conditions 7 to 9 depend on the request and are left to preview and apply. The HTTPS admin port is read with `show system global` before any device write; a port that cannot be read refuses the request (*"the HTTPS administration port cannot be read"*):
+On webhook firmware Admin refuses the request after profile validation and before installing anything, when any of these fails. Each refusal names the missing condition. The enrollment self-test, every preview and every apply evaluate all of them. `admin doctor` evaluates the conditions that do not depend on a request, 1 to 6, in its check `webhook safeguard`, with the same refusal texts; conditions 7 to 9 depend on the request and are left to preview and apply. The HTTPS admin port is read with `show system global` before any device write; a port that cannot be read refuses the request (*"the HTTPS administration port cannot be read"*):
 
 1. The device `address` in the Admin configuration is an IPv4 literal. *"the webhook safeguard needs the device address as an IPv4 address, not a host name"*
 2. An interface in the snapshot carries that address (`set ip ADDRESS MASK`). *"the webhook safeguard calls the device at ADDRESS, but no interface holds that address"*
@@ -30,16 +30,16 @@ On webhook firmware Admin refuses the request after profile validation (an unlis
 5. The write credential is a password credential: `execute api-user generate-key` asks for the current administrator password. *"the webhook safeguard needs a password write credential: FortiOS asks for the administrator password when it generates the API key"*
    On these builds the write account has the access profile `super_admin`, taken from its `system admin` entry in the snapshot: only `super_admin` may create the API user (FortiOS 8.0.2 build0251 answers `config system api-user` from any other profile with `command parse error before 'api-user'`). *"the webhook safeguard needs the write account LOGIN with access profile super_admin on FortiOS 8.0.1 and later (only super_admin may create the API user of the safeguard); LOGIN has access profile NAME"*; when the entry is missing: *"the webhook safeguard cannot find the write account LOGIN in system admin; on FortiOS 8.0.1 and later it needs access profile super_admin"*
 6. No `system api-user` or `system accprofile` entry starting with `netops-sg-` exists (left from an earlier operation). *"a safeguard of an earlier operation is still installed: NAME"*
-7. The table has a REST inverse (section 5). `system dhcp server/reserved-address` has none in 1.0.5. *"the webhook safeguard has no REST inverse for table TABLE"*
+7. The table has a REST inverse (section 5). `system dhcp server/reserved-address` had none in 1.0.5; since 1.0.12 it has one ([1.0.12 additions](#1012-additions)). *"the webhook safeguard has no REST inverse for table TABLE"*
 8. The rendered `http-body` is at most 1023 bytes (NetOps limit, the same as the script limit). *"the inverse exceeds the safeguard request body limit"*
-9. For a policy delete (only the undo of a NetOps create), the policy is the last policy in the table, because the `POST` inverse appends it at the end. *"the policy is no longer the last policy; recreating it would change the policy order"*. This check applies to both mechanisms, also on FortiOS 7.6.8: the `cli-script` inverse also recreates the policy at the end. It is a visible change for 7.6.8 users: once another policy has been added after the NetOps policy, its undo is refused.
+9. For a policy delete (in 1.0.5 to 1.0.11 only the undo of a NetOps create; since 1.0.12 also an explicit `delete`), the policy is the last policy in the table, because the `POST` inverse appends it at the end. *"the policy is no longer the last policy; recreating it would change the policy order"*. In 1.0.5 to 1.0.11 this check applied to both mechanisms. Since 1.0.12 the `cli-script` inverse recreates the policy at its original position (a `move` after the create), so on FortiOS 7.6.8 the undo is refused when the original order of the policies changed or, for the undo of a move, the moved policy changed (`fortios_policy_order_changed`); on webhook firmware a policy that is not last is refused with *"the timed REST safeguard cannot recreate and reposition a policy in one request"* (`safeguard_no_rest_inverse`).
 
 ## 4. Sequence
 
 Names use the first 12 characters of the change ID: accprofile `netops-sg-ID12-p`, API user `netops-sg-ID12-u`, action `-a`, trigger `-t`, stitch `-s`.
 
 1. **install**
-   1. accprofile `-p`: `fwgrp read-write`; `secfabgrp`, `ftviewgrp`, `authgrp`, `sysgrp`, `netgrp`, `loggrp`, `vpngrp`, `utmgrp`, `wifi` `none`.
+   1. accprofile `-p`: `read-write` only for the group of the table (`fwgrp`; since 1.0.12 `sysgrp` or `vpngrp`, see [1.0.12 additions](#1012-additions)); `none` for every other of `fwgrp`, `secfabgrp`, `ftviewgrp`, `authgrp`, `sysgrp`, `netgrp`, `loggrp`, `vpngrp`, `utmgrp`, `wifi`.
    2. API user `-u`: `accprofile -p`, `config trusthost` / `edit 1` / `set type ipv4-trusthost` / `set ipv4-trusthost ADDRESS 255.255.255.255`. No `vdom` line (FortiOS 8.0.2 refuses it). FortiOS 8.0.2 build0251 asks `Please enter current administrator password:` after the `next` that saves the API user and after `delete` of an API user; Admin answers with the write credential, and only when the device asks.
    3. `execute api-user generate-key netops-sg-ID12-u`; Admin answers the password prompt with the write credential and reads the token from the answer.
    4. action `-a`: `action-type webhook`, `protocol https`, `method` (section 5), `uri "ADDRESS/api/v2/cmdb/PATH"`, `port ADMIN-SPORT`, `verify-host-cert disable` (the target is the device itself), `http-body` when needed, `http-headers` entry 1 `key "Authorization"`, `value "Bearer TOKEN"`.
@@ -66,9 +66,23 @@ One action per stitch; NetOps never relies on the order of several actions.
 |---|---|---|
 | create | `DELETE /api/v2/cmdb/TABLE/KEY` | measured for address and policy |
 | update | `PUT /api/v2/cmdb/TABLE/KEY`, body with the before value of every changed attribute; an attribute absent before gets its profile default, or `""` without a default | measured for policy `comments` |
-| delete (policy: undo of a create only) | `POST /api/v2/cmdb/TABLE`, body with the key field and every before attribute | measured for policy on 8.0.2 build0251 (FortiGate 80F HA, 2026-11-02): the undo of a policy create with the check account lost after `change_applied` ended `reverted` after `trigger-datetime`; the policy gets a new UUID (already declared in `inverse_identity_changes`); position is kept only because preflight 9 requires the policy to be last |
+| delete (policy: since 1.0.12 a delete or the undo of a create) | `POST /api/v2/cmdb/TABLE`, body with the key field and every before attribute | measured for policy on 8.0.2 build0251 (FortiGate 80F HA, 2026-11-02): the undo of a policy create with the check account lost after `change_applied` ended `reverted` after `trigger-datetime`; the policy gets a new UUID (already declared in `inverse_identity_changes`); position is kept only because preflight 9 requires the policy to be last |
 
 `TABLE` is the table with the space replaced by `/` (`firewall/policy`, `firewall/address`, `firewall/addrgrp`); `KEY` is percent-encoded. Body values: name lists as `[{"name": ...}]`, text as a string, the policy key `policyid` as a number, address and group key `name`.
+
+### 1.0.12 additions
+
+1.0.12 extends the REST inverse to more tables (`fortios.py` `REST_KEYS`, `REST_PATHS`, `REST_PERMISSION`). The new inverses, including the policy `delete` and `move`, are covered by automated tests only; no webhook firing was measured live for them. The REST paths of the DHCP and DNS tables were read with GET on 7.6.8 build3744 and 8.0.2 build0251. `firewall service custom` had its REST inverse before 1.0.12; its `DELETE` and `PUT` inverses were measured live on 8.0.2 build0251 ([opt-in table](admin-configuration.md#opt-in-table-firewall-service-custom-measured-end-to-end)).
+
+| Table | REST path | Key field | Access profile group of the safeguard |
+|---|---|---|---|
+| `system dhcp server/reserved-address` | `system.dhcp/server/SERVER/reserved-address/ID` | `id` | `fwgrp` |
+| `system dns-database/dns-entry` | `system/dns-database/ZONE/dns-entry/ID` | `id` | `sysgrp` |
+| `vpn ipsec phase2-interface` | `vpn.ipsec/phase2-interface/NAME` | `name` | `vpngrp` |
+| `firewall vip` | `firewall/vip/NAME` | `name` | `fwgrp` |
+| `firewall ippool` | `firewall/ippool/NAME` | `name` | `fwgrp` |
+
+The access profile `-p` gets `read-write` only for the group of the table and `none` for every other group. A nested table is addressed under its parent key. An update that removes an attribute without a default sends `""`, an empty list for a list attribute, and `0-65535` for the VIP ports. The undo of a policy `move` is `PUT .../policyid?action=move&before|after=ID` with the validated position, and the inverse of a delete of the last policy is `POST` to the collection. A policy delete whose inverse must recreate and reposition the policy (the policy is not last) is refused with `safeguard_no_rest_inverse`, because one request cannot do both; condition 9 above therefore applies to every policy delete on webhook firmware. Tables without a REST inverse (`system interface`, `router static`, `switch-controller managed-switch/ports`, `port-bounce`, `poe-cycle`) are refused before any write with `safeguard_no_rest_inverse`, and a profile batch with `action_unsupported`, because one webhook request returns one object.
 
 ## 6. Token life cycle
 

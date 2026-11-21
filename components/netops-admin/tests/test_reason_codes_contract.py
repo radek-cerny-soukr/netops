@@ -92,8 +92,8 @@ def test_undo_preview_after_an_undo_is_undo_already_done(tmp_path):
 
 PORT_AND_POE_CODES = {
     "port_protected", "port_management_vlan", "port_uplink", "port_lag_member", "port_lldp_neighbor",
-    "port_learned_mac", "port_usage_unreadable", "port_action_not_measured", "poe_not_capable", "poe_unsupported",
-    "poe_disabled", "poe_state_unreadable", "action_only_table", "action_unsupported", "undo_not_applicable",
+    "port_learned_mac", "port_usage_unreadable", "poe_not_capable", "poe_unsupported",
+    "poe_disabled", "poe_device_not_powered", "poe_state_unreadable", "action_only_table", "action_unsupported", "undo_not_applicable",
 }
 CODE_PATTERNS = (
     re.compile(r'reason_codes=\["([a-z_]+)"'),
@@ -101,6 +101,7 @@ CODE_PATTERNS = (
     re.compile(r'"code": "([a-z_]+)"'),
     re.compile(r'default_code = "([a-z_]+)"'),
     re.compile(r'\["reason_codes"\] = \["([a-z_]+)"\]'),
+    re.compile(r'_reject\("(backup_[a-z_]+)"'),
 )
 
 
@@ -118,6 +119,18 @@ def test_port_and_poe_refusals_carry_named_codes():
     assert PORT_AND_POE_CODES <= _source_codes()
 
 
+def test_the_version_gate_codes_are_gone_and_t1_has_its_technical_code():
+    # G00-1: no refusal names an untested firmware; the technical limit T1 has its own code
+    codes = _source_codes()
+    assert "port_action_not_measured" not in codes
+    assert "safeguard_no_rest_inverse" in codes
+
+
+# Every reason code of the source has its row in docs/admin-configuration.md; a new code needs its row
+# in the same change. Keep this set empty.
+DOCUMENTATION_PENDING = set()
+
+
 def test_every_reason_code_of_the_source_is_documented():
     docs = Path(__file__).resolve().parents[3] / "docs" / "admin-configuration.md"
     if not docs.is_file():
@@ -125,4 +138,4 @@ def test_every_reason_code_of_the_source_is_documented():
     documented = set()
     for row in re.findall(r"^\| (`[a-z_]+`(?:, `[a-z_]+`)*) \|", docs.read_text(encoding="utf-8"), re.MULTILINE):
         documented.update(re.findall(r"`([a-z_]+)`", row))
-    assert _source_codes() - documented == set()
+    assert _source_codes() - documented <= DOCUMENTATION_PENDING

@@ -1,0 +1,11 @@
+BGP neighbor is 198.51.100.1, remote AS 333, ibgp link, Peer index 5
+  BGP version 4, remote router ID 203.0.113.254
+  BGP state = Established, up for 1d05h
+  Peer is directly attached, interface Ethernet1/12
+  Last read 00:00:55, hold time = 180, keepalive interval is 60 seconds
+  Last written 00:00:01, keepalive timer expiry due 00:00:58
+  Received 2766 messages, 0 notifications, 0 bytes in queue
+  Sent 2756 messages, 0 notifications, 0(0) bytes in queue
+  Connections established 2, dropped 1
+  Last reset by peer 1d06h, due to session closed
+  Last reset by us never, due to No error

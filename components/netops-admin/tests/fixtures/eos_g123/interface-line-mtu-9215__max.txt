@@ -1,0 +1,6 @@
+configure terminal
+host01(config)#interface Ethernet12
+host01(config-if-Et12)#mtu 9215
+% Max MTU for Ethernet12 is 9214
+host01(config-if-Et12)#end
+host01#

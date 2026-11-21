@@ -1,0 +1,8 @@
+BGP table version is 27, local router ID is 198.51.100.181
+Status codes: s suppressed, d damped, h history, * valid, > best, i - internal
+Origin codes: i - IGP, e - EGP, ? - incomplete
+Network          Next Hop          Metric LocPrf Weight Path
+*>i10.0.0.0      198.51.100.179         0    100      0 ?
+*> 203.0.113.0   203.0.113.254          0         32768 i
+
+

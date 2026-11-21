@@ -1,0 +1,7 @@
+Ethernet4/1
+  Model: DCS-7280PR3K-24
+  Type: 400GBASE-ZR
+  Speed/duplex: 100G-2/full,400G-8/full(default)
+  Flowcontrol: rx-(off,on),tx-(off)
+  Modulation: 16QAM
+  Error correction: C-FEC(16QAM(default)), O-FEC(16QAM)

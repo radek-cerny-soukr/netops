@@ -115,21 +115,28 @@ def test_each_device_read_is_limited_to_the_time_left():
 
 
 def test_device_access_queries_take_the_read_limit(monkeypatch):
+    from contextlib import nullcontext
+
     handle = access.DeviceAccess.__new__(access.DeviceAccess)
     handle.device = SimpleNamespace(legacy_ssh=None, address="192.0.2.1", port=22, platform="fortios")
-    handle._host_key_lines, handle.credential, timeouts = {"192.0.2.1": "192.0.2.1 ssh-ed25519 AAAA"}, object(), []
+    handle.credential = SimpleNamespace(login="write")
+    timeouts = []
 
-    def run_command(*_arguments, timeout_seconds, **_options):
-        timeouts.append(timeout_seconds)
-        return SimpleNamespace(rc=0, stdout=b"System time: Mon Oct 13 12:00:00 2026\n")
+    def run(_command, *, timeout_seconds, idle_timeout_seconds, **_options):
+        timeouts.append((timeout_seconds, idle_timeout_seconds))
+        return SimpleNamespace(rc=0, stdout=b"System time: Mon Oct 13 12:00:00 2026\n",
+                               continuation=False, context=None)
 
-    monkeypatch.setattr(access.ssh, "run_command", run_command)
-    handle.query("get system status")
-    handle.read_seconds = 7.5
-    handle.query("get system status")
-    handle.read_seconds = 600.0
-    handle.query("get system status")
-    assert timeouts == [access.QUERY_TIMEOUT_SECONDS, 7.5, access.QUERY_TIMEOUT_SECONDS]
+    shell = SimpleNamespace(run=run, context=None)
+    monkeypatch.setattr(access.session, "fortinet_session", lambda *_args, **_options: nullcontext(shell))
+    with handle.operation():
+        handle.query("get system status")
+        handle.read_seconds = 7.5
+        handle.query("get system status")
+        handle.read_seconds = 600.0
+        handle.query("get system status")
+    query = access.QUERY_TIMEOUT_SECONDS
+    assert timeouts == [(query, query), (7.5, 7.5), (query, query)]
 
 
 def audit_event(log):

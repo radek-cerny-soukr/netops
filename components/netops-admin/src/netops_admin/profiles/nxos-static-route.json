@@ -1,0 +1,41 @@
+{
+  "platform": "nxos",
+  "table": "static-route",
+  "versions": [
+    "9.3(12)"
+  ],
+  "exact_versions": true,
+  "ops": [
+    "create",
+    "update",
+    "delete"
+  ],
+  "key_pattern": "^(?:vrf:[A-Za-z][A-Za-z0-9_-]{0,31}:)?(?:[0-9.]{7,15}|[0-9a-f:]{2,39})/[0-9]{1,3}$",
+  "protected_keys": [],
+  "attributes": {
+    "next-hop": {
+      "type": "text",
+      "max_length": 39,
+      "update": true,
+      "unset": false,
+      "referenced_update": false,
+      "required_on_create": true
+    },
+    "distance": {
+      "type": "integer",
+      "update": true,
+      "unset": true,
+      "referenced_update": false,
+      "required_on_create": false,
+      "minimum": 1,
+      "maximum": 255,
+      "default": "1"
+    }
+  },
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "G102 NX-M016, Nexus 9000v NX-OS 9.3(12). A single address next hop per [vrf:NAME:]PREFIX. Default VRF has no qualifier. Distance defaults to 1. NX-OS scheduler and configure replace protect the change. Readback uses the configured static route display and the running configuration for IPv4 distance.",
+  "table_scoped_key": true
+}

@@ -1,0 +1,12 @@
+
+Flags: # - Adjacencies Throttled for Glean
+       G - Adjacencies of vPC peer with G/W bit
+       R - Adjacencies learnt remotely
+       CP - Added via L2RIB, Control plane Adjacencies
+       PS - Added via L2RIB, Peer Sync
+       RO - Re-Originated Peer Sync Entry
+       CC - Consistency check pending
+
+IPv6 Adjacency Table for VRF default
+Total number of entries: 0
+Address         Age       MAC Address     Pref Source     Interface       Flags

@@ -1,0 +1,26 @@
+{
+  "platform": "nxos",
+  "table": "interface-access-group",
+  "versions": ["9.3(12)"],
+  "exact_versions": true,
+  "ops": ["update"],
+  "table_scoped_key": true,
+  "key_pattern": "^(?:Ethernet[1-9][0-9]{0,2}/[1-9][0-9]{0,2}(?:/[1-9][0-9]{0,2})?|Vlan[1-9][0-9]{0,3}):(?:ipv4|ipv6):(?:in|out)$",
+  "protected_keys": [],
+  "attributes": {
+    "acl": {
+      "type": "text",
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "required_on_create": false,
+      "max_length": 64,
+      "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$"
+    }
+  },
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "G103 NX-M021. Update acl with a named ACL of the selected IP family or null to detach it. Ethernet switchports support ingress PACL only. Routed Ethernet and SVIs use RACL commands subject to hardware capability. Protects management and uplinks and uses the NX-OS timed safeguard."
+}

@@ -1,0 +1,26 @@
+{
+ "ports_rx_errors_t1": {
+  "captured_at": "2026-11-17T09:33:03.564311+00:00",
+  "command": "show ports rxerrors no-refresh",
+  "lines": 18,
+  "rc": 0
+ },
+ "ports_rx_errors_t2": {
+  "captured_at": "2026-11-17T09:34:36.171669+00:00",
+  "command": "show ports rxerrors no-refresh",
+  "lines": 18,
+  "rc": 0
+ },
+ "ports_tx_errors_t1": {
+  "captured_at": "2026-11-17T09:33:04.478876+00:00",
+  "command": "show ports txerrors no-refresh",
+  "lines": 19,
+  "rc": 0
+ },
+ "ports_tx_errors_t2": {
+  "captured_at": "2026-11-17T09:34:37.087890+00:00",
+  "command": "show ports txerrors no-refresh",
+  "lines": 19,
+  "rc": 0
+ }
+}

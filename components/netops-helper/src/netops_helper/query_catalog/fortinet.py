@@ -17,6 +17,13 @@ from .model import (
 
 
 QUERIES: dict[str, Query] = {
+    "extender_modem_status": Query(
+        "get extender modem-status {serial}",
+        {"serial": Slot(LITERAL, "fortios_extender_serial")},
+        "Read connection and signal status for one FortiExtender serial number (FX followed by 12 to 14 uppercase "
+        "ASCII letters or digits). Modem and subscriber identifiers are redacted.",
+        high_volume=False,
+    ),
     "route_cache": Query(
         "diagnose ip rtcache list",
         NO_SLOTS,
@@ -211,6 +218,31 @@ QUERIES: dict[str, Query] = {
         NO_SLOTS,
         "Show disk inventory and health information.",
     ),
+    # G13 (1.0.12): measured with a read-only account on FortiGate-80F 8.0.2 build0251 (fixture g13_20261117).
+    "hardware_sensors": Query(
+        "execute sensor detail",
+        NO_SLOTS,
+        "List the hardware sensors this FortiGate model reports (temperatures, power supplies, fans and voltages "
+        "where present) with reading, type, sensor status, alarm flag and thresholds; ssh_read adds a parsed "
+        "sensors object. An absent optional power supply is reported as absent, not as an alarm.",
+    ),
+    "crash_log": Query(
+        "diagnose debug crashlog read",
+        NO_SLOTS,
+        "Read the crash log history (killed or restarted daemons, crash dumps, interface events) without clearing "
+        "it; ssh_read adds a parsed crash_log object whose state is ok or empty (empty output means an empty crash "
+        "log). A refused or unavailable read is an error, never an empty log. Times are the FortiGate wall clock "
+        "without a time zone.",
+        high_volume=True,
+        empty_allowed=True,
+    ),
+    "config_error_log": Query(
+        "diagnose debug config-error-log read",
+        NO_SLOTS,
+        "Read the configuration error log (configuration lines the device rejected when it loaded the "
+        "configuration, for example after an upgrade) without clearing it; empty output means no error is recorded.",
+        empty_allowed=True,
+    ),
     "physical_interfaces": Query(
         "get system interface physical",
         NO_SLOTS,
@@ -237,6 +269,62 @@ QUERIES: dict[str, Query] = {
         "get router info routing-table all",
         NO_SLOTS,
         "Show the IPv4 routing table.",
+        high_volume=True,
+    ),
+    # G11 (1.0.12): measured with read-only accounts on FortiGate-60F 7.6.8 build3744 and FortiGate-80F 8.0.2
+    # build0251 (fixtures real/fortinet/g11_20261118).
+    "ipv6_routing_table": Query(
+        "get router info6 routing-table",
+        NO_SLOTS,
+        "Show the whole IPv6 routing table (installed routes); table route with address_family ipv6 parses it.",
+        high_volume=True,
+    ),
+    "routing_table_database": Query(
+        "get router info routing-table database",
+        NO_SLOTS,
+        "Show the IPv4 routing information base including routes that are not selected or not installed; "
+        "ssh_read adds a parsed route_database object that lists the inactive routes.",
+        high_volume=True,
+    ),
+    "ipv6_routing_table_database": Query(
+        "get router info6 routing-table database",
+        NO_SLOTS,
+        "Show the IPv6 routing information base including routes that are not selected or not installed; "
+        "ssh_read adds a parsed route_database object that lists the inactive routes.",
+        high_volume=True,
+    ),
+    "bgp_neighbor_detail": Query(
+        "get router info bgp neighbors {peer}",
+        {"peer": Slot("addresses", "ipv4_address")},
+        "Show BGP neighbor detail (state, uptime, last reset and its reason, timers, capabilities, messages) of "
+        "every neighbor or of one enrolled IPv4 peer; ssh_read adds a parsed bgp_neighbors object; empty output means "
+        "no BGP neighbor is configured (measured on a FortiGate without BGP); an unknown peer is no_such_neighbor.",
+        high_volume=True, optional_slots=frozenset({"peer"}), empty_allowed=True,
+    ),
+    "ipv6_bgp_neighbor_detail": Query(
+        "get router info6 bgp neighbors {peer6}",
+        {"peer6": Slot("addresses", "ipv6_address")},
+        "Show the IPv6 address-family BGP neighbor detail of every neighbor or of one enrolled IPv6 peer; "
+        "ssh_read adds a parsed bgp_neighbors object; empty output means no BGP neighbor is configured.",
+        high_volume=True, optional_slots=frozenset({"peer6"}), empty_allowed=True,
+    ),
+    "interface_list": Query(
+        "diagnose netlink interface list",
+        NO_SLOTS,
+        "List every kernel interface (physical, VLAN, aggregate, tunnel, loopback) with its administrative and "
+        "link state, MTU, aggregate membership, RX/TX byte counters, sampled bit rates and available link speeds; "
+        "ssh_read adds a parsed interfaces object using two netlink device samples and one packet-rate query.",
+        high_volume=True,
+    ),
+    "local_stp_ports": Query(
+        "get system stp list", NO_SLOTS,
+        "Show STP state of the ports of FortiGate hardware switches; empty output means no STP state is reported.",
+        high_volume=True, empty_allowed=True,
+    ),
+    "local_switch_vlans": Query(
+        "show system virtual-switch", NO_SLOTS,
+        "Show port and VLAN membership of FortiGate hardware switches. switch_read port_vlan also reads "
+        "get system interface to resolve VLAN IDs. Trunk membership is reported as incomplete when unavailable.",
         high_volume=True,
     ),
     "route_lookup": Query(
@@ -412,6 +500,18 @@ QUERIES: dict[str, Query] = {
         "List DHCP leases on one enrolled interface, retaining IP/MAC/hostname association; a lease does not prove current client connectivity.",
         high_volume=True,
     ),
+    # 1.0.12 G20 (FP-12): every lease of every DHCP server interface at once; ssh_read adds a normalized `dhcp_leases`
+    # object. Measured with a read-only account on FortiGate-60F 7.6.8 build3744 (tests/fixtures/real/fortinet/
+    # fortigate60f_7.6.8_g20).
+    "dhcp_leases_all": Query(
+        "execute dhcp lease-list",
+        NO_SLOTS,
+        "List the DHCP leases of all server interfaces (interface, IP, MAC, host name, VCI, SSID, AP, server ID, "
+        "expiry); ssh_read adds a parsed dhcp_leases object with per-interface counts. An empty output means no lease "
+        "is held; a lease does not prove current client connectivity. Needs an account that may run execute.",
+        high_volume=True,
+        empty_allowed=True,
+    ),
     "ipsec_tunnel_statistics": Query(
         "diagnose vpn tunnel stat",
         NO_SLOTS,
@@ -421,6 +521,21 @@ QUERIES: dict[str, Query] = {
         "diagnose vpn ipsec status",
         NO_SLOTS,
         "Show aggregate IPsec subsystem status.",
+    ),
+    # G14 (FP-09): name-scoped detail of one enrolled phase-1 tunnel. Both commands print key material even to
+    # a read-only account; the Helper withholds it right after the read (sanitize.redact_fortios_ipsec_keys).
+    "ike_gateway_detail": Query(
+        "diagnose vpn ike gateway list name {tunnel}",
+        {"tunnel": Slot("ipsec_tunnels", "fortios_ipsec_tunnel")},
+        "Show the IKE (phase 1) SAs of one enrolled IPsec tunnel: peer, IKE version, SA counts, state, proposal "
+        "and DPD counters; IKE session keys are withheld; empty output means no IKE SA exists for the name.",
+        empty_allowed=True,
+    ),
+    "ipsec_tunnel_detail": Query(
+        "diagnose vpn tunnel list name {tunnel}",
+        {"tunnel": Slot("ipsec_tunnels", "fortios_ipsec_tunnel")},
+        "Show the phase 2 selectors, SA presence, packet/byte counters and DPD state of one enrolled IPsec "
+        "tunnel; ESP keys are withheld.",
     ),
     "bgp_advertised_ipv4": Query(
         "get router info bgp neighbors {peer} advertised-routes",
@@ -547,6 +662,15 @@ QUERIES: dict[str, Query] = {
         "diagnose vpn ssl statistics",
         NO_SLOTS,
         "Show aggregate SSL VPN (Agentless VPN) statistics; absent on models without SSL VPN.",
+    ),
+    # Measured with a read-only account on FortiGate-80F 8.0.2 build0251 (fixture g08_20261117/captures.json).
+    "user_devices": Query(
+        "diagnose user device list",
+        NO_SLOTS,
+        "List the devices this FortiGate has detected (MAC, IPv4/IPv6, host name, OS, vendor, type, interface, "
+        "seconds since created and last seen), including devices that are no longer connected; ssh_read adds a "
+        "parsed devices object. A large seen value means the device has not been seen for that long.",
+        high_volume=True,
     ),
     "firewall_auth_users": Query(
         "diagnose firewall auth list",

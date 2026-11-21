@@ -1,0 +1,10 @@
+Switch DHCP snooping is disabled
+DHCP snooping is configured on the following VLANs:
+none
+DHCP snooping is operational on the following VLANs:
+none
+Insertion of Option 82 is disabled
+Verification of MAC address is enabled
+DHCP snooping trust is configured on the following interfaces:
+Interface             Trusted
+------------          -------

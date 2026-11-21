@@ -1,0 +1,4 @@
+Syntax error while parsing 'show interface loopback 900'
+
+
+Cmd exec error.

@@ -1,0 +1,22 @@
+Packets dropped:
+    Total                      40
+    Event Rate Analyzer        40
+
+Messages received:
+    BOOTREQUEST                1320
+    DHCPDECLINE                0
+    DHCPDISCOVER               660
+    DHCPINFORM                 0
+    DHCPRELEASE                0
+    DHCPREQUEST                660
+    DHCPLEASEACTIVE            0
+    DHCPLEASEUNASSIGNED        0
+    DHCPLEASEUNKNOWN           0
+    DHCPLEASEQUERYDONE         0
+    DHCPACTIVELEASEQUERY       0
+
+Messages sent:
+    BOOTREPLY                  961
+    DHCPOFFER                  660
+    DHCPACK                    301
+    DHCPNAK                    0

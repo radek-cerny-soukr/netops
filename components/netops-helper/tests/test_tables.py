@@ -86,7 +86,7 @@ def test_canonical_endpoint_and_filters():
         t.request('extreme_exos', 'vlan', vlan_id='101;show')
     # EXOS has no lookup template: the whole table is read and narrowed locally
     assert t.request('extreme_exos', 'route', ip='192.0.2.1') == ('route_table', {}, {})
-    assert t.request('extreme_exos', 'route', ip='2001:db8::1')[0] is None
+    assert t.request('extreme_exos', 'route', ip='2001:db8::1')[0] == 'ipv6_route_table'
 
 
 def test_each_binding_is_catalogue_backed():
@@ -275,10 +275,18 @@ def test_routing_peer_and_layer_two_tables_are_bound_where_the_catalogue_prints_
         assert t.request(profile, table)[0] is not None
     # Common Junos has no spanning-tree template (ELS only); EXOS also has the sharing LAG source.
     assert (t.request('juniper_junos', table)[0] is not None) == (table != 'stp_port')
-    assert t.request('extreme_exos', table)[0] == ('lag_summary' if table == 'lag' else None)
-    for profile in (('fortinet',) if table == 'lag' else ('extreme_exos', 'fortinet')):
+    assert t.request('extreme_exos', table)[0] == ('lag_summary' if table == 'lag' else 'stp_ports' if table == 'stp_port' else None)
+    for profile in (() if table in ('stp_port', 'lag') else ('extreme_exos',)):
         assert t.request(profile, table)[0] is None
         assert t.parse(profile, table, None, '', status='unsupported')['status'] == 'unsupported'
+    # G11 (FP-07): the FortiGate itself reads its routing peers and one enrolled aggregate.
+    if table == 'lag':
+        with pytest.raises(ValueError):
+            t.request('fortinet', table)
+        assert t.request('fortinet', table, interface='fortilink') == ('lacp_detail', {'aggregate': 'fortilink'}, {})
+    else:
+        assert t.request('fortinet', table)[0] == {
+            'ospf_neighbor': 'ospf_neighbors', 'bgp_peer': 'bgp_summary', 'stp_port': 'local_stp_ports'}[table]
 
 
 @pytest.mark.parametrize('text', ['% BGP not active\r\n', '\n> show ip bgp summary\n% BGP inactive at line 1\n', '! IPv6 routing not enabled\n',

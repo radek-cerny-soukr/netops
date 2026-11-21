@@ -1,0 +1,15 @@
+config system dhcp server
+    edit 3
+        set dns-service default
+        set default-gateway 192.0.2.1
+        set netmask 255.255.255.0
+        set interface "quarantine"
+        config ip-range
+            edit 1
+                set start-ip 192.0.2.2
+                set end-ip 192.0.2.254
+            next
+        end
+        set timezone-option default
+    next
+end

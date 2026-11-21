@@ -1,0 +1,43 @@
+{
+    "vrfs": {
+        "default": {
+            "instList": {
+                "29": {
+                    "interfaces": {}
+                },
+                "126": {
+                    "interfaces": {
+                        "Loopback126": {
+                            "state": "w***[x435-8p-4s:login]***ting",
+                            "priority": 1,
+                            "cost": 126,
+                            "neighborCount": 0,
+                            "helloInterval": 10,
+                            "deadInterval": 40,
+                            "retransmitInterval": 5,
+                            "transmitDelay": 1,
+                            "options": {
+                                "multitopologyCapability": false,
+                                "externalRoutingCapability": false,
+                                "multicastCapability": false,
+                                "nssaCapability": false,
+                                "linkLocalSignaling": false,
+                                "demandCircuitsSupport": false,
+                                "opaqueLsaSupport": false,
+                                "doNotUseInRouteCalc": false
+                            },
+                            "area": "198.51.100.126",
+                            "interfaceAddress": "192.0.2.126",
+                            "interfaceMask": 24,
+                            "interfaceType": "broadcast",
+                            "bfdState": "default",
+                            "passive": true,
+                            "teEnabled": false,
+                            "tilfaProtection": "disabled"
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

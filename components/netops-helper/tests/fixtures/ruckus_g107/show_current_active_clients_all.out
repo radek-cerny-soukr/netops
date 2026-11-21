@@ -1,0 +1,423 @@
+show current-active-clients all
+
+Current Active Clients:
+
+  Clients:
+
+    Mac Address= 00:00:5e:00:53:04
+
+    OS/Type= Android
+
+    Host Name= host-01
+
+    User/IP= 198.51.100.6
+
+    Role= 
+
+    Access Point= 00:00:5e:00:53:02
+
+    BSSID= 00:00:5e:00:53:05
+
+    Connect Since=2026/11/17 19:30:46
+
+    Auth Method= Open
+
+    WLAN= ssid01
+
+    VLAN= 20
+
+    Channel= 11
+
+    Radio= 802.11gn
+
+    Signal= 67
+
+    Status= Authorized
+
+  Clients:
+
+    Mac Address= 00:00:5e:00:53:06
+
+    OS/Type= 
+
+    Host Name= host-02
+
+    User/IP= 198.51.100.9
+
+    Role= 
+
+    Access Point= 00:00:5e:00:53:02
+
+    BSSID= 00:00:5e:00:53:05
+
+    Connect Since=2026/11/05 18:24:15
+
+    Auth Method= Open
+
+    WLAN= ssid01
+
+    VLAN= 20
+
+    Channel= 11
+
+    Radio= 802.11gn
+
+    Signal= 57
+
+    Status= Authorized
+
+  Clients:
+
+    Mac Address= 00:00:5e:00:53:07
+
+    OS/Type= 
+
+    Host Name= host-03
+
+    User/IP= 203.0.113.101
+
+    Role= Default
+
+    Access Point= 00:00:5e:00:53:02
+
+    BSSID= 00:00:5e:00:53:08
+
+    Connect Since=2026/11/17 19:18:31
+
+    Auth Method= Web
+
+    WLAN= ssid02
+
+    VLAN= 30
+
+    Channel= 11
+
+    Radio= 802.11gn
+
+    Signal= 44
+
+    Status= Authorized
+
+  Clients:
+
+    Mac Address= 00:00:5e:00:53:09
+
+    OS/Type= Apple iOS
+
+    Host Name= host-04
+
+    User/IP= 192.0.2.116
+
+    Role= 
+
+    Access Point= 00:00:5e:00:53:02
+
+    BSSID= 00:00:5e:00:53:0a
+
+    Connect Since=2026/11/17 16:06:03
+
+    Auth Method= Open
+
+    WLAN= ssid03
+
+    VLAN= 1
+
+    Channel= 56
+
+    Radio= 802.11ac
+
+    Signal= 38
+
+    Status= Authorized
+
+  Clients:
+
+    Mac Address= 00:00:5e:00:53:0b
+
+    OS/Type= Apple iOS
+
+    Host Name= host-05
+
+    User/IP= 203.0.113.102
+
+    Role= Default
+
+    Access Point= 00:00:5e:00:53:02
+
+    BSSID= 00:00:5e:00:53:08
+
+    Connect Since=2026/11/17 17:48:42
+
+    Auth Method= Web
+
+    WLAN= ssid02
+
+    VLAN= 30
+
+    Channel= 11
+
+    Radio= 802.11gn
+
+    Signal= 40
+
+    Status= Authorized
+
+  Clients:
+
+    Mac Address= 00:00:5e:00:53:0c
+
+    OS/Type= Mac OS
+
+    Host Name= host-06
+
+    User/IP= 198.51.100.78
+
+    Role= 
+
+    Access Point= 00:00:5e:00:53:02
+
+    BSSID= 00:00:5e:00:53:05
+
+    Connect Since=2026/11/17 09:20:16
+
+    Auth Method= Open
+
+    WLAN= ssid01
+
+    VLAN= 20
+
+    Channel= 11
+
+    Radio= 802.11gn
+
+    Signal= 38
+
+    Status= Authorized
+
+  Clients:
+
+    Mac Address= 00:00:5e:00:53:0d
+
+    OS/Type= 
+
+    Host Name= host-07
+
+    User/IP= 198.51.100.10
+
+    Role= 
+
+    Access Point= 00:00:5e:00:53:02
+
+    BSSID= 00:00:5e:00:53:05
+
+    Connect Since=2026/11/16 02:40:48
+
+    Auth Method= Open
+
+    WLAN= ssid01
+
+    VLAN= 20
+
+    Channel= 11
+
+    Radio= 802.11gn
+
+    Signal= 60
+
+    Status= Authorized
+
+  Clients:
+
+    Mac Address= 00:00:5e:00:53:0e
+
+    OS/Type= Apple iOS
+
+    Host Name= host-08
+
+    User/IP= 198.51.100.73
+
+    Role= 
+
+    Access Point= 00:00:5e:00:53:02
+
+    BSSID= 00:00:5e:00:53:05
+
+    Connect Since=2026/11/17 20:05:57
+
+    Auth Method= Open
+
+    WLAN= ssid01
+
+    VLAN= 20
+
+    Channel= 11
+
+    Radio= 802.11gn
+
+    Signal= 30
+
+    Status= Authorized
+
+  Clients:
+
+    Mac Address= 00:00:5e:00:53:0f
+
+    OS/Type= 
+
+    Host Name= host-09
+
+    User/IP= 192.0.2.50
+
+    Role= 
+
+    Access Point= 00:00:5e:00:53:02
+
+    BSSID= 00:00:5e:00:53:0a
+
+    Connect Since=2026/11/17 19:42:34
+
+    Auth Method= Open
+
+    WLAN= ssid03
+
+    VLAN= 1
+
+    Channel= 56
+
+    Radio= 802.11ac
+
+    Signal= 40
+
+    Status= Authorized
+
+  Clients:
+
+    Mac Address= 00:00:5e:00:53:10
+
+    OS/Type= Apple iOS
+
+    Host Name= host-10
+
+    User/IP= 203.0.113.103
+
+    Role= Default
+
+    Access Point= 00:00:5e:00:53:02
+
+    BSSID= 00:00:5e:00:53:08
+
+    Connect Since=2026/11/17 18:03:11
+
+    Auth Method= Web
+
+    WLAN= ssid02
+
+    VLAN= 30
+
+    Channel= 11
+
+    Radio= 802.11gn
+
+    Signal= 50
+
+    Status= Authorized
+
+  Clients:
+
+    Mac Address= 00:00:5e:00:53:11
+
+    OS/Type= Apple iOS
+
+    Host Name= host-11
+
+    User/IP= 198.51.100.101
+
+    Role= 
+
+    Access Point= 00:00:5e:00:53:02
+
+    BSSID= 00:00:5e:00:53:05
+
+    Connect Since=2026/11/17 17:02:00
+
+    Auth Method= Open
+
+    WLAN= ssid01
+
+    VLAN= 20
+
+    Channel= 11
+
+    Radio= 802.11gn
+
+    Signal= 54
+
+    Status= Authorized
+
+  Clients:
+
+    Mac Address= 00:00:5e:00:53:12
+
+    OS/Type= Apple iOS
+
+    Host Name= host-12
+
+    User/IP= 203.0.113.100
+
+    Role= Default
+
+    Access Point= 00:00:5e:00:53:02
+
+    BSSID= 00:00:5e:00:53:08
+
+    Connect Since=2026/11/17 17:46:32
+
+    Auth Method= Web
+
+    WLAN= ssid02
+
+    VLAN= 30
+
+    Channel= 11
+
+    Radio= 802.11gn
+
+    Signal= 42
+
+    Status= Authorized
+
+  Clients:
+
+    Mac Address= 00:00:5e:00:53:13
+
+    OS/Type= 
+
+    Host Name= host-13
+
+    User/IP= 192.0.2.65
+
+    Role= 
+
+    Access Point= 00:00:5e:00:53:02
+
+    BSSID= 00:00:5e:00:53:0a
+
+    Connect Since=2026/11/17 19:31:33
+
+    Auth Method= Open
+
+    WLAN= ssid03
+
+    VLAN= 1
+
+    Channel= 56
+
+    Radio= 802.11ac
+
+    Signal= 41
+
+    Status= Authorized
+
+ 
+
+Last 300 Events/Activities:

@@ -1,0 +1,24 @@
+Log Buffer (4096 bytes):
+.88.33 (tty = 0) using crypto cipher 'chacha20-poly1305@openssh.com', hmac 'hmac-sha2-256-etm@openssh.com' Succeeded
+*Nov 19 10:29:03.582: %SYS-6-LOGOUT: User user01    has exited tty session 2(192.0.2.33)
+*Nov 19 10:29:03.582: %SSH-5-SSH2_CLOSE: SSH2 Session from 192.0.2.33    (tty = 0) for user 'user01' using crypto cipher 'chacha20-poly1305@openssh.com', hmac 'hmac-sha2-256-etm@openssh.com' closed
+*Nov 19 10:29:04.595: %SSH-5-SSH2_SESSION: SSH2 Session request from 192.0.2.33    (tty = 0) using crypto cipher 'chacha20-poly1305@openssh.com', hmac 'hmac-sha2-256-etm@openssh.com' Succeeded
+*Nov 19 10:29:04.872: %SEC_LOGIN-5-LOGIN_SUCCESS: Login Success [user: user01] [Source: 192.0.2.33] [localport: 22] at 11:29:04 CET Thu Nov 19 2026
+*Nov 19 10:29:04.872: %SSH-5-SSH2_USERAUTH: User 'user01' authentication for SSH2 Session from 192.0.2.33    (tty = 0) using crypto cipher 'chacha20-poly1305@openssh.com', hmac 'hmac-sha2-256-etm@openssh.com' Succeeded
+*Nov 19 10:29:04.875: %SSH-5-SSH2_CLOSE: SSH2 Session from 192.0.2.33    (tty = 0) for user 'user01' using crypto cipher 'chacha20-poly1305@openssh.com', hmac 'hmac-sha2-256-etm@openssh.com' closed
+*Nov 19 10:29:05.898: %SSH-5-SSH2_SESSION: SSH2 Session request from 192.0.2.33    (tty = 0) using crypto cipher 'chacha20-poly1305@openssh.com', hmac 'hmac-sha2-256-etm@openssh.com' Succeeded
+*Nov 19 10:29:06.258: %SEC_LOGIN-5-LOGIN_SUCCESS: Login Success [user: user01] [Source: 192.0.2.33] [localport: 22] at 11:29:06 CET Thu Nov 19 2026
+*Nov 19 10:29:06.258: %SSH-5-SSH2_USERAUTH: User 'user01' authentication for SSH2 Session from 192.0.2.33    (tty = 0) using crypto cipher 'chacha20-poly1305@openssh.com', hmac 'hmac-sha2-256-etm@openssh.com' Succeeded
+*Nov 19 10:29:06.263: %SSH-5-SSH2_CLOSE: SSH2 Session from 192.0.2.33    (tty = 0) for user 'user01' using crypto cipher 'chacha20-poly1305@openssh.com', hmac 'hmac-sha2-256-etm@openssh.com' closed
+*Nov 19 10:29:07.272: %SSH-5-SSH2_SESSION: SSH2 Session request from 192.0.2.33    (tty = 0) using crypto cipher 'chacha20-poly1305@openssh.com', hmac 'hmac-sha2-256-etm@openssh.com' Succeeded
+*Nov 19 10:29:07.556: %SEC_LOGIN-5-LOGIN_SUCCESS: Login Success [user: user01] [Source: 192.0.2.33] [localport: 22] at 11:29:07 CET Thu Nov 19 2026
+*Nov 19 10:29:07.556: %SSH-5-SSH2_USERAUTH: User 'user01' authentication for SSH2 Session from 192.0.2.33    (tty = 0) using crypto cipher 'chacha20-poly1305@openssh.com', hmac 'hmac-sha2-256-etm@openssh.com' Succeeded
+*Nov 19 10:29:07.560: %SSH-5-SSH2_CLOSE: SSH2 Session from 192.0.2.33    (tty = 0) for user 'user01' using crypto cipher 'chacha20-poly1305@openssh.com', hmac 'hmac-sha2-256-etm@openssh.com' closed
+*Nov 19 10:36:32.735: %SSH-4-SSH2_UNEXPECTED_MSG: Unexpected message type has arrived. Terminating the connection from 192.0.2.66
+*Nov 19 10:36:32.735: %SSH-5-SSH2_SESSION: SSH2 Session request from 192.0.2.66    (tty = 0) using crypto cipher 'chacha20-poly1305@openssh.com', hmac 'hmac-sha2-256-etm@openssh.com' Failed
+*Nov 19 10:36:32.735: %SSH-5-SSH2_CLOSE: SSH2 Session from 192.0.2.66    (tty = 0) for user '' using crypto cipher 'chacha20-poly1305@openssh.com', hmac 'hmac-sha2-256-etm@openssh.com' closed
+*Nov 19 10:36:53.590: %SSH-5-SSH2_SESSION: SSH2 Session request from 192.0.2.33    (tty = 0) using crypto cipher 'chacha20-poly1305@openssh.com', hmac 'hmac-sha2-256-etm@openssh.com' Succeeded
+*Nov 19 10:36:53.813: %SEC_LOGIN-5-LOGIN_SUCCESS: Login Success [user: user01] [Source: 192.0.2.33] [localport: 22] at 11:36:53 CET Thu Nov 19 2026
+*Nov 19 10:36:53.813: %SSH-5-SSH2_USERAUTH: User 'user01' authentication for SSH2 Session from 192.0.2.33    (tty = 0) using crypto cipher 'chacha20-poly1305@openssh.com', hmac 'hmac-sha2-256-etm@openssh.com' Succeeded
+*Nov 19 10:36:53.817: %SYS-6-LOGOUT: User user01    has exited tty session 2(192.0.2.33)
+*Nov 19 10:36:53.817: %SSH-5-SSH2_CLOSE: SSH2 Session from 192.0.2.33    (tty = 0) for user 'user01' using crypto cipher 'chacha20-poly1305@openssh.com', hmac 'hmac-sha2-256-etm@openssh.com' closed

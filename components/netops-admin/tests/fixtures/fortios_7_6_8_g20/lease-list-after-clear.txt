@@ -1,0 +1,6 @@
+_default
+  IP		MAC-Address		Hostname            VCI                 SSID                AP                  SERVER-ID           Expiry
+  192.0.2.12	00:00:5e:00:53:12	host-a                                                                          6                   Wed Nov 25 21:07:19 2026
+fortilink
+  IP		MAC-Address		Hostname            VCI                 SSID                AP                  SERVER-ID           Expiry
+  192.0.2.13	00:00:5e:00:53:13	SERIAL0000000001    FortiSwitch-108E                                            2                   Wed Nov 25 22:03:32 2026

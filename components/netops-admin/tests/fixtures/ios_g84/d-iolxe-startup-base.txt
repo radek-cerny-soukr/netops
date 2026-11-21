@@ -1,0 +1,5 @@
+Using 4689 out of 65536 bytes
+version 17.18
+hostname host02
+clock timezone CET 1 0
+end

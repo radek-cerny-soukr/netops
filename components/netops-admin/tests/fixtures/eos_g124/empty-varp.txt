@@ -1,0 +1,12 @@
+{
+    "virtualMacs": [
+        {
+            "macAddress": "00:00:00:00:00:00",
+            "macType": "varp",
+            "mask": "ff:ff:ff:ff:ff:ff",
+            "subnetRoutes": false
+        }
+    ],
+    "advertiseInterval": 30,
+    "virtualRouters": []
+}

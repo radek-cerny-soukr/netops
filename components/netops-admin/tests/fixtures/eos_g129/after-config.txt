@@ -1,0 +1,3 @@
+logging host 192.0.2.30
+ip name-server vrf default 192.0.2.31
+ntp server 192.0.2.29    source Loopback0

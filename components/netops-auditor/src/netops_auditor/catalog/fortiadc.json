@@ -15,8 +15,31 @@
         "version",
         "build"
       ],
-      "title": "The snapshot carries no measured identity or not exactly FortiADC-KVM 7.6.7 build 0676, so no other rule of the catalog was evaluated over it.",
-      "remediation": "Audit a snapshot read from FortiADC-KVM 7.6.7 build 0676 and pass its metadata with --snapshot-meta.",
+      "title": "The snapshot carries no identity metadata, or the identity is not a FortiADC product, so no other rule of the catalog was evaluated over it.",
+      "remediation": "Audit a snapshot read from a FortiADC and pass its metadata with --snapshot-meta.",
+      "refs": [
+        "FortiADC 7.6.7 CLI Reference: get system status (379949)"
+      ],
+      "known_false_positives": "The identity comes from the metadata file bound to the snapshot digest, never from the configuration text; a metadata file written by hand is trusted as far as the operator who wrote it."
+    },
+    {
+      "id": "fortiadc.scope.untested-version",
+      "version": 1,
+      "check": "fortiadc_untested_version",
+      "sections": [],
+      "class": "fakt",
+      "severity": "info",
+      "evidence_fields": [
+        "reason",
+        "platform",
+        "version",
+        "build",
+        "status",
+        "tested_versions",
+        "message"
+      ],
+      "title": "The snapshot identity is a FortiADC model, version or build the catalog was not tested on (tested: FortiADC-KVM 7.6.7 build 0676); the rules were evaluated and may or may not work as designed and tested there.",
+      "remediation": "Check the results of the other rules against the CLI reference of this FortiADC version; no change on the device is needed for this notice.",
       "refs": [
         "FortiADC 7.6.7 CLI Reference: get system status (379949)"
       ],

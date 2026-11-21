@@ -1,0 +1,26 @@
+{
+  "platform": "eos",
+  "table": "interface-access-group",
+  "versions": ["4.36.1F"],
+  "exact_versions": true,
+  "ops": ["update"],
+  "table_scoped_key": true,
+  "key_pattern": "^(?:Ethernet[1-9][0-9]{0,2}(?:/[1-9][0-9]{0,2}){0,2}|Vlan[1-9][0-9]{0,3}|Management[0-9]+(?:/[0-9]+)?):(?:ipv4|ipv6):(?:in|out)$",
+  "protected_keys": [],
+  "attributes": {
+    "acl": {
+      "type": "text",
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "required_on_create": false,
+      "max_length": 64,
+      "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$"
+    }
+  },
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "G127 on cEOSLab 4.36.1F uses the EOS timed safeguard and validates configured and active ACLs. The key is <interface>:ipv4|ipv6:in|out. Update acl with an existing ACL name or null to remove the attachment. Management paths, port-channel members and uplinks are protected."
+}

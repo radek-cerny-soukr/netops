@@ -1,0 +1,108 @@
+{
+  "platform": "fortios",
+  "table": "system interface",
+  "versions": [
+    "7.6.8 build3744"
+  ],
+  "exact_versions": true,
+  "ops": [
+    "create",
+    "update",
+    "delete"
+  ],
+  "key_pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,14}$",
+  "protected_keys": [],
+  "attributes": {
+    "alias": {
+      "type": "text",
+      "max_length": 25,
+      "default": "",
+      "required_on_create": false,
+      "update": true,
+      "unset": true,
+      "referenced_update": true
+    },
+    "description": {
+      "type": "text",
+      "max_length": 255,
+      "default": "",
+      "required_on_create": false,
+      "update": true,
+      "unset": true,
+      "referenced_update": true
+    },
+    "status": {
+      "type": "text",
+      "max_length": 4,
+      "default": "up",
+      "pattern": "^(up|down)$",
+      "required_on_create": false,
+      "update": true,
+      "unset": false,
+      "referenced_update": true,
+      "undo_to_default": true
+    },
+    "vdom": {
+      "type": "text",
+      "max_length": 4,
+      "pattern": "^root$",
+      "required_on_create": true,
+      "update": false,
+      "unset": false,
+      "referenced_update": false
+    },
+    "interface": {
+      "type": "text",
+      "max_length": 15,
+      "required_on_create": true,
+      "update": false,
+      "unset": false,
+      "referenced_update": false
+    },
+    "vlanid": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 4094,
+      "required_on_create": true,
+      "update": false,
+      "unset": false,
+      "referenced_update": false
+    },
+    "ip": {
+      "type": "ipv4-interface",
+      "default": "0.0.0.0 0.0.0.0",
+      "required_on_create": false,
+      "update": true,
+      "unset": true,
+      "referenced_update": false
+    },
+    "allowaccess": {
+      "type": "text",
+      "max_length": 4,
+      "pattern": "^ping$",
+      "required_on_create": false,
+      "update": true,
+      "unset": true,
+      "referenced_update": true
+    }
+  },
+  "fixed": {
+    "role": "undefined",
+    "device-identification": "enable"
+  },
+  "volatile": [
+    "snmp-index"
+  ],
+  "reserved_values": {},
+  "inverse_identity_changes": {
+    "delete": [
+      "snmp-index"
+    ]
+  },
+  "isolated_update": [
+    "alias",
+    "description",
+    "status"
+  ],
+  "rollback_evidence": "Measured on the lab FortiGate-60F v7.6.8,build3744 on 2026-11-17 (task 439) with the CLI: a VLAN created with the rendered lines (alias, allowaccess ping, description, interface, ip, role undefined, vdom root, vlanid, sorted) was shown with device-identification enable and a new snmp-index and without a role; set status down and unset status, unset alias and unset description were shown as expected; its delete succeeded and show system interface equalled the output before. Without role undefined the VLAN inherited role lan from its parent, FortiOS created the firewall address \"<name> address\" (type interface-subnet) and refused the delete (-23, used by 1 entry); Admin therefore always creates the VLAN with role undefined and refuses any change outside alias, description and status of an interface that shows another role. On 2026-11-17 the full admin orchestration with the cli-script safeguard ran on the same device (write account with netgrp read-write, check account with netgrp read, enrollment self-test reverted and valid): preview wrote nothing; create of the VLAN, update of alias and description, status down, their undo (status up, previous alias and description), delete of the VLAN, its undo (recreated with role undefined, no firewall address) and a second delete all ended confirmed, and the check account showed the predicted interface each time; the delete of the VLAN still named by a route was refused before any write. Refused before any write: the protected interfaces, an interface that carries a protected one (fortilink under PVE-MGMT), an interface with administrative access, a VLAN on a protected parent. After the run show system interface, router static, firewall address, the automation stitches, actions and triggers, the administrator names and the routing table equalled the output before. On 2026-11-17 (task 439-r2) on the same device an existing VLAN with role lan, an address and its automatic firewall address (created by the CLI) got an alias change through the orchestration: preview ready, apply and its undo confirmed with role lan kept in the prediction, and the check account showed the predicted interface each time; the VLAN and its address were then deleted and show system interface, router static and firewall address equalled the output before. Unset ip (the undo of an added address) is covered by the simulated device only, not measured on the device."
+}

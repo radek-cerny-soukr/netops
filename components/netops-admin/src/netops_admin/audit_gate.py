@@ -7,6 +7,7 @@ from netops_auditor import checks_exos, checks_fortios, l1_exos, l1_fortios, man
 from netops_auditor.engine import EVALUATED, NOT_EVALUATED, SECTION_MISSING, evaluate as evaluate_rules, load_catalog
 from netops_auditor.state import evaluation_complete
 
+from netops_admin import exos
 from netops_admin.errors import Rejected
 
 PARSERS = {"fortios": l1_fortios, "exos": l1_exos}
@@ -21,6 +22,7 @@ TABLE_RULES = {
     "firewall address": set(),
     "firewall addrgrp": {"group-empty", "group-dangling", "group-cycle"},
     "system dhcp server/reserved-address": {"dhcp-conflict", "dhcp-subnet"},
+    "system dns-database/dns-entry": set(),
     "vlan": set(), "ports": set(), "inline-power": set(), "vlan-membership": {"port-native", "port-policy"},
 }
 LISTED_RULES = 8
@@ -37,7 +39,18 @@ class Incomplete(Rejected):
 
 
 def _required(policy, table) -> set:
-    return set((policy or {}).get("required_rules", [])) | TABLE_RULES.get(table, set())
+    # 1.0.12 G24: a profile batch names every table of its steps
+    rules = set((policy or {}).get("required_rules", []))
+    for name in (table if isinstance(table, tuple) else (table,)):
+        rules |= TABLE_RULES.get(name, set())
+    return rules
+
+
+def plan_tables(plan):
+    """The table argument of evaluate: the table of the plan, or the tables of the steps of a batch."""
+    if "batch_steps" in plan:
+        return tuple(dict.fromkeys(step["table"] for step in plan["batch_steps"]))
+    return plan["table"]
 
 
 def unevaluated(before) -> dict:
@@ -160,12 +173,32 @@ def evaluate(platform, text, policy, table, before=None):
 def check_policy(plan, policy, text, prior=None):
     if not policy:
         return
+    if "batch_steps" in plan:
+        for step in plan["batch_steps"]:
+            check_policy(step, policy, text, prior)
+        return
     table, key = plan["table"], plan["key"]
     folded = key.casefold()
     if (table == "firewall addrgrp" and folded in {v.casefold() for v in policy.get("protected_groups", [])}) or (
-        table in ("ports", "vlan-membership", "inline-power") and key in policy.get("protected_ports", [])
+        (table in ("ports", "vlan-membership", "inline-power")
+         or (plan["platform"] == "exos" and table == exos.BOUNCE_TABLE)) and key in policy.get("protected_ports", [])
     ) or (table == "vlan" and folded in {v.casefold() for v in policy.get("management_vlans", [])}):
         raise Rejected(["the requested object is protected by the audit policy"])
+    if plan["platform"] == "exos" and table == "vrrp" and key.split(":", 1)[0].casefold() in {
+            v.casefold() for v in policy.get("management_vlans", [])}:
+        # 1.0.12 G45: VRRP on a management VLAN is a change of the management VLAN
+        raise Rejected(["the requested object is protected by the audit policy"])
+    if plan["platform"] == "exos" and table == "vrrp" and policy.get("protected_ports"):
+        # 1.0.12 G45 r2 (479-rv finding 3): VRRP changes its VLAN; a protected member port of that VLAN protects it
+        vlan = key.split(":", 1)[0]
+        members = exos.vlan_ports(exos.Snapshot(text, plan["firmware"]), vlan)
+        ports = set(" ".join(members.values()).split())
+        if ports.intersection(policy.get("protected_ports", [])):
+            raise Rejected(["the requested object is protected by the audit policy"])
+    if plan["platform"] == "exos" and table == "vlan":
+        before, after = plan["predicted"]["before"], plan["predicted"]["after"]
+        if exos.changed_vlan_ports(before, after).intersection(policy.get("protected_ports", [])):
+            raise Rejected(["the requested object is protected by the audit policy"])
     target = {
         "firewall address": "firewall address/" + key,
         "firewall addrgrp": "firewall addrgrp/" + key,
@@ -174,7 +207,8 @@ def check_policy(plan, policy, text, prior=None):
         "vlan": "vlan/" + key,
         "vlan-membership": "ports/" + key,
         "system dhcp server/reserved-address": "system dhcp server/" + key.replace(":", "/reserved-address/"),
-    }.get(table)
+        "system dns-database/dns-entry": "system dns-database/" + key.replace(":", "/dns-entry/"),
+    }.get("ports" if plan["platform"] == "exos" and table == exos.BOUNCE_TABLE else table)
     if table == "vlan-membership":
         if key not in policy.get("port_vlans", {}):
             raise Rejected(["the selected port has no explicit VLAN allowlist"])

@@ -24,6 +24,7 @@ from fake_fortios import DeviceRefused
 from netops_admin.access import AccessError
 
 FIXTURES = Path(__file__).parent / "fixtures" / "ios_c45"
+G61 = Path(__file__).parent / "fixtures" / "ios_g61"
 MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 DAYS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 NODES = {
@@ -38,6 +39,10 @@ SHORT = (("GigabitEthernet", "Gi"), ("Ethernet", "Et"), ("Vlan", "Vl"), ("Loopba
 
 def fixture(node: str, name: str) -> str:
     return (FIXTURES / node / name).read_text(encoding="utf-8")
+
+
+def g61(name: str) -> str:
+    return (G61 / name).read_text(encoding="utf-8")
 
 
 def short(name: str) -> str:
@@ -90,12 +95,20 @@ class FakeIos:
         self.timer_user = "netops-admin"
         self.on_apply = None
         self.on_query = None
+        self.on_check_query = None
         self.line_guard = None
+        self.line_sent = None
         self.last_answers = ()
         self.unsent_lines = 0
         self.sent_lines = []
         self.line_seconds = 0
         self.revert_now_ignored = False
+        # 1.0.12 G61: link of the test ports (the lab ports have no peer) and PoE (the lab nodes have none: the
+        # commands are refused as measured; poe_ports names ports with PoE and whether a device is attached)
+        self.link_up = set()
+        self.link_delay = 0
+        self.poe_ports = {}
+        self.enabled_at = {}
         self.credential = SimpleNamespace(login="netops-admin")
 
     # ---- clock, archive and the revert timer ----
@@ -149,8 +162,8 @@ class FakeIos:
         children = [line for line in self.lines[start + 1:end] if not drop.match(line.strip())]
         if add:
             children.append(" " + add)
-        order = {"description": 0, "switchport": 1, "no": 2, "shutdown": 3}
-        children.sort(key=lambda line: order.get(line.split()[0], 4))
+        order = {"description": 0, "switchport": 1, "power": 2, "no": 3, "shutdown": 4}
+        children.sort(key=lambda line: order.get(line.split()[0], 5))
         self.lines[start + 1:end] = children
 
     def snapshot(self):
@@ -168,12 +181,14 @@ class FakeIos:
         mode, accepted, answers = ["exec"], 0, []
         self.last_answers = answers
         guard = self.line_guard
-        for step in steps:
+        for number, step in enumerate(steps, 1):
             assert isinstance(step, str)
             if guard is not None and not guard():
                 self.unsent_lines += 1
                 raise AccessError("line was not sent: the safeguard of the device has too little time left", accepted)
             self.sent_lines.append(step)
+            if self.line_sent is not None:
+                self.line_sent(number)
             answer = self._line(step, mode)
             # the interactive answer: the echo of the line, the answer and the prompt
             answers.append("%s\n%s\n%s#" % (step, answer, self.hostname))
@@ -214,6 +229,17 @@ class FakeIos:
                 self._set(name, re.compile(r"^shutdown$"), "shutdown")
             elif words == ["no", "shutdown"]:
                 self._set(name, re.compile(r"^shutdown$"))
+                self.enabled_at[name] = self.now
+            elif words[:2] == ["power", "inline"]:
+                if name not in self.poe_ports:
+                    return g61("config__power-inline-never__invalid-input.txt")
+                if not re.fullmatch(r"power inline (?:auto|never|static)(?: max [0-9]+)?", line.strip()):
+                    return g61("config__power-inline-never__invalid-input.txt")
+                previous = self._poe_admin(name)
+                # "power inline auto" without a maximum is the default and shows no line in the configuration
+                self._set(name, re.compile(r"^power inline "), None if line.strip() == "power inline auto" else line.strip())
+                if previous == "off" and self._poe_admin(name) != "off":
+                    self.enabled_at[name] = self.now
             elif words[:3] == ["switchport", "access", "vlan"] and len(words) == 4:
                 if not self.switch:
                     return fixture(self.node, "config__switchport-access-vlan-10-router.txt")
@@ -382,7 +408,65 @@ class FakeIos:
             return answer
         raise AssertionError("unexpected query %r" % command)
 
+    def _link(self, name) -> str:
+        lines = self.interface(name) or []
+        if "shutdown" in lines:
+            return "disabled"
+        if name in self.link_up:
+            started = self.enabled_at.get(name)
+            if started is not None and (self.now - started).total_seconds() < self.link_delay:
+                return "notconnect"
+            return "connected"
+        base = {row.split()[0]: row.split()[1] for row in
+                fixture(self.node, "show-interfaces-description__ro-baseline.txt").splitlines()[1:]}
+        return "connected" if base.get(short(name)) == "up" and not name.startswith("Vlan") else "notconnect"
+
+    def _status_row(self, name) -> str:
+        status = self._link(name)
+        duplex = "  auto" if status == "disabled" else "a-full"
+        trunk = "trunk" if "switchport mode trunk" in (self.interface(name) or []) else "1"
+        return "%-10s%-19s%-13s%-11s%s   auto RJ45" % (short(name), "", status, trunk, duplex)
+
+    def _poe_admin(self, name) -> str:
+        for line in self.interface(name) or []:
+            if line.startswith("power inline never"):
+                return "off"
+            if line.startswith("power inline static"):
+                return "static"
+        return "auto"
+
+    def _poe_text(self, name) -> str:
+        admin = self._poe_admin(name)
+        attached = self.poe_ports[name].get("device", False)
+        boot = self.poe_ports[name].get("boot_delay", 0)
+        started = self.enabled_at.get(name)
+        powered = admin != "off" and attached and (started is None or (self.now - started).total_seconds() >= boot)
+        found = re.search(r"max ([0-9]+)", " ".join(self.interface(name) or []))
+        maximum = int(found.group(1)) / 1000 if found else 30.0
+        row = "%-10s %-6s %-10s %-7s %-19s %-5s %.1f" % (
+            short(name), admin, "on" if powered else "off", "8.9" if powered else "0.0",
+            "IP Phone 8851" if powered else "n/a", "4" if powered else "n/a", maximum)
+        return ("Interface  Admin   Oper      Power      Device          Class  Max\n"
+                "                            (Watts)\n--------- ------ ---------- ------- ------------------- -----  ----\n"
+                + row + "\n")
+
     def _interface_query(self, command):
+        match = re.fullmatch(r"show interfaces (\S+) status", command)
+        if match:
+            if self.interface(match.group(1)) is None:
+                return "% Invalid input detected at '^' marker.\n"
+            return "\nPort      Name               Status       Vlan       Duplex  Speed Type \n" + \
+                self._status_row(match.group(1)) + "\n"
+        if command == "show interfaces status":
+            names = [line.split()[1] for line in self.lines if line.startswith("interface ")
+                     and re.match(r"interface (?:Gigabit|Ethernet)", line)]
+            return "\nPort      Name               Status       Vlan       Duplex  Speed Type \n" + "".join(
+                self._status_row(name) + "\n" for name in names)
+        match = re.fullmatch(r"show power inline (\S+)", command)
+        if match:
+            if match.group(1) not in self.poe_ports:
+                return g61("show-power-inline__exec-refused.txt").replace("GigabitEthernet1/2", match.group(1))
+            return self._poe_text(match.group(1))
         if command == "show interfaces description":
             text = fixture(self.node, "show-interfaces-description__ro-baseline.txt")
             rows = []
@@ -401,6 +485,8 @@ class FakeIos:
                     elif status == "admin down":
                         status = "down"
                     protocol = "down" if disabled else row[46:55].strip()
+                    if not disabled and self._link(full) == "connected" and status == "down":
+                        status = protocol = "up"
                     row = "%-31s%-15s%-9s%s" % (name, status, protocol, description)
                 rows.append(row)
             return "\n".join(rows) + "\n"
@@ -419,6 +505,9 @@ class FakeIos:
         template = fixture(self.node, "show-interfaces-port-switchport__ro-baseline.txt")
         template = re.sub(r"^Name: \S+", "Name: " + short(name), template, flags=re.MULTILINE)
         template = template.replace("Administrative Mode: static access", "Administrative Mode: " + mode)
+        allowed = next((line.split()[-1] for line in lines if line.startswith("switchport trunk allowed vlan ")), None)
+        if allowed is not None and mode == "trunk":
+            template = template.replace("Trunking VLANs Enabled: ALL", "Trunking VLANs Enabled: " + allowed)
         names = {"1": "default", "10": "D10", "20": "D20", "99": "D-MGMT"}
         return re.sub(r"^Access Mode VLAN: .*$", "Access Mode VLAN: %s (%s)" % (
             vlan, names.get(vlan, "VLAN%04d" % int(vlan))), template, flags=re.MULTILINE)
@@ -427,6 +516,8 @@ class FakeIos:
     def check_query(self, command):
         self._fire()
         self.check_queries.append(command)
+        if self.on_check_query is not None:
+            self.on_check_query(self, command)
         if self.check_unreadable:
             raise AccessError("check account unavailable")
         if self.check_override is not None and command in self.check_override:

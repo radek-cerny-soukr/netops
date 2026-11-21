@@ -1,0 +1,5 @@
+Extended IP access list implicit_deny
+    10 deny ip any any
+Extended IP access list implicit_permit
+    10 permit ip any any
+Extended IP access list meraki-fqdn-dns

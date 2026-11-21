@@ -22,6 +22,8 @@ import sys
 import tempfile
 import time
 
+import pytest
+
 
 ROOT = Path(__file__).parents[1]
 SCRIPT = ROOT / "src" / "netops_helper" / "proxy.py"
@@ -754,16 +756,16 @@ def check_query_authority_and_typed_pre_auth(
     }
     expected_counts = {
         "linux": 16,
-        "fortinet": 120,
-        "extreme_exos": 65,
-        "cisco_ios": 49,
-        "cisco_xe": 50,
-        "cisco_nxos": 61,
-        "arista_eos": 55,
-        "juniper_junos": 41,
-        "juniper_junos_els": 55,
-        "ruckus_unleashed": 4,
-        "fortiadc": 33,
+        "fortinet": 136,
+        "extreme_exos": 115,
+        "cisco_ios": 137,
+        "cisco_xe": 163,
+        "cisco_nxos": 156,
+        "arista_eos": 135,
+        "juniper_junos": 88,
+        "juniper_junos_els": 96,
+        "ruckus_unleashed": 24,
+        "fortiadc": 41,
     }
     assert module.PLATFORM_MAP == expected_aliases
     assert {
@@ -776,19 +778,30 @@ def check_query_authority_and_typed_pre_auth(
         for name in sorted(names)
     )
     assert hashlib.sha256(name_contract.encode()).hexdigest() == (
-        "976c844522dc3027e4b603bd669a0f5041984ea6d3f64a3754b30135739ff54b"
+        "48efe3be9a6c273294262b138003798724cbbd9fe30ff9fc9ac95285c0dca519"
     )
-    assert sum(expected_counts.values()) == 549
+    assert sum(expected_counts.values()) == 1107
 
     expected_kind_inventory = {
+        "vr": "virtual_routers",
+        "vrf": "vrfs",
+        "route_map": "route_maps",
+        "ipv4_prefix": "lookup_prefixes",
         "fortios_sdwan_health_check": "sdwan_health_checks",
         "fortios_link_monitor": "link_monitors",
+        "fortios_ipsec_tunnel": "ipsec_tunnels",
         "fortios_sdwan_member": "sdwan_members",
         "fortios_sdwan_rule": "sdwan_rules",
         "vlan_name": "vlans",
+        "junos_vlan_name": "vlans",
+        "junos_filter_interface": "interfaces",
+        "junos_firewall_filter": "firewall_filters",
+        "junos_security_zone": "security_zones",
+        "lookup_prefix": "lookup_prefixes",
         "managed_switch_serial": "managed_switches",
         "managed_switch_port": "managed_switch_ports",
         "managed_switch_trunk": "managed_switch_trunks",
+        "c9800_ap_name": None,
         "certificate_name": "certificates",
         "fortios_address_object": "firewall_addresses",
         "flow_port": "flow_ports",
@@ -796,9 +809,11 @@ def check_query_authority_and_typed_pre_auth(
         "fortios_policy_type": "policy_types",
         "fortios_station_mac": "wireless_clients",
         "fortios_wtp_id": "wtp_ids",
+        "ruckus_wlan_name": "wlan_names",
         "wifi_log_lines": "literal",
         "wifi_mac_literal": "literal",
         "fortios_nat_pool": "nat_pools",
+        "fortios_extender_serial": "literal",
         "address": "addresses",
         "ipv4_address": "addresses",
         "ipv6_address": "addresses",
@@ -810,14 +825,20 @@ def check_query_authority_and_typed_pre_auth(
         "fortios_interface": "interfaces",
         "fortios_physical_interface": "interfaces",
         "fortiadc_interface": "interfaces",
+        "fortiadc_member_id": None,
         "fortiadc_vdom": "adc_vdoms",
         "fortiadc_virtual_server": "adc_virtual_servers",
         "cisco_ios_interface": "interfaces",
         "cisco_ios_physical_interface": "interfaces",
+        "cisco_ios_switchport": "interfaces",
+        "cisco_xe_switchport": "interfaces",
         "cisco_xe_interface": "interfaces",
         "cisco_xe_physical_interface": "interfaces",
         "cisco_nxos_interface": "interfaces",
         "cisco_nxos_errors_interface": "interfaces",
+        "cisco_nxos_non_subinterface": "interfaces",
+        "cisco_nxos_ethernet": "interfaces",
+        "cisco_nxos_port_channel": "interfaces",
         "extreme_physical_port": "interfaces",
         "eos_interface": "interfaces",
         "eos_physical_interface": "interfaces",
@@ -826,12 +847,32 @@ def check_query_authority_and_typed_pre_auth(
         "eos_stp_interface": "interfaces",
         "eos_switchport_interface": "interfaces",
         "eos_ospf_interface": "interfaces",
+        "acl_policy": None,
+        "nxos_acl_name": None,
+        "ipv4_neighbor": None,
+        "ipv6_neighbor": None,
+        "diagnostic_dns_name": None,
+        "eos_dns_name": "diagnostic_names",
+        "eos_log_minutes": None,
+        "nxos_log_count": None,
+        "log_severity": None,
+        "exos_log_source": None,
+        "exos_log_severity": None,
+        "log_date": None,
+        "log_time": None,
+        "junos_dns_name": "diagnostic_names",
+        "junos_log_time": "literal",
+        "junos_log_severity": "literal",
         "vlan_id": None,
+        "vpc_id": None,
+        "etherchannel_group_id": None,
         "mac_literal": None,
+        "ip_literal": None,
         "junos_interface": "interfaces",
         "junos_physical_interface": "interfaces",
         "junos_logical_interface": "interfaces",
         "junos_lacp_interface": "interfaces",
+        "routing_instance": "routing_instances",
     }
     assert set(module.READ_QUERY_SLOTS) == set(module.READ_QUERY_NAMES)
     for platform, query_slots in module.READ_QUERY_SLOTS.items():
@@ -1657,7 +1698,7 @@ for raw in sys.stdin.buffer:
     message = json.loads(raw)
     sys.stdout.write(json.dumps({
         "jsonrpc": "2.0", "id": message.get("id"),
-        "result": {"content": [{"type": "text", "text": "{\\"ok\\":true}"}]},
+        "result": {"content": [{"type": "text", "text": %r}]},
     }) + chr(10))
     sys.stdout.flush()
 with open(os.environ["NETOPS_FAKE_SSH_RECORD"], "w", encoding="utf-8") as handle:
@@ -1671,11 +1712,11 @@ sys.stdout.write("%%s ssh-ed25519 %%s" %% (sys.argv[-1], %r) + chr(10))
 """
 
 
-def _fake_tools(directory: Path) -> Path:
+def _fake_tools(directory: Path, *, response_text: str = '{"ok":true}') -> Path:
     binaries = directory / "bin"
     binaries.mkdir(exist_ok=True)
     for name, source in (
-        ("ssh", FAKE_SSH % sys.executable),
+        ("ssh", FAKE_SSH % (sys.executable, response_text)),
         ("ssh-keyscan", FAKE_KEYSCAN % (sys.executable, RUNNER_HOST_KEY)),
     ):
         path = binaries / name
@@ -2390,7 +2431,9 @@ def check_the_proxy_file_runs_as_a_script(module, directory: Path) -> None:
         assert askpass.stderr == ""
     help_environment = {key: value for key, value in os.environ.items() if key != "PYTHONPATH"}
     help_environment.update({
-        "PYTHONPATH": str(ROOT.parent / "netops-core" / "src"),
+        "PYTHONPATH": os.pathsep.join(str(root) for root in (
+            ROOT / "src", ROOT.parent / "netops-core" / "src",
+        )),
         "PYTHONDONTWRITEBYTECODE": "1",
     })
     shown = subprocess.run(
@@ -2401,6 +2444,54 @@ def check_the_proxy_file_runs_as_a_script(module, directory: Path) -> None:
     )
     assert shown.returncode == 0, shown.stderr
     assert "usage:" in shown.stdout
+
+
+def test_direct_proxy_appends_source_path(tmp_path: Path) -> None:
+    module = _load_proxy()
+    inventory, _, _, runner = _configure(module, tmp_path)
+    section = dict(_section(), ssh_platform="cisco_ios", enabled_queries=["version"])
+    section["egress"]["allow_icmp"] = True
+    _write(inventory, _inventory(_device(section, "cisco_ios")))
+    _write(runner, _runner(module.hostkey.fingerprint_of(RUNNER_HOST_KEY)))
+    output = (ROOT / "tests/fixtures/real/cisco_ios/iosv_15.9.3M12_g52/ping.out").read_text()
+    binaries = _fake_tools(tmp_path, response_text=json.dumps({"untrusted_device_output": output}))
+
+    # Expose the archived package without putting the Helper source root on sys.path.
+    packages = tmp_path / "packages"
+    packages.mkdir()
+    (packages / "netops_helper").symlink_to(SCRIPT.parent, target_is_directory=True)
+    path_log = tmp_path / "proxy-sys-path"
+    (packages / "sitecustomize.py").write_text(
+        f"""import atexit
+import sys
+
+@atexit.register
+def record_proxy_path():
+    if sys.argv[0] == {str(SCRIPT)!r}:
+        with open({str(path_log)!r}, "w", encoding="utf-8") as log:
+            log.write("\\n".join(sys.path))
+""",
+        encoding="utf-8",
+    )
+    environment = _proxy_environment(module, tmp_path, binaries, tmp_path / "fake-ssh-record.json")
+    environment["PYTHONPATH"] = os.pathsep.join(str(root) for root in (
+        packages, ROOT.parent / "netops-core" / "src",
+    ))
+    completed = subprocess.run(
+        [sys.executable, str(SCRIPT)], cwd=tmp_path, env=environment,
+        input=_request(1, "icmp_probe", {"target": "device-a"}) + b"\n",
+        capture_output=True, timeout=30, check=False,
+    )
+    assert completed.returncode == 0, completed.stderr.decode()
+    assert completed.stderr == b""
+    response = json.loads(completed.stdout)
+    assert "result" in response, response.get("error")
+    result = json.loads(response["result"]["content"][0]["text"])
+    assert result["untrusted_device_output"] == output
+    assert result["device_output_trust"] == "untrusted"
+
+    search_path = path_log.read_text(encoding="utf-8").splitlines()
+    assert search_path[-1] == str(SCRIPT.parent.parent), search_path
 
 
 FAKE_STALLING_SSH = """#!%s
@@ -2854,10 +2945,11 @@ def main(base: Path | None = None) -> int:
     assert module.DEFAULT_RATE_REQUESTS == 30
     expected_control = {"helper_status", "read_query_catalog", "target_scope"}
     expected_device = {
-        "switch_read", "locate_endpoint",
+        "switch_read", "locate_endpoint", "vpc_compare", "triage_port", "triage_nxos_path",
         "dns_probe", "tcp_probe", "icmp_probe", "tls_probe", "ssh_read",
         "snmp_get", "sftp_stat", "ftp_list", "schema_read", "fortios_diagnostics",
         "config_read", "config_diff", "triage_slb", "triage_health", "triage_routing", "triage_vpn", "wifi_triage", "wifi_clients", "wifi_aps_live", "wifi_rogue", "triage_flow",
+        "fortiswitch_overview", "firewall_policy_hits",
     }
     assert module.CONTROL_TOOLS == expected_control
     assert module.DEVICE_TOOLS == expected_device
@@ -2866,11 +2958,11 @@ def main(base: Path | None = None) -> int:
         expected_control | expected_device
     ) - {"target_scope"}
     assert module.SSH_TOOLS == {
-        "switch_read", "locate_endpoint",
+        "switch_read", "locate_endpoint", "vpc_compare", "triage_port", "triage_nxos_path",
         "ssh_read", "sftp_stat", "schema_read", "fortios_diagnostics", "config_read", "config_diff",
         "triage_slb", "triage_health", "triage_routing", "triage_vpn", "wifi_triage", "triage_flow",
     }
-    assert len(module.TOOL_ARGUMENT_SCHEMAS) == 26
+    assert len(module.TOOL_ARGUMENT_SCHEMAS) == 31
     assert module.SSH_TRANSPORT_FAILURE_MESSAGE == (
         "The remote MCP SSH transport failed."
     )
@@ -2959,3 +3051,158 @@ def test_typed_query_authority_through_proxy(tmp_path: Path) -> None:
 def test_policy_lookup_queries_through_proxy(tmp_path: Path) -> None:
     from netops_helper import proxy
     check_policy_lookup_query_envelopes(proxy, tmp_path)
+
+
+_MANAGEMENT_NAMES = (
+    "aaa_servers", "radius_statistics", "tacacs_statistics", "snmp_statistics",
+    "snmp_engine_id", "dns_hosts", "users", "ssh_sessions", "lines",
+)
+_NX_MANAGEMENT_NAMES = (
+    "dns_hosts", "snmp_statistics", "snmp_engine_id", "aaa_authentication",
+    "radius_statistics", "tacacs_statistics", "users", "ssh_server",
+    "configuration_sessions",
+)
+
+
+@pytest.mark.parametrize("platform,fixture,query", [
+    (platform, fixture, query)
+    for platform, fixture, names in (
+        ("cisco_ios", "iosv", _MANAGEMENT_NAMES),
+        ("cisco_xe", "iolxe", _MANAGEMENT_NAMES),
+        ("cisco_nxos", "nxos", _NX_MANAGEMENT_NAMES),
+    )
+    for query in names
+])
+def test_management_capture_through_proxy(tmp_path, monkeypatch, platform, fixture, query):
+    from netops_helper import engine, proxy
+    from netops_helper.auth import TargetAuth
+    from netops_helper.read_policy import READ_QUERIES
+    from netops_helper.sanitize import redact_response
+
+    inventory, _, _, _ = _configure(proxy, tmp_path)
+    parameters = {"address": "192.0.2.123"} if (
+        platform == "cisco_nxos" and query in ("radius_statistics", "tacacs_statistics")
+    ) else {}
+    section = dict(_section(), ssh_platform=platform, enabled_queries=[query],
+                   read_inventory={"addresses": ["192.0.2.123"]})
+    _write(inventory, _inventory(_device(section, platform)))
+    capture = json.loads((ROOT / "tests/fixtures/real/management" / (fixture + ".json")).read_text())
+    command = READ_QUERIES[platform][query].command.format_map(parameters)
+    row = next(r for r in capture["captures"] if r["command"] == command and r["role"] == "RO")
+    identity = next(r for r in capture["captures"] if r["command"] == "show version" and r["role"] == "RO")
+    calls = []
+
+    def transport(auth, actual_platform, actual_command):
+        assert actual_platform == platform
+        calls.append(actual_command)
+        assert actual_command in ("show version", command)
+        selected = identity if actual_command == "show version" else row
+        return selected["rc"], selected["stdout"]
+
+    monkeypatch.setattr(engine, "read_from_device", transport)
+    monkeypatch.setattr(engine, "record", lambda *a, **kw: None)
+    forwarded = proxy.Proxy().request(_request(900, "ssh_read", {
+        "target": "device-a", "platform": platform, "query": query,
+        "parameters": parameters,
+    }))
+    assert forwarded is not None, (platform, query)
+    args = json.loads(forwarded)["params"]["arguments"]
+    auth = TargetAuth.decode(args["target"], args["auth_context"])
+    result = engine.ssh_read(auth, args["platform"], args["query"], args["parameters"], 0, 16000)
+    assert calls == ["show version", command]
+    refused = row["rc"] != 0 or "invalid autocommand" in row["stdout"]
+    assert result["ok"] is (not refused), result
+    if refused:
+        assert result["status"] in ("permission_denied", "unsupported", "unparsed", "transport_error", "not_applicable")
+    elif platform == "cisco_nxos":
+        body = result["untrusted_device_output"]
+        markers = {
+            "aaa_authentication": ("default: local", "console: local"),
+            "snmp_engine_id": ("Local SNMP engineID: [Hex]", "[Dec]"),
+            "snmp_statistics": ("SNMP packets input", "Trap PDU", "[redacted]"),
+            "users": ("NAME", "PID COMMENT"),
+            "ssh_server": ("ssh version 2 is enabled",),
+            "configuration_sessions": ("Session Manager Database:", "There are no active configuration sessions"),
+        }
+        assert result["status"] == "ok" and result["complete"]
+        assert all(marker in body for marker in markers[query])
+    else:
+        assert result["untrusted_device_output"].strip() == redact_response(row["stdout"], auth.redaction_secrets).strip()
+
+
+@pytest.mark.parametrize("limit", [1, 2, 3])
+def test_nxos_vpc_compare_with_small_rate_limit(tmp_path, monkeypatch, limit):
+    from netops_helper import engine, proxy, server
+
+    inventory, _, _, _ = _configure(proxy, tmp_path)
+    platform = "cisco_nxos"
+    section = dict(_section(), ssh_platform=platform, enabled_queries=["vpc_status", "vpc_member_consistency"],
+                   snmp_credential=None, rate_limit={"requests": limit, "window_seconds": 60})
+    peer_section = dict(section, rate_limit={"requests": 30, "window_seconds": 60})
+    peer = dict(_device(peer_section, platform), name="device-b", port=21)
+    _write(inventory, _inventory(_device(section, platform), peer))
+    fixtures = ROOT / "tests/fixtures"
+    identity = (fixtures / "identity/cisco_nxos.txt").read_text()
+    captures = fixtures / "real/cisco_nxos/g92_nexus9300v_9.3.12"
+    calls = []
+    sources = {"show vpc brief": "vpc-brief", "show vpc consistency-parameters vpc 128": "vpc-member"}
+    prefixes = {"device-a": "2261", "device-b": "2262"}
+
+    def read(auth, profile, command):
+        assert profile == platform
+        calls.append((auth.alias, command))
+        if command == "show version":
+            return 0, identity
+        return 0, (captures / f"{prefixes[auth.alias]}-{sources[command]}.out").read_text()
+
+    monkeypatch.setattr(engine, "read_from_device", read)
+    monkeypatch.setattr(engine, "record", lambda *a, **kw: None)
+    instance = proxy.Proxy()
+    emitted = []
+    instance._emit = emitted.append
+    arguments = {"targets": ["device-b", "device-a"], "vpc_id": "128"}
+    forwarded = instance.request(_request(902, "vpc_compare", arguments))
+    if limit == 1:
+        assert forwarded is None and calls == [] and not instance.rate_history
+        error = emitted[-1]["error"]["data"]
+        assert error["category"] == "policy_scope" and "retry_after_seconds" not in error, error
+        assert error["target"] == "device-a" and "at least 2" in error["hint"]
+        return
+
+    assert forwarded is not None, emitted
+    args = json.loads(forwarded)["params"]["arguments"]
+    result = server.vpc_compare(**args)
+    assert result["state"] == "matched" and result["differences"] == [], result
+    for alias in prefixes:
+        assert [command for target, command in calls if target == alias] == [
+            "show version", "show vpc brief", "show version", "show vpc consistency-parameters vpc 128",
+        ]
+    assert {alias: len(history) for alias, history in instance.rate_history.items()} == {"device-a": limit, "device-b": 4}
+    assert instance.request(_request(903, "vpc_compare", arguments)) is None
+    assert emitted[-1]["error"]["data"]["category"] == "rate_limit"
+    assert emitted[-1]["error"]["data"]["retry_after_seconds"] > 0
+    assert len(instance.rate_history["device-b"]) == 4
+
+
+@pytest.mark.parametrize("query", ["radius_statistics", "tacacs_statistics"])
+@pytest.mark.parametrize("parameters", [
+    {}, {"address": "192.0.2.124"}, {"address": "2001:db8::1"},
+    {"address": "192.0.2.123;reload"}, {"address": "192.0.2.123\nreload"},
+    {"address": "192.0.2.123", "extra": "value"},
+])
+def test_nxos_server_scope_through_proxy(tmp_path, monkeypatch, query, parameters):
+    from netops_helper import engine, proxy
+
+    inventory, _, _, _ = _configure(proxy, tmp_path)
+    section = dict(_section(), ssh_platform="cisco_nxos", enabled_queries=[query],
+                   read_inventory={"addresses": ["192.0.2.123", "2001:db8::1"]})
+    _write(inventory, _inventory(_device(section, "cisco_nxos")))
+    calls = []
+    monkeypatch.setattr(engine, "read_from_device", lambda *a: calls.append(a))
+    # Newline injection is rejected by JSON-RPC argument validation before scope checks.
+    reject = _assert_invalid_params if "\n" in parameters.get("address", "") else _assert_policy_error
+    reject(proxy.Proxy(), _request(901, "ssh_read", {
+        "target": "device-a", "platform": "cisco_nxos", "query": query,
+        "parameters": parameters,
+    }))
+    assert calls == []

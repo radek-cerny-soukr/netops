@@ -54,6 +54,26 @@ class ReportGate(unittest.TestCase):
         self.assertEqual(rc, 0, out)
         self.assertIn("report_gate=PASS", out)
 
+    def test_grype_dhi_provider_passes(self):
+        files = self.clean()
+        db = files["netops-1.0.0-linux-amd64-grype.json"]["descriptor"]["db"]
+        db["providers"] = {"dhi": {"captured": "2026-11-21T00:00:00Z", "input": "vulnerabilities"}}
+        rc, out = self.run_gate(files)
+        self.assertEqual(rc, 0, out)
+        self.assertIn("report_gate=PASS", out)
+
+    def test_grype_unknown_provider_or_provider_field_fails(self):
+        for providers in ({"new-provider": {"captured": "2026-11-21T00:00:00Z", "input": "vulnerabilities"}},
+                          {"dhi": {"unexpected": "value"}}):
+            with self.subTest(providers=providers):
+                files = self.clean()
+                db = files["netops-1.0.0-linux-amd64-grype.json"]["descriptor"]["db"]
+                db["providers"] = providers
+                rc, out = self.run_gate(files)
+                self.assertEqual(rc, 1, out)
+                self.assertIn("unexpected vendor field", out)
+                self.assertIn("report_gate=FAIL", out)
+
     def test_seven_layer_reports_in_the_signing_format_pass(self):
         files = self.clean()
         base = {"candidate_commit": "a" * 40, "candidate_image": "sha256:" + "1" * 64}

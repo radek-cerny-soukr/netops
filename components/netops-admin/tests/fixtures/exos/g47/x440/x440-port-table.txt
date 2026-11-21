@@ -1,0 +1,3 @@
+Vlan Name    Port   Policy Name          Dir      Rules  Dyn Rules
+===================================================================
+*            10     netops-g47-live      ingress  1      0

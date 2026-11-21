@@ -40,6 +40,14 @@ The profile key is `arista_eos`. It is a conservative common EOS profile. Availa
 | `ntp_status`, `ntp_associations`, `cpu`, `log_messages` | [EOS switch administration commands](https://www.arista.com/en/um-eos/eos-switch-administration-commands) |
 | `reload_cause` | [EOS Switch booting commands](https://www.arista.com/en/um-eos/eos-switch-booting-commands) |
 
+| `dot1x`, `dot1x_interface`, `dot1x_clients` | [EOS Control Plane Security](https://www.arista.com/en/um-eos/eos-control-plane-security) |
+| `snmp_status`, `snmp_targets` | [EOS SNMP](https://www.arista.com/en/um-eos/eos-snmp) |
+| `dns_lookup` | [EOS IPv4](https://www.arista.com/en/um-eos/eos-ipv4) |
+| `dns_hosts`, `dns_name_servers`, `logging_status` | [EOS switch administration commands](https://www.arista.com/en/um-eos/eos-switch-administration-commands) |
+| `log_messages_last`, `log_messages_range` | [EOS switch administration commands](https://www.arista.com/en/um-eos/eos-switch-administration-commands); `last`, `time-range` and `threshold` keywords verified with `?` on cEOS 4.36.1F (2026-11-18) |
+| `users`, `aaa_sessions`, `radius`, `radius_status`, `tacacs` | [EOS User Security](https://www.arista.com/en/um-eos/eos-user-security) |
+| `dhcp_relay`, `dhcp_relay_counters`, `dhcp_snooping`, `dhcp_server`, `dhcp_server_leases` | [EOS DHCP configuration](https://www.arista.com/en/um-eos/eos-configuring-dhcp) |
+| `ipv4_access_lists_summary`, `ipv6_access_lists_summary`, `ipv4_access_lists_interface`, `ipv6_access_lists_interface`, `ipv4_access_lists`, `ipv6_access_lists` | [EOS ACLs and route maps](https://www.arista.com/en/um-eos/eos-acls-and-route-maps) |
 The rows added in NetOps 1.0.7 were run on a cEOS 4.36.1F lab node on 2026-11-08; the outputs are stored in `tests/fixtures/real/arista_eos/ceos_4.36.1F`. `interface_poe` was not measurable (a virtual platform answers `% Invalid input`) and is `verified: docs-only`; `mlag_detail` and `mlag_config_sanity` were measured only in the inactive state.
 
 The complete [EOS User Manual PDF](https://www.arista.com/en/assets/data/pdf/user-manual/um-books/EOS-User-Manual.pdf) is retained as a cross-reference. It is not copied into this repository.
@@ -54,7 +62,7 @@ Compatibility is scoped to EOS 4.36.1F container and virtual images with the doc
 
 - Running/startup/full configuration, configuration sessions, files, logs, debug, support/tech-support, packet capture, Bash, and commands that clear, test, reload, restart, or write state are prohibited.
 - `show processes top once` (`cpu`), `show lldp neighbors detail` (`lldp_neighbors_detail`; the manual disagrees between `detailed` and `detail`, 4.36.1F accepts `detail`) and the two MLAG reads were first left out because their spelling was not established; NetOps 1.0.7 added them after a measurement on cEOS 4.36.1F. `show lldp neighbors` stays as the summary.
-- Logs are excluded except the one fixed, slotless template `log_messages` (`show logging 200`, newest 200 lines); `show logging` with a filter, time window or pipe stays refused.
+- Logs are excluded except the fixed slotless templates `log_messages` (`show logging 200`, newest 200 lines) and `logging_status` (status and destination fields from `show logging`, selected by its fixed `include` filter), and the typed windows `log_messages_last` (`show logging last {minutes} minutes threshold {severity}`) and `log_messages_range` (`show logging time-range {begin_date} {begin_time} {end_date} {end_time} threshold {severity}`); any other filter or a caller-supplied pipe stays refused.
 - Global full routing-table dumps are excluded; the catalog exposes summaries and inventory-bound single-address lookups.
 - OSPFv3 interface scoping is excluded because the source review established the global neighbor command but not a sufficiently unambiguous common interface-filter form.
 - Free-form CLI and arbitrary pipe/redirection syntax are never accepted.
@@ -137,12 +145,108 @@ Every template was run on the lab images with the read-only account; the stored 
 | `lldp_neighbors_detail` | `show lldp neighbors detail` | ok, 236 lines | live |
 | `vlan_details` | `show vlan id {vlan_id}` | ok, 4 lines | live |
 | `mlag_detail` | `show mlag detail` | ok, 54 lines | live |
-| `mlag_interfaces` | `show mlag interfaces` | - | docs-only |
+| `mlag_interfaces` | `show mlag interfaces` | ok, 1 line | live |
 | `mlag_config_sanity` | `show mlag config-sanity` | ok, 2 lines | live |
 | `ntp_status` | `show ntp status` | ok, 1 line | live |
 | `ntp_associations` | `show ntp associations` | ok, 3 lines | live |
 | `cpu` | `show processes top once` | ok, 88 lines | live |
 | `reload_cause` | `show reload cause` | ok, 7 lines | live |
 | `log_messages` | `show logging 200` | ok, 200 lines | live |
+| `vrfs` | `show vrf` | ok, 6 lines | live |
+| `ipv6_route_table` | `show ipv6 route` | not configured | live |
+| `route_table_vrf` | `show ip route vrf {vrf}` | ok, 41 lines | live |
+| `ipv6_route_table_vrf` | `show ipv6 route vrf {vrf}` | not configured | live |
+| `route_lookup_vrf` | `show ip route vrf {vrf} {address}` | ok, 25 lines | live |
+| `ipv6_route_lookup_vrf` | `show ipv6 route vrf {vrf} {address}` | not configured | live |
+| `arp_table_vrf` | `show ip arp vrf {vrf}` | ok, 12 lines | live |
+| `ipv6_neighbors_vrf` | `show ipv6 neighbors vrf {vrf}` | ok, 4 lines | live |
+| `bgp_peer` | `show ip bgp neighbors {address}` | not configured | live |
+| `bgp_peer_vrf` | `show ip bgp neighbors {address} vrf {vrf}` | not configured | live |
+| `bgp_peer_routes` | `show ip bgp neighbors {address} routes` | not configured | live |
+| `bgp_peer_routes_vrf` | `show ip bgp neighbors {address} routes vrf {vrf}` | not configured | live |
+| `bgp_peer_advertised_routes` | `show ip bgp neighbors {address} advertised-routes` | not configured | live |
+| `bgp_peer_advertised_routes_vrf` | `show ip bgp neighbors {address} advertised-routes vrf {vrf}` | not configured | live |
+| `ospf_neighbors_detail` | `show ip ospf neighbor detail` | ok, 48 lines | live |
+| `ospf_neighbors_detail_vrf` | `show ip ospf neighbor detail vrf {vrf}` | ok, 48 lines | live |
+| `ospf_interface_detail` | `show ip ospf interface {interface}` | ok, 11 lines | live |
+| `ospf_interface_detail_vrf` | `show ip ospf interface {interface} vrf {vrf}` | ok, 11 lines | live |
+| `ospf_database` | `show ip ospf database` | ok, 17 lines | live |
+| `ospf_database_vrf` | `show ip ospf database vrf {vrf}` | ok, 17 lines | live |
+| `ospfv3_interface_detail` | `show ipv6 ospf interface {interface}` | empty | live |
+| `ospfv3_interface_detail_vrf` | `show ipv6 ospf interface {interface} vrf {vrf}` | not configured | live |
+| `ospfv3_database` | `show ipv6 ospf database` | empty | live |
+| `ospfv3_database_vrf` | `show ipv6 ospf database vrf {vrf}` | not configured | live |
+| `vrrp` | `show vrrp` | refused to the read-only account, answered to admin | live |
+| `varp` | `show ip virtual-router` | ok, 1 line | live |
+| `bfd_peers` | `show bfd peers` | empty | live |
+| `ospfv3_neighbors_vrf` | `show ipv6 ospf neighbor vrf {vrf}` | not configured | live |
+| `bgp_summary_vrf` | `show ip bgp summary vrf {vrf}` | not configured | live |
+| `ipv6_bgp_summary_vrf` | `show ipv6 bgp summary vrf {vrf}` | not configured | live |
+| `ping` | `ping vrf {vrf} {address} source {source} repeat 5` | refused to the read-only account, answered to admin | live |
+| `traceroute` | `traceroute vrf {vrf} {address}` | ok, 2 lines | live |
+| `traceroute_source` | `traceroute vrf {vrf} {address} source {source}` | ok, 2 lines | live |
+| `vrrp_vrf` | `show vrrp vrf {vrf}` | refused to the read-only account, answered to admin | live |
+| `varp_vrf` | `show ip virtual-router vrf {vrf}` | ok, 1 line | live |
+| `bfd_peers_vrf` | `show bfd peers vrf {vrf}` | empty | live |
+| `ipv6_rib` | `show rib route ipv6` | ok, 16 lines | live |
+| `ipv6_rib_vrf` | `show rib route ipv6 vrf {vrf}` | ok, 16 lines | live |
+| `interfaces_counters_rates` | `show interfaces counters rates` | ok, 18 lines | live |
+| `interface_counters_rates` | `show interfaces {interface} counters rates` | ok, 2 lines | live |
+| `mac_table_interface` | `show mac address-table interface {interface}` | ok, 15 lines | live |
+| `mac_table_vlan` | `show mac address-table vlan {vlan_id}` | ok, 18 lines | live |
+| `mac_table_address` | `show mac address-table address {mac}` | ok, 15 lines | live |
+| `poe` | `show poe` | not supported by the image | docs-only |
+| `stp_detail` | `show spanning-tree detail` | ok, 162 lines | live |
+| `stp_interface_detail` | `show spanning-tree interface {interface} detail` | ok, 11 lines | live |
+| `stp_counters` | `show spanning-tree counters` | ok, 16 lines | live |
+| `interface_qos` | `show qos interfaces {interface}` | ok, 31 lines | live |
+| `interface_queue_counters` | `show interfaces {interface} counters queue` | empty | live |
+| `igmp_snooping` | `show ip igmp snooping` | ok, 55 lines | live |
+| `igmp_snooping_groups` | `show ip igmp snooping groups` | ok, 8 lines | live |
+| `igmp_snooping_mrouter` | `show ip igmp snooping mrouter` | ok, 4 lines | live |
+| `igmp_snooping_counters` | `show ip igmp snooping counters` | ok, 22 lines | live |
+| `ipv4_access_lists_summary` | `show ip access-lists summary` | refused to the read-only account, answered to admin | live |
+| `ipv6_access_lists_summary` | `show ipv6 access-lists summary` | refused to the read-only account, answered to admin | live |
+| `ipv4_access_lists_interface` | `show ip access-lists interface {interface}` | refused to the read-only account, answered to admin | live |
+| `ipv6_access_lists_interface` | `show ipv6 access-lists interface {interface}` | refused to the read-only account, answered to admin | live |
+| `ipv4_access_lists` | `show ip access-lists {name}` | refused to the read-only account, answered to admin | live |
+| `ipv6_access_lists` | `show ipv6 access-lists {name}` | refused to the read-only account, answered to admin | live |
+| `dhcp_relay` | `show ip dhcp relay` | ok, 1 line | live |
+| `dhcp_relay_counters` | `show ip dhcp relay counters` | ok, 5 lines | live |
+| `dhcp_snooping` | `show ip dhcp snooping` | ok, 1 line | live |
+| `users` | `show users` | refused to the read-only account, answered to admin | live |
+| `aaa_sessions` | `show users detail` | refused to the read-only account, answered to admin | live |
+| `radius` | `show radius` | ok, 1 line | live |
+| `radius_status` | `show monitor server radius` | ok, 1 line | live |
+| `tacacs` | `show tacacs` | ok, 1 line | live |
+| `dns_hosts` | `show hosts` | ok, 9 lines | live |
+| `dns_name_servers` | `show ip name-server` | ok, 2 lines | live |
+| `dns_lookup` | `ping {name} repeat 1` | refused to the read-only account, answered to admin | live |
+| `snmp_status` | `show snmp` | ok, 2 lines | live |
+| `snmp_targets` | `show snmp notification host` | empty | live |
+| `logging_status` | `show logging \| include ^(Syslog\|Buffer\|Console\|Monitor\|Persistent\|Trap\|Logging to)` | ok, 5 lines | live |
+| `dot1x` | `show dot1x all` | ok, 10 lines | live |
+| `dot1x_interface` | `show dot1x interface {interface}` | empty | live |
+| `dot1x_clients` | `show dot1x hosts interface {interface} detail` | ok, 1 line | live |
+| `dhcp_server` | `show dhcp server` | ok, 15 lines | live |
+| `dhcp_server_leases` | `show dhcp server leases` | empty | live |
+| `log_messages_last` | `show logging last {minutes} minutes threshold {severity}` | ok, 14 lines | live |
+| `log_messages_range` | `show logging time-range {begin_date} {begin_time} {end_date} {end_time} threshold {severity}` | ok, 11 lines | live |
 
 <!-- lab-measurements:end -->
+
+The `logging_status` cell comes from the earlier read-only run of plain `show logging`; the current fixed `| include` form was verified later in a CLI read with the admin account.
+
+## Routing redundancy source additions
+
+- `bfd_peers`, `bfd_peers_vrf`: [EOS BFD](https://www.arista.com/en/um-eos/eos-bidirectional-forwarding-detection).
+- `vrrp`, `vrrp_vrf`, `varp`, `varp_vrf`: [EOS VRRP and VARP](https://www.arista.com/en/um-eos/eos-vrrp-and-varp).
+
+## Port, STP, QoS and IGMP source additions
+
+- `interfaces_counters_rates`, `interface_counters_rates`, `poe`: [EOS Ethernet ports](https://www.arista.com/en/um-eos/eos-ethernet-ports).
+- `mac_table_interface`, `mac_table_vlan`, `mac_table_address`: [EOS data transfer](https://www.arista.com/en/um-eos/eos-data-transfer).
+- `stp_detail`, `stp_interface_detail`, `stp_counters`: [EOS Spanning Tree Protocol](https://www.arista.com/en/um-eos/eos-spanning-tree-protocol).
+- `interface_qos`, `interface_queue_counters`: [EOS Quality of Service](https://www.arista.com/en/um-eos/eos-quality-of-service).
+- `igmp_snooping`, `igmp_snooping_groups`, `igmp_snooping_mrouter`, `igmp_snooping_counters`: [EOS IGMP and IGMP Snooping](https://www.arista.com/en/um-eos/eos-igmp-and-igmp-snooping).
+

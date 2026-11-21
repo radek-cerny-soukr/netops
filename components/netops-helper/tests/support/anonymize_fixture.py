@@ -485,6 +485,9 @@ class Anonymizer:
         """What still looks like a real identifier (empty list = clean)."""
         found = self.credential_markers(text)
         for field, value in self.identity_fields(text):
+            # The EXOS DNS capture queries this reserved documentation name.
+            if (field, value) == ("Host name", "example.com"):
+                continue
             if value and value not in ("None", "N/A", "-", "(none)") and not PLACEHOLDER.fullmatch(value):
                 found.append(f"{field} {value}")
         scan = text

@@ -116,16 +116,22 @@ def _finish(result: dict[str, Any], missing: list[str], read_any: bool, capture_
 
 def summarize_peer(text: str, capture_state: str | None = "ok") -> dict[str, Any]:
     """``show mlag peer``: one entry per ``MLAG Peer`` block, required labels read exactly."""
-    header = orphan = False
+    header = orphan = alternate = False
     blocks: list[tuple[dict[str, str], dict[str, int]]] = []
     for line in _lines(text, "peer"):
         if _PEER_HEADER.match(line):
             header = True
             continue
+        if line.strip().casefold() == "alternate path information:":
+            alternate = True
+            continue
         for label, value in _pairs(line):
             if label == _PEER_START:
                 blocks.append(({"name": value}, {"name": 1}))
+                alternate = False
                 continue
+            if alternate:
+                continue  # the keepalive path repeats the primary checkpoint's VLAN and IP labels
             key = _PEER_LABELS.get(label)
             if key is None:
                 continue  # other management fields are not modelled and do not spoil the capture

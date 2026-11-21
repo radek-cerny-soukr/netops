@@ -1,0 +1,4 @@
+MacAddress         IpAddress        LeaseSec  Type           VLAN  Interface
+-----------------  ---------------  --------  -------------  ----  -------------
+00:00:5E:00:53:01  192.0.2.12       infinite  static          13    Ethernet2/46
+00:00:5E:00:53:02  192.0.2.22       infinite  static          100   Ethernet2/10

@@ -1,0 +1,12 @@
+
+
+
+Ethernet0/2.80 is administratively down, line protocol is down 
+  Hardware is AmdP2, address is 0000.5e00.5320 (bia 0000.5e00.5320)
+  Internet address is 198.51.100.225/28
+  MTU 1500 bytes, BW 10000 Kbit/sec, DLY 1000 usec, 
+     reliability 255/255, txload 1/255, rxload 1/255
+  Encapsulation 802.1Q Virtual LAN, Vlan ID  80.
+  ARP type: ARPA, ARP Timeout 04:00:00
+  Keepalive set (10 sec)
+  Last clearing of "show interface" counters never

@@ -1,0 +1,9 @@
+
+                Inline Power System Information
+Configured                 : Enabled
+Power Usage Threshold      : 70 percent
+Disconnect Precedence      : deny-port
+Inline Power budget        : Maximum
+                   Budgeted       Measured      
+Firmware Status    Power (Watts)  Power (Watts) 
+Operational         124 W           0 W         

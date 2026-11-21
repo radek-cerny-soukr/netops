@@ -1,0 +1,33 @@
+{
+  "platform": "iosxe",
+  "table": "port-bounce",
+  "action": "port-bounce",
+  "versions": [
+    "17.18.2"
+  ],
+  "exact_versions": true,
+  "ops": [
+    "update"
+  ],
+  "table_scoped_key": true,
+  "key_pattern": "^[A-Z][A-Za-z-]{1,24}[0-9]{1,3}(?:/[0-9]{1,3}){0,2}(?:\\.[0-9]{1,4})?$",
+  "protected_keys": [],
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "attributes": {
+    "admin-state": {
+      "type": "text",
+      "max_length": 8,
+      "pattern": "^(enabled|disabled)$",
+      "default": "enabled",
+      "update": true,
+      "unset": false,
+      "referenced_update": true,
+      "required_on_create": false,
+      "undo_to_default": true
+    }
+  },
+  "rollback_evidence": "G79 (XE-C021): shutdown, a five-second hold and no shutdown run under one device revert timer. IOS XE IOL-L2 17.18.2 uses show interfaces INTERFACE status for operational readback. An initially connected port must return to connected. The configuration is restored before confirmation; there is no separate undo."
+}

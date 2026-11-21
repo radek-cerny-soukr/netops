@@ -45,7 +45,7 @@ def collect():
 
 def test_every_triage_has_a_plan_and_the_proxy_charges_exactly_that_plan():
     assert set(progress.TRIAGE_READS) == {"triage_health", "triage_routing", "triage_vpn", "triage_slb"}
-    assert proxy_module.TRIAGE_READS == {**progress.TRIAGE_READS, "triage_flow": 5, "wifi_triage": 7}
+    assert proxy_module.TRIAGE_READS == {**progress.TRIAGE_READS, "triage_flow": 5, "wifi_triage": 7, "triage_port": 16}
     assert proxy_module.TRIAGE_SLB_RATE_COST == 21 and proxy_module.TRIAGE_HEALTH_READS == 10
 
 
@@ -53,13 +53,14 @@ def test_steps_report_start_and_each_read_never_beyond_the_plan_and_survive_a_br
     reports, token = collect()
     try:
         steps = progress.Steps("triage_vpn")
-        for query in ("a", "b", "c", "d", "e", "f"):
+        for query in ("a", "b", "c", "d", "e", "f", "g", "h"):
             steps.read(query)
     finally:
         progress.unbind(token)
-    assert [item[0] for item in reports] == [0, 1, 2, 3, 4, 4, 4]
-    assert {item[1] for item in reports} == {4}
-    assert reports[0][2].startswith("triage_vpn: 0 of at most 4 reads")
+    # G14: the plan of triage_vpn has 6 reads (4 summary reads + 2 optional detail reads)
+    assert [item[0] for item in reports] == [0, 1, 2, 3, 4, 5, 6, 6, 6]
+    assert {item[1] for item in reports} == {6}
+    assert reports[0][2].startswith("triage_vpn: 0 of at most 6 reads")
 
     def broken(*_):
         raise RuntimeError("channel gone")
@@ -110,7 +111,8 @@ def test_triage_vpn_reports_each_read(audit_log, monkeypatch):
         progress.unbind(token)
     assert result["ok"] is True
     done = [item[0] for item in reports]
-    assert done == sorted(done) and done[0] == 0 and done[-1] == 4 and {item[1] for item in reports} == {4}
+    # G14: the two detail queries are not enrolled; their refused reads still count as plan steps
+    assert done == sorted(done) and done[0] == 0 and done[-1] == 6 and {item[1] for item in reports} == {6}
 
 
 def test_triage_slb_reports_each_read_within_the_charged_plan():
@@ -169,7 +171,7 @@ def test_the_real_server_sends_progress_notifications_when_the_client_asks(real_
     result = asyncio.run(go())
     assert result.structured_content == {"ok": True, "target": "wire-test"}
     assert [item[0] for item in seen] == [0, 1, 2, 3]
-    assert all(item[1] == 4 for item in seen) and seen[1][2].startswith("triage_vpn: 1 of at most 4 reads")
+    assert all(item[1] == 6 for item in seen) and seen[1][2].startswith("triage_vpn: 1 of at most 6 reads")
 
 
 def test_the_real_server_sends_progress_only_to_a_request_with_a_progress_token(real_server):
@@ -195,7 +197,7 @@ def test_the_real_server_sends_progress_only_to_a_request_with_a_progress_token(
     asked = asyncio.run(post(call("tok-9")))
     notifications = [m for m in asked if m.get("method") == "notifications/progress"]
     assert [m["params"]["progress"] for m in notifications] == [0, 1, 2, 3]
-    assert all(m["params"]["progressToken"] == "tok-9" and m["params"]["total"] == 4 for m in notifications)
+    assert all(m["params"]["progressToken"] == "tok-9" and m["params"]["total"] == 6 for m in notifications)
     assert asked[-1]["id"] == 5 and asked[-1]["result"]["structuredContent"] == {"ok": True, "target": "wire-test"}
 
 
@@ -226,7 +228,7 @@ def test_a_worker_transport_receives_ordered_reports_and_is_unbound_afterwards(r
 
     result = asyncio.run(go())
     assert result.structured_content["ok"] is True
-    assert got == [(0, 4), (1, 4), (2, 4), (3, 4)]
+    assert got == [(0, 6), (1, 6), (2, 6), (3, 6)]
     assert progress.transport() is None
 
 
@@ -343,9 +345,9 @@ def test_proxy_requests_charge_triage_to_both_budgets(monkeypatch, tmp_path):
     assert proxy.request(contracts._request(1, "triage_health", {"target": "device-a"})) is not None
     assert len(proxy.triage_history["device-a"]) == 10 and len(proxy.rate_history["device-a"]) == 10
     assert proxy.request(contracts._request(2, "triage_vpn", {"target": "device-a", "tunnel": "T1"})) is not None
-    assert len(proxy.triage_history["device-a"]) == 14
+    assert len(proxy.triage_history["device-a"]) == 11
     assert proxy.request(contracts._request(3, "ssh_read", MANUAL)) is not None
-    assert len(proxy.rate_history["device-a"]) == 15 and len(proxy.triage_history["device-a"]) == 14
+    assert len(proxy.rate_history["device-a"]) == 12 and len(proxy.triage_history["device-a"]) == 11
 
 
 def test_a_refused_triage_names_the_rate_limit_and_leaves_manual_work_possible(monkeypatch, tmp_path):
@@ -369,10 +371,10 @@ def test_target_scope_and_helper_status_show_both_budgets(monkeypatch, tmp_path)
     proxy = proxy_module.Proxy()
     assert proxy.request(contracts._request(1, "triage_vpn", {"target": "device-a", "tunnel": "T1"})) is not None
     scope = proxy._target_scope_payload("device-a")
-    assert scope["triage_rate_limit"]["used"] == 4 and scope["rate_limit"]["used"] == 4
+    assert scope["triage_rate_limit"]["used"] == 1 and scope["rate_limit"]["used"] == 1
     assert scope["triage_rate_limit"]["requests"] == scope["rate_limit"]["requests"] == 30
     status = proxy._helper_status_payload()["target_rate_limits"][0]
-    assert status["triage_rate_limit"]["used"] == 4 and status["rate_limit"]["used"] == 4
+    assert status["triage_rate_limit"]["used"] == 1 and status["rate_limit"]["used"] == 1
 
 
 @pytest.mark.parametrize("tool,arguments,expected", [

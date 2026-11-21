@@ -1,0 +1,7 @@
+
+
+
+203.0.113.7/32, epoch 0, flags [attached]
+  Adj source: IP adj out of GigabitEthernet0/2, addr 203.0.113.7 00000000
+    Dependent covered prefix type adjfib, cover 203.0.113.0/24
+  attached to GigabitEthernet0/2

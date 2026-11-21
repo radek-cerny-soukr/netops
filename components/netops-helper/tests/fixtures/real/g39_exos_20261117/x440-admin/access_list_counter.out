@@ -1,0 +1,6 @@
+Policy Name       Vlan Name        Port   Direction  
+    Counter Name                   Packet Count         Byte Count           
+==================================================================
+x04test           *                12     ingress   
+    x04-doc-hits                   0                                         
+

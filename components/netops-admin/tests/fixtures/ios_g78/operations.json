@@ -1,0 +1,238 @@
+[
+  {
+    "read": "show running-config",
+    "fixture": "baseline.conf",
+    "role": "admin"
+  },
+  {
+    "read": "show vlan brief",
+    "fixture": "vlan-brief-before.txt",
+    "role": "ro"
+  },
+  {
+    "read": "show interfaces Ethernet0/1 switchport",
+    "fixture": "switchport-before.txt",
+    "role": "ro"
+  },
+  {
+    "read": "show running-config interface Ethernet0/1",
+    "fixture": "ro-denied.txt",
+    "role": "ro"
+  },
+  {
+    "command": "configure terminal revert timer 5",
+    "answer": "configure terminal revert timer 5\nRollback Confirmed Change: Backing up current running config to unix:netops-archive-Nov-17-09-45-23.134-22\n\nEnter configuration commands, one per line.  End with CNTL/Z.\nhost01(config)#"
+  },
+  {
+    "command": "end",
+    "answer": "end\nhost01#"
+  },
+  {
+    "command": "configure terminal",
+    "answer": "configure terminal\nEnter configuration commands, one per line.  End with CNTL/Z.\nhost01(config)#"
+  },
+  {
+    "command": "vlan 3780",
+    "answer": "vlan 3780\nhost01(config-vlan)#"
+  },
+  {
+    "command": "name netops-g78",
+    "answer": "name netops-g78\nhost01(config-vlan)#"
+  },
+  {
+    "command": "exit",
+    "answer": "exit\nhost01(config)#"
+  },
+  {
+    "command": "vlan 3781",
+    "answer": "vlan 3781\nhost01(config-vlan)#"
+  },
+  {
+    "command": "name netops-g78-voice",
+    "answer": "name netops-g78-voice\nhost01(config-vlan)#"
+  },
+  {
+    "command": "exit",
+    "answer": "exit\nhost01(config)#"
+  },
+  {
+    "command": "interface Ethernet0/1",
+    "answer": "interface Ethernet0/1\nhost01(config-if)#"
+  },
+  {
+    "command": "switchport access vlan 3780",
+    "answer": "switchport access vlan 3780\nhost01(config-if)#"
+  },
+  {
+    "command": "switchport voice vlan 3781",
+    "answer": "switchport voice vlan 3781\nhost01(config-if)#"
+  },
+  {
+    "command": "no shutdown",
+    "answer": "no shutdown\nhost01(config-if)#"
+  },
+  {
+    "command": "end",
+    "answer": "end\nhost01#"
+  },
+  {
+    "help": "name",
+    "answer": "configure terminal\nEnter configuration commands, one per line.  End with CNTL/Z.\nd-iolxe-l2(config)#vlan 3780\nd-iolxe-l2(config-vlan)#name ?\n  WORD  The ascii name for the VLAN\n\nd-iolxe-l2(config-vlan)#name \b\b\b\b\b     \b\b\b\b\b\nd-iolxe-l2(config-vlan)#end\nd-iolxe-l2#"
+  },
+  {
+    "read": "show running-config",
+    "fixture": "access-voice.full.conf",
+    "role": "admin"
+  },
+  {
+    "read": "show running-config interface Ethernet0/1",
+    "fixture": "access-voice.conf",
+    "role": "admin"
+  },
+  {
+    "read": "show interfaces Ethernet0/1 switchport",
+    "fixture": "switchport-voice.txt",
+    "role": "ro"
+  },
+  {
+    "read": "show vlan id 3780",
+    "fixture": "vlan-created.txt",
+    "role": "ro"
+  },
+  {
+    "command": "configure terminal",
+    "answer": "configure terminal\nEnter configuration commands, one per line.  End with CNTL/Z.\nhost01(config)#"
+  },
+  {
+    "command": "vlan 3780",
+    "answer": "vlan 3780\nhost01(config-vlan)#"
+  },
+  {
+    "command": "name netops-g78-renamed",
+    "answer": "name netops-g78-renamed\nhost01(config-vlan)#"
+  },
+  {
+    "command": "end",
+    "answer": "end\nhost01#"
+  },
+  {
+    "read": "show vlan id 3780",
+    "fixture": "vlan-renamed.txt",
+    "role": "ro"
+  },
+  {
+    "command": "configure terminal",
+    "answer": "configure terminal\nEnter configuration commands, one per line.  End with CNTL/Z.\nhost01(config)#"
+  },
+  {
+    "command": "interface Ethernet0/1",
+    "answer": "interface Ethernet0/1\nhost01(config-if)#"
+  },
+  {
+    "command": "switchport voice vlan none",
+    "answer": "switchport voice vlan none\nhost01(config-if)#"
+  },
+  {
+    "command": "switchport trunk encapsulation dot1q",
+    "answer": "switchport trunk encapsulation dot1q\nhost01(config-if)#"
+  },
+  {
+    "command": "switchport mode trunk",
+    "answer": "switchport mode trunk\nhost01(config-if)#"
+  },
+  {
+    "command": "switchport trunk allowed vlan 3780",
+    "answer": "switchport trunk allowed vlan 3780\nhost01(config-if)#"
+  },
+  {
+    "command": "switchport trunk allowed vlan add 3781",
+    "answer": "switchport trunk allowed vlan add 3781\nhost01(config-if)#"
+  },
+  {
+    "command": "switchport trunk native vlan 3780",
+    "answer": "switchport trunk native vlan 3780\nhost01(config-if)#"
+  },
+  {
+    "command": "end",
+    "answer": "end\nhost01#"
+  },
+  {
+    "read": "show running-config",
+    "fixture": "trunk.full.conf",
+    "role": "admin"
+  },
+  {
+    "read": "show running-config interface Ethernet0/1",
+    "fixture": "trunk.conf",
+    "role": "admin"
+  },
+  {
+    "read": "show interfaces Ethernet0/1 switchport",
+    "fixture": "switchport-trunk.txt",
+    "role": "ro"
+  },
+  {
+    "command": "configure terminal",
+    "answer": "configure terminal\nEnter configuration commands, one per line.  End with CNTL/Z.\nhost01(config)#"
+  },
+  {
+    "command": "interface Ethernet0/1",
+    "answer": "interface Ethernet0/1\nhost01(config-if)#"
+  },
+  {
+    "command": "switchport trunk allowed vlan remove 3781",
+    "answer": "switchport trunk allowed vlan remove 3781\nhost01(config-if)#"
+  },
+  {
+    "command": "end",
+    "answer": "end\nhost01#"
+  },
+  {
+    "read": "show running-config",
+    "fixture": "trunk-removed.full.conf",
+    "role": "admin"
+  },
+  {
+    "read": "show running-config interface Ethernet0/1",
+    "fixture": "trunk-removed.conf",
+    "role": "admin"
+  },
+  {
+    "read": "show interfaces Ethernet0/1 switchport",
+    "fixture": "switchport-removed.txt",
+    "role": "ro"
+  },
+  {
+    "command": "configure terminal",
+    "answer": "configure terminal\nEnter configuration commands, one per line.  End with CNTL/Z.\nhost01(config)#"
+  },
+  {
+    "command": "mac address-table static 0200.0000.4370 vlan 3780 interface Ethernet0/1",
+    "answer": "mac address-table static 0000.5e00.5301 vlan 3780 interfac\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b$-table static 0000.5e00.5301 vlan 3780 interface         \b\b\b\b\b\b\b\b\b Ethernet\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\btic 0000.5e00.5301 vlan 3780 interface Ethernet0         \b\b\b\b\b\b\b\b\b/1\nhost01(config)#"
+  },
+  {
+    "command": "end",
+    "answer": "end\nhost01#"
+  },
+  {
+    "read": "show mac address-table interface Ethernet0/1",
+    "fixture": "occupied-mac.txt",
+    "role": "admin"
+  },
+  {
+    "read": "show vlan id 3782",
+    "fixture": "vlan-missing.txt",
+    "role": "ro"
+  },
+  {
+    "command": "configure revert now",
+    "answer": "configure revert now\nRollback Confirmed Change: rolling to:unix:netops-archive-Nov-17-09-45-23.134-22\n\nTotal number of passes: 1\nRollback Done\n\nhost01#"
+  },
+  {
+    "restored": true,
+    "before_sha256": "b3d46704494bc1bf4461e90cced31f3043c7d07068fad0cc22eb3902ae8abdd7",
+    "after_sha256": "b3d46704494bc1bf4461e90cced31f3043c7d07068fad0cc22eb3902ae8abdd7",
+    "timer": "%No Rollback Confirmed Change pending",
+    "startup_running": "!Contextual Config Diffs:\n!No changes were found"
+  }
+]

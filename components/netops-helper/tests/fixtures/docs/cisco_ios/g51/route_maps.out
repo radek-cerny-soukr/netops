@@ -1,0 +1,18 @@
+route-map ROUTE-MAP-NAME, permit, sequence 20
+  Match clauses:
+
+
+    ip address (access-lists): 2
+
+
+    metric 20
+
+
+  Set clauses:
+
+
+    as-path prepend 10 10
+
+
+  Policy routing matches: 0 packets, 0 bytes
+

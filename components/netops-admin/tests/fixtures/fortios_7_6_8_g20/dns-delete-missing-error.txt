@@ -1,0 +1,2 @@
+delete table entry 9 unset oper error ret=-3
+Command fail. Return code -3

@@ -1,0 +1,13 @@
+show ethinfo
+System Ethernet Overview:
+  Port  0:
+    Interface= eth0
+    MAC Address= 00:00:5e:00:53:14
+    Physical Link= up
+    Speed= 1000Mbps
+  Port  1:
+    Interface= eth1
+    MAC Address= 00:00:5e:00:53:15
+    Physical Link= down
+    Speed= 1000Mbps
+

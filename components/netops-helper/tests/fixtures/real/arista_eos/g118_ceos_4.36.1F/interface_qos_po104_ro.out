@@ -1,0 +1,29 @@
+Port-Channel104:
+   Trust Mode: COS
+   Default COS: 0
+   Default DSCP: 0
+
+   Port shaping rate: disabled
+
+  Tx     Bandwidth          Shape Rate         Priority 
+ Queue                       (units)         
+ -------------------------------------------------------
+  UC7       -           -            ( - )      SP    
+  UC6       -           -            ( - )      SP    
+  MC3       -           -            ( - )      SP    
+  UC5       -           -            ( - )      SP    
+  UC4       -           -            ( - )      SP    
+  MC2       -           -            ( - )      SP    
+  UC3       -           -            ( - )      SP    
+  UC2       -           -            ( - )      SP    
+  MC1       -           -            ( - )      SP    
+  UC1       -           -            ( - )      SP    
+  UC0       -           -            ( - )      SP    
+  MC0       -           -            ( - )      SP    
+
+Legend:
+RR -> Round Robin
+SP -> Strict Priority
+ - -> Not Applicable / Not Configured
+ % -> Percentage of reference
+

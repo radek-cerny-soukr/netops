@@ -1,0 +1,27 @@
+Virtual                               Number of    Number of    Flags       
+Router                                VLANs        Ports                    
+--------------------------------------------------------------------------------
+VR-Control                                    0            0    --------S-46
+VR-Default                                    6            0    bopri-ORS-46
+VR-Mgmt                                       1            0    --------S-46
+--------------------------------------------------------------------------------
+Flags: Routing protocols configured on the Virtual Router
+        (b) BGP, (i) ISIS, (m) MPLS, (o) OSPF, (O) OSPFv3, (p) PIM,
+        (r) RIP, (R) RIPng.
+       Virtual Router type
+        (D) Dynamically created user VR, (F) Non-VPN VRF, (N) VPN VRF,
+        (S) System, (U) User.
+       Virtual Router admin state
+        (-) Disabled (4) IPv4 Enabled, (6) IPv6 Enabled.
+System Totals           :
+Total VRs               :     3    Max VRs               :  1026
+Total User VRs          :     0    Max User VRs          :    63
+Total Non-VPN VRFs      :     0    Max VRFs              :   960
+Total VPN VRFs          :     0
+Total System VRs        :     3
+Total Router Interfaces :     4
+Total Protocols         :     7    Max Protocols         :    64
+Total IPv4 VLANs        :     5    Total IPv6 VLANs      :     0
+Active IPv4 VLANs       :     5    Active IPv6 VLANs     :     0
+Inactive IPv4 VLANs     :     0    Inactive IPv6 VLANs   :     0
+Max Shared GWs (Cur)    :    16    Max Shared GWs (Cfg)  :    16

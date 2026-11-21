@@ -1,0 +1,70 @@
+show l2acl all
+L2/MAC ACL:
+  ID:
+    1:
+      Name= System
+      Description= System
+      Restriction= Deny only the stations listed below
+      Stations:
+
+    2:
+      Name= blacklist
+      Description=
+      Restriction= Deny only the stations listed below
+      Stations:
+        MAC Address= 00:00:5e:00:53:02
+        MAC Address= 00:00:5e:00:53:03
+        MAC Address= 00:00:5e:00:53:04
+        MAC Address= 00:00:5E:00:53:02
+        MAC Address= 00:00:5E:00:53:05
+        MAC Address= 00:00:5E:00:53:06
+        MAC Address= 00:00:5e:00:53:07
+        MAC Address= 00:00:5e:00:53:08
+        MAC Address= 00:00:5e:00:53:09
+        MAC Address= 00:00:5e:00:53:0a
+        MAC Address= 00:00:5E:00:53:0B
+        MAC Address= 00:00:5E:00:53:0C
+        MAC Address= 00:00:5E:00:53:0D
+        MAC Address= 00:00:5E:00:53:0E
+
+    3:
+      Name= allow
+      Description=
+      Restriction= Allow only the stations listed below
+      Stations:
+        MAC Address= 00:00:5e:00:53:0f
+        MAC Address= 00:00:5e:00:53:10
+        MAC Address= 00:00:5e:00:53:11
+        MAC Address= 00:00:5e:00:53:12
+        MAC Address= 00:00:5e:00:53:13
+        MAC Address= 00:00:5e:00:53:14
+        MAC Address= 00:00:5e:00:53:15
+        MAC Address= 00:00:5e:00:53:16
+        MAC Address= 00:00:5e:00:53:17
+        MAC Address= 00:00:5e:00:53:18
+        MAC Address= 00:00:5e:00:53:19
+        MAC Address= 00:00:5E:00:53:1A
+        MAC Address= 00:00:5E:00:53:1B
+        MAC Address= 00:00:5E:00:53:1C
+        MAC Address= 00:00:5E:00:53:1D
+        MAC Address= 00:00:5E:00:53:1E
+        MAC Address= 00:00:5E:00:53:1F
+        MAC Address= 00:00:5e:00:53:20
+        MAC Address= 00:00:5e:00:53:21
+        MAC Address= 00:00:5E:00:53:22
+        MAC Address= 00:00:5e:00:53:23
+        MAC Address= 00:00:5e:00:53:24
+        MAC Address= 00:00:5e:00:53:25
+        MAC Address= 00:00:5e:00:53:26
+        MAC Address= 00:00:5e:00:53:23
+        MAC Address= 00:00:5e:00:53:27
+        MAC Address= 00:00:5E:00:53:28
+        MAC Address= 00:00:5e:00:53:29
+        MAC Address= 00:00:5e:00:53:2a
+        MAC Address= 00:00:5E:00:53:2B
+        MAC Address= 00:00:5e:00:53:2c
+        MAC Address= 00:00:5E:00:53:0B
+        MAC Address= 00:00:5e:00:53:2d
+        MAC Address= 00:00:5e:00:53:2e
+        MAC Address= 00:00:5e:00:53:2f
+        MAC Address= 00:00:5e:00:53:30

@@ -1,0 +1,4 @@
+Interface  Admin   Oper      Power      Device          Class  Max
+                            (Watts)
+--------- ------ ---------- ------- ------------------- -----  ----
+Gi1/0/4    auto     on         8.9     IP Phone 8851       4   60.0

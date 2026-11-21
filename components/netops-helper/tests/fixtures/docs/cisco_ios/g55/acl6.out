@@ -1,0 +1,4 @@
+IPv6 access list inbound
+    permit tcp any any eq bgp (8 matches) sequence 10
+    permit tcp any any eq telnet (15 matches) sequence 20
+    permit udp any any sequence 30

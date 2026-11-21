@@ -1,0 +1,12 @@
+show mesh topology
+Mesh Topology(mesh-site):
+  Root Access Points= 00:00:5e:00:53:01
+    Signal (dB) Downlink= / Uplink=
+    Description=
+    Channel= 36 (11ac)
+    IP Address= 192.0.2.5
+  Mesh Access Points= 00:00:5e:00:53:02
+    Signal (dB) Downlink= 44 / Uplink= 36
+    Description=
+    Channel= 36
+    IP Address= 192.0.2.6

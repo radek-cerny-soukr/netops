@@ -1,0 +1,19 @@
+Stpd: s0	Port: 10	PortId: 800a	Stp: ENABLED	Path Cost: 20000
+Port Mode         : 802.1D		Port Role          : ----
+Port State        : DISABLED		Topology Change Ack: FALSE
+Port Priority     : 128
+Designated Root   : 00:00:00:00:00:00:00:00	Designated Cost: 0, IntCost: 0
+Designated Bridge : 00:00:00:00:00:00:00:00	Designated Port Id: 0
+Partner STP version     : Dot1w
+Restricted Role         : Disabled
+Active Role             : Disabled
+Edge Port Safe Guard    : Disabled
+BPDU Restrict           : Disabled
+maxAge: 0	msgAge: 0	fwdDelay: 15	helloTime: 0	maxHops: 20
+Restricted TCN          : Off
+Loop Protect            : Off
+Loop Protect Partner    : Incapable
+Operational Edge        : FALSE
+Auto Edge               : On
+Reflection BPDU         : On
+Participating Vlans: Default

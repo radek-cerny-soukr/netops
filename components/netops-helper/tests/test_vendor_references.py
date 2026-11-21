@@ -33,6 +33,10 @@ PROFILE_DOCUMENTS = {
 LOGIN_ONLY_DOCUMENTS = {"ruckus-unleashed.md"}
 LOGIN_SOURCE_TITLE = "Ruckus Unleashed 200.13 CLI Reference Guide"
 LOGIN_VERIFIED_ON_DEVICE = "2026-09-16"
+LOGIN_SOURCE_DATES = {
+    "R-CLI-UNLEASHED-200-13": LOGIN_VERIFIED_ON_DEVICE,
+    "R-CLI-UNLEASHED-200-15": "2026-11-18",
+}
 CANONICAL_KEYS_AND_ALIASES = {
     "fortinet",
     "fortios",
@@ -259,10 +263,38 @@ def test_registry_resolves_every_vendor_composite_to_its_narrative() -> None:
                 if login_only:
                     assert "url" not in source
                     assert source["access"] == "login_required"
-                    assert source["verified_on_device"] == LOGIN_VERIFIED_ON_DEVICE
+                    assert source["verified_on_device"] == LOGIN_SOURCE_DATES[source_id]
                     assert source["title"] in text
                     continue
                 assert source["url"] in text
+
+
+def test_cisco_management_rows_match_exact_commands_and_existing_sources() -> None:
+    text = _read(SOURCE_DIR / "cisco.md").split(
+        "### Management diagnostics (G56/G74/G95)\n", 1,
+    )[1].split("For `cisco_nxos`", 1)[0]
+    rows = re.findall(
+        r"^\| `(cisco_[^`]+)` \| `([^`]+)` \| `([^`]+)` \| (.+) \|$",
+        text, re.MULTILINE,
+    )
+    ios_names = {"aaa_servers", "radius_statistics", "tacacs_statistics", "snmp_statistics",
+                 "snmp_engine_id", "dns_hosts", "users", "ssh_sessions", "lines"}
+    nxos_names = {"dns_hosts", "snmp_statistics", "snmp_engine_id", "aaa_authentication",
+                  "radius_statistics", "tacacs_statistics", "users", "ssh_server",
+                  "configuration_sessions"}
+    expected = {(profile, name) for profile, names in (
+        ("cisco_ios", ios_names), ("cisco_xe", ios_names), ("cisco_nxos", nxos_names),
+    ) for name in names}
+    assert len(rows) == len(expected) == 27
+    assert {(profile, name) for profile, name, _, _ in rows} == expected
+    registry = RENDERER.load_registry()
+    for profile, name, command, sources in rows:
+        assert command == READ_QUERIES[profile][name].command
+        source_ids = registry["queries"][f"{profile}/{name}"]["source_ids"]
+        assert sources == ", ".join(
+            f"[{source_id}]({registry['sources'][source_id]['url']})"
+            for source_id in source_ids
+        )
 
 
 def test_fortinet_and_extreme_tables_match_catalogue_and_registry() -> None:
@@ -524,12 +556,21 @@ def test_fortiadc_sources_name_one_exact_version_with_its_public_provenance() ->
         for query_name in READ_QUERIES["fortiadc"]
         for source_id in registry["queries"][f"fortiadc/{query_name}"]["source_ids"]
     }
-    assert used == set(FORTIADC_PROVENANCE)
+    standby_source = "F-ADC-EXECUTE-HA-FAILOVER-STANDBY-76"
+    standby_url = ("https://docs.fortinet.com/document/fortiadc/7.6.0/new-features/251331/"
+                   "new-and-enhanced-cli-commands-to-force-ha-nodes-into-standby-mode")
+    assert used == set(FORTIADC_PROVENANCE) | {standby_source}
+    assert registry["sources"][standby_source] == {
+        "vendor": "Fortinet",
+        "title": "FortiADC 7.6.0 New Features: New and enhanced CLI commands to force HA nodes into standby mode",
+        "baseline": "FortiADC 7.6.0", "url": standby_url,
+    }
+    assert registry["queries"]["fortiadc/ha_standby_status"]["source_ids"] == ["F-ADC-CLI-76", standby_source]
     text = _read(SOURCE_DIR / "fortinet-fortiadc.md")
     assert f"- Reviewed version: {FORTIADC_BASELINE}." in text
     for url in URL_RE.findall(text):
         if "/document/fortiadc/" in url:
-            assert url.startswith(FORTIADC_DOCUMENT_ROOT), url
+            assert url.startswith(FORTIADC_DOCUMENT_ROOT) or url == standby_url, url
     provenance = _section(text, "Source provenance")
     for phrase in ("Product: FortiADC", "Exact version: 7.6.7", "Compared on: 2026-10-27",
                    "FortiADC 7.6.7 CLI Reference"):

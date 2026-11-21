@@ -1,0 +1,22 @@
+Multi-switch Link Aggregation Peers:
+
+MLAG Peer         : host04
+VLAN              : host02                 Virtual Router    : VR-Default
+Local IP Address  : 192.0.2.1              Peer IP Address   : 192.0.2.2
+MLAG ports        : 1                      Tx-Interval       : 1000 ms
+Checkpoint Status : Up                     Peer Tx-Interval  : 1000 ms
+Rx-Hellos         : 29                     Tx-Hellos         : 168
+Rx-Checkpoint Msgs: 30                     Tx-Checkpoint Msgs: 26
+Rx-Hello Errors   : 0                      Tx-Hello Errors   : 195
+Hello Timeouts    : 0                      Checkpoint Errors : 0
+Up Time           : 0d:0h:0m:27s           Peer Conn.F***[x435-8p-4s:login]***lures: 0
+Local MAC         : 00:00:5e:00:53:02      Peer MAC          : 00:00:5e:00:53:01
+Config'd LACP MAC : 00:00:5e:00:53:03      Current LACP MAC  : 00:00:5e:00:53:03
+Authentication    : None
+
+Alternate path information:
+VLAN              : host03                 Virtual Router    : VR-Default
+Local IP Address  : 198.51.100.1           Peer IP Address   : 198.51.100.2
+Rx-Hellos         : 2                      Tx-Hellos         : 4
+Rx-Hello Errors   : 0                      Tx-Hello Errors   : 4
+Hello Timeouts    : 0

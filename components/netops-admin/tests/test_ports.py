@@ -55,6 +55,7 @@ def test_create_and_delete_are_not_offered_for_ports():
 
 def test_rest_of_the_configuration_is_not_hidden_by_the_port_number():
     device = FakeExos()
+    device.port_descriptions["11"] = "Default settings for the access port"
     plan = build_plan("exos", snapshot(device), port_request(), firmware=FIRMWARE)
     device.port_strings["10"] = "Cam-01"
     assert verify(plan, snapshot(device))["result"] == "match"

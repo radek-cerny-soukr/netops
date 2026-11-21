@@ -1,0 +1,3755 @@
+{
+ "from": "1.0.11",
+ "to": "1.0.12",
+ "changes": [
+  {
+   "tool": "admin_unblock",
+   "kind": "added",
+   "reason": "Expose the opt-in, approval-bound Admin operation that lifts a device block after verifying the observed state."
+  },
+  {
+   "tool": "admin_unblock_preview",
+   "kind": "added",
+   "reason": "Expose the opt-in read-only Admin check that inspects the blocked device and issues an approval hash for unblocking."
+  },
+  {
+   "tool": "admin_undo",
+   "kind": "added",
+   "reason": "Expose the opt-in Admin operation that reverses a confirmed change through the return mechanism of the change (the device safeguard or the compensating inverse) using an approved undo plan."
+  },
+  {
+   "tool": "firewall_policy_hits",
+   "kind": "added",
+   "reason": "Expose paged FortiGate policy counters and last-use evidence through an enrolled read-only REST account."
+  },
+  {
+   "tool": "fortiswitch_overview",
+   "kind": "added",
+   "reason": "Expose a read-only inventory of the FortiSwitch units managed through FortiLink in the root VDOM of an enrolled FortiGate."
+  },
+  {
+   "tool": "triage_nxos_path",
+   "kind": "added",
+   "reason": "Correlate enrolled NX-OS interface, switching, route, forwarding and next-hop evidence for one IPv4 destination."
+  },
+  {
+   "tool": "triage_port",
+   "kind": "added",
+   "reason": "Expose per-port link and topology evidence with sourced findings for EXOS, EOS, Junos ELS, Cisco IOS and IOS XE."
+  },
+  {
+   "tool": "vpc_compare",
+   "kind": "added",
+   "reason": "Compare status and member consistency for the same vPC ID across two enrolled Nexus peers."
+  },
+  {
+   "tool": "admin_apply",
+   "kind": "definition",
+   "reason": "Allow changes to be a single object or an ordered batch and accept an explicit endpoint impact acknowledgment. Document firmware warnings and approval requirements for the expanded profile operations.",
+   "added_keys": {
+    "/inputSchema/properties/changes/anyOf": {
+     "sha256": "b3d38a42ef5afe60359b44782e4e190481da39b7d2a6aaa121b2dec3b02059be"
+    },
+    "/inputSchema/properties/endpoint_impact": {
+     "sha256": "8df079e90ae598d81db07cf8abf57ab17d9efaef8841009037533af591d9bb77"
+    }
+   },
+   "removed_keys": [
+    "/inputSchema/properties/changes/additionalProperties",
+    "/inputSchema/properties/changes/type"
+   ],
+   "changed_keys": {
+    "/description": {
+     "sha256": "3fd05f25d48fd4250f27aa9e45e5f5cd71301a8d38179a6e766c2397f4b59255"
+    }
+   }
+  },
+  {
+   "tool": "admin_doctor",
+   "kind": "definition",
+   "reason": "Describe readiness output that lists operations per table and reports tested firmware coverage.",
+   "changed_keys": {
+    "/description": {
+     "sha256": "b07e8357081f23aeb482e1713dfa2714590bf89c5961a827f595a738e61df5a6"
+    }
+   }
+  },
+  {
+   "tool": "admin_preview",
+   "kind": "definition",
+   "reason": "Accept ordered batch operations and explicit endpoint impact. Describe the planning checks, the temporary diagnostic session filter of a FortiOS session-clear preview, the expanded preview operations, the firmware warning bound to the approval hash and the local approval ticket of a save preview.",
+   "added_keys": {
+    "/inputSchema/properties/changes/anyOf": {
+     "sha256": "b3d38a42ef5afe60359b44782e4e190481da39b7d2a6aaa121b2dec3b02059be"
+    },
+    "/inputSchema/properties/endpoint_impact": {
+     "sha256": "8df079e90ae598d81db07cf8abf57ab17d9efaef8841009037533af591d9bb77"
+    }
+   },
+   "removed_keys": [
+    "/inputSchema/properties/changes/additionalProperties",
+    "/inputSchema/properties/changes/type"
+   ],
+   "changed_keys": {
+    "/description": {
+     "sha256": "637c6f0b40dca465086a7226958256227cf35b6550a1addfaa847d67ceb40d27"
+    }
+   }
+  },
+  {
+   "tool": "admin_schema_apply",
+   "kind": "definition",
+   "reason": "Clarify that schema operations require a measured rollback grant and that the library is bound to an exact build.",
+   "changed_keys": {
+    "/description": {
+     "sha256": "795af666eec88b259ddd0e8e640f37b44c93461eee4c0dfe4fde34a4d1706a26"
+    }
+   }
+  },
+  {
+   "tool": "admin_status",
+   "kind": "definition",
+   "reason": "Document the firmware support information included in the operation status.",
+   "changed_keys": {
+    "/description": {
+     "sha256": "39253475ba12b4040d98e3d8e539388c2a461b2488db5b6493fe02241eeb9e02"
+    }
+   }
+  },
+  {
+   "tool": "admin_undo_preview",
+   "kind": "definition",
+   "reason": "Explain that the preview runs the planning checks of the undo and that the opt-in Admin MCP undo can consume the approved plan hash from the preview, which is recorded locally as its approval ticket.",
+   "changed_keys": {
+    "/description": {
+     "sha256": "706f576912338793a2408cc2480555142e93704faa18805b6b0c257545a157b7"
+    }
+   }
+  },
+  {
+   "tool": "config_diff",
+   "kind": "definition",
+   "reason": "Document retained FortiOS and FortiADC snapshots, approved baselines and live saved or startup versus running comparisons for supported switches.",
+   "changed_keys": {
+    "/description": {
+     "sha256": "03d6e7b98e4394d7e853b74b9795e944d587cd3b84f93b6faa61ece54aee428b"
+    }
+   }
+  },
+  {
+   "tool": "config_read",
+   "kind": "definition",
+   "reason": "Allow explicit approval of a captured baseline using its content hash. Document Unleashed full captures and FortiOS and FortiADC snapshot history.",
+   "added_keys": {
+    "/inputSchema/properties/approve_baseline": {
+     "sha256": "f56777819c8be28f711bc04bdfdb5fb6a82bdaf4109198c616273cb0003e4137"
+    }
+   },
+   "changed_keys": {
+    "/description": {
+     "sha256": "c6e4007f9031853c20972761a4676a7b5a853d5de4d98455f53514748c6d8706"
+    }
+   }
+  },
+  {
+   "tool": "fortios_diagnostics",
+   "kind": "definition",
+   "reason": "Expose FortiOS log, session and sniffer selectors and FortiADC log paging. Document the expanded recipe limits and use a recipe-specific timeout when omitted.",
+   "added_keys": {
+    "/inputSchema/properties/log_action": {
+     "sha256": "8df079e90ae598d81db07cf8abf57ab17d9efaef8841009037533af591d9bb77"
+    },
+    "/inputSchema/properties/log_category": {
+     "sha256": "8df079e90ae598d81db07cf8abf57ab17d9efaef8841009037533af591d9bb77"
+    },
+    "/inputSchema/properties/log_subtype": {
+     "sha256": "8df079e90ae598d81db07cf8abf57ab17d9efaef8841009037533af591d9bb77"
+    },
+    "/inputSchema/properties/policy_id": {
+     "sha256": "033303405191c2a584fe206b8db2bcda3a831619dc4bbaa76b1fd2fe212d241b"
+    },
+    "/inputSchema/properties/sniffer_filter": {
+     "sha256": "8df079e90ae598d81db07cf8abf57ab17d9efaef8841009037533af591d9bb77"
+    },
+    "/inputSchema/properties/start_line": {
+     "sha256": "e299efdd593101fa726e35ca670c1902220f7cd8bdf5cd68fbc957cd4ad287de"
+    }
+   },
+   "removed_keys": [
+    "/inputSchema/properties/timeout/default"
+   ],
+   "changed_keys": {
+    "/description": {
+     "sha256": "50e2fd2fe617045750ec32dff8e43134af575158f04045857ea378cde029423a"
+    },
+    "/inputSchema/properties/count/description": {
+     "sha256": "76680eb06a7b2eb4f04125ec923aad97efc42fc543e70c91218589cd08c767ea"
+    },
+    "/inputSchema/properties/max_bytes/description": {
+     "sha256": "b605fcdc0c3384379e47469a3892f3797f25e62b2c8e25c3a8aa635332d863d3"
+    },
+    "/inputSchema/properties/timeout/description": {
+     "sha256": "2f64ce219d167696e9d48671b1df2883d97b78d16e6096572b9f41948d26da37"
+    }
+   }
+  },
+  {
+   "tool": "locate_endpoint",
+   "kind": "definition",
+   "reason": "Document hostname correlation through DHCP and ARP and the use of Wi-Fi associations for access point and backhaul evidence, and reword the unchanged limits of eight concurrent devices, one read at a time per device address and port, and a shared budget below 60 seconds.",
+   "changed_keys": {
+    "/description": {
+     "sha256": "2b23ff1b651e7791a6496e58b5a80437ee7ec97c6963b556e63fe7b34caf227e"
+    }
+   }
+  },
+  {
+   "tool": "ssh_read",
+   "kind": "definition",
+   "reason": "Describe structured results for expanded Junos, Cisco and NX-OS queries and the enrolled HTTPS login and pin for FortiADC certificate inventory, with an optional SSH read for the ACME state.",
+   "changed_keys": {
+    "/description": {
+     "sha256": "55c16122b5bbbc55fbd85bfaab769bf1a94c49c6e6ff25e1cba0e74e406d22d8"
+    }
+   }
+  },
+  {
+   "tool": "switch_read",
+   "kind": "definition",
+   "reason": "Expose new operational tables, routing instance and address-family selection, and interval counter baselines bound to the target, profile, interface selection and managed switch, with summary modes and the ports each mode lists.",
+   "added_keys": {
+    "/inputSchema/properties/address_family": {
+     "sha256": "8df079e90ae598d81db07cf8abf57ab17d9efaef8841009037533af591d9bb77"
+    },
+    "/inputSchema/properties/baseline": {
+     "sha256": "174d930e4f7117d3f3f29c08f1a025b6ada30e4578b2629f4fcdc6edcbc3008f"
+    },
+    "/inputSchema/properties/summary": {
+     "sha256": "780b42ada3daabc575ab297cba1219b46b4e186246aea96a3df0feb9ea722820"
+    },
+    "/inputSchema/properties/vr": {
+     "sha256": "8df079e90ae598d81db07cf8abf57ab17d9efaef8841009037533af591d9bb77"
+    },
+    "/inputSchema/properties/vrf": {
+     "sha256": "8df079e90ae598d81db07cf8abf57ab17d9efaef8841009037533af591d9bb77"
+    }
+   },
+   "changed_keys": {
+    "/description": {
+     "sha256": "965ff0b9666e94e09b14013f0f5aaee2879eab3146db0cf61bc6eddb4fdd25bc"
+    },
+    "/inputSchema/properties/table/enum": {
+     "sha256": "808d9fcee1092155ba60482377de9373480b784142785185ae37b2d628822998"
+    }
+   }
+  },
+  {
+   "tool": "triage_flow",
+   "kind": "definition",
+   "reason": "Accept an enrolled ingress interface for Cisco flow triage and describe separate lookup evidence and the FortiOS source-port rule.",
+   "added_keys": {
+    "/inputSchema/properties/interface": {
+     "sha256": "8df079e90ae598d81db07cf8abf57ab17d9efaef8841009037533af591d9bb77"
+    }
+   },
+   "changed_keys": {
+    "/description": {
+     "sha256": "aa2a81451e960f7deb8860b8096ad51a6f1d7b8de8cf6d41b1fe7fffe3122e6d"
+    }
+   }
+  },
+  {
+   "tool": "triage_health",
+   "kind": "definition",
+   "reason": "Describe fixed health reads across the added Cisco, EXOS, Junos and Ruckus platforms, including Unleashed AP evidence.",
+   "changed_keys": {
+    "/description": {
+     "sha256": "32d619e322d08a96989c26e6b5c94811ea54f6b26035c83c070daf028a86990b"
+    }
+   }
+  },
+  {
+   "tool": "triage_routing",
+   "kind": "definition",
+   "reason": "Accept an enrolled Cisco VRF and optional IP SLA ID and describe the Cisco, Junos and FortiOS routing evidence.",
+   "added_keys": {
+    "/inputSchema/properties/sla_id": {
+     "sha256": "033303405191c2a584fe206b8db2bcda3a831619dc4bbaa76b1fd2fe212d241b"
+    },
+    "/inputSchema/properties/vrf": {
+     "sha256": "8df079e90ae598d81db07cf8abf57ab17d9efaef8841009037533af591d9bb77"
+    }
+   },
+   "changed_keys": {
+    "/description": {
+     "sha256": "753a6673f948cb90cfde8ad47b8a4c6fa7c473ca1c16ae952d8cdc3aeff7ff15"
+    }
+   }
+  },
+  {
+   "tool": "wifi_triage",
+   "kind": "definition",
+   "reason": "Document the Catalyst 9800 MAC selector and the association, AP and client statistics it returns.",
+   "changed_keys": {
+    "/description": {
+     "sha256": "03e063b1d6358851cb57cda544f8a5203d9d6cfe804f5be5020b1e4a380f7b3b"
+    }
+   }
+  },
+  {
+   "tool": "read_query_catalog",
+   "kind": "response",
+   "reason": "Include newly typed queries across the Fortinet, Cisco, Arista, Extreme, Juniper and Ruckus catalogues. Refresh existing descriptions and the NX-OS transceiver interface selector, with a new total and catalogue fingerprint.",
+   "added_keys": {
+    "/queries/arista_eos/aaa_sessions": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/arista_eos/arp_table_vrf": {
+     "sha256": "b415765e90455ee7a897830b5a634aecd95930076eaa785664e2725294b76a6b"
+    },
+    "/queries/arista_eos/bfd_peers": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/arista_eos/bfd_peers_vrf": {
+     "sha256": "b415765e90455ee7a897830b5a634aecd95930076eaa785664e2725294b76a6b"
+    },
+    "/queries/arista_eos/bgp_peer": {
+     "sha256": "c0a5f6dec220496c26c4492ebeb03cda74d30ce1a1a791125865e3648a9185ce"
+    },
+    "/queries/arista_eos/bgp_peer_advertised_routes": {
+     "sha256": "c0a5f6dec220496c26c4492ebeb03cda74d30ce1a1a791125865e3648a9185ce"
+    },
+    "/queries/arista_eos/bgp_peer_advertised_routes_vrf": {
+     "sha256": "2c14cce99df7eb5a67e42ef4749748f970efc103e21f242e11ce4dac5d4fb53e"
+    },
+    "/queries/arista_eos/bgp_peer_routes": {
+     "sha256": "c0a5f6dec220496c26c4492ebeb03cda74d30ce1a1a791125865e3648a9185ce"
+    },
+    "/queries/arista_eos/bgp_peer_routes_vrf": {
+     "sha256": "2c14cce99df7eb5a67e42ef4749748f970efc103e21f242e11ce4dac5d4fb53e"
+    },
+    "/queries/arista_eos/bgp_peer_vrf": {
+     "sha256": "2c14cce99df7eb5a67e42ef4749748f970efc103e21f242e11ce4dac5d4fb53e"
+    },
+    "/queries/arista_eos/bgp_summary_vrf": {
+     "sha256": "b415765e90455ee7a897830b5a634aecd95930076eaa785664e2725294b76a6b"
+    },
+    "/queries/arista_eos/dhcp_relay": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/arista_eos/dhcp_relay_counters": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/arista_eos/dhcp_server": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/arista_eos/dhcp_server_leases": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/arista_eos/dhcp_snooping": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/arista_eos/dns_hosts": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/arista_eos/dns_lookup": {
+     "sha256": "991663e69a045a15c08d90392c18cd256de7bca6ce639e941e7e079032fec65e"
+    },
+    "/queries/arista_eos/dns_name_servers": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/arista_eos/dot1x": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/arista_eos/dot1x_clients": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/arista_eos/dot1x_interface": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/arista_eos/igmp_snooping": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/arista_eos/igmp_snooping_counters": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/arista_eos/igmp_snooping_groups": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/arista_eos/igmp_snooping_mrouter": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/arista_eos/interface_counters_rates": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/arista_eos/interface_qos": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/arista_eos/interface_queue_counters": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/arista_eos/interfaces_counters_rates": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/arista_eos/ipv4_access_lists": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/arista_eos/ipv4_access_lists_interface": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/arista_eos/ipv4_access_lists_summary": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/arista_eos/ipv6_access_lists": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/arista_eos/ipv6_access_lists_interface": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/arista_eos/ipv6_access_lists_summary": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/arista_eos/ipv6_bgp_summary_vrf": {
+     "sha256": "b415765e90455ee7a897830b5a634aecd95930076eaa785664e2725294b76a6b"
+    },
+    "/queries/arista_eos/ipv6_neighbors_vrf": {
+     "sha256": "b415765e90455ee7a897830b5a634aecd95930076eaa785664e2725294b76a6b"
+    },
+    "/queries/arista_eos/ipv6_rib": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/arista_eos/ipv6_rib_vrf": {
+     "sha256": "b415765e90455ee7a897830b5a634aecd95930076eaa785664e2725294b76a6b"
+    },
+    "/queries/arista_eos/ipv6_route_lookup_vrf": {
+     "sha256": "2c14cce99df7eb5a67e42ef4749748f970efc103e21f242e11ce4dac5d4fb53e"
+    },
+    "/queries/arista_eos/ipv6_route_table": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/arista_eos/ipv6_route_table_vrf": {
+     "sha256": "b415765e90455ee7a897830b5a634aecd95930076eaa785664e2725294b76a6b"
+    },
+    "/queries/arista_eos/log_messages_last": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/arista_eos/log_messages_range": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/arista_eos/logging_status": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/arista_eos/mac_table_address": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/arista_eos/mac_table_interface": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/arista_eos/mac_table_vlan": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/arista_eos/ospf_database": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/arista_eos/ospf_database_vrf": {
+     "sha256": "b415765e90455ee7a897830b5a634aecd95930076eaa785664e2725294b76a6b"
+    },
+    "/queries/arista_eos/ospf_interface_detail": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/arista_eos/ospf_interface_detail_vrf": {
+     "sha256": "c935a26b43146df5a4a5ae15bbc9fee3418b09c93b3a373e07483d2f38290e5d"
+    },
+    "/queries/arista_eos/ospf_neighbors_detail": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/arista_eos/ospf_neighbors_detail_vrf": {
+     "sha256": "b415765e90455ee7a897830b5a634aecd95930076eaa785664e2725294b76a6b"
+    },
+    "/queries/arista_eos/ospfv3_database": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/arista_eos/ospfv3_database_vrf": {
+     "sha256": "b415765e90455ee7a897830b5a634aecd95930076eaa785664e2725294b76a6b"
+    },
+    "/queries/arista_eos/ospfv3_interface_detail": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/arista_eos/ospfv3_interface_detail_vrf": {
+     "sha256": "c935a26b43146df5a4a5ae15bbc9fee3418b09c93b3a373e07483d2f38290e5d"
+    },
+    "/queries/arista_eos/ospfv3_neighbors_vrf": {
+     "sha256": "b415765e90455ee7a897830b5a634aecd95930076eaa785664e2725294b76a6b"
+    },
+    "/queries/arista_eos/ping": {
+     "sha256": "aee5dd45a36abf1a5d6853d22e3b3886ff066fd6ab27198cb4eba280dabcef4b"
+    },
+    "/queries/arista_eos/poe": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/arista_eos/radius": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/arista_eos/radius_status": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/arista_eos/route_lookup_vrf": {
+     "sha256": "2c14cce99df7eb5a67e42ef4749748f970efc103e21f242e11ce4dac5d4fb53e"
+    },
+    "/queries/arista_eos/route_table_vrf": {
+     "sha256": "b415765e90455ee7a897830b5a634aecd95930076eaa785664e2725294b76a6b"
+    },
+    "/queries/arista_eos/snmp_status": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/arista_eos/snmp_targets": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/arista_eos/stp_counters": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/arista_eos/stp_detail": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/arista_eos/stp_interface_detail": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/arista_eos/tacacs": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/arista_eos/traceroute": {
+     "sha256": "2c14cce99df7eb5a67e42ef4749748f970efc103e21f242e11ce4dac5d4fb53e"
+    },
+    "/queries/arista_eos/traceroute_source": {
+     "sha256": "aee5dd45a36abf1a5d6853d22e3b3886ff066fd6ab27198cb4eba280dabcef4b"
+    },
+    "/queries/arista_eos/users": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/arista_eos/varp": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/arista_eos/varp_vrf": {
+     "sha256": "b415765e90455ee7a897830b5a634aecd95930076eaa785664e2725294b76a6b"
+    },
+    "/queries/arista_eos/vrfs": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/arista_eos/vrrp": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/arista_eos/vrrp_vrf": {
+     "sha256": "b415765e90455ee7a897830b5a634aecd95930076eaa785664e2725294b76a6b"
+    },
+    "/queries/cisco_ios/aaa_servers": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_ios/adjacency_details": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/cisco_ios/arp_inspection_statistics": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_ios/arp_lookup": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_ios/arp_lookup_vrf": {
+     "sha256": "b415765e90455ee7a897830b5a634aecd95930076eaa785664e2725294b76a6b"
+    },
+    "/queries/cisco_ios/arp_table_vrf": {
+     "sha256": "b415765e90455ee7a897830b5a634aecd95930076eaa785664e2725294b76a6b"
+    },
+    "/queries/cisco_ios/authentication_sessions_interface": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/cisco_ios/bfd_neighbors": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_ios/bgp_advertised_routes": {
+     "sha256": "c0a5f6dec220496c26c4492ebeb03cda74d30ce1a1a791125865e3648a9185ce"
+    },
+    "/queries/cisco_ios/bgp_ipv6_summary": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_ios/bgp_neighbor": {
+     "sha256": "c0a5f6dec220496c26c4492ebeb03cda74d30ce1a1a791125865e3648a9185ce"
+    },
+    "/queries/cisco_ios/bgp_prefix": {
+     "sha256": "c0a5f6dec220496c26c4492ebeb03cda74d30ce1a1a791125865e3648a9185ce"
+    },
+    "/queries/cisco_ios/bgp_routes": {
+     "sha256": "c0a5f6dec220496c26c4492ebeb03cda74d30ce1a1a791125865e3648a9185ce"
+    },
+    "/queries/cisco_ios/cdp_neighbor_interface": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/cisco_ios/cef_lookup": {
+     "sha256": "c0a5f6dec220496c26c4492ebeb03cda74d30ce1a1a791125865e3648a9185ce"
+    },
+    "/queries/cisco_ios/dhcp_server_binding_address": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_ios/dhcp_server_bindings": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_ios/dhcp_server_conflicts": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_ios/dhcp_server_pools": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_ios/dhcp_server_statistics": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_ios/dhcp_snooping_binding": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_ios/dhcp_snooping_statistics": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_ios/dhcp_snooping_status": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_ios/dns_hosts": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_ios/dot1x_interface": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/cisco_ios/etherchannel_detail": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_ios/etherchannel_load_balance": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_ios/hsrp_detail": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_ios/ikev1_sa": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_ios/ikev2_sa": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_ios/ip_interface_details": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/cisco_ios/ip_policy": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_ios/ip_protocols": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_ios/ip_sla_statistics": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_ios/ip_source_guard": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_ios/ipsec_sa": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_ios/ipv4_access_lists": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_ios/ipv6_access_lists": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_ios/ipv6_interface_details": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/cisco_ios/ipv6_neighbors_interface": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/cisco_ios/ipv6_neighbors_interface_vrf": {
+     "sha256": "c935a26b43146df5a4a5ae15bbc9fee3418b09c93b3a373e07483d2f38290e5d"
+    },
+    "/queries/cisco_ios/ipv6_neighbors_vrf": {
+     "sha256": "b415765e90455ee7a897830b5a634aecd95930076eaa785664e2725294b76a6b"
+    },
+    "/queries/cisco_ios/ipv6_route_table": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_ios/lacp_internal": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_ios/lines": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_ios/lldp_neighbor_interface": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/cisco_ios/log_history": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/cisco_ios/mac_table_address": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_ios/mac_table_interface": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/cisco_ios/mac_table_vlan": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_ios/nat_statistics": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_ios/nat_translations": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_ios/object_tracking": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_ios/ospf_database": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_ios/ospf_interface": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/cisco_ios/ospf_neighbor_detail": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_ios/ospfv3_neighbors": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_ios/ping": {
+     "sha256": "c0a5f6dec220496c26c4492ebeb03cda74d30ce1a1a791125865e3648a9185ce"
+    },
+    "/queries/cisco_ios/ping_ipv6": {
+     "sha256": "c0a5f6dec220496c26c4492ebeb03cda74d30ce1a1a791125865e3648a9185ce"
+    },
+    "/queries/cisco_ios/ping_ipv6_source": {
+     "sha256": "24872c6772300a04a8b45c3e3462773f5a41aeec249e82e8d41e9e11c711e9bd"
+    },
+    "/queries/cisco_ios/ping_source": {
+     "sha256": "24872c6772300a04a8b45c3e3462773f5a41aeec249e82e8d41e9e11c711e9bd"
+    },
+    "/queries/cisco_ios/ping_vrf": {
+     "sha256": "2c14cce99df7eb5a67e42ef4749748f970efc103e21f242e11ce4dac5d4fb53e"
+    },
+    "/queries/cisco_ios/ping_vrf_source": {
+     "sha256": "617e1e1fe70a0cb288d279815530da1d1e427c5bb3c637c5b0a61a0a1eb2e868"
+    },
+    "/queries/cisco_ios/port_security_addresses": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_ios/port_security_interface": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/cisco_ios/power_inline_detail": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/cisco_ios/qos_policy": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/cisco_ios/qos_queues": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/cisco_ios/radius_statistics": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_ios/route_maps": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_ios/snmp_engine_id": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_ios/snmp_statistics": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_ios/ssh_sessions": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_ios/stp_detail": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_ios/stp_interface_detail": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/cisco_ios/stp_mst": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_ios/tacacs_statistics": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_ios/traceroute": {
+     "sha256": "c0a5f6dec220496c26c4492ebeb03cda74d30ce1a1a791125865e3648a9185ce"
+    },
+    "/queries/cisco_ios/traceroute_source": {
+     "sha256": "24872c6772300a04a8b45c3e3462773f5a41aeec249e82e8d41e9e11c711e9bd"
+    },
+    "/queries/cisco_ios/traceroute_vrf": {
+     "sha256": "2c14cce99df7eb5a67e42ef4749748f970efc103e21f242e11ce4dac5d4fb53e"
+    },
+    "/queries/cisco_ios/traceroute_vrf_source": {
+     "sha256": "617e1e1fe70a0cb288d279815530da1d1e427c5bb3c637c5b0a61a0a1eb2e868"
+    },
+    "/queries/cisco_ios/users": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_ios/vrf_arp_table": {
+     "sha256": "b415765e90455ee7a897830b5a634aecd95930076eaa785664e2725294b76a6b"
+    },
+    "/queries/cisco_ios/vrf_cef_lookup": {
+     "sha256": "2c14cce99df7eb5a67e42ef4749748f970efc103e21f242e11ce4dac5d4fb53e"
+    },
+    "/queries/cisco_ios/vrf_ip_interfaces": {
+     "sha256": "b415765e90455ee7a897830b5a634aecd95930076eaa785664e2725294b76a6b"
+    },
+    "/queries/cisco_ios/vrf_route_lookup": {
+     "sha256": "2c14cce99df7eb5a67e42ef4749748f970efc103e21f242e11ce4dac5d4fb53e"
+    },
+    "/queries/cisco_ios/vrfs": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_ios/vrrp_detail": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_nxos/aaa_authentication": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_nxos/arp_inspection_statistics": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_nxos/arp_inspection_statistics_vlan": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_nxos/arp_lookup": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_nxos/arp_lookup_vrf": {
+     "sha256": "b415765e90455ee7a897830b5a634aecd95930076eaa785664e2725294b76a6b"
+    },
+    "/queries/cisco_nxos/arp_table_vrf": {
+     "sha256": "b415765e90455ee7a897830b5a634aecd95930076eaa785664e2725294b76a6b"
+    },
+    "/queries/cisco_nxos/bfd_neighbors_detail": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_nxos/bgp_advertised_routes": {
+     "sha256": "c0a5f6dec220496c26c4492ebeb03cda74d30ce1a1a791125865e3648a9185ce"
+    },
+    "/queries/cisco_nxos/bgp_ipv6_summary": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_nxos/bgp_ipv6_summary_vrf": {
+     "sha256": "b415765e90455ee7a897830b5a634aecd95930076eaa785664e2725294b76a6b"
+    },
+    "/queries/cisco_nxos/bgp_neighbor_detail": {
+     "sha256": "c0a5f6dec220496c26c4492ebeb03cda74d30ce1a1a791125865e3648a9185ce"
+    },
+    "/queries/cisco_nxos/bgp_prefix_detail": {
+     "sha256": "00f226c466ebf6e16645ded0595a0d9e6e5d656b8efc1a05ba781679b5dcffdf"
+    },
+    "/queries/cisco_nxos/bgp_received_routes": {
+     "sha256": "c0a5f6dec220496c26c4492ebeb03cda74d30ce1a1a791125865e3648a9185ce"
+    },
+    "/queries/cisco_nxos/bgp_summary_vrf": {
+     "sha256": "b415765e90455ee7a897830b5a634aecd95930076eaa785664e2725294b76a6b"
+    },
+    "/queries/cisco_nxos/cdp_neighbor_interface": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/cisco_nxos/configuration_sessions": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_nxos/dhcp_relay_statistics": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_nxos/dhcp_relay_status": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_nxos/dhcp_snooping_statistics": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_nxos/dhcp_snooping_status": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_nxos/dns_hosts": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_nxos/evpn_bgp_prefix": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_nxos/evpn_bgp_summary": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_nxos/evpn_mac_ip": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_nxos/forwarding_ipv4_route": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_nxos/hardware_capacity": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_nxos/hsrp_detail": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_nxos/ip_adjacency": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_nxos/ip_interface_details": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/cisco_nxos/ip_interfaces_vrf": {
+     "sha256": "b415765e90455ee7a897830b5a634aecd95930076eaa785664e2725294b76a6b"
+    },
+    "/queries/cisco_nxos/ip_policy": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_nxos/ipv4_access_lists": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_nxos/ipv4_access_lists_summary": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_nxos/ipv6_access_lists": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_nxos/ipv6_access_lists_summary": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_nxos/ipv6_neighbor_lookup": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_nxos/ipv6_neighbor_lookup_vrf": {
+     "sha256": "b415765e90455ee7a897830b5a634aecd95930076eaa785664e2725294b76a6b"
+    },
+    "/queries/cisco_nxos/ipv6_neighbors_vrf": {
+     "sha256": "b415765e90455ee7a897830b5a634aecd95930076eaa785664e2725294b76a6b"
+    },
+    "/queries/cisco_nxos/ipv6_route_lookup_vrf": {
+     "sha256": "2c14cce99df7eb5a67e42ef4749748f970efc103e21f242e11ce4dac5d4fb53e"
+    },
+    "/queries/cisco_nxos/ipv6_route_table": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_nxos/ipv6_route_table_vrf": {
+     "sha256": "b415765e90455ee7a897830b5a634aecd95930076eaa785664e2725294b76a6b"
+    },
+    "/queries/cisco_nxos/lacp_interface": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/cisco_nxos/lldp_neighbor_interface": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/cisco_nxos/log_history": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/cisco_nxos/logging_info": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_nxos/mac_access_lists": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_nxos/mac_access_lists_summary": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_nxos/mac_table_address": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_nxos/mac_table_vlan": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_nxos/nve_interface_detail": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_nxos/nve_peers": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_nxos/nve_vni": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_nxos/object_tracking": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_nxos/ospf_database": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_nxos/ospf_interface_detail": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/cisco_nxos/ospf_interfaces_vrf": {
+     "sha256": "b415765e90455ee7a897830b5a634aecd95930076eaa785664e2725294b76a6b"
+    },
+    "/queries/cisco_nxos/ospf_neighbors_detail": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_nxos/ospf_neighbors_vrf": {
+     "sha256": "b415765e90455ee7a897830b5a634aecd95930076eaa785664e2725294b76a6b"
+    },
+    "/queries/cisco_nxos/ospf_process": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_nxos/ospfv3_neighbors": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_nxos/ospfv3_neighbors_vrf": {
+     "sha256": "b415765e90455ee7a897830b5a634aecd95930076eaa785664e2725294b76a6b"
+    },
+    "/queries/cisco_nxos/ping": {
+     "sha256": "2c14cce99df7eb5a67e42ef4749748f970efc103e21f242e11ce4dac5d4fb53e"
+    },
+    "/queries/cisco_nxos/ping6": {
+     "sha256": "2c14cce99df7eb5a67e42ef4749748f970efc103e21f242e11ce4dac5d4fb53e"
+    },
+    "/queries/cisco_nxos/ping6_source": {
+     "sha256": "aee5dd45a36abf1a5d6853d22e3b3886ff066fd6ab27198cb4eba280dabcef4b"
+    },
+    "/queries/cisco_nxos/ping_source": {
+     "sha256": "aee5dd45a36abf1a5d6853d22e3b3886ff066fd6ab27198cb4eba280dabcef4b"
+    },
+    "/queries/cisco_nxos/port_channel_database": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_nxos/port_channel_load_balance": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_nxos/priority_flow_control": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_nxos/processes_cpu": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_nxos/qos_policy": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/cisco_nxos/qos_queues": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/cisco_nxos/radius_statistics": {
+     "sha256": "c0a5f6dec220496c26c4492ebeb03cda74d30ce1a1a791125865e3648a9185ce"
+    },
+    "/queries/cisco_nxos/route_lookup_vrf": {
+     "sha256": "2c14cce99df7eb5a67e42ef4749748f970efc103e21f242e11ce4dac5d4fb53e"
+    },
+    "/queries/cisco_nxos/route_map_counters": {
+     "sha256": "ac77f758786cd06691623ebdcf94d3fa2e74d682f6645a15c1fd26c65f1d7db5"
+    },
+    "/queries/cisco_nxos/route_maps": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_nxos/route_prefix_lookup": {
+     "sha256": "00f226c466ebf6e16645ded0595a0d9e6e5d656b8efc1a05ba781679b5dcffdf"
+    },
+    "/queries/cisco_nxos/route_prefix_lookup_vrf": {
+     "sha256": "f13f254b56c30357b5c9e4ee36ad82343484a374b7621c9505dc792ca2637f82"
+    },
+    "/queries/cisco_nxos/route_table_vrf": {
+     "sha256": "b415765e90455ee7a897830b5a634aecd95930076eaa785664e2725294b76a6b"
+    },
+    "/queries/cisco_nxos/snmp_engine_id": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_nxos/snmp_statistics": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_nxos/ssh_server": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_nxos/stp_detail": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_nxos/stp_interface_detail": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/cisco_nxos/stp_mst": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_nxos/tacacs_statistics": {
+     "sha256": "c0a5f6dec220496c26c4492ebeb03cda74d30ce1a1a791125865e3648a9185ce"
+    },
+    "/queries/cisco_nxos/tcam_utilization": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_nxos/traceroute": {
+     "sha256": "2c14cce99df7eb5a67e42ef4749748f970efc103e21f242e11ce4dac5d4fb53e"
+    },
+    "/queries/cisco_nxos/traceroute6": {
+     "sha256": "2c14cce99df7eb5a67e42ef4749748f970efc103e21f242e11ce4dac5d4fb53e"
+    },
+    "/queries/cisco_nxos/traceroute6_source": {
+     "sha256": "aee5dd45a36abf1a5d6853d22e3b3886ff066fd6ab27198cb4eba280dabcef4b"
+    },
+    "/queries/cisco_nxos/traceroute_source": {
+     "sha256": "aee5dd45a36abf1a5d6853d22e3b3886ff066fd6ab27198cb4eba280dabcef4b"
+    },
+    "/queries/cisco_nxos/users": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_nxos/vpc_interface_consistency": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/cisco_nxos/vpc_member_consistency": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_nxos/vrrp_detail": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_nxos/vrrpv3_detail": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_xe/aaa_servers": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_xe/adjacency_details": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/cisco_xe/arp_inspection_statistics": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_xe/arp_lookup": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_xe/arp_lookup_vrf": {
+     "sha256": "b415765e90455ee7a897830b5a634aecd95930076eaa785664e2725294b76a6b"
+    },
+    "/queries/cisco_xe/arp_table_vrf": {
+     "sha256": "b415765e90455ee7a897830b5a634aecd95930076eaa785664e2725294b76a6b"
+    },
+    "/queries/cisco_xe/authentication_sessions_interface": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/cisco_xe/bfd_neighbors": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_xe/bgp_advertised_routes": {
+     "sha256": "c0a5f6dec220496c26c4492ebeb03cda74d30ce1a1a791125865e3648a9185ce"
+    },
+    "/queries/cisco_xe/bgp_ipv6_summary": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_xe/bgp_neighbor": {
+     "sha256": "c0a5f6dec220496c26c4492ebeb03cda74d30ce1a1a791125865e3648a9185ce"
+    },
+    "/queries/cisco_xe/bgp_prefix": {
+     "sha256": "c0a5f6dec220496c26c4492ebeb03cda74d30ce1a1a791125865e3648a9185ce"
+    },
+    "/queries/cisco_xe/bgp_routes": {
+     "sha256": "c0a5f6dec220496c26c4492ebeb03cda74d30ce1a1a791125865e3648a9185ce"
+    },
+    "/queries/cisco_xe/c9800_ap_joins": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_xe/c9800_ap_load": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_xe/c9800_ap_tag_detail": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_xe/c9800_ap_tags": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_xe/c9800_aps": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_xe/c9800_chassis_rmi": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_xe/c9800_client_deletes": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_xe/c9800_client_detail": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_xe/c9800_client_stats": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_xe/c9800_clients": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_xe/c9800_exclusions": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_xe/c9800_policy_profiles": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_xe/c9800_radio_24": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_xe/c9800_radio_5": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_xe/c9800_redundancy": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_xe/c9800_rogue_aps": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_xe/c9800_wlans": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_xe/cdp_neighbor_interface": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/cisco_xe/cef_lookup": {
+     "sha256": "c0a5f6dec220496c26c4492ebeb03cda74d30ce1a1a791125865e3648a9185ce"
+    },
+    "/queries/cisco_xe/dhcp_server_binding_address": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_xe/dhcp_server_bindings": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_xe/dhcp_server_conflicts": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_xe/dhcp_server_pools": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_xe/dhcp_server_statistics": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_xe/dhcp_snooping_binding": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_xe/dhcp_snooping_statistics": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_xe/dhcp_snooping_status": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_xe/dns_hosts": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_xe/dot1x_interface": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/cisco_xe/etherchannel_detail": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_xe/etherchannel_load_balance": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_xe/hsrp_detail": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_xe/ikev1_sa": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_xe/ikev2_sa": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_xe/ip_interface_details": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/cisco_xe/ip_policy": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_xe/ip_protocols": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_xe/ip_sla_statistics": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_xe/ip_source_guard": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_xe/ipsec_sa": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_xe/ipv4_access_lists": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_xe/ipv6_access_lists": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_xe/ipv6_interface_details": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/cisco_xe/ipv6_neighbors_interface": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/cisco_xe/ipv6_neighbors_interface_vrf": {
+     "sha256": "c935a26b43146df5a4a5ae15bbc9fee3418b09c93b3a373e07483d2f38290e5d"
+    },
+    "/queries/cisco_xe/ipv6_neighbors_vrf": {
+     "sha256": "b415765e90455ee7a897830b5a634aecd95930076eaa785664e2725294b76a6b"
+    },
+    "/queries/cisco_xe/ipv6_route_table": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_xe/lacp_internal": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_xe/lines": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_xe/lldp_neighbor_interface": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/cisco_xe/log_history": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/cisco_xe/mac_table_address": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_xe/mac_table_interface": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/cisco_xe/mac_table_vlan": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_xe/nat_statistics": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_xe/nat_translations": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_xe/object_tracking": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_xe/ospf_database": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_xe/ospf_interface": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/cisco_xe/ospf_neighbor_detail": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_xe/ospfv3_neighbors": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_xe/ping": {
+     "sha256": "c0a5f6dec220496c26c4492ebeb03cda74d30ce1a1a791125865e3648a9185ce"
+    },
+    "/queries/cisco_xe/ping_ipv6": {
+     "sha256": "c0a5f6dec220496c26c4492ebeb03cda74d30ce1a1a791125865e3648a9185ce"
+    },
+    "/queries/cisco_xe/ping_ipv6_source": {
+     "sha256": "24872c6772300a04a8b45c3e3462773f5a41aeec249e82e8d41e9e11c711e9bd"
+    },
+    "/queries/cisco_xe/ping_ipv6_vrf": {
+     "sha256": "2c14cce99df7eb5a67e42ef4749748f970efc103e21f242e11ce4dac5d4fb53e"
+    },
+    "/queries/cisco_xe/ping_ipv6_vrf_source": {
+     "sha256": "617e1e1fe70a0cb288d279815530da1d1e427c5bb3c637c5b0a61a0a1eb2e868"
+    },
+    "/queries/cisco_xe/ping_source": {
+     "sha256": "24872c6772300a04a8b45c3e3462773f5a41aeec249e82e8d41e9e11c711e9bd"
+    },
+    "/queries/cisco_xe/ping_vrf": {
+     "sha256": "2c14cce99df7eb5a67e42ef4749748f970efc103e21f242e11ce4dac5d4fb53e"
+    },
+    "/queries/cisco_xe/ping_vrf_source": {
+     "sha256": "617e1e1fe70a0cb288d279815530da1d1e427c5bb3c637c5b0a61a0a1eb2e868"
+    },
+    "/queries/cisco_xe/port_security_addresses": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_xe/port_security_interface": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/cisco_xe/power_inline_detail": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/cisco_xe/qfp_drops": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_xe/qfp_utilization": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_xe/qos_policy": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/cisco_xe/qos_queues": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/cisco_xe/radius_statistics": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_xe/route_maps": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_xe/snmp_engine_id": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_xe/snmp_statistics": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_xe/ssh_sessions": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_xe/stp_detail": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_xe/stp_interface_detail": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/cisco_xe/stp_mst": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_xe/tacacs_statistics": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_xe/traceroute": {
+     "sha256": "c0a5f6dec220496c26c4492ebeb03cda74d30ce1a1a791125865e3648a9185ce"
+    },
+    "/queries/cisco_xe/traceroute_ipv6": {
+     "sha256": "c0a5f6dec220496c26c4492ebeb03cda74d30ce1a1a791125865e3648a9185ce"
+    },
+    "/queries/cisco_xe/traceroute_ipv6_source": {
+     "sha256": "24872c6772300a04a8b45c3e3462773f5a41aeec249e82e8d41e9e11c711e9bd"
+    },
+    "/queries/cisco_xe/traceroute_ipv6_vrf": {
+     "sha256": "2c14cce99df7eb5a67e42ef4749748f970efc103e21f242e11ce4dac5d4fb53e"
+    },
+    "/queries/cisco_xe/traceroute_ipv6_vrf_source": {
+     "sha256": "617e1e1fe70a0cb288d279815530da1d1e427c5bb3c637c5b0a61a0a1eb2e868"
+    },
+    "/queries/cisco_xe/traceroute_source": {
+     "sha256": "24872c6772300a04a8b45c3e3462773f5a41aeec249e82e8d41e9e11c711e9bd"
+    },
+    "/queries/cisco_xe/traceroute_vrf": {
+     "sha256": "2c14cce99df7eb5a67e42ef4749748f970efc103e21f242e11ce4dac5d4fb53e"
+    },
+    "/queries/cisco_xe/traceroute_vrf_source": {
+     "sha256": "617e1e1fe70a0cb288d279815530da1d1e427c5bb3c637c5b0a61a0a1eb2e868"
+    },
+    "/queries/cisco_xe/users": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_xe/vrf_arp_table": {
+     "sha256": "b415765e90455ee7a897830b5a634aecd95930076eaa785664e2725294b76a6b"
+    },
+    "/queries/cisco_xe/vrf_cef_lookup": {
+     "sha256": "2c14cce99df7eb5a67e42ef4749748f970efc103e21f242e11ce4dac5d4fb53e"
+    },
+    "/queries/cisco_xe/vrf_ip_interfaces": {
+     "sha256": "b415765e90455ee7a897830b5a634aecd95930076eaa785664e2725294b76a6b"
+    },
+    "/queries/cisco_xe/vrf_route_lookup": {
+     "sha256": "2c14cce99df7eb5a67e42ef4749748f970efc103e21f242e11ce4dac5d4fb53e"
+    },
+    "/queries/cisco_xe/vrfs": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/cisco_xe/vrrp_detail": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/extreme_exos/access_lists": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/extreme_exos/accounts": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/extreme_exos/arp_table_vr": {
+     "sha256": "ed91a3c6908117b6ad02439953782efc00abd52d50a875522a3f9d3688002ff2"
+    },
+    "/queries/extreme_exos/arp_vlan": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/extreme_exos/bfd_sessions": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/extreme_exos/bgp_neighbor": {
+     "sha256": "c0a5f6dec220496c26c4492ebeb03cda74d30ce1a1a791125865e3648a9185ce"
+    },
+    "/queries/extreme_exos/bgp_routes": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/extreme_exos/bgp_summary": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/extreme_exos/bootprelay": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/extreme_exos/bootprelay_configuration": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/extreme_exos/dhcp_server": {
+     "sha256": "b8757e8308e3d5582b57b08b0b00bd0066baa120a694b45f1a3e7da8f73ab905"
+    },
+    "/queries/extreme_exos/dhcp_snooping": {
+     "sha256": "b8757e8308e3d5582b57b08b0b00bd0066baa120a694b45f1a3e7da8f73ab905"
+    },
+    "/queries/extreme_exos/dhcp_snooping_violations": {
+     "sha256": "b8757e8308e3d5582b57b08b0b00bd0066baa120a694b45f1a3e7da8f73ab905"
+    },
+    "/queries/extreme_exos/dns_client": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/extreme_exos/dns_lookup": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/extreme_exos/igmp_groups": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/extreme_exos/igmp_snooping": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/extreme_exos/ipconfig_ipv6": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/extreme_exos/ipv6_neighbors_vr": {
+     "sha256": "ed91a3c6908117b6ad02439953782efc00abd52d50a875522a3f9d3688002ff2"
+    },
+    "/queries/extreme_exos/ipv6_route_table_vr": {
+     "sha256": "ed91a3c6908117b6ad02439953782efc00abd52d50a875522a3f9d3688002ff2"
+    },
+    "/queries/extreme_exos/lacp_member": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/extreme_exos/log_history": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/extreme_exos/mac_address": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/extreme_exos/mac_vlan": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/extreme_exos/management": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/extreme_exos/netlogin": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/extreme_exos/netlogin_port": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/extreme_exos/ospf_interfaces": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/extreme_exos/ospf_lsdb": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/extreme_exos/ospf_neighbors": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/extreme_exos/ospfv3_interfaces": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/extreme_exos/ospfv3_neighbors": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/extreme_exos/ping": {
+     "sha256": "c07014756b34da4c91b11eb7e8ea217df923804dc885fabbe8ccd6b4cb4abad9"
+    },
+    "/queries/extreme_exos/ping_source": {
+     "sha256": "1b2f456a24adbaa5d6054113bef41b9b43c97b980590a37e29c80d85fd1ab73a"
+    },
+    "/queries/extreme_exos/policies": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/extreme_exos/policy_details": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/extreme_exos/port_packets": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/extreme_exos/port_qos": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/extreme_exos/port_qos_drops": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/extreme_exos/port_utilization": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/extreme_exos/radius": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/extreme_exos/route_table_vr": {
+     "sha256": "ed91a3c6908117b6ad02439953782efc00abd52d50a875522a3f9d3688002ff2"
+    },
+    "/queries/extreme_exos/snmp_engine": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/extreme_exos/snmp_targets": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/extreme_exos/stp_domain_ports": {
+     "sha256": "603523a442c908828729c28f2280631c3950d3e67700c92f678525a6a9c30737"
+    },
+    "/queries/extreme_exos/stp_port_detail": {
+     "sha256": "3af968c5e491a5fecb70d5c5dab0df73f9f174a37346d503e013f0587e178dbe"
+    },
+    "/queries/extreme_exos/tacacs": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/extreme_exos/traceroute": {
+     "sha256": "c07014756b34da4c91b11eb7e8ea217df923804dc885fabbe8ccd6b4cb4abad9"
+    },
+    "/queries/extreme_exos/traceroute_source": {
+     "sha256": "1b2f456a24adbaa5d6054113bef41b9b43c97b980590a37e29c80d85fd1ab73a"
+    },
+    "/queries/extreme_exos/vrrp": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/fortiadc/certificate_inventory": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/fortiadc/ha_standby_status": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/fortiadc/interface_list": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/fortiadc/interface_state_all": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/fortiadc/interface_summary": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/fortiadc/nic_detail_all": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/fortiadc/slb_rs_stat": {
+     "sha256": "4f4a28482680c2bf003bad3f469f760d694a16c60e5588983bb66f7f969927f4"
+    },
+    "/queries/fortiadc/slb_vs_overview": {
+     "sha256": "f1858a04b55b21ef4459d641da32d3d97a30a52d42cf33720f4211a072f1e2e2"
+    },
+    "/queries/fortinet/bgp_neighbor_detail": {
+     "sha256": "c0a5f6dec220496c26c4492ebeb03cda74d30ce1a1a791125865e3648a9185ce"
+    },
+    "/queries/fortinet/config_error_log": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/fortinet/crash_log": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/fortinet/dhcp_leases_all": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/fortinet/extender_modem_status": {
+     "sha256": "c76b56b45da02fca4a0f68948b36113ce54c4b6f96d94ea8eb3d506169f97af9"
+    },
+    "/queries/fortinet/hardware_sensors": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/fortinet/ike_gateway_detail": {
+     "sha256": "b8454ffb9e80420c166ecaae9afa8326d25d5477393494e19de789a74752dd69"
+    },
+    "/queries/fortinet/interface_list": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/fortinet/ipsec_tunnel_detail": {
+     "sha256": "b8454ffb9e80420c166ecaae9afa8326d25d5477393494e19de789a74752dd69"
+    },
+    "/queries/fortinet/ipv6_bgp_neighbor_detail": {
+     "sha256": "c0a5f6dec220496c26c4492ebeb03cda74d30ce1a1a791125865e3648a9185ce"
+    },
+    "/queries/fortinet/ipv6_routing_table": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/fortinet/ipv6_routing_table_database": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/fortinet/local_stp_ports": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/fortinet/local_switch_vlans": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/fortinet/routing_table_database": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/fortinet/user_devices": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/juniper_junos/arp_table_instance": {
+     "sha256": "e73c5914fda90f41397fc13f4794b685160485ce98dcd5e600c1754bbcc19da9"
+    },
+    "/queries/juniper_junos/authentication_order": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/juniper_junos/bgp_peer": {
+     "sha256": "c0a5f6dec220496c26c4492ebeb03cda74d30ce1a1a791125865e3648a9185ce"
+    },
+    "/queries/juniper_junos/bgp_peer_advertised_routes": {
+     "sha256": "c0a5f6dec220496c26c4492ebeb03cda74d30ce1a1a791125865e3648a9185ce"
+    },
+    "/queries/juniper_junos/bgp_peer_received_routes": {
+     "sha256": "c0a5f6dec220496c26c4492ebeb03cda74d30ce1a1a791125865e3648a9185ce"
+    },
+    "/queries/juniper_junos/bgp_summary_instance": {
+     "sha256": "e73c5914fda90f41397fc13f4794b685160485ce98dcd5e600c1754bbcc19da9"
+    },
+    "/queries/juniper_junos/chassis_cluster_interfaces": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/juniper_junos/chassis_cluster_statistics": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/juniper_junos/chassis_cluster_status": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/juniper_junos/dhcp_relay_bindings": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/juniper_junos/dhcp_relay_statistics": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/juniper_junos/dhcp_server_bindings": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/juniper_junos/dhcp_server_statistics": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/juniper_junos/dns_lookup": {
+     "sha256": "991663e69a045a15c08d90392c18cd256de7bca6ce639e941e7e079032fec65e"
+    },
+    "/queries/juniper_junos/dns_resolvers": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/juniper_junos/firewall_filter": {
+     "sha256": "670287b10e4f0ce6ec845b9dee12bb7881c9ed20c5f5c6f33b3d4961880e9a9a"
+    },
+    "/queries/juniper_junos/firewall_filters": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/juniper_junos/ike_security_associations": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/juniper_junos/interface_class_of_service": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/juniper_junos/interface_firewall_filter": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/juniper_junos/interface_queue": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/juniper_junos/ipsec_security_associations": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/juniper_junos/ipsec_statistics": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/juniper_junos/ipv6_neighbors_instance": {
+     "sha256": "e73c5914fda90f41397fc13f4794b685160485ce98dcd5e600c1754bbcc19da9"
+    },
+    "/queries/juniper_junos/log_history": {
+     "sha256": "40aed53cdad1ee9aecccc1ee605e64b2b9865741fa9bf59914d058262abaa20b"
+    },
+    "/queries/juniper_junos/ospf_database": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/juniper_junos/ospf_interface_detail": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/juniper_junos/ospf_neighbors_detail": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/juniper_junos/ospfv3_database": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/juniper_junos/ospfv3_interface_detail": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/juniper_junos/ospfv3_neighbors_detail": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/juniper_junos/ping": {
+     "sha256": "221aff3c587af46ff92e72eec673640f0f43499d91500c9fe8f1b11743b27157"
+    },
+    "/queries/juniper_junos/ping_instance": {
+     "sha256": "036a5368ada6f61986d21fb2405c6629106ada1fb2c923bf2313efb0296eb7ec"
+    },
+    "/queries/juniper_junos/radius_servers": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/juniper_junos/route_lookup_instance": {
+     "sha256": "7d7ddc00274941bd144b806ca3b66d02381f6d0337ac758777b00a863c55f463"
+    },
+    "/queries/juniper_junos/security_destination_nat_rules": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/juniper_junos/security_flow_sessions": {
+     "sha256": "00f226c466ebf6e16645ded0595a0d9e6e5d656b8efc1a05ba781679b5dcffdf"
+    },
+    "/queries/juniper_junos/security_match_policies": {
+     "sha256": "b21a7da76aff473ef6fc88f95a8706b39e1cc4994e781aa1c9d8d802464e4e29"
+    },
+    "/queries/juniper_junos/security_policies": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/juniper_junos/security_policy_hits": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/juniper_junos/security_source_nat_rules": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/juniper_junos/snmp_statistics": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/juniper_junos/syslog_status": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/juniper_junos/system_users": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/juniper_junos/tacacs_servers": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/juniper_junos/traceroute": {
+     "sha256": "c0a5f6dec220496c26c4492ebeb03cda74d30ce1a1a791125865e3648a9185ce"
+    },
+    "/queries/juniper_junos/traceroute_instance": {
+     "sha256": "7d7ddc00274941bd144b806ca3b66d02381f6d0337ac758777b00a863c55f463"
+    },
+    "/queries/juniper_junos_els/arp_table_instance": {
+     "sha256": "e73c5914fda90f41397fc13f4794b685160485ce98dcd5e600c1754bbcc19da9"
+    },
+    "/queries/juniper_junos_els/authentication_order": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/juniper_junos_els/bgp_peer": {
+     "sha256": "c0a5f6dec220496c26c4492ebeb03cda74d30ce1a1a791125865e3648a9185ce"
+    },
+    "/queries/juniper_junos_els/bgp_peer_advertised_routes": {
+     "sha256": "c0a5f6dec220496c26c4492ebeb03cda74d30ce1a1a791125865e3648a9185ce"
+    },
+    "/queries/juniper_junos_els/bgp_peer_received_routes": {
+     "sha256": "c0a5f6dec220496c26c4492ebeb03cda74d30ce1a1a791125865e3648a9185ce"
+    },
+    "/queries/juniper_junos_els/bgp_summary_instance": {
+     "sha256": "e73c5914fda90f41397fc13f4794b685160485ce98dcd5e600c1754bbcc19da9"
+    },
+    "/queries/juniper_junos_els/dhcp_relay_bindings": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/juniper_junos_els/dhcp_relay_statistics": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/juniper_junos_els/dhcp_server_bindings": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/juniper_junos_els/dhcp_server_statistics": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/juniper_junos_els/dns_lookup": {
+     "sha256": "991663e69a045a15c08d90392c18cd256de7bca6ce639e941e7e079032fec65e"
+    },
+    "/queries/juniper_junos_els/dns_resolvers": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/juniper_junos_els/firewall_filter": {
+     "sha256": "670287b10e4f0ce6ec845b9dee12bb7881c9ed20c5f5c6f33b3d4961880e9a9a"
+    },
+    "/queries/juniper_junos_els/firewall_filters": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/juniper_junos_els/igmp_snooping_interfaces": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/juniper_junos_els/igmp_snooping_membership": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/juniper_junos_els/interface_class_of_service": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/juniper_junos_els/interface_firewall_filter": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/juniper_junos_els/interface_queue": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/juniper_junos_els/ipv6_neighbors_instance": {
+     "sha256": "e73c5914fda90f41397fc13f4794b685160485ce98dcd5e600c1754bbcc19da9"
+    },
+    "/queries/juniper_junos_els/log_history": {
+     "sha256": "40aed53cdad1ee9aecccc1ee605e64b2b9865741fa9bf59914d058262abaa20b"
+    },
+    "/queries/juniper_junos_els/mac_table_vlan": {
+     "sha256": "b8757e8308e3d5582b57b08b0b00bd0066baa120a694b45f1a3e7da8f73ab905"
+    },
+    "/queries/juniper_junos_els/ospf_database": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/juniper_junos_els/ospf_interface_detail": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/juniper_junos_els/ospf_neighbors_detail": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/juniper_junos_els/ospfv3_database": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/juniper_junos_els/ospfv3_interface_detail": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/juniper_junos_els/ospfv3_neighbors_detail": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/juniper_junos_els/ping": {
+     "sha256": "221aff3c587af46ff92e72eec673640f0f43499d91500c9fe8f1b11743b27157"
+    },
+    "/queries/juniper_junos_els/ping_instance": {
+     "sha256": "036a5368ada6f61986d21fb2405c6629106ada1fb2c923bf2313efb0296eb7ec"
+    },
+    "/queries/juniper_junos_els/radius_servers": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/juniper_junos_els/route_lookup_instance": {
+     "sha256": "7d7ddc00274941bd144b806ca3b66d02381f6d0337ac758777b00a863c55f463"
+    },
+    "/queries/juniper_junos_els/snmp_statistics": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/juniper_junos_els/stp_interface_detail": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/juniper_junos_els/stp_interface_statistics": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/queries/juniper_junos_els/syslog_status": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/juniper_junos_els/system_users": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/juniper_junos_els/tacacs_servers": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/juniper_junos_els/traceroute": {
+     "sha256": "c0a5f6dec220496c26c4492ebeb03cda74d30ce1a1a791125865e3648a9185ce"
+    },
+    "/queries/juniper_junos_els/traceroute_instance": {
+     "sha256": "7d7ddc00274941bd144b806ca3b66d02381f6d0337ac758777b00a863c55f463"
+    },
+    "/queries/juniper_junos_els/vlan_details": {
+     "sha256": "b8757e8308e3d5582b57b08b0b00bd0066baa120a694b45f1a3e7da8f73ab905"
+    },
+    "/queries/ruckus_unleashed/aaa_servers": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/ruckus_unleashed/access_point": {
+     "sha256": "c76b56b45da02fca4a0f68948b36113ce54c4b6f96d94ea8eb3d506169f97af9"
+    },
+    "/queries/ruckus_unleashed/access_point_by_name": {
+     "sha256": "a6d88ca188b249cbe4be95be1ce64d1846b88b5acc5944265d290e1220fa2298"
+    },
+    "/queries/ruckus_unleashed/client_detail": {
+     "sha256": "c76b56b45da02fca4a0f68948b36113ce54c4b6f96d94ea8eb3d506169f97af9"
+    },
+    "/queries/ruckus_unleashed/client_performance": {
+     "sha256": "c76b56b45da02fca4a0f68948b36113ce54c4b6f96d94ea8eb3d506169f97af9"
+    },
+    "/queries/ruckus_unleashed/clients": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/ruckus_unleashed/config_settings": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/ruckus_unleashed/dhcp_relays": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/ruckus_unleashed/events": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/ruckus_unleashed/events_activities": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/ruckus_unleashed/l2_acls": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/ruckus_unleashed/l3_acls": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/ruckus_unleashed/mesh_topology": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/ruckus_unleashed/mgmt_acls": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/ruckus_unleashed/ping": {
+     "sha256": "c0a5f6dec220496c26c4492ebeb03cda74d30ce1a1a791125865e3648a9185ce"
+    },
+    "/queries/ruckus_unleashed/radio_performance_24": {
+     "sha256": "c76b56b45da02fca4a0f68948b36113ce54c4b6f96d94ea8eb3d506169f97af9"
+    },
+    "/queries/ruckus_unleashed/radio_performance_5": {
+     "sha256": "c76b56b45da02fca4a0f68948b36113ce54c4b6f96d94ea8eb3d506169f97af9"
+    },
+    "/queries/ruckus_unleashed/rogue_devices": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/ruckus_unleashed/static_routes": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/ruckus_unleashed/wlan": {
+     "sha256": "c7ba561e832768ae225219f9aaa81580989e4168baeeee2bbc2d502ace3cd461"
+    },
+    "/query_metadata/arista_eos/aaa_sessions": {
+     "sha256": "c5fe08cf34aae1b275b4a8b87c0badefffd737fc244e13acdd214317efd6b1b0"
+    },
+    "/query_metadata/arista_eos/arp_table_vrf": {
+     "sha256": "2f070e3f86c1e732204dc1e00579a302c9c44e87c28d926115de9f0065541b40"
+    },
+    "/query_metadata/arista_eos/bfd_peers": {
+     "sha256": "f65245fcd575146798b643858b694c1277ec6b87ef28682953cce53bf0461e03"
+    },
+    "/query_metadata/arista_eos/bfd_peers_vrf": {
+     "sha256": "166190c5b4146c9a648b085e0fac7b205429305b50145d2bbf6b9a247db83fe7"
+    },
+    "/query_metadata/arista_eos/bgp_peer": {
+     "sha256": "b117817b9ec40bdf5f773c31a74af4e048a3c2e1cb9dcde16a7f590a5d92179e"
+    },
+    "/query_metadata/arista_eos/bgp_peer_advertised_routes": {
+     "sha256": "9dfb7d5567ed7eeeb05c5ae604e20b7ca2d7e65857fa2c4ec473a5928b84a515"
+    },
+    "/query_metadata/arista_eos/bgp_peer_advertised_routes_vrf": {
+     "sha256": "37e31bc964827050f1675f63b1114d053e7f914bdccaac3fd97266e49b1acc72"
+    },
+    "/query_metadata/arista_eos/bgp_peer_routes": {
+     "sha256": "8235e0ab5fc329dcd9ecdf3494d73a4a07622e46aff7da53819cd74442747676"
+    },
+    "/query_metadata/arista_eos/bgp_peer_routes_vrf": {
+     "sha256": "af32a6c503e21a86ce7ba9bbe0f83fca078ec994e9942f158becb27e77ed7e3d"
+    },
+    "/query_metadata/arista_eos/bgp_peer_vrf": {
+     "sha256": "1f02381c17e8f6747ab1cf144a48e9b692589668f11036c38aeb9231844dadb3"
+    },
+    "/query_metadata/arista_eos/bgp_summary_vrf": {
+     "sha256": "12ed4681e827479ef043a06fc1c954dce0b2ccec5d0444bb8a5c600a8efd22b2"
+    },
+    "/query_metadata/arista_eos/dhcp_relay": {
+     "sha256": "cfb4a46b9318df0bb742a757f738596a3d0432dfb0bbe2235aedfdaeda779a49"
+    },
+    "/query_metadata/arista_eos/dhcp_relay_counters": {
+     "sha256": "dcb910932995357e43400fa284ca7116c82b0a20da6e0d62a2a7e2a23b5b5efb"
+    },
+    "/query_metadata/arista_eos/dhcp_server": {
+     "sha256": "4fdd6c40228baf367d5c534eefbf0cab1fd7eea0296595a765fe35b544438fee"
+    },
+    "/query_metadata/arista_eos/dhcp_server_leases": {
+     "sha256": "9d18a6df767c859deceb2e60e363e1fef81b95814724aabca8574be6b0e0cd08"
+    },
+    "/query_metadata/arista_eos/dhcp_snooping": {
+     "sha256": "51c07ae4d17086978c66d0cbfc488ec69f6ad547db40fcc5aa03f2662e0d2ceb"
+    },
+    "/query_metadata/arista_eos/dns_hosts": {
+     "sha256": "de81db3747413222062e4c85e8db2f2ae026b0fa97e51a4c617e6c837537e0f5"
+    },
+    "/query_metadata/arista_eos/dns_lookup": {
+     "sha256": "3eedab3f9e4cad6ea5b27943fa65971f59547631d166ca6c4474a934e6923f00"
+    },
+    "/query_metadata/arista_eos/dns_name_servers": {
+     "sha256": "03aca7494fd642c25bbcaae232edbe2c3e09bf9b6ce6730b91294e945ee78ff5"
+    },
+    "/query_metadata/arista_eos/dot1x": {
+     "sha256": "60667dda9e5b6ef59f2e784308b7dc3d9fc0467264959808d97beb739d2c47ec"
+    },
+    "/query_metadata/arista_eos/dot1x_clients": {
+     "sha256": "b3118250679a1a501172fa03797cad036e57c7a96fef8eaa1effbd0ee681929b"
+    },
+    "/query_metadata/arista_eos/dot1x_interface": {
+     "sha256": "3866d3b896b5e273df9861e97ae67c4d0d1b64a64655479920e0a4f1176c4891"
+    },
+    "/query_metadata/arista_eos/igmp_snooping": {
+     "sha256": "f62c3e0c61efc0f62c42ee66ae362553ad715865d51664596bcc209ae7b4eb75"
+    },
+    "/query_metadata/arista_eos/igmp_snooping_counters": {
+     "sha256": "f86c37bd91254e0ea95fc1723208908752cece6352629a26eb03bb46b6785324"
+    },
+    "/query_metadata/arista_eos/igmp_snooping_groups": {
+     "sha256": "2d8b667200c28b368c7d5681284c8584731cbe85ea8cececf1ece23a67cd8c27"
+    },
+    "/query_metadata/arista_eos/igmp_snooping_mrouter": {
+     "sha256": "6f8072b8e0d33d1025a38d3caf833e8849ef4f43348da377ebcd738639c67427"
+    },
+    "/query_metadata/arista_eos/interface_counters_rates": {
+     "sha256": "8964edcc0a1de67d6e5c026cce92dccc1aae43e53540fae9436c3b097351ee6b"
+    },
+    "/query_metadata/arista_eos/interface_qos": {
+     "sha256": "9579131b740a5f31ba649bb27051c30e7b5165ff7d137ff1de8a39d29d44c7ef"
+    },
+    "/query_metadata/arista_eos/interface_queue_counters": {
+     "sha256": "6cb7b43d73ae29ef0c430baeddc1705d067bbe954391e333a89a40bf12dc8f9b"
+    },
+    "/query_metadata/arista_eos/interfaces_counters_rates": {
+     "sha256": "14948495a66914344237194e963b2208c908371c419149df9a869f17d19445d7"
+    },
+    "/query_metadata/arista_eos/ipv4_access_lists": {
+     "sha256": "360c407a18c0b3a7d862b3753e7f292c87d0a64b0222d7febdc845fb2508e15e"
+    },
+    "/query_metadata/arista_eos/ipv4_access_lists_interface": {
+     "sha256": "610c71b5a3c8642c9e1585a069d0865d448dc25a86d6fc46c9df06d88f40a348"
+    },
+    "/query_metadata/arista_eos/ipv4_access_lists_summary": {
+     "sha256": "644f6ba05551ff96af183c20f66687ab192a160cbc4749719cb3aa093baf8fcf"
+    },
+    "/query_metadata/arista_eos/ipv6_access_lists": {
+     "sha256": "59ae6c97318759889ec842670302d47090c568e139b630b6f6937db1d8ec109d"
+    },
+    "/query_metadata/arista_eos/ipv6_access_lists_interface": {
+     "sha256": "88710d7405ef759b5311d4f81916f1d69e37567d9f8d31c8563ce84074184d61"
+    },
+    "/query_metadata/arista_eos/ipv6_access_lists_summary": {
+     "sha256": "69efa086de69474c8ca25093407a1f39b1e0337701430436c38b0fb8858ad692"
+    },
+    "/query_metadata/arista_eos/ipv6_bgp_summary_vrf": {
+     "sha256": "fcfee582942ada70db35e6830cc80cf0df3a433ce024757342b093fc6cd26606"
+    },
+    "/query_metadata/arista_eos/ipv6_neighbors_vrf": {
+     "sha256": "03eec24928e28a86fefa87285648f6a8ced72b7c6e0a0b9ac86634236b7c09da"
+    },
+    "/query_metadata/arista_eos/ipv6_rib": {
+     "sha256": "96d4b71c1f42584d96079d8ee61ebda7ce765219f337c3ea4fbdef90669b97c0"
+    },
+    "/query_metadata/arista_eos/ipv6_rib_vrf": {
+     "sha256": "1488b0a3ec560dc86c0dd1958732943f57bcaab7b9e0a9f9a449ff9770208dbe"
+    },
+    "/query_metadata/arista_eos/ipv6_route_lookup_vrf": {
+     "sha256": "805c7dcd28b9eafc2e7729362525fedfaa2baa9bf680ce592c320134c5a2f5b1"
+    },
+    "/query_metadata/arista_eos/ipv6_route_table": {
+     "sha256": "bde6f92dc406df2f10c38d32d9637656374fe9d66305bbfb3f1bfaaef0f79fd1"
+    },
+    "/query_metadata/arista_eos/ipv6_route_table_vrf": {
+     "sha256": "fa4dc992b43250d8d582e7e0a10c84f54e57a3b349e9bf83e04e21fb5380b6e7"
+    },
+    "/query_metadata/arista_eos/log_messages_last": {
+     "sha256": "2c5bf775b02d9c796e48fbe32d19f1379a282112df06355c05a5e5fa31fbeed2"
+    },
+    "/query_metadata/arista_eos/log_messages_range": {
+     "sha256": "94f74da4ca92324bc78845801f51773d4ca047368580a34dac7892470db8b753"
+    },
+    "/query_metadata/arista_eos/logging_status": {
+     "sha256": "31a137578125ae7dbc6dbbea98473fb3328082fffa327dcc4577995e99b8fdc8"
+    },
+    "/query_metadata/arista_eos/mac_table_address": {
+     "sha256": "e2d1b396f54bcc1ad9979368699eeade00a2466aece4395d1a543a87cd1abf3c"
+    },
+    "/query_metadata/arista_eos/mac_table_interface": {
+     "sha256": "6b20f6f575a78450082789462d4f6453a9e60b4fe6226299564d844ae1bc5709"
+    },
+    "/query_metadata/arista_eos/mac_table_vlan": {
+     "sha256": "4ae88c85b2c46c8ca7df9e8c725a3df3f6c786fbc768ac4cb716be70e215d2eb"
+    },
+    "/query_metadata/arista_eos/ospf_database": {
+     "sha256": "f15618653df142f9e705ab786a0fc7be556e2e9f937be6080991df6a69e6d9b7"
+    },
+    "/query_metadata/arista_eos/ospf_database_vrf": {
+     "sha256": "5815a59c5f3ee87577e8c9dcf6cd9f74ce673ee91f0763af8113ea3926df6da1"
+    },
+    "/query_metadata/arista_eos/ospf_interface_detail": {
+     "sha256": "ff00b9f3fe046e7148e1dfd80109123d3eaf8c3d336252683cd97f83021e93b4"
+    },
+    "/query_metadata/arista_eos/ospf_interface_detail_vrf": {
+     "sha256": "2ee8adc1c1f71d9fadfbe5bd9ba5967cc3ea893cdd40283d90d9a1aaca9ccdb9"
+    },
+    "/query_metadata/arista_eos/ospf_neighbors_detail": {
+     "sha256": "f0c9487a31d1fc2c78da6e2a91ee14943a4bd0222cc68c66e7174e19d162673d"
+    },
+    "/query_metadata/arista_eos/ospf_neighbors_detail_vrf": {
+     "sha256": "5a7da17f123ce14ffc02acda999fe2d41f8fa2e6d712cd80af29f3d7e654e9e4"
+    },
+    "/query_metadata/arista_eos/ospfv3_database": {
+     "sha256": "b0c2115783d522b4deead88d7c42491aaed575d90730d5af5315bb9dbf5b90d2"
+    },
+    "/query_metadata/arista_eos/ospfv3_database_vrf": {
+     "sha256": "ac9d8dfda54f9a38e42ff5c8fc16d133b1022bd06642ed890c0b7031dad944ea"
+    },
+    "/query_metadata/arista_eos/ospfv3_interface_detail": {
+     "sha256": "7d56454671970abd90bbde5e965ef3fde93db257670eb04b83d01edc06f18e3b"
+    },
+    "/query_metadata/arista_eos/ospfv3_interface_detail_vrf": {
+     "sha256": "7821e533542b7ae5ca5f27035e841490a6913e179d40b38202d40e58a7c3947a"
+    },
+    "/query_metadata/arista_eos/ospfv3_neighbors_vrf": {
+     "sha256": "9a7c939e9899b41c262f913af65d620a4c1feb903d03883f3b902dd51dd9ebf1"
+    },
+    "/query_metadata/arista_eos/ping": {
+     "sha256": "a8c2e043c075b2d94f9eea66da32583462eb4ff568084a82f06b9376ee67d98d"
+    },
+    "/query_metadata/arista_eos/poe": {
+     "sha256": "a54842847720322e09e1ad87c86eae948fb807457eff9fc40eace08542b4d886"
+    },
+    "/query_metadata/arista_eos/radius": {
+     "sha256": "bb72b23814ae37868f85badb278c8d78f9b4526df9bffcb7b4fe75b4775a8b4c"
+    },
+    "/query_metadata/arista_eos/radius_status": {
+     "sha256": "7850322fa1d5fa986b21466da8664faf6c427f6d98767de3e0c7036d4d0520f0"
+    },
+    "/query_metadata/arista_eos/route_lookup_vrf": {
+     "sha256": "d8b0d3f34c890c80375f7b34a5c8fee2678790cc8c2acf8cd6de2084358d16e5"
+    },
+    "/query_metadata/arista_eos/route_table_vrf": {
+     "sha256": "a9ed54492dec6b0d4186a9d2ffe99e5f8abee5f724c0d38c9892a4f88800ecea"
+    },
+    "/query_metadata/arista_eos/snmp_status": {
+     "sha256": "74a43061769772406173a6180e37524a3a68c745cea5e55f7ddb1e7d6842b960"
+    },
+    "/query_metadata/arista_eos/snmp_targets": {
+     "sha256": "eaefed13dba6c56a6eaaba9f18b57165bdabd611c8d0b2ced5fe516a38e5d034"
+    },
+    "/query_metadata/arista_eos/stp_counters": {
+     "sha256": "f636f188a597ac08f44f8525492a48e523f2b0264312c09608da8e6f7b739332"
+    },
+    "/query_metadata/arista_eos/stp_detail": {
+     "sha256": "93efd5822d8c0462415ef9d14bdb0dc3ad9f24b35db036b8a9d87033bb5896f7"
+    },
+    "/query_metadata/arista_eos/stp_interface_detail": {
+     "sha256": "9686157d66f87cac9324bc71fbfc07c15f38d9f53de4e8ea3edfe3e93e584a51"
+    },
+    "/query_metadata/arista_eos/tacacs": {
+     "sha256": "de42aafe388adb256be07d87c64453cb405ca3f577e1c78a51b75426fa680547"
+    },
+    "/query_metadata/arista_eos/traceroute": {
+     "sha256": "4790eedf3481cd5271b3d49e24325c9f84ce82db3c5490aaff7ad5523e8fa0a2"
+    },
+    "/query_metadata/arista_eos/traceroute_source": {
+     "sha256": "45697ea688a3edc40883c062c1056569ab86adbbb886702ddede05182f444f3a"
+    },
+    "/query_metadata/arista_eos/users": {
+     "sha256": "9c2037160608c8223cb903588a848aa9d0060b4871323d064cbc8dd936d02201"
+    },
+    "/query_metadata/arista_eos/varp": {
+     "sha256": "37e693330b0d077e550fa6e5392853a2fa443a7d4fcec241b823f4b611a8bcd1"
+    },
+    "/query_metadata/arista_eos/varp_vrf": {
+     "sha256": "fd4eb7ab52bbcbf0ac33d5a97fd7a65326efefd918361c14bf230f60c709296b"
+    },
+    "/query_metadata/arista_eos/vrfs": {
+     "sha256": "9744cf00c048aa71d9e7df6f9dce0ff73b47217dc478084f74834bdaa8e1070b"
+    },
+    "/query_metadata/arista_eos/vrrp": {
+     "sha256": "6c57a5a90661d4e5feb7081cf21cf156b491e009abf0c18f74bdb1ba39804c37"
+    },
+    "/query_metadata/arista_eos/vrrp_vrf": {
+     "sha256": "f2f251f81bec4bfd96d5a405a05d2d7ca1432ae70dac611c7b5b54342476f546"
+    },
+    "/query_metadata/cisco_ios/aaa_servers": {
+     "sha256": "abbdc1fe15567d82e6ff5990c0884d3a22c42d6ef104396c36c669d26c367759"
+    },
+    "/query_metadata/cisco_ios/adjacency_details": {
+     "sha256": "856a312f39675f657175b750a4c41e586614bddfab72b2170d322ceaaa82671d"
+    },
+    "/query_metadata/cisco_ios/arp_inspection_statistics": {
+     "sha256": "1ece85b436621db0ad6d5bdd27edaf397543d89bc9984b8e977f83e8c9d8ddfa"
+    },
+    "/query_metadata/cisco_ios/arp_lookup": {
+     "sha256": "4bc2e61b89a776f9455189dc1e9a7ac66eb1ae173d70d4e25c58d81dec6b5a8c"
+    },
+    "/query_metadata/cisco_ios/arp_lookup_vrf": {
+     "sha256": "d111ee6cc24f4cdc926ee68ca741bcf296341a2607270dc473e37624b86375dd"
+    },
+    "/query_metadata/cisco_ios/arp_table_vrf": {
+     "sha256": "2a805a51e763564bb3149554c8b872fdd463f8bd5d7a2602029d020ad02329fc"
+    },
+    "/query_metadata/cisco_ios/authentication_sessions_interface": {
+     "sha256": "b612cfac8726f8e8eef00f545cefcffce1ccd8aba832cfc8fa57214eca34dfae"
+    },
+    "/query_metadata/cisco_ios/bfd_neighbors": {
+     "sha256": "7dae6dbd83f7bab58565c10047e2c20008263dbfbb42389ece44ddc80da87002"
+    },
+    "/query_metadata/cisco_ios/bgp_advertised_routes": {
+     "sha256": "4d500601bf2750723c75d60c85e9da7486a4da921decb7970741c581a2383eb7"
+    },
+    "/query_metadata/cisco_ios/bgp_ipv6_summary": {
+     "sha256": "8f9345cb6ce105a0330e11b7bf3dc2ac3497eee632e68b4a63fb2d9aff7514a8"
+    },
+    "/query_metadata/cisco_ios/bgp_neighbor": {
+     "sha256": "075d1b3945e965a74ef93e148ef20e9d71066833c35d82d8ab5eb402528fb305"
+    },
+    "/query_metadata/cisco_ios/bgp_prefix": {
+     "sha256": "a6cbe7949037a63db9e8aef4bf00f370cdbfe7935b7a713cf34de40bf8bd8d89"
+    },
+    "/query_metadata/cisco_ios/bgp_routes": {
+     "sha256": "6981ae20bcff5f8fbf2ab2cad2c8b3e6d0618e7be70ab7fdde0c799b732a9dbb"
+    },
+    "/query_metadata/cisco_ios/cdp_neighbor_interface": {
+     "sha256": "0aadee985c9e10095e5c1899f76803191667d2c2de4cf140105c4d627172752b"
+    },
+    "/query_metadata/cisco_ios/cef_lookup": {
+     "sha256": "0212a5e334ed63971693bbc0eb17f4b03651e262469935733284b8dd5b11e080"
+    },
+    "/query_metadata/cisco_ios/dhcp_server_binding_address": {
+     "sha256": "8b07e0dae70ba46f0a48b60bf361d7410d04745a4fdf6188f89a56fa8abebb90"
+    },
+    "/query_metadata/cisco_ios/dhcp_server_bindings": {
+     "sha256": "1ba94247489e9bb8b90976dfa1cc5aaf2292ee73c89dfed0ee6cf4aa51ecab7c"
+    },
+    "/query_metadata/cisco_ios/dhcp_server_conflicts": {
+     "sha256": "5e4f36e6e04828583bec49e5484761cd19e5cb76295b7a268c0cac6bf9b817d7"
+    },
+    "/query_metadata/cisco_ios/dhcp_server_pools": {
+     "sha256": "13208ecb6c7e422586bcd7154d947a6d25be3bb79e0a011ee144dfd28f0f5e35"
+    },
+    "/query_metadata/cisco_ios/dhcp_server_statistics": {
+     "sha256": "271171da88a618044a5a56d2a1d06b77c84071784bd81c8e90e46b8af27c20e2"
+    },
+    "/query_metadata/cisco_ios/dhcp_snooping_binding": {
+     "sha256": "0792dd3696930c3ebb98aaeec9e33a2ca3bd925e04b613c0f6c05722c2a820c8"
+    },
+    "/query_metadata/cisco_ios/dhcp_snooping_statistics": {
+     "sha256": "432a18b2f0bf4631471fad7541974233f527191621393cf982851327e60928d9"
+    },
+    "/query_metadata/cisco_ios/dhcp_snooping_status": {
+     "sha256": "d27dd04049804116e1a5f054e6d856cc38ef1e20fcde91c8d3450e09677de49d"
+    },
+    "/query_metadata/cisco_ios/dns_hosts": {
+     "sha256": "7ba46e56e3b6fa28223115dff0b8ab88d3c23dd7e81987d7c9a363cf61ffe372"
+    },
+    "/query_metadata/cisco_ios/dot1x_interface": {
+     "sha256": "a96dac0d196c7d142ec427c595b50de192ee0e65b03193ae1e20f07ba3a2008c"
+    },
+    "/query_metadata/cisco_ios/etherchannel_detail": {
+     "sha256": "dcd0adbf59fed728636fa530b93f83840e48906ef02f67dcbda8f7ffcd69e449"
+    },
+    "/query_metadata/cisco_ios/etherchannel_load_balance": {
+     "sha256": "20b7a3d6d93a2dfaeb2be3c58a2d77f8fd8b81052b9303c592971f0c0357c349"
+    },
+    "/query_metadata/cisco_ios/hsrp_detail": {
+     "sha256": "76f705f35a021213e224e8490dc6453a9c213d8a1a75ea1e76cfe4893b1371a0"
+    },
+    "/query_metadata/cisco_ios/ikev1_sa": {
+     "sha256": "f8da48b8f086420aa01b98a9a91a055b00b31fcb881370b5f027f7fc5f136f2e"
+    },
+    "/query_metadata/cisco_ios/ikev2_sa": {
+     "sha256": "6c4701b90b6a04c54d8f8307cbb69237472557b02a7fde1e6dfca3f41ac253ee"
+    },
+    "/query_metadata/cisco_ios/ip_interface_details": {
+     "sha256": "01d0a4c0a0fb8af8e85b0b42441a04ebde1eb217c112df0d68c5896119c3ffd0"
+    },
+    "/query_metadata/cisco_ios/ip_policy": {
+     "sha256": "e73157ca4044f9f04286f336b9a16e9c53db32758fd982d0e46e7301c7d040fd"
+    },
+    "/query_metadata/cisco_ios/ip_protocols": {
+     "sha256": "edcf9a6be5e8fc3992008a24daa7668b142374464638132a545f3de0d920551e"
+    },
+    "/query_metadata/cisco_ios/ip_sla_statistics": {
+     "sha256": "3f4e150ef7de070c875d353974a0ff16f4581320bac1d30b679e7856e1db2ea6"
+    },
+    "/query_metadata/cisco_ios/ip_source_guard": {
+     "sha256": "e85688fea4b6ded21600004f2fd18d616556a9ccaa81ac048035a35104913a95"
+    },
+    "/query_metadata/cisco_ios/ipsec_sa": {
+     "sha256": "06e20f4145ab4c41a1cddf65bc7e9fd13daeca60a6cea0f0783243e4aa007445"
+    },
+    "/query_metadata/cisco_ios/ipv4_access_lists": {
+     "sha256": "483feeca77a9f02ae88e3d291e42955f85c7128106bb64b173ca9ee1b971c7fd"
+    },
+    "/query_metadata/cisco_ios/ipv6_access_lists": {
+     "sha256": "ffda22039fad949bdc2b27ed8e7ae032a66c9a96590978cc43bf0caccc98d62e"
+    },
+    "/query_metadata/cisco_ios/ipv6_interface_details": {
+     "sha256": "233e546957fd2a9e1ccc9e16a419462e723bb7518c022ab16691bd8019000b35"
+    },
+    "/query_metadata/cisco_ios/ipv6_neighbors_interface": {
+     "sha256": "e2fe39b2f0bb16be7062e62b10f1e8815a2e24867676d9a573894088970d952e"
+    },
+    "/query_metadata/cisco_ios/ipv6_neighbors_interface_vrf": {
+     "sha256": "1db6ad1f1943c37de95e14ca0042c26e884a7df6c077082bf789173efbf48ef8"
+    },
+    "/query_metadata/cisco_ios/ipv6_neighbors_vrf": {
+     "sha256": "a25b7944ab14823730b07a64a727260525e07c6ed695eb3d91630eeb119d71fb"
+    },
+    "/query_metadata/cisco_ios/ipv6_route_table": {
+     "sha256": "bbdae367132bec0219eefb5a2b928f6ddb4f55a498c62dcd5f6969f00ead9c56"
+    },
+    "/query_metadata/cisco_ios/lacp_internal": {
+     "sha256": "b51bf5ab420fd737b6519dba1a3bfb96c85bbbb65510a2e2186ef7b9774e684d"
+    },
+    "/query_metadata/cisco_ios/lines": {
+     "sha256": "d1e0cd24892979693fc21aff4a61b036834aa5180a2eb61f4dde333dcbcca474"
+    },
+    "/query_metadata/cisco_ios/lldp_neighbor_interface": {
+     "sha256": "7842a6863ffe4fa89bbc573ee662821a3930f54d314acf3984af7600a5a4e236"
+    },
+    "/query_metadata/cisco_ios/log_history": {
+     "sha256": "ae403bbbb55ab99d4e1da2c8857d00c5623a46da8acf67443c7b10fab65dccf4"
+    },
+    "/query_metadata/cisco_ios/mac_table_address": {
+     "sha256": "75e10fb6b6f3dc18161932b2fb9f4d5ef01691018ab7bb237f49aa4417a2adb2"
+    },
+    "/query_metadata/cisco_ios/mac_table_interface": {
+     "sha256": "4091a91063478236843c35f11512e63e90a251a971f5578568df11e526f44b66"
+    },
+    "/query_metadata/cisco_ios/mac_table_vlan": {
+     "sha256": "480938742de9ed211f1825a27c2a8e21362e5ad83f8f3841dfc9cd8d8b130468"
+    },
+    "/query_metadata/cisco_ios/nat_statistics": {
+     "sha256": "f39a0bcb6f58ca5314036cf2c0cfae27ad429e3604c74352c13815adf3ce89d2"
+    },
+    "/query_metadata/cisco_ios/nat_translations": {
+     "sha256": "d6c0165563b601b5bf00bc8ea21b0b1f48d6498a1f9653c361543497f860465a"
+    },
+    "/query_metadata/cisco_ios/object_tracking": {
+     "sha256": "ca648191135bf28731cc35846b2b0fccdc996626d2fa303561967e7c5ee444e7"
+    },
+    "/query_metadata/cisco_ios/ospf_database": {
+     "sha256": "5b1507f50562d9c56b1628a0531c6559384c2bc9b1fc0c8492401778d7977b8b"
+    },
+    "/query_metadata/cisco_ios/ospf_interface": {
+     "sha256": "df1e6d36543db5f1441eb906184a7940f2f83bfe04774d2505d9d571e5e8b894"
+    },
+    "/query_metadata/cisco_ios/ospf_neighbor_detail": {
+     "sha256": "f2ea8e4dea38bd9f4ecd67a637eaf8289e6fefebff3fd138f06aadb986f996c2"
+    },
+    "/query_metadata/cisco_ios/ospfv3_neighbors": {
+     "sha256": "d9fa4a3bc0005d0e621c1ba82d8a0bc2907316c15f6c5a34c86d358c2da6c1ec"
+    },
+    "/query_metadata/cisco_ios/ping": {
+     "sha256": "3e496f4c9acf4b6395463c292f9c199ba6651b0e390edd8df6c15f162ad3376c"
+    },
+    "/query_metadata/cisco_ios/ping_ipv6": {
+     "sha256": "850b937cb9b99ac19e300f92dec1b0fa35e9084c87742994d3abf4152c365018"
+    },
+    "/query_metadata/cisco_ios/ping_ipv6_source": {
+     "sha256": "43be9b0fe53f46cdd3372053a1a29d5576af7251d2906bffb52bf27d3b80b853"
+    },
+    "/query_metadata/cisco_ios/ping_source": {
+     "sha256": "28006e89d4f80c0ac07f632553d7f0986d29490352c2eec52566c57feb2ab441"
+    },
+    "/query_metadata/cisco_ios/ping_vrf": {
+     "sha256": "5d29862ff79f33576c96df97f86055d688709fdaa755bdc472cf305955c13b0b"
+    },
+    "/query_metadata/cisco_ios/ping_vrf_source": {
+     "sha256": "38cbd787904eef7bf524f40b7e22a7ec787cde65092fb7788c33cce18b9883f7"
+    },
+    "/query_metadata/cisco_ios/port_security_addresses": {
+     "sha256": "637cf9d7b4e4dcaa9c78c36c0988b26da820a358b8e4d0003ef451cae3834da9"
+    },
+    "/query_metadata/cisco_ios/port_security_interface": {
+     "sha256": "a000c9f0cc3d0061ead07a695b876e4c972f2ddf3cd480e03f57b75358a8256e"
+    },
+    "/query_metadata/cisco_ios/power_inline_detail": {
+     "sha256": "8f8783a91d4667572d4bf8e15680e92e76a2700ce86885a708b2d026f2e1c76e"
+    },
+    "/query_metadata/cisco_ios/qos_policy": {
+     "sha256": "ba8431094c806dbdfced40ed579568ec524b8045ff6d019f5a005717654d5b2d"
+    },
+    "/query_metadata/cisco_ios/qos_queues": {
+     "sha256": "41924ab42e5543deb9f052680da70c47159c00fa1abe8de59c06d311aa81eec3"
+    },
+    "/query_metadata/cisco_ios/radius_statistics": {
+     "sha256": "b19c0c9e084fd4a20d4cc3be9f3f11f45659ea9502ab36e0748e39dd781c62cd"
+    },
+    "/query_metadata/cisco_ios/route_maps": {
+     "sha256": "de35c77fb3b8f1a09f27fe336144554159830283610d63114da14adbeefe477b"
+    },
+    "/query_metadata/cisco_ios/snmp_engine_id": {
+     "sha256": "f008505b1b8b2a0060d36c9b0b5882a0ca645d8136480a6670adbdeaaa08539e"
+    },
+    "/query_metadata/cisco_ios/snmp_statistics": {
+     "sha256": "7a0aa5f9e546fa8d0c59d6e56af362eb5598447b6d514bfe2f39953441a91be0"
+    },
+    "/query_metadata/cisco_ios/ssh_sessions": {
+     "sha256": "7af9543aa30c5c27c742baa6817d67d4dfa6e6ed8095b2feb735b6974c4938db"
+    },
+    "/query_metadata/cisco_ios/stp_detail": {
+     "sha256": "bce9a1b7aa6c06874c397bfe1088de7552de5c590dfaa4e2363806127ef6b63a"
+    },
+    "/query_metadata/cisco_ios/stp_interface_detail": {
+     "sha256": "a44234ed8ca586e06c60d2f12c68f1d422fa16648f6b22a5487d23e68b186bd5"
+    },
+    "/query_metadata/cisco_ios/stp_mst": {
+     "sha256": "1c42ca9815e3cd5c3a29a8b5e7cb393366fb546a25d54774896d8a6a6bcb55f6"
+    },
+    "/query_metadata/cisco_ios/tacacs_statistics": {
+     "sha256": "40a7067bac9320314a2cd87d6d859fff4251f3eb7f3f81c3ed919a2740ddbc40"
+    },
+    "/query_metadata/cisco_ios/traceroute": {
+     "sha256": "bc12d300a3ee43eec0749568e2186ecf46d13de1fedb996571608fa535dfeca5"
+    },
+    "/query_metadata/cisco_ios/traceroute_source": {
+     "sha256": "15002b6f1eb4987a4f3728b59d0dc167d9625c6875e5373cd078eb85781b26d8"
+    },
+    "/query_metadata/cisco_ios/traceroute_vrf": {
+     "sha256": "7eaf720acb4db54e15e21ff176c85192857c34907295cba0ab93ce8a8de2a744"
+    },
+    "/query_metadata/cisco_ios/traceroute_vrf_source": {
+     "sha256": "7625f3c29322a9c07c33b19795450461e2ab0dccdd945a9f02c00953de2e58ba"
+    },
+    "/query_metadata/cisco_ios/users": {
+     "sha256": "fcdc88aaf953777f149b9fa8707692af2d86bc6f5499be2f855d45a9edc48bf8"
+    },
+    "/query_metadata/cisco_ios/vrf_arp_table": {
+     "sha256": "094e6a69ca05b24c884a686faad3cd8452204606a3fbbd370381147b7f1f4928"
+    },
+    "/query_metadata/cisco_ios/vrf_cef_lookup": {
+     "sha256": "b66a3d819d57993de00144948990c4ff3c0d50488e2418d6e23284fbcf14b698"
+    },
+    "/query_metadata/cisco_ios/vrf_ip_interfaces": {
+     "sha256": "d8ebcea58de2edca7c06c3d4eff412b3df8adcb432784599bbfba3738d9cf0e9"
+    },
+    "/query_metadata/cisco_ios/vrf_route_lookup": {
+     "sha256": "de801be866a8509a0079d5946289a00919cdc82b910b5bf70c512922f9540130"
+    },
+    "/query_metadata/cisco_ios/vrfs": {
+     "sha256": "9602ef37b60222236483c51a3622f370024fee25785d11d58cb8082d4a707163"
+    },
+    "/query_metadata/cisco_ios/vrrp_detail": {
+     "sha256": "db85219d77e8b978c0f953b381eb610725f6f0c0a739a7ad54377f825a4dbf30"
+    },
+    "/query_metadata/cisco_nxos/aaa_authentication": {
+     "sha256": "7b2c654a014b61b1df7067347f6cf45fe9ce3c4f5162706692aab3252827398e"
+    },
+    "/query_metadata/cisco_nxos/arp_inspection_statistics": {
+     "sha256": "26d0c093ee1376a45aea4a97c2788768defa41fee398be7e6c63d747dd1729bc"
+    },
+    "/query_metadata/cisco_nxos/arp_inspection_statistics_vlan": {
+     "sha256": "0ecada576d9b1d4d26d8b08b5ef76536dcb8defc0389bc9e9eba102dba17433a"
+    },
+    "/query_metadata/cisco_nxos/arp_lookup": {
+     "sha256": "4389713af190941f94914f5d8d8f6933ab233e0b27ae0569111c0cf8b177dc1b"
+    },
+    "/query_metadata/cisco_nxos/arp_lookup_vrf": {
+     "sha256": "e3bd9ebd2f3cf2b4ada1d37d160b0b5ec921d2634213bddc502363bdaa8d834a"
+    },
+    "/query_metadata/cisco_nxos/arp_table_vrf": {
+     "sha256": "5674a0a134a383b49816c7a34fb7862d223880c0b94800505227600236ab30ca"
+    },
+    "/query_metadata/cisco_nxos/bfd_neighbors_detail": {
+     "sha256": "bb7db188c486554e52c518f35568a0bcf7f594672b496bc9af37d3210d3e7ba4"
+    },
+    "/query_metadata/cisco_nxos/bgp_advertised_routes": {
+     "sha256": "347247a5b14af14ddaa8a4ef1a41625db262652f5f19946b47355985bad1ea40"
+    },
+    "/query_metadata/cisco_nxos/bgp_ipv6_summary": {
+     "sha256": "f95045a4c303470deb9ee77fdf5483569269d31ed3898023539933ec3661154e"
+    },
+    "/query_metadata/cisco_nxos/bgp_ipv6_summary_vrf": {
+     "sha256": "8202f56300913c322afc6cf556779d7a82fdf3d973a72ea5b9bb5be441be376d"
+    },
+    "/query_metadata/cisco_nxos/bgp_neighbor_detail": {
+     "sha256": "5c9434b98808c39485ced6bc706578650db402a0de937f429b492ad51f6fecf0"
+    },
+    "/query_metadata/cisco_nxos/bgp_prefix_detail": {
+     "sha256": "98608c7ea2bdea22ce40f183124e1ecab059648ae17a41470db42731814c7006"
+    },
+    "/query_metadata/cisco_nxos/bgp_received_routes": {
+     "sha256": "e926ff7142e113c42ac648da9287387a847081e414078c6ecbf8b75fa15d0623"
+    },
+    "/query_metadata/cisco_nxos/bgp_summary_vrf": {
+     "sha256": "fba92ba581c33079b79a54754dbd582b893e95e8ce4dd92b4d685304729a34ca"
+    },
+    "/query_metadata/cisco_nxos/cdp_neighbor_interface": {
+     "sha256": "337447cf28e0e07bf817997de2917bb8e46bc83423a1911e81e07f31fa2d0fcf"
+    },
+    "/query_metadata/cisco_nxos/configuration_sessions": {
+     "sha256": "f8a47784e88eef14334b51cc7a769c970648f0f78f968c884c47a63fb57d9671"
+    },
+    "/query_metadata/cisco_nxos/dhcp_relay_statistics": {
+     "sha256": "61214d6ad248fa237ace93aca367baa98fe17de1551791b7af7a907fc97e6aa4"
+    },
+    "/query_metadata/cisco_nxos/dhcp_relay_status": {
+     "sha256": "fcb346625344b6b3761aa41841f52ab03ec9f8dd26aee3724faf8746e0d52157"
+    },
+    "/query_metadata/cisco_nxos/dhcp_snooping_statistics": {
+     "sha256": "2fa2f2d64a8696be0bb6ce860ee13179833e15525822e9582c6faa1d63eaab5b"
+    },
+    "/query_metadata/cisco_nxos/dhcp_snooping_status": {
+     "sha256": "4f8c7015b3e3ea6a182a567b67a7020cdb665bf07d9cfa7d1f42dfb34fb365e5"
+    },
+    "/query_metadata/cisco_nxos/dns_hosts": {
+     "sha256": "713b5e26c429f4b13c2a85ffc86727c8c9d9eab311206a23d887fc9b33ac37de"
+    },
+    "/query_metadata/cisco_nxos/evpn_bgp_prefix": {
+     "sha256": "6072b9b775f82a7837430e3e4628c5baefc9fcb0a509e87b4198a0cb0dde035d"
+    },
+    "/query_metadata/cisco_nxos/evpn_bgp_summary": {
+     "sha256": "1a1c60590fe44807c68b3317cfac7b5a1b2d3ff7281f2d8f917e4b1f60eb7215"
+    },
+    "/query_metadata/cisco_nxos/evpn_mac_ip": {
+     "sha256": "bd8ca80b60f4d62e7339e38e00ea61e7ae5a0451229e0e84ca366f5199ba43af"
+    },
+    "/query_metadata/cisco_nxos/forwarding_ipv4_route": {
+     "sha256": "477f3fba26c678394768428037ca8a04caf671a8c0fd885efc71a81342479edc"
+    },
+    "/query_metadata/cisco_nxos/hardware_capacity": {
+     "sha256": "6094cb493fe53c60496ccfa933382b1b519bab6fed1458e2599771dc9a39e663"
+    },
+    "/query_metadata/cisco_nxos/hsrp_detail": {
+     "sha256": "da50049960c9d137dff70ca0d77bf3282661c0351c1ae023ee3bd39878acdcf8"
+    },
+    "/query_metadata/cisco_nxos/ip_adjacency": {
+     "sha256": "80e530d5ae6fbee46a4cad02151bb986cd1444e2e5198fdd0aa6af3418a478c8"
+    },
+    "/query_metadata/cisco_nxos/ip_interface_details": {
+     "sha256": "6b9fd3db956d71a13a879a0c09d626f7f88f366577fc987ceb4f3956d06cda33"
+    },
+    "/query_metadata/cisco_nxos/ip_interfaces_vrf": {
+     "sha256": "d24c571419ef873d3dfbbed0a7b85705b51a311abfca64ef6330483d37b2eac6"
+    },
+    "/query_metadata/cisco_nxos/ip_policy": {
+     "sha256": "6f262d05868272262823bab7d591d22158757d4d32599c6a24eccf91516e2385"
+    },
+    "/query_metadata/cisco_nxos/ipv4_access_lists": {
+     "sha256": "82df6c741cedcc9f665e789f5c02134ef34dd379167654be56a7c14e554530e5"
+    },
+    "/query_metadata/cisco_nxos/ipv4_access_lists_summary": {
+     "sha256": "aad06284267ca614ebab373f25ff418d89e9cd84d438aa3646c7d92e542007d2"
+    },
+    "/query_metadata/cisco_nxos/ipv6_access_lists": {
+     "sha256": "6b5303b83d741ef9a79d390d2c68781886ef8e38a23861c74d636d55e0e1bc43"
+    },
+    "/query_metadata/cisco_nxos/ipv6_access_lists_summary": {
+     "sha256": "bb41ae37f4d2907028240274f061646f74be98793cecde95076e5931c78b7d9c"
+    },
+    "/query_metadata/cisco_nxos/ipv6_neighbor_lookup": {
+     "sha256": "7ba9b13bef8b9368d6095c2723e08a9b6ed08fbdc26b6a4c710e9601fa0976de"
+    },
+    "/query_metadata/cisco_nxos/ipv6_neighbor_lookup_vrf": {
+     "sha256": "bbfa5055873dd7296d691fb6ec902f78a04e3deb1525e7c3b4a684f7e6d76b65"
+    },
+    "/query_metadata/cisco_nxos/ipv6_neighbors_vrf": {
+     "sha256": "291bf740900dcdaad54807afdc8b3bd4c1983b47a454039f59dda3efa8128c23"
+    },
+    "/query_metadata/cisco_nxos/ipv6_route_lookup_vrf": {
+     "sha256": "83e09196e8bf8535240eeea5dc5e5429b39acfd35193bd00c0f02d44d50a0369"
+    },
+    "/query_metadata/cisco_nxos/ipv6_route_table": {
+     "sha256": "74dd37ecdd1f3ef945e930bc389618a186c9ac88e6aafd1cfe12761f07038878"
+    },
+    "/query_metadata/cisco_nxos/ipv6_route_table_vrf": {
+     "sha256": "018fa57817dff7b0c93d721588300de27b3a1aaabf9339d4bbe6a27d291dc637"
+    },
+    "/query_metadata/cisco_nxos/lacp_interface": {
+     "sha256": "14685a814fc410841fd806c80af5edc2e6f923b0c5ca047322641ae472e4fdd2"
+    },
+    "/query_metadata/cisco_nxos/lldp_neighbor_interface": {
+     "sha256": "5fb69f4b5e5a10a4ce7a1372e2accaf0435c716d4c0c87b5a398736912a04572"
+    },
+    "/query_metadata/cisco_nxos/log_history": {
+     "sha256": "03d794f24c6817f62c4240923cd9e4ea661f9fade3ffe4fc26ce868f4cbf0160"
+    },
+    "/query_metadata/cisco_nxos/logging_info": {
+     "sha256": "da4144ad6a2e10b29cb44a50e5e0caface6ad504d759f6a59c953114448377a6"
+    },
+    "/query_metadata/cisco_nxos/mac_access_lists": {
+     "sha256": "d88e24ee0ed3cdf5fb037b85f0201255e2eab560072295b0911244c3ea2e0c7c"
+    },
+    "/query_metadata/cisco_nxos/mac_access_lists_summary": {
+     "sha256": "f0b087e1dd6c84b46fb0c9686508e50f4859e740643f4a64120619c7fcb04f2f"
+    },
+    "/query_metadata/cisco_nxos/mac_table_address": {
+     "sha256": "75e10fb6b6f3dc18161932b2fb9f4d5ef01691018ab7bb237f49aa4417a2adb2"
+    },
+    "/query_metadata/cisco_nxos/mac_table_vlan": {
+     "sha256": "1a94f5f3e722dd5aa3d54adb9d7b61ff693ab4db2b9ba286e992f8394df68e30"
+    },
+    "/query_metadata/cisco_nxos/nve_interface_detail": {
+     "sha256": "f1030cb6f89c54abb710e587bf668f96af825327142b44bd41138ed8f1ee8a1e"
+    },
+    "/query_metadata/cisco_nxos/nve_peers": {
+     "sha256": "a3185abf77893cd3a5f085363aa5090c2e9bacc7692d3d3012009d5b0a709829"
+    },
+    "/query_metadata/cisco_nxos/nve_vni": {
+     "sha256": "d6f826a7746b29d224d33acad4622f8cab3a5640e744329403cf893c68851058"
+    },
+    "/query_metadata/cisco_nxos/object_tracking": {
+     "sha256": "8d73aac0e0118ebeb0640ba637b9d4ee55104aa069bbb11355d93a743c47b961"
+    },
+    "/query_metadata/cisco_nxos/ospf_database": {
+     "sha256": "5b1507f50562d9c56b1628a0531c6559384c2bc9b1fc0c8492401778d7977b8b"
+    },
+    "/query_metadata/cisco_nxos/ospf_interface_detail": {
+     "sha256": "6721f446a4d5361adfd67816950b29fdc8cdb8d67c30cb4b35d5cc481234d4e2"
+    },
+    "/query_metadata/cisco_nxos/ospf_interfaces_vrf": {
+     "sha256": "721dd67362c8d4182c040032feff5bbe43576d0a92c8d3b78bd7eac59607483c"
+    },
+    "/query_metadata/cisco_nxos/ospf_neighbors_detail": {
+     "sha256": "19d26bdc5daf964605899dea1fb48e7279e45c92860abaf97df83b9686807934"
+    },
+    "/query_metadata/cisco_nxos/ospf_neighbors_vrf": {
+     "sha256": "d04be6715392e6137cc4c15de8ae9cc8207c06915333fdaf7b1a7e0f9608b74c"
+    },
+    "/query_metadata/cisco_nxos/ospf_process": {
+     "sha256": "c264a884824affb619a104f36de76a7c61d62b96f83590daf38ac72cd0e8f66e"
+    },
+    "/query_metadata/cisco_nxos/ospfv3_neighbors": {
+     "sha256": "2d109aad24f255a9e97cdb2e3e5d7c88a8d8ecfa1f9901dedbc4c5e37bd4fe1a"
+    },
+    "/query_metadata/cisco_nxos/ospfv3_neighbors_vrf": {
+     "sha256": "997a9cbb36b565612861cc9aa260fc6515ab838bf1b750288811950b57731e4b"
+    },
+    "/query_metadata/cisco_nxos/ping": {
+     "sha256": "a07aec327d3ed0a072db69eb7d3f25c8ff29df12aedad66c752e9c89adc371e4"
+    },
+    "/query_metadata/cisco_nxos/ping6": {
+     "sha256": "e42bf8276af55f471b51b9400176f4e85fe05d81aa18c9fbe03c9febada70444"
+    },
+    "/query_metadata/cisco_nxos/ping6_source": {
+     "sha256": "ccd0dd0e46d0cf0c01e8065e4a9de46e7f0db1ef530e7eec0c0b4fcb66f5f9d4"
+    },
+    "/query_metadata/cisco_nxos/ping_source": {
+     "sha256": "1d066698a699582ca8a52b217e9328e6f6f6c1f863ec1122d2a429950bc3dd29"
+    },
+    "/query_metadata/cisco_nxos/port_channel_database": {
+     "sha256": "1688bc1e291ec1f69d6d152b46cf9bb210470b20c02b59753a0a6ca552fedfc3"
+    },
+    "/query_metadata/cisco_nxos/port_channel_load_balance": {
+     "sha256": "6595fadac6686c054dd92219f3d01a726e6bd150149445201a6f8d43c27b58b0"
+    },
+    "/query_metadata/cisco_nxos/priority_flow_control": {
+     "sha256": "426a2c1cb987fcfeaa529208a8f089ae71ad5c10a822198959af5e121a02f285"
+    },
+    "/query_metadata/cisco_nxos/processes_cpu": {
+     "sha256": "0444b3e6ac3e0b5c29c30f12d876807d7173ba9102ec908ba5318c029011a774"
+    },
+    "/query_metadata/cisco_nxos/qos_policy": {
+     "sha256": "cbda48888746269ea9140bcc829af9e15c801b467746b4a7d2124477aabf5cb3"
+    },
+    "/query_metadata/cisco_nxos/qos_queues": {
+     "sha256": "d2950f877404e872834ce33b110f0e8b4bfe32ac923dc8bc5a9df6712f1ddcbd"
+    },
+    "/query_metadata/cisco_nxos/radius_statistics": {
+     "sha256": "b308d52954ebb6470f2171bbc7cb960e7b9856dbbf91079e8807bcab9c5591aa"
+    },
+    "/query_metadata/cisco_nxos/route_lookup_vrf": {
+     "sha256": "fa51de415cf73e9ea1b4c2f66c6104ebb40be29a0559b0ce229139073a0afda1"
+    },
+    "/query_metadata/cisco_nxos/route_map_counters": {
+     "sha256": "5540656b147f607101f6c71c9dd3a082c845118802cf63d81175ae003884c811"
+    },
+    "/query_metadata/cisco_nxos/route_maps": {
+     "sha256": "f6dbcf13511e87b52b1ea9c9f97bed9e23ae9df35dee35455e4ad75b0f7564c5"
+    },
+    "/query_metadata/cisco_nxos/route_prefix_lookup": {
+     "sha256": "f75ee0eaabf6ea060dee3d8b874b6a242fe08533e9b90209bf6d8438c29820f9"
+    },
+    "/query_metadata/cisco_nxos/route_prefix_lookup_vrf": {
+     "sha256": "e428ba134905e32cdf387210ae5c8d3a0082030e70ac6693915277bf25322a66"
+    },
+    "/query_metadata/cisco_nxos/route_table_vrf": {
+     "sha256": "d20f1eefb998c1d4623d230388ef4dd6e38c9edff4fcbbc64b920a8f3457543e"
+    },
+    "/query_metadata/cisco_nxos/snmp_engine_id": {
+     "sha256": "474904e5a904a05250f6aa3d3540373b084b2a67ae0d96e022a1107aca5ad62f"
+    },
+    "/query_metadata/cisco_nxos/snmp_statistics": {
+     "sha256": "795b6c368e98a94ab5e9f6a24ac4ce991b45e8fa519025804c16a2dfe9aa1159"
+    },
+    "/query_metadata/cisco_nxos/ssh_server": {
+     "sha256": "f7f4057eda708b19960f3746ecc9f5f9519bd488bd79d729f8f0a6f636eac9fe"
+    },
+    "/query_metadata/cisco_nxos/stp_detail": {
+     "sha256": "0f2001b14cef1df1f6ac7c1543d47739982446cb8643949570d08828e29bee68"
+    },
+    "/query_metadata/cisco_nxos/stp_interface_detail": {
+     "sha256": "6f102746b203fa3b113bbc30b6e6e31ed1b25210beba47d0b425081544dca541"
+    },
+    "/query_metadata/cisco_nxos/stp_mst": {
+     "sha256": "e071c1a2c4b226a09525bd185495a3beb05a361f4d31ca2e585ea23b8085d1c0"
+    },
+    "/query_metadata/cisco_nxos/tacacs_statistics": {
+     "sha256": "c33c7bb8b88dbf18a0422a1c7bb4dcf45d4a31db12dd5121af3da1812c1927c3"
+    },
+    "/query_metadata/cisco_nxos/tcam_utilization": {
+     "sha256": "2fb332c16073fdf88ed0d4b772207757913ce8efb64938eae5433e5c08ba6da6"
+    },
+    "/query_metadata/cisco_nxos/traceroute": {
+     "sha256": "cb5f6366b9c1c6288699906931bea627a3e8b89fb21283a1f19ab43e2b7a24ed"
+    },
+    "/query_metadata/cisco_nxos/traceroute6": {
+     "sha256": "057a337886970d9642c566bcd6817ad593da0f4baf47aa2561f71ab426cc7c11"
+    },
+    "/query_metadata/cisco_nxos/traceroute6_source": {
+     "sha256": "dc0eca0059934da7e33edd80f5de6fba2433ecc8856d5ecf5891340157f2d6e7"
+    },
+    "/query_metadata/cisco_nxos/traceroute_source": {
+     "sha256": "d66f19005ed8e50a077c85d94f12d5f586fef25bc9f95f446fd66cc959ed385d"
+    },
+    "/query_metadata/cisco_nxos/users": {
+     "sha256": "c1ecfce619485383b532dd0d0a16a95ae6463a6cb6884f6da8f5d905f57d5536"
+    },
+    "/query_metadata/cisco_nxos/vpc_interface_consistency": {
+     "sha256": "f17427ea2b5caada6a9a7b2814142a017131260bd96f380e88b5dd260008e329"
+    },
+    "/query_metadata/cisco_nxos/vpc_member_consistency": {
+     "sha256": "c3a86155e133d3cc7fa2127d88b8b2bbb147217bd8bf82f8efc9695adc9b4abf"
+    },
+    "/query_metadata/cisco_nxos/vrrp_detail": {
+     "sha256": "cb70b410292b7027e0c6a2fbea1d65c3e0821ed1bfe517ee435f6b497c042b06"
+    },
+    "/query_metadata/cisco_nxos/vrrpv3_detail": {
+     "sha256": "10d1d4641f9e9b412e84ebad4fd066ff23e70c60116cfc20d8d755a36b2a8a9b"
+    },
+    "/query_metadata/cisco_xe/aaa_servers": {
+     "sha256": "abbdc1fe15567d82e6ff5990c0884d3a22c42d6ef104396c36c669d26c367759"
+    },
+    "/query_metadata/cisco_xe/adjacency_details": {
+     "sha256": "856a312f39675f657175b750a4c41e586614bddfab72b2170d322ceaaa82671d"
+    },
+    "/query_metadata/cisco_xe/arp_inspection_statistics": {
+     "sha256": "1ece85b436621db0ad6d5bdd27edaf397543d89bc9984b8e977f83e8c9d8ddfa"
+    },
+    "/query_metadata/cisco_xe/arp_lookup": {
+     "sha256": "4bc2e61b89a776f9455189dc1e9a7ac66eb1ae173d70d4e25c58d81dec6b5a8c"
+    },
+    "/query_metadata/cisco_xe/arp_lookup_vrf": {
+     "sha256": "d111ee6cc24f4cdc926ee68ca741bcf296341a2607270dc473e37624b86375dd"
+    },
+    "/query_metadata/cisco_xe/arp_table_vrf": {
+     "sha256": "2a805a51e763564bb3149554c8b872fdd463f8bd5d7a2602029d020ad02329fc"
+    },
+    "/query_metadata/cisco_xe/authentication_sessions_interface": {
+     "sha256": "60e6d19c38d70f83dd106ebf1283b4e90f52df4a9c158c8c9de99208b29b78b1"
+    },
+    "/query_metadata/cisco_xe/bfd_neighbors": {
+     "sha256": "76ae8b200da86f8610bfa1359d5df6bf1c08717166e1572e2a8407699879c006"
+    },
+    "/query_metadata/cisco_xe/bgp_advertised_routes": {
+     "sha256": "4d500601bf2750723c75d60c85e9da7486a4da921decb7970741c581a2383eb7"
+    },
+    "/query_metadata/cisco_xe/bgp_ipv6_summary": {
+     "sha256": "8f9345cb6ce105a0330e11b7bf3dc2ac3497eee632e68b4a63fb2d9aff7514a8"
+    },
+    "/query_metadata/cisco_xe/bgp_neighbor": {
+     "sha256": "075d1b3945e965a74ef93e148ef20e9d71066833c35d82d8ab5eb402528fb305"
+    },
+    "/query_metadata/cisco_xe/bgp_prefix": {
+     "sha256": "a6cbe7949037a63db9e8aef4bf00f370cdbfe7935b7a713cf34de40bf8bd8d89"
+    },
+    "/query_metadata/cisco_xe/bgp_routes": {
+     "sha256": "6981ae20bcff5f8fbf2ab2cad2c8b3e6d0618e7be70ab7fdde0c799b732a9dbb"
+    },
+    "/query_metadata/cisco_xe/c9800_ap_joins": {
+     "sha256": "6f1b9d110e6b9a427434d8c6d7cb2346a246678c265466860db78b0c0adf7cf3"
+    },
+    "/query_metadata/cisco_xe/c9800_ap_load": {
+     "sha256": "185edfed9be5bdc44b8367aba7ef9659d9dd4aafe2f4d92376afd2eb2c6b5d1c"
+    },
+    "/query_metadata/cisco_xe/c9800_ap_tag_detail": {
+     "sha256": "78ea3eaf6ba540c26ec368e6dd00f20560e1c0ae5382e49768bbe04a3abddd87"
+    },
+    "/query_metadata/cisco_xe/c9800_ap_tags": {
+     "sha256": "cfac607f56561c736dd44fcb2a8047ade8175edfab0583c9f33c1fffd61b8c39"
+    },
+    "/query_metadata/cisco_xe/c9800_aps": {
+     "sha256": "fa9ba2f4b4849ed94ed84597ff572b27b153deccbdf65ef1bae8857fa74c3a0a"
+    },
+    "/query_metadata/cisco_xe/c9800_chassis_rmi": {
+     "sha256": "ef4a6fe13b3fd3e0968d8d43b8739eb3ec3e9a49aefed0a54a842f71e60097aa"
+    },
+    "/query_metadata/cisco_xe/c9800_client_deletes": {
+     "sha256": "ccfbc02700d54b465f9cb83be985edc9d51b6a9675cf6170b6a9188d14118712"
+    },
+    "/query_metadata/cisco_xe/c9800_client_detail": {
+     "sha256": "9be13775cda51cdd4ca8bcf26bc7974d403c2ce80a689baa4c59ddab1b77eac3"
+    },
+    "/query_metadata/cisco_xe/c9800_client_stats": {
+     "sha256": "514eebe3f0973745f1d49c8bc892762bfa4340dc18e0ac859d91ab86075fa149"
+    },
+    "/query_metadata/cisco_xe/c9800_clients": {
+     "sha256": "4e464b581dba03b8d768ab9af084f9e76f55dac2e1ee86e7993ba580479a8f8c"
+    },
+    "/query_metadata/cisco_xe/c9800_exclusions": {
+     "sha256": "a2127897892cf67f81f8b85085b4bc2888ec117d46183298cc9dfd9f8bb70e6d"
+    },
+    "/query_metadata/cisco_xe/c9800_policy_profiles": {
+     "sha256": "6c15f2947bfbb0266ed1d638b25153436c2b6d040d58e8c14af5163c6bc486ae"
+    },
+    "/query_metadata/cisco_xe/c9800_radio_24": {
+     "sha256": "2f09086bfea97d4a1c91d68eaa6e8ee74904f72a672847b48d86f0d080210f60"
+    },
+    "/query_metadata/cisco_xe/c9800_radio_5": {
+     "sha256": "2061f1561df85dec62144f50dca5e668729d738b42d780c2fad65f6d9c98534c"
+    },
+    "/query_metadata/cisco_xe/c9800_redundancy": {
+     "sha256": "af9311a9d4054545d8a277f930d32d99e21bc24f6460f3d21473932c67f00c18"
+    },
+    "/query_metadata/cisco_xe/c9800_rogue_aps": {
+     "sha256": "75993c049721b993cfbeab2f523c2c85395749ba593e21930a6338f6d86df773"
+    },
+    "/query_metadata/cisco_xe/c9800_wlans": {
+     "sha256": "e3df4f47486a3125a2d16256be27714d041c8fab8ffe11b26fbae33221b1be39"
+    },
+    "/query_metadata/cisco_xe/cdp_neighbor_interface": {
+     "sha256": "93f80230013fe6bf377410b65392f6da7ac966d5165d34fb260dbe690557c724"
+    },
+    "/query_metadata/cisco_xe/cef_lookup": {
+     "sha256": "0212a5e334ed63971693bbc0eb17f4b03651e262469935733284b8dd5b11e080"
+    },
+    "/query_metadata/cisco_xe/dhcp_server_binding_address": {
+     "sha256": "8b07e0dae70ba46f0a48b60bf361d7410d04745a4fdf6188f89a56fa8abebb90"
+    },
+    "/query_metadata/cisco_xe/dhcp_server_bindings": {
+     "sha256": "1ba94247489e9bb8b90976dfa1cc5aaf2292ee73c89dfed0ee6cf4aa51ecab7c"
+    },
+    "/query_metadata/cisco_xe/dhcp_server_conflicts": {
+     "sha256": "5e4f36e6e04828583bec49e5484761cd19e5cb76295b7a268c0cac6bf9b817d7"
+    },
+    "/query_metadata/cisco_xe/dhcp_server_pools": {
+     "sha256": "13208ecb6c7e422586bcd7154d947a6d25be3bb79e0a011ee144dfd28f0f5e35"
+    },
+    "/query_metadata/cisco_xe/dhcp_server_statistics": {
+     "sha256": "271171da88a618044a5a56d2a1d06b77c84071784bd81c8e90e46b8af27c20e2"
+    },
+    "/query_metadata/cisco_xe/dhcp_snooping_binding": {
+     "sha256": "0792dd3696930c3ebb98aaeec9e33a2ca3bd925e04b613c0f6c05722c2a820c8"
+    },
+    "/query_metadata/cisco_xe/dhcp_snooping_statistics": {
+     "sha256": "432a18b2f0bf4631471fad7541974233f527191621393cf982851327e60928d9"
+    },
+    "/query_metadata/cisco_xe/dhcp_snooping_status": {
+     "sha256": "d27dd04049804116e1a5f054e6d856cc38ef1e20fcde91c8d3450e09677de49d"
+    },
+    "/query_metadata/cisco_xe/dns_hosts": {
+     "sha256": "7ba46e56e3b6fa28223115dff0b8ab88d3c23dd7e81987d7c9a363cf61ffe372"
+    },
+    "/query_metadata/cisco_xe/dot1x_interface": {
+     "sha256": "741d5ce2a4859a18a97a78c7fe820a00173611841da10bb15fc8b0f86ca8fbd4"
+    },
+    "/query_metadata/cisco_xe/etherchannel_detail": {
+     "sha256": "b2fef5fcbb057dfd508c6cb82525a0bf736ec02bbf30cca3b1929cbed8cd7a96"
+    },
+    "/query_metadata/cisco_xe/etherchannel_load_balance": {
+     "sha256": "20b7a3d6d93a2dfaeb2be3c58a2d77f8fd8b81052b9303c592971f0c0357c349"
+    },
+    "/query_metadata/cisco_xe/hsrp_detail": {
+     "sha256": "76f705f35a021213e224e8490dc6453a9c213d8a1a75ea1e76cfe4893b1371a0"
+    },
+    "/query_metadata/cisco_xe/ikev1_sa": {
+     "sha256": "f8da48b8f086420aa01b98a9a91a055b00b31fcb881370b5f027f7fc5f136f2e"
+    },
+    "/query_metadata/cisco_xe/ikev2_sa": {
+     "sha256": "6c4701b90b6a04c54d8f8307cbb69237472557b02a7fde1e6dfca3f41ac253ee"
+    },
+    "/query_metadata/cisco_xe/ip_interface_details": {
+     "sha256": "01d0a4c0a0fb8af8e85b0b42441a04ebde1eb217c112df0d68c5896119c3ffd0"
+    },
+    "/query_metadata/cisco_xe/ip_policy": {
+     "sha256": "e73157ca4044f9f04286f336b9a16e9c53db32758fd982d0e46e7301c7d040fd"
+    },
+    "/query_metadata/cisco_xe/ip_protocols": {
+     "sha256": "edcf9a6be5e8fc3992008a24daa7668b142374464638132a545f3de0d920551e"
+    },
+    "/query_metadata/cisco_xe/ip_sla_statistics": {
+     "sha256": "3f4e150ef7de070c875d353974a0ff16f4581320bac1d30b679e7856e1db2ea6"
+    },
+    "/query_metadata/cisco_xe/ip_source_guard": {
+     "sha256": "e85688fea4b6ded21600004f2fd18d616556a9ccaa81ac048035a35104913a95"
+    },
+    "/query_metadata/cisco_xe/ipsec_sa": {
+     "sha256": "06e20f4145ab4c41a1cddf65bc7e9fd13daeca60a6cea0f0783243e4aa007445"
+    },
+    "/query_metadata/cisco_xe/ipv4_access_lists": {
+     "sha256": "483feeca77a9f02ae88e3d291e42955f85c7128106bb64b173ca9ee1b971c7fd"
+    },
+    "/query_metadata/cisco_xe/ipv6_access_lists": {
+     "sha256": "ffda22039fad949bdc2b27ed8e7ae032a66c9a96590978cc43bf0caccc98d62e"
+    },
+    "/query_metadata/cisco_xe/ipv6_interface_details": {
+     "sha256": "233e546957fd2a9e1ccc9e16a419462e723bb7518c022ab16691bd8019000b35"
+    },
+    "/query_metadata/cisco_xe/ipv6_neighbors_interface": {
+     "sha256": "e2fe39b2f0bb16be7062e62b10f1e8815a2e24867676d9a573894088970d952e"
+    },
+    "/query_metadata/cisco_xe/ipv6_neighbors_interface_vrf": {
+     "sha256": "1db6ad1f1943c37de95e14ca0042c26e884a7df6c077082bf789173efbf48ef8"
+    },
+    "/query_metadata/cisco_xe/ipv6_neighbors_vrf": {
+     "sha256": "a25b7944ab14823730b07a64a727260525e07c6ed695eb3d91630eeb119d71fb"
+    },
+    "/query_metadata/cisco_xe/ipv6_route_table": {
+     "sha256": "984bc76d1554e1247077cbc7e196db11ff1837e3f588fd15cff261411fe4dd84"
+    },
+    "/query_metadata/cisco_xe/lacp_internal": {
+     "sha256": "b51bf5ab420fd737b6519dba1a3bfb96c85bbbb65510a2e2186ef7b9774e684d"
+    },
+    "/query_metadata/cisco_xe/lines": {
+     "sha256": "d1e0cd24892979693fc21aff4a61b036834aa5180a2eb61f4dde333dcbcca474"
+    },
+    "/query_metadata/cisco_xe/lldp_neighbor_interface": {
+     "sha256": "44000f7a7217cb11af6017c89c4e36f522be25fbb53b7725c482000997bf5d78"
+    },
+    "/query_metadata/cisco_xe/log_history": {
+     "sha256": "0415d20a427b9dd93c5bd1079c2e67b88cb4d52e1e20af1edfd0b9254f4a58ee"
+    },
+    "/query_metadata/cisco_xe/mac_table_address": {
+     "sha256": "75e10fb6b6f3dc18161932b2fb9f4d5ef01691018ab7bb237f49aa4417a2adb2"
+    },
+    "/query_metadata/cisco_xe/mac_table_interface": {
+     "sha256": "93b236860bcdda9e010bb3b4a0e37f7505a31818e58b973740c0f23ce187e113"
+    },
+    "/query_metadata/cisco_xe/mac_table_vlan": {
+     "sha256": "480938742de9ed211f1825a27c2a8e21362e5ad83f8f3841dfc9cd8d8b130468"
+    },
+    "/query_metadata/cisco_xe/nat_statistics": {
+     "sha256": "f39a0bcb6f58ca5314036cf2c0cfae27ad429e3604c74352c13815adf3ce89d2"
+    },
+    "/query_metadata/cisco_xe/nat_translations": {
+     "sha256": "d6c0165563b601b5bf00bc8ea21b0b1f48d6498a1f9653c361543497f860465a"
+    },
+    "/query_metadata/cisco_xe/object_tracking": {
+     "sha256": "ca648191135bf28731cc35846b2b0fccdc996626d2fa303561967e7c5ee444e7"
+    },
+    "/query_metadata/cisco_xe/ospf_database": {
+     "sha256": "5b1507f50562d9c56b1628a0531c6559384c2bc9b1fc0c8492401778d7977b8b"
+    },
+    "/query_metadata/cisco_xe/ospf_interface": {
+     "sha256": "df1e6d36543db5f1441eb906184a7940f2f83bfe04774d2505d9d571e5e8b894"
+    },
+    "/query_metadata/cisco_xe/ospf_neighbor_detail": {
+     "sha256": "f2ea8e4dea38bd9f4ecd67a637eaf8289e6fefebff3fd138f06aadb986f996c2"
+    },
+    "/query_metadata/cisco_xe/ospfv3_neighbors": {
+     "sha256": "095faebd8692aff02fc030ce853b8a2a0e8e0ebdda4366e7163012827b0e5918"
+    },
+    "/query_metadata/cisco_xe/ping": {
+     "sha256": "3e496f4c9acf4b6395463c292f9c199ba6651b0e390edd8df6c15f162ad3376c"
+    },
+    "/query_metadata/cisco_xe/ping_ipv6": {
+     "sha256": "850b937cb9b99ac19e300f92dec1b0fa35e9084c87742994d3abf4152c365018"
+    },
+    "/query_metadata/cisco_xe/ping_ipv6_source": {
+     "sha256": "43be9b0fe53f46cdd3372053a1a29d5576af7251d2906bffb52bf27d3b80b853"
+    },
+    "/query_metadata/cisco_xe/ping_ipv6_vrf": {
+     "sha256": "bc6a7b139211c06d9c4684e0246fe41a0476a76a2eb96f31d46cc2d131b1efc9"
+    },
+    "/query_metadata/cisco_xe/ping_ipv6_vrf_source": {
+     "sha256": "f0917c6c52bff529c5f3b9cc521eaeae0d24700f8a613a6b5aa5cad99c1a97d2"
+    },
+    "/query_metadata/cisco_xe/ping_source": {
+     "sha256": "28006e89d4f80c0ac07f632553d7f0986d29490352c2eec52566c57feb2ab441"
+    },
+    "/query_metadata/cisco_xe/ping_vrf": {
+     "sha256": "5d29862ff79f33576c96df97f86055d688709fdaa755bdc472cf305955c13b0b"
+    },
+    "/query_metadata/cisco_xe/ping_vrf_source": {
+     "sha256": "38cbd787904eef7bf524f40b7e22a7ec787cde65092fb7788c33cce18b9883f7"
+    },
+    "/query_metadata/cisco_xe/port_security_addresses": {
+     "sha256": "637cf9d7b4e4dcaa9c78c36c0988b26da820a358b8e4d0003ef451cae3834da9"
+    },
+    "/query_metadata/cisco_xe/port_security_interface": {
+     "sha256": "8f996bc9492b12358589948c4ad534168c4bcaca9905a8233fd37a9b39dfd065"
+    },
+    "/query_metadata/cisco_xe/power_inline_detail": {
+     "sha256": "8d7e2a998ebe2265d5e73652209611eef6ee1e024697b46bd684c0ead48ec975"
+    },
+    "/query_metadata/cisco_xe/qfp_drops": {
+     "sha256": "53233c5d01e48475badf4f0c609c077b3492fc276fa030736b585085a87bd6bc"
+    },
+    "/query_metadata/cisco_xe/qfp_utilization": {
+     "sha256": "2f05a7d76aa4ca16e71a1608f4d34636ef9ece26e64c71d1ce063d31a6bbed2b"
+    },
+    "/query_metadata/cisco_xe/qos_policy": {
+     "sha256": "ba8431094c806dbdfced40ed579568ec524b8045ff6d019f5a005717654d5b2d"
+    },
+    "/query_metadata/cisco_xe/qos_queues": {
+     "sha256": "8514814415c93434a84f51172a0ddafe2a0222f88737fb7f263e12114e9cae92"
+    },
+    "/query_metadata/cisco_xe/radius_statistics": {
+     "sha256": "b19c0c9e084fd4a20d4cc3be9f3f11f45659ea9502ab36e0748e39dd781c62cd"
+    },
+    "/query_metadata/cisco_xe/route_maps": {
+     "sha256": "35bf522cf7aeb99748a1160edc3edaf58f3ca47b681d036f5dd5a95a3b41cc72"
+    },
+    "/query_metadata/cisco_xe/snmp_engine_id": {
+     "sha256": "f008505b1b8b2a0060d36c9b0b5882a0ca645d8136480a6670adbdeaaa08539e"
+    },
+    "/query_metadata/cisco_xe/snmp_statistics": {
+     "sha256": "7a0aa5f9e546fa8d0c59d6e56af362eb5598447b6d514bfe2f39953441a91be0"
+    },
+    "/query_metadata/cisco_xe/ssh_sessions": {
+     "sha256": "7af9543aa30c5c27c742baa6817d67d4dfa6e6ed8095b2feb735b6974c4938db"
+    },
+    "/query_metadata/cisco_xe/stp_detail": {
+     "sha256": "bce9a1b7aa6c06874c397bfe1088de7552de5c590dfaa4e2363806127ef6b63a"
+    },
+    "/query_metadata/cisco_xe/stp_interface_detail": {
+     "sha256": "99fcd74f4dd5c0090a1cf52591ac049b01d639b5243e74d298284801074a6dee"
+    },
+    "/query_metadata/cisco_xe/stp_mst": {
+     "sha256": "1c42ca9815e3cd5c3a29a8b5e7cb393366fb546a25d54774896d8a6a6bcb55f6"
+    },
+    "/query_metadata/cisco_xe/tacacs_statistics": {
+     "sha256": "40a7067bac9320314a2cd87d6d859fff4251f3eb7f3f81c3ed919a2740ddbc40"
+    },
+    "/query_metadata/cisco_xe/traceroute": {
+     "sha256": "bc12d300a3ee43eec0749568e2186ecf46d13de1fedb996571608fa535dfeca5"
+    },
+    "/query_metadata/cisco_xe/traceroute_ipv6": {
+     "sha256": "b644301f1f62760d2ee8b3046587fb5095b94616ec8dfdbce0954ced98ca72a9"
+    },
+    "/query_metadata/cisco_xe/traceroute_ipv6_source": {
+     "sha256": "792ca68a1d2e5b6ddd7b47a189c18e622991050eb2db3a283a23225b30e5dd52"
+    },
+    "/query_metadata/cisco_xe/traceroute_ipv6_vrf": {
+     "sha256": "542a3ab033f30a6ac8c02005b88ab2c260c22c0bc3f1f54d23c87cdf26b4998f"
+    },
+    "/query_metadata/cisco_xe/traceroute_ipv6_vrf_source": {
+     "sha256": "717c09178659e4ef5b89edd423ecb3954b6d00d550b672d5974aa1dd80b525e4"
+    },
+    "/query_metadata/cisco_xe/traceroute_source": {
+     "sha256": "15002b6f1eb4987a4f3728b59d0dc167d9625c6875e5373cd078eb85781b26d8"
+    },
+    "/query_metadata/cisco_xe/traceroute_vrf": {
+     "sha256": "7eaf720acb4db54e15e21ff176c85192857c34907295cba0ab93ce8a8de2a744"
+    },
+    "/query_metadata/cisco_xe/traceroute_vrf_source": {
+     "sha256": "7625f3c29322a9c07c33b19795450461e2ab0dccdd945a9f02c00953de2e58ba"
+    },
+    "/query_metadata/cisco_xe/users": {
+     "sha256": "fcdc88aaf953777f149b9fa8707692af2d86bc6f5499be2f855d45a9edc48bf8"
+    },
+    "/query_metadata/cisco_xe/vrf_arp_table": {
+     "sha256": "094e6a69ca05b24c884a686faad3cd8452204606a3fbbd370381147b7f1f4928"
+    },
+    "/query_metadata/cisco_xe/vrf_cef_lookup": {
+     "sha256": "b66a3d819d57993de00144948990c4ff3c0d50488e2418d6e23284fbcf14b698"
+    },
+    "/query_metadata/cisco_xe/vrf_ip_interfaces": {
+     "sha256": "d8ebcea58de2edca7c06c3d4eff412b3df8adcb432784599bbfba3738d9cf0e9"
+    },
+    "/query_metadata/cisco_xe/vrf_route_lookup": {
+     "sha256": "de801be866a8509a0079d5946289a00919cdc82b910b5bf70c512922f9540130"
+    },
+    "/query_metadata/cisco_xe/vrfs": {
+     "sha256": "64ed34e2ec7126a7a5ad2cfa6b591ff5069b849da5026f4a5ae2e44a170145d4"
+    },
+    "/query_metadata/cisco_xe/vrrp_detail": {
+     "sha256": "db85219d77e8b978c0f953b381eb610725f6f0c0a739a7ad54377f825a4dbf30"
+    },
+    "/query_metadata/extreme_exos/access_lists": {
+     "sha256": "0a0ba1df998c768663d184014f3ea444ec10379f65738686b1e8d949cae08e6c"
+    },
+    "/query_metadata/extreme_exos/accounts": {
+     "sha256": "937e6c9ca703ac547be7ee7ce57f50bcb791f7dc91d352d9b2407eaf2f508be8"
+    },
+    "/query_metadata/extreme_exos/arp_table_vr": {
+     "sha256": "6907068228499ed8e24b517905732828dec176ffd5b3831b188563afcc7a9ed0"
+    },
+    "/query_metadata/extreme_exos/arp_vlan": {
+     "sha256": "0692170ee855dfc338f45f09fb40f7cd93c6ec379d97f2a1a51be8764af0f0be"
+    },
+    "/query_metadata/extreme_exos/bfd_sessions": {
+     "sha256": "894028c8707d701305114d3b741020586ea412fd325850163bcd2c0e5b1c4f44"
+    },
+    "/query_metadata/extreme_exos/bgp_neighbor": {
+     "sha256": "7a02356c27e00c0614baf3d5f234861b0b87064ed352aed1e894c1f9ca3af75f"
+    },
+    "/query_metadata/extreme_exos/bgp_routes": {
+     "sha256": "bec5a3c03429bf63ab1459e436346625db9b0ac73b8499c43e5a3eee07f0cd20"
+    },
+    "/query_metadata/extreme_exos/bgp_summary": {
+     "sha256": "ff28fa72942d6634fa6d92febd7948735e8d702482b8703a382bfa7fd0cde640"
+    },
+    "/query_metadata/extreme_exos/bootprelay": {
+     "sha256": "fdd31b305d665807c7c22e5b7696a7ba9e9a3591eb6c855fcd43da635bd4ae5f"
+    },
+    "/query_metadata/extreme_exos/bootprelay_configuration": {
+     "sha256": "db54803f762cef42a31624bd6266476fb9344b08af2d4d14a5db1e9e924f5a51"
+    },
+    "/query_metadata/extreme_exos/dhcp_server": {
+     "sha256": "5e7b51a4fbe27bb9aa83126ad1183aafdd165c6fa34cd79ba39bd057fb84c421"
+    },
+    "/query_metadata/extreme_exos/dhcp_snooping": {
+     "sha256": "e8a78298cca374462b1c663c702d51578e073d13b2c9337a4726a2a8943dc7d7"
+    },
+    "/query_metadata/extreme_exos/dhcp_snooping_violations": {
+     "sha256": "c88ef7ffbb2a8f69fe0cea9330ca67dad9574e36a0da2f9b3fe706d439c07198"
+    },
+    "/query_metadata/extreme_exos/dns_client": {
+     "sha256": "bbcb1cc37404e32faee535b22f09bd7ff7fbb4977ec02a75a2937ed8563837b4"
+    },
+    "/query_metadata/extreme_exos/dns_lookup": {
+     "sha256": "911fd0de31c483ac03346b0abcff29135da5254fee72d007ca499271475895a2"
+    },
+    "/query_metadata/extreme_exos/igmp_groups": {
+     "sha256": "cebc7a63c236c649ec049516d356a1010dc41e22d9d94bb48c3399fd0ac3b242"
+    },
+    "/query_metadata/extreme_exos/igmp_snooping": {
+     "sha256": "7c1db565703abb0221c6bdfd2d362b9ae021da16cb6db5ad4bf0c13f65b61b9b"
+    },
+    "/query_metadata/extreme_exos/ipconfig_ipv6": {
+     "sha256": "5bbe66b407330d9bfd893700d12ac8bfc5057d9896f91f833255d25ba6c52e2a"
+    },
+    "/query_metadata/extreme_exos/ipv6_neighbors_vr": {
+     "sha256": "12504f979e570784eec0cbdebdd5164926f5f2c69c8323b2e9dbd3a69c231994"
+    },
+    "/query_metadata/extreme_exos/ipv6_route_table_vr": {
+     "sha256": "2287ed5f01380a93fa9c3cbda74c84d824cab53d05aa316e4b2bf0afc2b2f063"
+    },
+    "/query_metadata/extreme_exos/lacp_member": {
+     "sha256": "973edb8b8d2b62934292eed640dbf0cc2e21374ec899afb702c415a3b88a9a00"
+    },
+    "/query_metadata/extreme_exos/log_history": {
+     "sha256": "d192b1d732a1b6af4b45247d2fe15f8ed7f2b91c5ff52b7adbb948aa33d6eedc"
+    },
+    "/query_metadata/extreme_exos/mac_address": {
+     "sha256": "c7e01e6e674316d7cd145700cfbcbd97194ebfedbdb91adf8ddab7996f16af15"
+    },
+    "/query_metadata/extreme_exos/mac_vlan": {
+     "sha256": "eb2d57e6d4c28ecee75ba3882e3f97b4e7f7905eb2576ceae7e88c5db4d6068c"
+    },
+    "/query_metadata/extreme_exos/management": {
+     "sha256": "1b8a3fafc9c30e8bc75d760fbc1ce534917ee40fc44b2f61bff74f9a2edf9b96"
+    },
+    "/query_metadata/extreme_exos/netlogin": {
+     "sha256": "1932287744ac47f4c7565804cb1845a0e5098b88c5eee0cea937b60cbcab2b8e"
+    },
+    "/query_metadata/extreme_exos/netlogin_port": {
+     "sha256": "4078c603fe069668f7c5f9c37fe83bad4b64be148c7eb6f65863cf04788fa714"
+    },
+    "/query_metadata/extreme_exos/ospf_interfaces": {
+     "sha256": "d344338b5c152aff381f5789640744cd989f2c1a8219d44d4cd3247ca53fd843"
+    },
+    "/query_metadata/extreme_exos/ospf_lsdb": {
+     "sha256": "a1f50f95f35d4376d3c4762200a15485ac1a5f558f8ad99aa6e3fb8ddb5897c4"
+    },
+    "/query_metadata/extreme_exos/ospf_neighbors": {
+     "sha256": "d113567fea72c9617c5009a8d72dd58b6a77299bd6f126a684925386df6db138"
+    },
+    "/query_metadata/extreme_exos/ospfv3_interfaces": {
+     "sha256": "24b41670633cddd8aad37de482008aab70c1276cbdb8e187f6473327fed9b941"
+    },
+    "/query_metadata/extreme_exos/ospfv3_neighbors": {
+     "sha256": "002bbacb6c21e9323b5c819bfc774c36eb33e647a822a216a778217e88a469bc"
+    },
+    "/query_metadata/extreme_exos/ping": {
+     "sha256": "af0686eda24dddc4ae2c2f83406150eb0e816ce15af89daa512190dbcac54f57"
+    },
+    "/query_metadata/extreme_exos/ping_source": {
+     "sha256": "afe1f4cd10f46041a55a00264fe7759f1566e2c246a857d9a190c09440f0e23e"
+    },
+    "/query_metadata/extreme_exos/policies": {
+     "sha256": "8b8acfce4991cb636333580d0132cd573ac419d9c526fcd1e78a937e3eed44c8"
+    },
+    "/query_metadata/extreme_exos/policy_details": {
+     "sha256": "984f6cbd65cea289e029e9b548770aef495e9e6a85c49d67a81ae43d201f2c88"
+    },
+    "/query_metadata/extreme_exos/port_packets": {
+     "sha256": "3664ef28c568b97ae6e7b5a5bf6a89d85ef0dadceed8a6a8174e7cabae131b86"
+    },
+    "/query_metadata/extreme_exos/port_qos": {
+     "sha256": "54081101ecbeb0b6b65c58af8a0f073004ba2c7724c3485bf512d535e76ea736"
+    },
+    "/query_metadata/extreme_exos/port_qos_drops": {
+     "sha256": "066a284a8de4c00d99cccb31b036400194cb99c36f0bc5dc5ab9fab22408b907"
+    },
+    "/query_metadata/extreme_exos/port_utilization": {
+     "sha256": "9c0830638245dd3680e923833ff2a22e03a8ce6e1b2fde86c5d0d5009cf007fc"
+    },
+    "/query_metadata/extreme_exos/radius": {
+     "sha256": "8b6a027d64e2c5223191b011f1763e436666a58a45ae77b67b519de742bf9c7e"
+    },
+    "/query_metadata/extreme_exos/route_table_vr": {
+     "sha256": "ead169d53f9a281f4a09f2867df9cc34a4f1e6f488eb86ce0a2cd81f963000b4"
+    },
+    "/query_metadata/extreme_exos/snmp_engine": {
+     "sha256": "10cca901fa02adef573b4c72cde1cb125287cf0913e4c6d4aebe08bc14640a95"
+    },
+    "/query_metadata/extreme_exos/snmp_targets": {
+     "sha256": "fca7ec8788caad8746d5e106f5fb46df8be0b1d644c9e7c128884682e429bd30"
+    },
+    "/query_metadata/extreme_exos/stp_domain_ports": {
+     "sha256": "79cea4fd305b643d3918bc587bff691bb00a3e96532f5a97561387423399749b"
+    },
+    "/query_metadata/extreme_exos/stp_port_detail": {
+     "sha256": "127d379c7d1c836a05071d7c58f3520fd4ad84c9c4b433dd57eebea4cb3b68e6"
+    },
+    "/query_metadata/extreme_exos/tacacs": {
+     "sha256": "41d96ee729702833cc76771180d2d29c1d1d7fb7c9e9e907d7242e9fe7e68fa4"
+    },
+    "/query_metadata/extreme_exos/traceroute": {
+     "sha256": "3c0578993a1815d5a5debaafdf843b93dedf1a972851bd6dec2fe4628c5d4da4"
+    },
+    "/query_metadata/extreme_exos/traceroute_source": {
+     "sha256": "11c139b651c8059bad262ab71ee7a68c41e392dd45c475b22f8d29ae683a9822"
+    },
+    "/query_metadata/extreme_exos/vrrp": {
+     "sha256": "785b1ad201dc7064b275d744aeb9ce35806cb4e973ed5ed9beda859e42d0359e"
+    },
+    "/query_metadata/fortiadc/certificate_inventory": {
+     "sha256": "79d2171b4e24d5a669e9f333b477a18a7981ed982e2ed381f4764d44f268971c"
+    },
+    "/query_metadata/fortiadc/ha_standby_status": {
+     "sha256": "e09c2edd8bc56b9773e09c2e4412ccb653035ec4675250f29e2ec2062dd086c9"
+    },
+    "/query_metadata/fortiadc/interface_list": {
+     "sha256": "d8700134a7d0cf8b284f5baa488755ef8057a58715cd6d5c0e44eabf87ea6d83"
+    },
+    "/query_metadata/fortiadc/interface_state_all": {
+     "sha256": "45611e0d2d218fa446fa96a3483564e18bf8c3a0984b9a06f74670cc33010f5a"
+    },
+    "/query_metadata/fortiadc/interface_summary": {
+     "sha256": "0fe2849385588788d431a6a27b1c7193af94e124b2c7378125ffca8c5cf204e5"
+    },
+    "/query_metadata/fortiadc/nic_detail_all": {
+     "sha256": "0558a9673307ef76a267e0139a9fd6b63b1b4b7d73e83f7e8014306ff9d9503e"
+    },
+    "/query_metadata/fortiadc/slb_rs_stat": {
+     "sha256": "2a165220a3f4681846181e0a0959f0242204916abf507d8108d04e6af39ac197"
+    },
+    "/query_metadata/fortiadc/slb_vs_overview": {
+     "sha256": "dbcccfba152474099da8c877cdbbc6c42dad29f88c2f71c8e62152e5146c31c1"
+    },
+    "/query_metadata/fortinet/bgp_neighbor_detail": {
+     "sha256": "49b3da04e5f771a4a60d889364b367a2dd706282c63c97a658d0f5e36a2d6c68"
+    },
+    "/query_metadata/fortinet/config_error_log": {
+     "sha256": "bc841f5be9c834163385799e1b59585bfde8821f2c03e0c6991b82c08cb85c6d"
+    },
+    "/query_metadata/fortinet/crash_log": {
+     "sha256": "a3812c5b2d9e8a2101242d256172ebc3544b41bbd69da89b66b7cf5940bf9703"
+    },
+    "/query_metadata/fortinet/dhcp_leases_all": {
+     "sha256": "57c6cded358aa6411b0e406536cff97da57cbc520e288baba552267cdc02fb70"
+    },
+    "/query_metadata/fortinet/extender_modem_status": {
+     "sha256": "8bcdc5e0ca4e4e6057709023c857df4c1441605c89913da6498f1ac849057884"
+    },
+    "/query_metadata/fortinet/hardware_sensors": {
+     "sha256": "bbd541f5aae8954fbd2bea5c93e66b52b991172977df445af31e81b954478845"
+    },
+    "/query_metadata/fortinet/ike_gateway_detail": {
+     "sha256": "91963b38126e8259f214a39edecd11c46552277b77f7cfec989ab564eff839b4"
+    },
+    "/query_metadata/fortinet/interface_list": {
+     "sha256": "1a2e37e823bde8aa4426ab8faddcce16df90ce84f0ef445dfe3baf428e8b2fd7"
+    },
+    "/query_metadata/fortinet/ipsec_tunnel_detail": {
+     "sha256": "f70c7771050675db806c80a6f7ad1688f93eb93b202948402883677dd993134a"
+    },
+    "/query_metadata/fortinet/ipv6_bgp_neighbor_detail": {
+     "sha256": "dd7882b728373cc960dbc880d486c973a0c448b7a7daad70e361e9addee1d368"
+    },
+    "/query_metadata/fortinet/ipv6_routing_table": {
+     "sha256": "2c6e093b74e411358b3a37093d37e7fd167738f31ef6a8ae06ed100e970f37e5"
+    },
+    "/query_metadata/fortinet/ipv6_routing_table_database": {
+     "sha256": "51dbfb219e4df21f5f22079944964deaeccc7733592a0945cbddc6360a7e2358"
+    },
+    "/query_metadata/fortinet/local_stp_ports": {
+     "sha256": "d5ca99b4728c1126bb75e8a9f855588f31d40ec0920c5f002147515c2eff53d8"
+    },
+    "/query_metadata/fortinet/local_switch_vlans": {
+     "sha256": "7d2ea6ccba45d5c33fa5aa72d5bb17e6b71ab6d52c35b6f10584300b484deb97"
+    },
+    "/query_metadata/fortinet/routing_table_database": {
+     "sha256": "3c2701b132fc25018932d1e8cb1fb1961a5294553d3a7297d9c863a6f486c00a"
+    },
+    "/query_metadata/fortinet/user_devices": {
+     "sha256": "821a49922fca19a02bbb10833bafa28c37f35fddb8f79f75bd736243fe43613a"
+    },
+    "/query_metadata/juniper_junos/arp_table_instance": {
+     "sha256": "4ce83d862a06bd4c25f43d560e256f0262410e752eb1c6953d694e47b46b22ed"
+    },
+    "/query_metadata/juniper_junos/authentication_order": {
+     "sha256": "32ebae55b787ad68f77ae85d7103f626bb49faf48d5fbd008a724af20a2823d5"
+    },
+    "/query_metadata/juniper_junos/bgp_peer": {
+     "sha256": "1d31d677286f869dd0f5611e46fd3530e8f3a2711368c95762c8c1333830a656"
+    },
+    "/query_metadata/juniper_junos/bgp_peer_advertised_routes": {
+     "sha256": "8732d4192f04fb31a5cf105715b947c2001790680a927017cafaede90b68ff77"
+    },
+    "/query_metadata/juniper_junos/bgp_peer_received_routes": {
+     "sha256": "e527101589b03514251ee0664258e99feccca76d34a6332ab0043b7ac69ea1c1"
+    },
+    "/query_metadata/juniper_junos/bgp_summary_instance": {
+     "sha256": "930990094bafea5c84a927d101001819d4c5de8c34d132a2be51d721fd8786af"
+    },
+    "/query_metadata/juniper_junos/chassis_cluster_interfaces": {
+     "sha256": "e8d0a20c06bbf6d22bd91e16e3db430992bc4cc07b8e01de830932fb86561161"
+    },
+    "/query_metadata/juniper_junos/chassis_cluster_statistics": {
+     "sha256": "bb95b706ee721b5022c3ff0aa7c9c2750b1d288b1a80210e818f8e0ca965e4d4"
+    },
+    "/query_metadata/juniper_junos/chassis_cluster_status": {
+     "sha256": "d8bcb5e18729106c546f4b37d2ba192adf1d960453b41262a2abc776a9ccbfcf"
+    },
+    "/query_metadata/juniper_junos/dhcp_relay_bindings": {
+     "sha256": "df5056bf9849008c446895f8d5f1ca1e4e55d0e1d95e0983a546ef587380a3dc"
+    },
+    "/query_metadata/juniper_junos/dhcp_relay_statistics": {
+     "sha256": "c09365802a3cc1df0a0dac33991f3096a9eee8a813dbeeef9de3e7d09af5e2d9"
+    },
+    "/query_metadata/juniper_junos/dhcp_server_bindings": {
+     "sha256": "4908cd7fee63ff68427c1956f4239857d8b5ed0be846877ac02c3d446c97ca7a"
+    },
+    "/query_metadata/juniper_junos/dhcp_server_statistics": {
+     "sha256": "c25c33f7c16ff467ca393da9373ade57a0959247ec4fdcb3278a0c3a7a5f779f"
+    },
+    "/query_metadata/juniper_junos/dns_lookup": {
+     "sha256": "53a3ff8f64daeb53993462ed8e505d7d6c4c2ae9645434888c605b50804954ae"
+    },
+    "/query_metadata/juniper_junos/dns_resolvers": {
+     "sha256": "2b935c598058cf3876dd7ace72e6db1376fab3434a63675385f69b4ec0c4c760"
+    },
+    "/query_metadata/juniper_junos/firewall_filter": {
+     "sha256": "2772e503f7daa65b1668c87f91864ce6cb85b242390c6f89b697c73a34c1c866"
+    },
+    "/query_metadata/juniper_junos/firewall_filters": {
+     "sha256": "90a40a55a0beeaa733353e8048d252a943b46c5327a5e29f71db1f7601d3d3ef"
+    },
+    "/query_metadata/juniper_junos/ike_security_associations": {
+     "sha256": "3d96b8aa03180854f90d608fc1dcfe75f3cb8142f8a5a13bf90e5db39a867f6c"
+    },
+    "/query_metadata/juniper_junos/interface_class_of_service": {
+     "sha256": "7239c725a1afb358ed26ec90b765813d9725ce2e0617ae81c26e2245dc55b4a8"
+    },
+    "/query_metadata/juniper_junos/interface_firewall_filter": {
+     "sha256": "6982ef5ef562e215d13d614249a29e1335edd9ff1f0fe75af189329e7992e029"
+    },
+    "/query_metadata/juniper_junos/interface_queue": {
+     "sha256": "e52c4807b529f3376a8348f9aac4c699eff109cbe7acf4f7608107db6806431c"
+    },
+    "/query_metadata/juniper_junos/ipsec_security_associations": {
+     "sha256": "c2bdb8b04c9f30631be550732e5bbec942a69dc8bdf6a70cd7cdc7db71a3e6bb"
+    },
+    "/query_metadata/juniper_junos/ipsec_statistics": {
+     "sha256": "3d62339eaf6316c2097df54d683eab903616645dff7378e1fd5ddab3f02f468c"
+    },
+    "/query_metadata/juniper_junos/ipv6_neighbors_instance": {
+     "sha256": "e444ba1434ceab2e8004cea9320379025af249b0edff2944522754112e2d99b6"
+    },
+    "/query_metadata/juniper_junos/log_history": {
+     "sha256": "a433d5adcd1552a97d5c417056c843a9c9b83df27592dc5ed4296b9edf805cb1"
+    },
+    "/query_metadata/juniper_junos/ospf_database": {
+     "sha256": "7db78901cb3a240f11121a68a972ca921b18f104ecc9457e3da76d15c75237b1"
+    },
+    "/query_metadata/juniper_junos/ospf_interface_detail": {
+     "sha256": "f0dcc574013df2e88a89d87c43a87d427781bdb3e98c8f360b8f53e73be9809c"
+    },
+    "/query_metadata/juniper_junos/ospf_neighbors_detail": {
+     "sha256": "fa21d2537090728b5a05934ec2232aba80b2d3937d75782894732a66b311297d"
+    },
+    "/query_metadata/juniper_junos/ospfv3_database": {
+     "sha256": "36dff1c627b04405ae9c254569722a4a50b85f18c2c0a5204cf61cff4ddfebd3"
+    },
+    "/query_metadata/juniper_junos/ospfv3_interface_detail": {
+     "sha256": "9e5a19867e028d2ab5e0820a56e12a9778d3d205995fe5a0b464274552726220"
+    },
+    "/query_metadata/juniper_junos/ospfv3_neighbors_detail": {
+     "sha256": "2019dc0906c262bd3828c1d495e30b49fbcf05d2b44e1efbab34922069b8a54c"
+    },
+    "/query_metadata/juniper_junos/ping": {
+     "sha256": "f5fb72d1b4199a51eeb4fc0156936689f0f7b08899a2c1f7dbdf58ceddce5478"
+    },
+    "/query_metadata/juniper_junos/ping_instance": {
+     "sha256": "6d924bcc88790a275614faf81802bef7f8162485b3cbfb1a4a661034d6a3e203"
+    },
+    "/query_metadata/juniper_junos/radius_servers": {
+     "sha256": "09a2f8990cbae9d0956482360656dc0c5a045b136df3cdaad074d18609af6c0d"
+    },
+    "/query_metadata/juniper_junos/route_lookup_instance": {
+     "sha256": "f048e8129c72f7536ba5c5cd91ffc81872c76f84509862d9da76225c40881646"
+    },
+    "/query_metadata/juniper_junos/security_destination_nat_rules": {
+     "sha256": "af6feb1ad1ee702cce0735a4aa1274b41a97114d24c81cd54bf3b95ecd1a8e9e"
+    },
+    "/query_metadata/juniper_junos/security_flow_sessions": {
+     "sha256": "6d83e678824036d5c092d0093d3508849bb12e0384bbe65c267531496151549b"
+    },
+    "/query_metadata/juniper_junos/security_match_policies": {
+     "sha256": "3c7cf9d9b46aa328468db6ffc4d436729ca5f9dd50589593cf106287b1b61f03"
+    },
+    "/query_metadata/juniper_junos/security_policies": {
+     "sha256": "a0c576e25d4e2024db35cd89570a2bcde5dc7aee5dae72c68450e50fcba9fed8"
+    },
+    "/query_metadata/juniper_junos/security_policy_hits": {
+     "sha256": "f4e69da279b5fd73fe6ef307f5802e0959265013dfd6d841e6bc7686c203607a"
+    },
+    "/query_metadata/juniper_junos/security_source_nat_rules": {
+     "sha256": "c707ab3b35040dd64d388e812abced02d5a05f5fd55010f4def72b3a75706644"
+    },
+    "/query_metadata/juniper_junos/snmp_statistics": {
+     "sha256": "1b7c96a3c354432a6711933b1b4a7175bb55da059c9c47e093992af8e009a9a8"
+    },
+    "/query_metadata/juniper_junos/syslog_status": {
+     "sha256": "2f220ea61496c145771918c23e042cf36c69f8777dc61d51936353273ef961c5"
+    },
+    "/query_metadata/juniper_junos/system_users": {
+     "sha256": "99d2fef175e256cb87f17d89c202fc172987d9d7456bab21d2d6ba3f26f09785"
+    },
+    "/query_metadata/juniper_junos/tacacs_servers": {
+     "sha256": "e54a5cbfa7c0bc3fbabc03a5488f084b87d2a9e5e120a879f7bc4006e34cd3d0"
+    },
+    "/query_metadata/juniper_junos/traceroute": {
+     "sha256": "56ce07dadacebedce746a69664a4e4267c7bb621d8649c85c2211321e8ecf389"
+    },
+    "/query_metadata/juniper_junos/traceroute_instance": {
+     "sha256": "f02e38e143c191469c80c9790dead2eade6a134f9d0ee7109c1615f1d40bcf8c"
+    },
+    "/query_metadata/juniper_junos_els/arp_table_instance": {
+     "sha256": "4ce83d862a06bd4c25f43d560e256f0262410e752eb1c6953d694e47b46b22ed"
+    },
+    "/query_metadata/juniper_junos_els/authentication_order": {
+     "sha256": "32ebae55b787ad68f77ae85d7103f626bb49faf48d5fbd008a724af20a2823d5"
+    },
+    "/query_metadata/juniper_junos_els/bgp_peer": {
+     "sha256": "1d31d677286f869dd0f5611e46fd3530e8f3a2711368c95762c8c1333830a656"
+    },
+    "/query_metadata/juniper_junos_els/bgp_peer_advertised_routes": {
+     "sha256": "8732d4192f04fb31a5cf105715b947c2001790680a927017cafaede90b68ff77"
+    },
+    "/query_metadata/juniper_junos_els/bgp_peer_received_routes": {
+     "sha256": "e527101589b03514251ee0664258e99feccca76d34a6332ab0043b7ac69ea1c1"
+    },
+    "/query_metadata/juniper_junos_els/bgp_summary_instance": {
+     "sha256": "930990094bafea5c84a927d101001819d4c5de8c34d132a2be51d721fd8786af"
+    },
+    "/query_metadata/juniper_junos_els/dhcp_relay_bindings": {
+     "sha256": "df5056bf9849008c446895f8d5f1ca1e4e55d0e1d95e0983a546ef587380a3dc"
+    },
+    "/query_metadata/juniper_junos_els/dhcp_relay_statistics": {
+     "sha256": "c09365802a3cc1df0a0dac33991f3096a9eee8a813dbeeef9de3e7d09af5e2d9"
+    },
+    "/query_metadata/juniper_junos_els/dhcp_server_bindings": {
+     "sha256": "4908cd7fee63ff68427c1956f4239857d8b5ed0be846877ac02c3d446c97ca7a"
+    },
+    "/query_metadata/juniper_junos_els/dhcp_server_statistics": {
+     "sha256": "c25c33f7c16ff467ca393da9373ade57a0959247ec4fdcb3278a0c3a7a5f779f"
+    },
+    "/query_metadata/juniper_junos_els/dns_lookup": {
+     "sha256": "53a3ff8f64daeb53993462ed8e505d7d6c4c2ae9645434888c605b50804954ae"
+    },
+    "/query_metadata/juniper_junos_els/dns_resolvers": {
+     "sha256": "2b935c598058cf3876dd7ace72e6db1376fab3434a63675385f69b4ec0c4c760"
+    },
+    "/query_metadata/juniper_junos_els/firewall_filter": {
+     "sha256": "2772e503f7daa65b1668c87f91864ce6cb85b242390c6f89b697c73a34c1c866"
+    },
+    "/query_metadata/juniper_junos_els/firewall_filters": {
+     "sha256": "90a40a55a0beeaa733353e8048d252a943b46c5327a5e29f71db1f7601d3d3ef"
+    },
+    "/query_metadata/juniper_junos_els/igmp_snooping_interfaces": {
+     "sha256": "9d56c6fcd5d7088ed9208ea712199452d68c48262ed00e9b3754f23a7a3c96c6"
+    },
+    "/query_metadata/juniper_junos_els/igmp_snooping_membership": {
+     "sha256": "85d4f3aff4a2e6a6962e3678792ef2e8ff8643da1cf3142dcbffcb6191c72c60"
+    },
+    "/query_metadata/juniper_junos_els/interface_class_of_service": {
+     "sha256": "7239c725a1afb358ed26ec90b765813d9725ce2e0617ae81c26e2245dc55b4a8"
+    },
+    "/query_metadata/juniper_junos_els/interface_firewall_filter": {
+     "sha256": "6982ef5ef562e215d13d614249a29e1335edd9ff1f0fe75af189329e7992e029"
+    },
+    "/query_metadata/juniper_junos_els/interface_queue": {
+     "sha256": "e52c4807b529f3376a8348f9aac4c699eff109cbe7acf4f7608107db6806431c"
+    },
+    "/query_metadata/juniper_junos_els/ipv6_neighbors_instance": {
+     "sha256": "e444ba1434ceab2e8004cea9320379025af249b0edff2944522754112e2d99b6"
+    },
+    "/query_metadata/juniper_junos_els/log_history": {
+     "sha256": "a433d5adcd1552a97d5c417056c843a9c9b83df27592dc5ed4296b9edf805cb1"
+    },
+    "/query_metadata/juniper_junos_els/mac_table_vlan": {
+     "sha256": "c83b6df1b0ba7f56b59a245ba520cd4825400bdf2a72fd6452aa1f9902b50552"
+    },
+    "/query_metadata/juniper_junos_els/ospf_database": {
+     "sha256": "7db78901cb3a240f11121a68a972ca921b18f104ecc9457e3da76d15c75237b1"
+    },
+    "/query_metadata/juniper_junos_els/ospf_interface_detail": {
+     "sha256": "f0dcc574013df2e88a89d87c43a87d427781bdb3e98c8f360b8f53e73be9809c"
+    },
+    "/query_metadata/juniper_junos_els/ospf_neighbors_detail": {
+     "sha256": "fa21d2537090728b5a05934ec2232aba80b2d3937d75782894732a66b311297d"
+    },
+    "/query_metadata/juniper_junos_els/ospfv3_database": {
+     "sha256": "36dff1c627b04405ae9c254569722a4a50b85f18c2c0a5204cf61cff4ddfebd3"
+    },
+    "/query_metadata/juniper_junos_els/ospfv3_interface_detail": {
+     "sha256": "9e5a19867e028d2ab5e0820a56e12a9778d3d205995fe5a0b464274552726220"
+    },
+    "/query_metadata/juniper_junos_els/ospfv3_neighbors_detail": {
+     "sha256": "2019dc0906c262bd3828c1d495e30b49fbcf05d2b44e1efbab34922069b8a54c"
+    },
+    "/query_metadata/juniper_junos_els/ping": {
+     "sha256": "f5fb72d1b4199a51eeb4fc0156936689f0f7b08899a2c1f7dbdf58ceddce5478"
+    },
+    "/query_metadata/juniper_junos_els/ping_instance": {
+     "sha256": "6d924bcc88790a275614faf81802bef7f8162485b3cbfb1a4a661034d6a3e203"
+    },
+    "/query_metadata/juniper_junos_els/radius_servers": {
+     "sha256": "09a2f8990cbae9d0956482360656dc0c5a045b136df3cdaad074d18609af6c0d"
+    },
+    "/query_metadata/juniper_junos_els/route_lookup_instance": {
+     "sha256": "f048e8129c72f7536ba5c5cd91ffc81872c76f84509862d9da76225c40881646"
+    },
+    "/query_metadata/juniper_junos_els/snmp_statistics": {
+     "sha256": "1b7c96a3c354432a6711933b1b4a7175bb55da059c9c47e093992af8e009a9a8"
+    },
+    "/query_metadata/juniper_junos_els/stp_interface_detail": {
+     "sha256": "1131e2050aab96487f7133628da24406b50051429a59aa22c0702edc8b729fbe"
+    },
+    "/query_metadata/juniper_junos_els/stp_interface_statistics": {
+     "sha256": "c72439c7fc47258757cee063013c20316075db5e3cdabab9db8f75c424540323"
+    },
+    "/query_metadata/juniper_junos_els/syslog_status": {
+     "sha256": "2f220ea61496c145771918c23e042cf36c69f8777dc61d51936353273ef961c5"
+    },
+    "/query_metadata/juniper_junos_els/system_users": {
+     "sha256": "99d2fef175e256cb87f17d89c202fc172987d9d7456bab21d2d6ba3f26f09785"
+    },
+    "/query_metadata/juniper_junos_els/tacacs_servers": {
+     "sha256": "e54a5cbfa7c0bc3fbabc03a5488f084b87d2a9e5e120a879f7bc4006e34cd3d0"
+    },
+    "/query_metadata/juniper_junos_els/traceroute": {
+     "sha256": "56ce07dadacebedce746a69664a4e4267c7bb621d8649c85c2211321e8ecf389"
+    },
+    "/query_metadata/juniper_junos_els/traceroute_instance": {
+     "sha256": "f02e38e143c191469c80c9790dead2eade6a134f9d0ee7109c1615f1d40bcf8c"
+    },
+    "/query_metadata/juniper_junos_els/vlan_details": {
+     "sha256": "99c25018469d164510add3e5d6191bb8028296b5cd3b3714da17e82f990bd4e2"
+    },
+    "/query_metadata/ruckus_unleashed/aaa_servers": {
+     "sha256": "3c6f9f1bcedeef4767c1319b15ef4912a185bebd2936f29393162f4e0ca024de"
+    },
+    "/query_metadata/ruckus_unleashed/access_point": {
+     "sha256": "cf1c9d17eb2ab3f074bf12c0354d4fed905460e0ec3aea320425be5345c35177"
+    },
+    "/query_metadata/ruckus_unleashed/access_point_by_name": {
+     "sha256": "3022440ce8e9e301d84ef6ca5e7e325117f5714541b2d38362343f17c7fe0c2b"
+    },
+    "/query_metadata/ruckus_unleashed/client_detail": {
+     "sha256": "d8562043aed5f53b391fd16e2a748603a3d4ca2fa03d3163869f12db7774d71d"
+    },
+    "/query_metadata/ruckus_unleashed/client_performance": {
+     "sha256": "9ebe905dc07c3e7c24d7c2d52363ba109ba2be9b694d4ac971ae1809b88dc0ab"
+    },
+    "/query_metadata/ruckus_unleashed/clients": {
+     "sha256": "248b7bf84c4561e97bf43bd39719ae266962505409dba9d7b1969acbbc0985c1"
+    },
+    "/query_metadata/ruckus_unleashed/config_settings": {
+     "sha256": "250632d6f36737b9108a91b6b4226abbd23969723190c1a3e3fd2ed54b71aa6b"
+    },
+    "/query_metadata/ruckus_unleashed/dhcp_relays": {
+     "sha256": "e7ecf1481eff7713a65f50dbfc06fbdf1ffc6895b323117e809aa01c57ccdbf3"
+    },
+    "/query_metadata/ruckus_unleashed/events": {
+     "sha256": "96e9080ba90c475b841feb3490ccc20bfbbb4231db9eb0b8bfeb1ce1ac41722c"
+    },
+    "/query_metadata/ruckus_unleashed/events_activities": {
+     "sha256": "c9d9d7db5c4a061a0da13b4733430e89207c52946b9698aad3330703ad5a5d59"
+    },
+    "/query_metadata/ruckus_unleashed/l2_acls": {
+     "sha256": "556b06c7518d885317614e9dadc2549753839c6cb00553471c5711d5a2954288"
+    },
+    "/query_metadata/ruckus_unleashed/l3_acls": {
+     "sha256": "f34a4640698937d331ed32519b14d36f640cedcffd9bb9d58382609d463e4e0f"
+    },
+    "/query_metadata/ruckus_unleashed/mesh_topology": {
+     "sha256": "53a0dbab81bdf42933285fa73618c765621333654d49a4de077e9746cb788fa1"
+    },
+    "/query_metadata/ruckus_unleashed/mgmt_acls": {
+     "sha256": "56486fc9aecc2b8ccfc469b8653bc93e7664dfbd2951efce54a187b49b001209"
+    },
+    "/query_metadata/ruckus_unleashed/ping": {
+     "sha256": "ba3c2ec1d97965abb7255876b553df245f2773bbcfc785a5ab7ed2f4a2a6417a"
+    },
+    "/query_metadata/ruckus_unleashed/radio_performance_24": {
+     "sha256": "2c9b1632f31975504b35a63567ba27391e2d895c5c487241a7a856fd5b89a935"
+    },
+    "/query_metadata/ruckus_unleashed/radio_performance_5": {
+     "sha256": "b84e319adbc1d730c6c70dc094647da242270a0b30729472baf1c758149761eb"
+    },
+    "/query_metadata/ruckus_unleashed/rogue_devices": {
+     "sha256": "9547632d17b33a8efdedb1cb52653bb3e9884a514d05e85401ed242c7550073a"
+    },
+    "/query_metadata/ruckus_unleashed/static_routes": {
+     "sha256": "afd5d534afd0dc0f750424e3e32c02887dceaed821d1910ad9c17b8e770c2bc6"
+    },
+    "/query_metadata/ruckus_unleashed/wlan": {
+     "sha256": "c7803f94ddb3f7f5420ebb3b451d87feabe54c22464ee4b0ec47b222ef3ed38c"
+    }
+   },
+   "changed_keys": {
+    "/catalog_sha256": {
+     "sha256": "3a8bca4be9e9091380dc65d09de09c0ec31d393f8c51873cf3c669c2d6720af1",
+     "value": "7b2681a979718f186547e776d614ae318883fd0c015970012724be06cc4815c7"
+    },
+    "/query_metadata/cisco_ios/arp_table/description": {
+     "sha256": "fd65a7b2c99d80b6ab536c755744920a836d9b7c33ea5b64324ff66bec514772",
+     "value": "Show the IPv4 ARP table. An empty output means no ARP entries."
+    },
+    "/query_metadata/cisco_ios/cdp_neighbors/description": {
+     "sha256": "800bb6693d2ab1424ad7131a7d066688b7a57646bd1e357c939b086f65ea6902"
+    },
+    "/query_metadata/cisco_ios/ipv6_neighbors/description": {
+     "sha256": "920ee0a3a24da8df5f565b668a41696b80805bff2cb63a0f4deab648d22a145b"
+    },
+    "/query_metadata/cisco_ios/lldp_neighbors/description": {
+     "sha256": "7969946ac2a7acf02d887bfb14c7f47b2534435a9d287a6f927b8ed4787ab7a8"
+    },
+    "/query_metadata/cisco_ios/mac_table/description": {
+     "sha256": "a3276dd803c778f312a1cfa93850caa3a2455838330d4a2f02f6aae56a40dce1"
+    },
+    "/query_metadata/cisco_ios/ntp_associations/description": {
+     "sha256": "58e2fb638d54edc0f3eaba1de8b2a903047931d4a9c612f0467e60830eff6823"
+    },
+    "/query_metadata/cisco_nxos/interface_transceiver/parameters/interface/kind": {
+     "sha256": "adff5b92b929baf7641b933b6e5a17779b02c6e69e30fa5dcb5caed670502896",
+     "value": "cisco_nxos_non_subinterface"
+    },
+    "/query_metadata/cisco_nxos/log_messages/description": {
+     "sha256": "be735787a1cce98268f764ebfd2cc6094dc36e69315bae6da3a47357947de4e4"
+    },
+    "/query_metadata/cisco_nxos/ntp_associations/description": {
+     "sha256": "bdc9ae7e220ec6a04c7039d2b116c9eb4efe22c82b5cb67c83e64e1c625bc9c7"
+    },
+    "/query_metadata/cisco_xe/arp_table/description": {
+     "sha256": "fd65a7b2c99d80b6ab536c755744920a836d9b7c33ea5b64324ff66bec514772",
+     "value": "Show the IPv4 ARP table. An empty output means no ARP entries."
+    },
+    "/query_metadata/cisco_xe/cdp_neighbors/description": {
+     "sha256": "800bb6693d2ab1424ad7131a7d066688b7a57646bd1e357c939b086f65ea6902"
+    },
+    "/query_metadata/cisco_xe/hsrp_summary/description": {
+     "sha256": "9a8a78cc534201eb6de906b10095d6d57e7bf30396bf57247e6f613bfc43d66d"
+    },
+    "/query_metadata/cisco_xe/ipv6_neighbors/description": {
+     "sha256": "920ee0a3a24da8df5f565b668a41696b80805bff2cb63a0f4deab648d22a145b"
+    },
+    "/query_metadata/cisco_xe/lacp_neighbors/description": {
+     "sha256": "b0258ffc28da8e062f03d218c62975c03ea0931e9354d46a78c48aa2cc4c57ee"
+    },
+    "/query_metadata/cisco_xe/lldp_neighbors/description": {
+     "sha256": "7969946ac2a7acf02d887bfb14c7f47b2534435a9d287a6f927b8ed4787ab7a8"
+    },
+    "/query_metadata/cisco_xe/mac_table/description": {
+     "sha256": "a3276dd803c778f312a1cfa93850caa3a2455838330d4a2f02f6aae56a40dce1"
+    },
+    "/query_metadata/cisco_xe/ntp_associations/description": {
+     "sha256": "c5d07fac24631533728a2a0e3f4ca461fb105f9b13fd307e3663f64b8ef63aad"
+    },
+    "/query_metadata/cisco_xe/stp_root/description": {
+     "sha256": "36333712512d6555fdbada0735d2caf5a771a0b8bd8f307bd4e6b438006c6020"
+    },
+    "/query_metadata/extreme_exos/access_list_counters/description": {
+     "sha256": "44337f15f3aed2cedfa7a52cf9371b4f1f09cb2d6224d0ed608c34aed025a49b"
+    },
+    "/query_metadata/extreme_exos/arp_table/description": {
+     "sha256": "fd65a7b2c99d80b6ab536c755744920a836d9b7c33ea5b64324ff66bec514772",
+     "value": "Show the IPv4 ARP table. An empty output means no ARP entries."
+    },
+    "/query_metadata/extreme_exos/ipv6_neighbors/description": {
+     "sha256": "ee37f0793aed9ebe21f1d84f745d4b320da8c4abd366f514653e36359ab04696"
+    },
+    "/query_metadata/extreme_exos/lldp_neighbors/description": {
+     "sha256": "5c05caf13c695ae530d1c67b520861234425f7f652c3c25450abb4a871231d6e"
+    },
+    "/query_metadata/extreme_exos/lldp_neighbors_detail/description": {
+     "sha256": "7c31023e864ebf57c3daf4e97209f224fcf7687d91d942321fe4602c7ba174b8"
+    },
+    "/query_metadata/extreme_exos/mac_table/description": {
+     "sha256": "491031557b468716398bd6ff6ec00448b6ee6fbf222bba2df8e55e4049804590"
+    },
+    "/query_metadata/ruckus_unleashed/access_points/description": {
+     "sha256": "4deba0af2322f757aec026cd31d5c4c1a62d8a5ed160cee2a762364f1c7981ca"
+    },
+    "/total": {
+     "sha256": "86cb35a822329fe1de40eb82a1791be1f66f8bd327446686bdd859a89e436853",
+     "value": 1107
+    }
+   }
+  },
+  {
+   "tool": "admin_status",
+   "kind": "response",
+   "reason": "Return the plan's firmware_support field, which is null for a previously recorded plan without firmware support metadata.",
+   "added_keys": {
+    "/firmware_support": {
+     "sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+     "value": null
+    }
+   }
+  }
+ ]
+}

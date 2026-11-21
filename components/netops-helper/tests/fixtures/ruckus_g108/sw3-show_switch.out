@@ -1,0 +1,39 @@
+
+SysName:          host17
+SysLocation:      host22
+SysContact:       https://www.extremenetworks.com/support/
+System MAC:       00:00:5E:00:53:2C
+System MAC Used:  Factory MAC
+System Type:      X440G2-12p-10G4
+
+SysHealth check:  Enabled (Normal)
+Recovery Mode:    All
+System Watchdog:  Enabled
+
+Current Time:     Wed Nov 18 08:29:36 2026
+Timezone:         [Auto DST Enabled] GMT Offset: 60 minutes, name is CET.
+                  DST of 60 minutes is currently not in effect, name is CEST.
+                  DST begins every last Sunday March at 2:00
+                  DST ends every last Sunday October at 3:00
+
+Boot Time:        Mon Oct 19 10:39:20 2026
+Boot Count:       23
+Next Reboot:      None scheduled
+System UpTime:    29 days 22 hours 50 minutes 16 seconds
+
+Current State:    OPERATIONAL             
+Image Selected:   secondary               
+Image Booted:     secondary               
+Primary ver:      33.7.1.6                
+Secondary ver:    33.7.1.6    
+                  patch1-11
+
+Config Selected:  primary.cfg                                          
+Config Booted:    primary.cfg                                          
+Config Automatic: NONE (Disabled)
+
+primary.cfg       Created by ExtremeXOS version 33.7.1.6
+                  255346 bytes saved on Tue Nov 17 20:19:10 2026
+
+
+LAA MAC:          Locally Administered MAC Address Disabled

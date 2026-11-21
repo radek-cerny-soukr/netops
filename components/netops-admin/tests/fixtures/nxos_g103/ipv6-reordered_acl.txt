@@ -1,0 +1,3 @@
+
+IPv6 access list NETOPS-G103-V6
+	20 permit ipv6 any any

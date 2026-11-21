@@ -39,9 +39,12 @@ def test_fixture_shape_is_what_the_adapter_reads():
     assert sum(line.strip().startswith('cisco ') and 'hassis' in line for line in lines) == 1
 
 
-def test_real_nxos_admitted():
+def test_real_nxos_tested():
     firmware, meta = ad.verify_identity(NXOS)
-    assert firmware == FIRMWARE == ad.SUPPORTED
+    assert firmware == FIRMWARE == ad.TESTED and ad.firmware_record(firmware)
+    assert ad.firmware_support(firmware) == {
+        'status': 'tested', 'platform': 'Cisco NX-OS', 'device_version': '9.3(12)', 'model': 'Nexus9000 C9300v',
+        'tested_versions': ['Nexus9000 C9300v 9.3(12)'], 'message': None}
     assert meta['config_scope'] == 'device-account-visible'
     assert meta['configuration_complete'] is False and meta['identity_scope_verified'] is False
     assert meta['visibility_limitations'] == ['account-rights-not-verified', 'formats-not-verified']
@@ -53,17 +56,30 @@ def test_crlf_and_prompt_lines():
     assert ad.verify_identity('host01# show version\r\n' + NXOS + '\r\nhost01# ')[0] == FIRMWARE
 
 
-@pytest.mark.parametrize('old,new', [
-    (CHASSIS, '  cisco Nexus9000 C9500v Chassis'),                                  # other virtual model
-    (CHASSIS, '  cisco Nexus9000 C93180YC-EX chassis'),                             # hardware model
-    (RELEASE, ' NXOS: version 9.3(11)'),                                            # other maintenance
-    (RELEASE, ' NXOS: version 10.3(4a)'),                                           # other train
-    (RELEASE, ' NXOS: version 7.0(3)I7(9)'),                                        # old train
+@pytest.mark.parametrize('old,new,record', [
+    (CHASSIS, '  cisco Nexus9000 C9500v Chassis', ('Nexus9000 C9500v', '9.3(12)')),          # other virtual model
+    (CHASSIS, '  cisco Nexus9000 C93180YC-EX chassis', ('Nexus9000 C93180YC-EX', '9.3(12)')),  # hardware model
+    (RELEASE, ' NXOS: version 9.3(11)', ('Nexus9000 C9300v', '9.3(11)')),                     # other maintenance
+    (RELEASE, ' NXOS: version 10.3(4a)', ('Nexus9000 C9300v', '10.3(4a)')),                   # other train
+    (RELEASE, ' NXOS: version 7.0(3)I7(9)', ('Nexus9000 C9300v', '7.0(3)I7(9)')),             # old train
 ], ids=['model-c9500v', 'model-hw', 'release', 'train', 'old-train'])
-def test_derived_foreign_wellformed_refused(old, new):
+def test_derived_foreign_wellformed_is_untested(old, new, record):
+    """G00: another model or release is read; firmware_support says untested."""
     assert old in NXOS
-    with pytest.raises(ad.UnsupportedNxosFirmware, match='configuration firmware-not-supported'):
-        ad.verify_identity(NXOS.replace(old, new))
+    firmware, meta = ad.verify_identity(NXOS.replace(old, new))
+    assert firmware == record and meta == ad.metadata() and ad.firmware_record(firmware)
+    support = ad.firmware_support(firmware)
+    assert support['status'] == 'untested' and support['model'] == record[0]
+    assert support['message'] == (
+        'Cisco NX-OS %s on %s is not among the versions config_read was tested on (Nexus9000 C9300v 9.3(12)). '
+        'It may or may not work as designed and tested; check the result.' % (record[1], record[0]))
+
+
+@pytest.mark.parametrize('record', [
+    ('Nexus9000 C9300v',), ['Nexus9000 C9300v', '9.3(12)'], ('Nexus9000 C9300v', None), ('', '9.3(12)'),
+    ('Nexus9000 C9300v', '9.3(12)', 'x'), None])
+def test_firmware_record_shape(record):
+    assert not ad.firmware_record(record)
 
 
 def test_real_foreign_vendors_and_other_adapters():
@@ -71,7 +87,7 @@ def test_real_foreign_vendors_and_other_adapters():
     for text in (IOLXE, CEOS):
         with pytest.raises(ValueError, match=BAD) as info:
             ad.verify_identity(text)
-        assert not isinstance(info.value, ad.UnsupportedNxosFirmware)
+        assert type(info.value) is ValueError
     # And the IOS / IOS XE / EOS adapters do not admit the NX-OS capture.
     for other in (ios_ad, xe_ad, eos_ad):
         with pytest.raises(ValueError):
@@ -111,7 +127,7 @@ def test_real_foreign_vendors_and_other_adapters():
 def test_unverifiable_identity(make):
     with pytest.raises(ValueError, match=BAD) as info:
         ad.verify_identity(make(NXOS))
-    assert not isinstance(info.value, ad.UnsupportedNxosFirmware)
+    assert type(info.value) is ValueError
 
 
 def test_identity_ignores_image_file_packages_serial_and_hostname():
@@ -139,7 +155,7 @@ def test_read_command():
 def test_constants_and_profile_fingerprint():
     assert ad.PLATFORM == 'cisco_nxos' and ad.COMMAND == 'show running-config'
     assert ad.IDENTITY_COMMANDS == ('show version',) and ad.IDENTITY_MAX_BYTES == 65536
-    assert ad.SUPPORTED == ('Nexus9000 C9300v', '9.3(12)')
+    assert ad.TESTED == ('Nexus9000 C9300v', '9.3(12)') and ad.TESTED_NAME == 'Cisco NX-OS'
     assert not hasattr(ad, 'IMAGE_FAMILY') and not hasattr(ad, 'firmware_admitted')
     assert ad.VISIBILITY == ('account-rights-not-verified', 'formats-not-verified')
     desc = ('cisco_nxos', 'config_indented.NxosStreamRedactor', 'nxos-indent-allowlist-1', NXOS_MARKER,

@@ -1,0 +1,5 @@
+MacAddress          IpAddress        Lease(sec)  Type           VLAN  Interface
+------------------  ---------------  ----------  -------------  ----  --------------------
+01:02:03:04:05:06   203.0.113.249    9837        dhcp-snooping  20    GigabitEthernet2/0/1
+00:00:5E:00:53:04   203.0.113.248    237         dhcp-snooping  20    GigabitEthernet2/0/2
+Total number of bindings: 2

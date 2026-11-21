@@ -44,7 +44,7 @@ def test_late_conflicting_arp_mac_is_correlated_from_the_same_capture(tmp_path, 
 @pytest.mark.parametrize('clock_start', [0.0, 10_000_000.0])
 @pytest.mark.parametrize('capture_seconds', [1.0, 5.6])
 @pytest.mark.parametrize('count', [2, 4, 5, 12, 30])
-def test_fortilink_elapsed_ceiling_includes_the_real_pacing_path(
+def test_fortilink_uses_one_paced_session_and_keeps_read_and_time_ceilings(
         tmp_path, monkeypatch, count, capture_seconds, clock_start):
     from netops_helper.query_catalog import READ_QUERIES
     serials = ['S000SSSS%08d' % n for n in range(1, count + 1)]
@@ -62,28 +62,23 @@ def test_fortilink_elapsed_ceiling_includes_the_real_pacing_path(
     result = locate(proxy, AP_IP, ['gate'])
     assert result.get('error_code') is None, result
     calls = [json.loads(line) for line in wire.read_text().splitlines()]
-    # 1 s captures must actually sleep through the production connection lane;
-    # 5.6 s captures already exceed its 5 s start spacing. Neither waits in real time.
+    # Commands share one connection: each start follows the last capture.
+    # Reconnecting would introduce real lane delays into the 1 s case.
     required = count + 6
-    capacity = 12 if capture_seconds == 1.0 else 11
-    expected_calls = min(required, capacity)
-    expected_reads = expected_calls + (required > capacity and capture_seconds == 1.0)
+    read_cap = min(30, 7 + 5 * count)
+    starts = [capture_seconds * index for index in range(min(required, read_cap))]
+    inside_budget = [start for start in starts if start < 59.5]
+    expected_calls = len(inside_budget)
     assert len(calls) == expected_calls
-    assert result['reads'] == expected_reads
-    assert result['limits']['target_reads'] == {'gate': min(30, 7 + 5 * count)}
-    spacing = max(5.0, capture_seconds)
-    assert [c['started'] - clock_start for c in calls] == pytest.approx(
-        [spacing * index for index in range(expected_calls)])
+    assert result['reads'] == expected_calls
+    assert result['limits']['target_reads'] == {'gate': read_cap}
+    assert [c['started'] - clock_start for c in calls] == pytest.approx(inside_budget)
     trace = wire.with_suffix('.clock.jsonl')
     sleeps = [json.loads(line)['seconds'] for line in trace.read_text().splitlines()] if trace.exists() else []
-    if capture_seconds == 1.0:
-        assert sleeps == pytest.approx([4.0] * (expected_calls - 1) + ([3.5] if required > capacity else []))
-    else:
-        assert sleeps == []
-    planned_seconds = (required - 1) * spacing + capture_seconds
-    complete = planned_seconds <= 59.5
-    assert result['elapsed_seconds'] == pytest.approx(
-        planned_seconds if complete else 59.5)
+    assert sleeps == []
+    planned_seconds = starts[-1] + capture_seconds
+    complete = planned_seconds <= 59.5 and required <= read_cap
+    assert result['elapsed_seconds'] == pytest.approx(min(planned_seconds, 59.5))
     assert result['coverage']['complete'] is complete
     if complete:
         assert result['verdict'] == 'located' and not result['missing'], result
@@ -92,7 +87,8 @@ def test_fortilink_elapsed_ceiling_includes_the_real_pacing_path(
             mac_command.format(managed_switch=serial) for serial in serials}
     else:
         assert result['verdict'] == 'incomplete', result
-        assert any(m['reason'] == 'timeout' for m in result['missing'])
+        limiter = 'timeout' if planned_seconds > 59.5 else 'target_read_limit'
+        assert any(m['reason'] == limiter for m in result['missing'])
         assert result['coverage']['unfinished_targets'] == ['gate']
     print('FortiLink virtual start=%s switches=%s capture=%s starts=%s sleeps=%s reads=%s elapsed=%s verdict=%s' % (
         clock_start, count, capture_seconds, [c['started'] - clock_start for c in calls],
@@ -134,6 +130,7 @@ def test_failed_hostname_supplement_is_cached_after_verified_identity(tmp_path, 
         scoped.setattr(engine, 'host_key_line', engine.host_key_line)
         scoped.setattr(engine, '_lane_directory', engine._lane_directory)
         scoped.setattr(engine.core_ssh, 'run_command', engine.core_ssh.run_command)
+        scoped.setattr(engine.core_session, 'fortinet_session', engine.core_session.fortinet_session)
         exec(code, {})
         engine._locate_endpoint_run(auths, '00:00:5e:00:53:fe')
     calls = [json.loads(line)['command'] for line in wire.read_text().splitlines()]

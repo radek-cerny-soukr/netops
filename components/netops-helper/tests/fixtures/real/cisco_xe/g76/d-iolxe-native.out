@@ -1,0 +1,34 @@
+
+
+!Contextual Config Diffs:
+crypto pki certificate chain TP-self-signed-1
+ +<UNVERIFIED:cisco-ios-opaque-line>
+  +<UNVERIFIED:cisco-ios-opaque-line>
+  +<UNVERIFIED:cisco-ios-opaque-line>
+  +<UNVERIFIED:cisco-ios-opaque-line>
+  +<UNVERIFIED:cisco-ios-opaque-line>
+  +<UNVERIFIED:cisco-ios-opaque-line>
+  +<UNVERIFIED:cisco-ios-opaque-line>
+  +<UNVERIFIED:cisco-ios-opaque-line>
+  +<UNVERIFIED:cisco-ios-opaque-line>
+  +<UNVERIFIED:cisco-ios-opaque-line>
+  +<UNVERIFIED:cisco-ios-opaque-line>
+  +<UNVERIFIED:cisco-ios-opaque-line>
+  +<UNVERIFIED:cisco-ios-opaque-line>
+  +<UNVERIFIED:cisco-ios-opaque-line>
+  +<UNVERIFIED:cisco-ios-opaque-line>
+  +<UNVERIFIED:cisco-ios-opaque-line>
+  +<UNVERIFIED:cisco-ios-opaque-line>
+  +<UNVERIFIED:cisco-ios-opaque-line>
+  +<UNVERIFIED:cisco-ios-opaque-line>
+  +<UNVERIFIED:cisco-ios-opaque-line>
+  +<UNVERIFIED:cisco-ios-opaque-line>
+  +<UNVERIFIED:cisco-ios-opaque-line>
+  +<UNVERIFIED:cisco-ios-opaque-line>
+  +<UNVERIFIED:cisco-ios-opaque-line>
+  +<UNVERIFIED:cisco-ios-opaque-line>
+  +<UNVERIFIED:cisco-ios-opaque-line>
+  +<UNVERIFIED:cisco-ios-opaque-line>
+  +	<UNVERIFIED:cisco-ios-opaque-line>
+crypto pki certificate chain TP-self-signed-1
+ -<UNVERIFIED:cisco-ios-opaque-line>

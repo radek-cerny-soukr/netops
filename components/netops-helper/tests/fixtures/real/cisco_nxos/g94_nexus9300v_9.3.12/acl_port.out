@@ -1,0 +1,7 @@
+IPV4 ACL acl-2
+        Statistics enabled
+        Total ACEs Configured: 2
+        Configured on interfaces:
+                Ethernet1/49/1 - ingress (Port ACL)
+        Active on interfaces:
+                Ethernet1/49/1 - ingress (Port ACL)

@@ -1,0 +1,5 @@
+Neighbor ID     Pri   State           Dead Time   Interface ID    Interface
+203.0.113.245    1    FULL/  -        00:00:31    14              POS4/0
+203.0.113.244    1    FULL/BDR        00:00:30    3               FastEthernet00
+203.0.113.243    1    FULL/  -        00:00:33    13              ATM3/0
+

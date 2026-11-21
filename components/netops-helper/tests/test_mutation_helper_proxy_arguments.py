@@ -287,7 +287,9 @@ def test_paths_are_confined_to_roots_without_double_slash_or_suffix_tricks() -> 
 @pytest.mark.parametrize(("function", "value", "expected"), [
     (lambda value: MODULE._canonical_cisco_ios_interface(value, False), "Gi0/99", "GigabitEthernet0/99"),
     (lambda value: MODULE._canonical_cisco_ios_interface(value, False), "Gi0/100", None),
-    (lambda value: MODULE._canonical_cisco_ios_interface(value, False), "Gi0/5/0", None),
+    (lambda value: MODULE._canonical_cisco_ios_interface(value, False), "Gi0/5/0", "GigabitEthernet0/5/0"),
+    (lambda value: MODULE._canonical_cisco_ios_interface(value, False), "Gi0/9/0", None),
+    (lambda value: MODULE._canonical_cisco_ios_interface(value, False), "Gi0/0", "GigabitEthernet0/0"),
     (lambda value: MODULE._canonical_cisco_ios_interface(value, False), "Gi1/0/1", "GigabitEthernet1/0/1"),
     (lambda value: MODULE._canonical_cisco_nxos_interface(value, False), "Ethernet1/1.1", "Ethernet1/1.1"),
     (lambda value: MODULE._canonical_cisco_nxos_interface(value, False), "Port-channel1.1", "Port-channel1.1"),

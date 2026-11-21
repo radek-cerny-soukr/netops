@@ -1,0 +1,21 @@
+show performance ap-radio5 mac 00:00:5e:00:53:02
+
+AP performance:
+
+    1:
+
+      Radio a/n:
+
+      MAC Address= 00:00:5e:00:53:02
+
+      Estimated Capacity= 256801
+
+      Downlink= 1568
+
+      Uplink= 70
+
+      RF pollution= 6
+
+      Authorized clients= 3
+
+      Other APs= 0

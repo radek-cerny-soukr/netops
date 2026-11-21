@@ -1,0 +1,7 @@
+{
+    "nameServerConfigs": [],
+    "hosts": {},
+    "domainName": "",
+    "domainList": [],
+    "nameServers": []
+}

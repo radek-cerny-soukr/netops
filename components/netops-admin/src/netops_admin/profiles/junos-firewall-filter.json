@@ -1,0 +1,32 @@
+{
+  "platform": "junos",
+  "table": "firewall-filter",
+  "versions": [
+    "26.2R1.7"
+  ],
+  "exact_versions": true,
+  "ops": [
+    "create",
+    "update",
+    "delete"
+  ],
+  "table_scoped_key": true,
+  "key_pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,62}@(inet|inet6)$",
+  "protected_keys": [],
+  "attributes": {
+    "terms": {
+      "type": "text",
+      "required_on_create": true,
+      "update": true,
+      "unset": false,
+      "referenced_update": false,
+      "max_length": 1500,
+      "pattern": "^[A-Za-z0-9_,:./ -]+$"
+    }
+  },
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "Uses the Junos commit confirmed safeguard and scoped inverse (G132). The key is <filter>@inet or <filter>@inet6. Ordered term,source-prefix,counter,action values: use - for no source prefix or no counter, action accept, discard or reject. A Junos filter discards packets that match no term."
+}

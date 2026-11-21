@@ -1,0 +1,504 @@
+Nov 18 13:03:11  host01   sshd[40468]:
+Nov 18 13:03:11  host01   sshd[40468]:
+Nov 18 13:03:11  host01   inetd[20348]:
+Nov 18 13:03:17  host01   sshd[40667]:
+Nov 18 13:03:25  host01   secure-dot1xd[20676]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:03:31  host01   kernel:
+Nov 18 13:03:31  host01   kernel:
+Nov 18 13:03:31  host01   secure-dot1xd[20676]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:03:30  host01   rpdtmd[20567]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:03:31  host01   sshd[40669]:
+Nov 18 13:03:31  host01   sshd[40669]:
+Nov 18 13:03:31  host01   inetd[20348]:
+Nov 18 13:03:33  host01   sshd[40674]:
+Nov 18 13:03:41  host01   mplsoamd[20530]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:03:41  host01   secure-dot1xd[20676]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:03:46  host01   mplsoamd[20530]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:03:46  host01   secure-dot1xd[20676]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:03:47  host01   mgd[40678]: UI_DBASE_LOGIN_EVENT:
+Nov 18 13:03:52  host01   mgd[40678]: UI_DBASE_LOGOUT_EVENT:
+Nov 18 13:03:53  host01   sshd[40676]:
+Nov 18 13:03:54  host01   sshd[40676]:
+Nov 18 13:03:54  host01   inetd[20348]:
+Nov 18 13:03:59  host01   sshd[40680]:
+Nov 18 13:04:09  host01   sshd[40682]:
+Nov 18 13:04:09  host01   sshd[40682]:
+Nov 18 13:04:09  host01   inetd[20348]:
+Nov 18 13:04:12  host01   sshd[40687]:
+Nov 18 13:04:17  host01   sshd[40689]:
+Nov 18 13:04:17  host01   sshd[40689]:
+Nov 18 13:04:20  host01   inetd[20348]:
+Nov 18 13:04:26  host01   sshd[40693]:
+Nov 18 13:04:35  host01   mplsoamd[20530]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:04:35  host01   secure-dot1xd[20676]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:04:36  host01   sshd[40695]:
+Nov 18 13:04:36  host01   sshd[40695]:
+Nov 18 13:04:36  host01   inetd[20348]:
+Nov 18 13:04:38  host01   sshd[40701]:
+Nov 18 13:04:39  host01   inetd[20348]:
+Nov 18 13:04:42  host01   sshd[40703]:
+Nov 18 13:04:49  host01   sshd[40705]:
+Nov 18 13:04:49  host01   sshd[40705]:
+Nov 18 13:04:49  host01   inetd[20348]:
+Nov 18 13:04:54  host01   kernel:
+Nov 18 13:04:54  host01   rpdtmd[20567]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:04:54  host01   sshd[40708]:
+Nov 18 13:05:07  host01   sshd[40710]:
+Nov 18 13:05:07  host01   sshd[40710]:
+Nov 18 13:05:07  host01   inetd[20348]:
+Nov 18 13:05:10  host01   sshd[40717]:
+Nov 18 13:05:16  host01   sshd[40719]:
+Nov 18 13:05:17  host01   sshd[40719]:
+Nov 18 13:05:17  host01   inetd[20348]:
+Nov 18 13:05:19  host01   sshd[40722]:
+Nov 18 13:05:21  host01   rpd[20522]: JTASK_IO_CONNECT_FAILED:
+Nov 18 13:05:46  host01   rpdtmd[20567]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:05:58  host01   sshd[40724]:
+Nov 18 13:05:58  host01   sshd[40724]:
+Nov 18 13:05:58  host01   inetd[20348]:
+Nov 18 13:06:02  host01   sshd[40924]:
+Nov 18 13:06:13  host01   sshd[40926]:
+Nov 18 13:06:13  host01   sshd[40926]:
+Nov 18 13:06:13  host01   inetd[20348]:
+Nov 18 13:06:17  host01   sshd[40931]:
+Nov 18 13:06:22  host01   mplsoamd[20530]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:06:22  host01   rpdtmd[20567]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:06:28  host01   secure-dot1xd[20676]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:06:28  host01   mplsoamd[20530]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:06:28  host01   mgd[40935]: UI_DBASE_LOGIN_EVENT:
+Nov 18 13:06:31  host01   mgd[40935]: UI_DBASE_LOGOUT_EVENT:
+Nov 18 13:06:32  host01   secure-dot1xd[20676]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:06:33  host01   sshd[40933]:
+Nov 18 13:06:33  host01   sshd[40933]:
+Nov 18 13:06:33  host01   inetd[20348]:
+Nov 18 13:06:36  host01   sshd[40936]:
+Nov 18 13:06:43  host01   sshd[40938]:
+Nov 18 13:06:43  host01   sshd[40938]:
+Nov 18 13:06:44  host01   inetd[20348]:
+Nov 18 13:06:47  host01   sshd[40943]:
+Nov 18 13:06:54  host01   sshd[40945]:
+Nov 18 13:06:54  host01   sshd[40945]:
+Nov 18 13:06:54  host01   inetd[20348]:
+Nov 18 13:06:57  host01   sshd[40949]:
+Nov 18 13:07:05  host01   mplsoamd[20530]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:07:06  host01   sshd[40951]:
+Nov 18 13:07:06  host01   sshd[40951]:
+Nov 18 13:07:06  host01   inetd[20348]:
+Nov 18 13:07:08  host01   sshd[40971]:
+Nov 18 13:07:09  host01   mplsoamd[20530]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:07:18  host01   mgd[40975]: UI_DBASE_LOGIN_EVENT:
+Nov 18 13:07:20  host01   secure-dot1xd[20676]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:07:23  host01   rpdtmd[20567]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:07:30  host01   kernel:
+Nov 18 13:07:30  host01   kernel:
+Nov 18 13:07:30  host01   kernel:
+Nov 18 13:07:30  host01   rpdtmd[20567]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:07:30  host01   secure-dot1xd[20676]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:07:30  host01   mgd[40975]: UI_COMMIT:
+Nov 18 13:07:35  host01   rpdtmd[20567]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:07:35  host01   secure-dot1xd[20676]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:07:43  host01   rpd[20522]: JTASK_IO_CONNECT_FAILED:
+Nov 18 13:08:35  host01   ffp:
+Nov 18 13:08:37  host01   mgd[40975]: UI_COMMIT_CONFIRMED_REMINDER:
+Nov 18 13:08:40  host01   mgd[40975]: UI_CONFIGURATION_REVISION_UPDATED:
+Nov 18 13:08:40  host01   mgd[40975]: UI_COMMIT_COMPLETED:
+Nov 18 13:08:44  host01   mgd[40975]: UI_DBASE_LOGOUT_EVENT:
+Nov 18 13:08:44  host01   sshd[40973]:
+Nov 18 13:08:44  host01   sshd[40973]:
+Nov 18 13:08:44  host01   inetd[20348]:
+Nov 18 13:08:46  host01   sshd[41058]:
+Nov 18 13:09:08  host01   mplsoamd[20530]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:09:09  host01   kernel:
+Nov 18 13:09:09  host01   kernel:
+Nov 18 13:09:09  host01   kernel:
+Nov 18 13:09:12  host01   sshd[41061]:
+Nov 18 13:09:12  host01   sshd[41061]:
+Nov 18 13:09:12  host01   inetd[20348]:
+Nov 18 13:09:19  host01   sshd[41100]:
+Nov 18 13:09:23  host01   rpd[20522]: JTASK_IO_CONNECT_FAILED:
+Nov 18 13:09:36  host01   sshd[41105]:
+Nov 18 13:09:37  host01   sshd[41105]:
+Nov 18 13:09:37  host01   inetd[20348]:
+Nov 18 13:09:41  host01   sshd[41136]:
+Nov 18 13:09:45  host01   mplsoamd[20530]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:09:59  host01   rpdtmd[20567]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:10:04  host01   mplsoamd[20530]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:10:04  host01   rpdtmd[20567]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:10:04  host01   secure-dot1xd[20676]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:10:07  host01   mgd[41154]: UI_DBASE_LOGIN_EVENT:
+Nov 18 13:10:22  host01   mplsoamd[20530]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:10:40  host01   mgd[41154]: UI_COMMIT:
+Nov 18 13:10:42  host01   rpdtmd[20567]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:10:53  host01   mplsoamd[20530]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:11:02  host01   mplsoamd[20530]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:11:19  host01   secure-dot1xd[20676]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:11:24  host01   rpd[20522]: JTASK_IO_CONNECT_FAILED:
+Nov 18 13:11:31  host01   sshd[41296]:
+Nov 18 13:11:31  host01   kernel:
+Nov 18 13:11:31  host01   sshd[41296]:
+Nov 18 13:11:31  host01   inetd[20348]:
+Nov 18 13:11:31  host01   sshd[41295]:
+Nov 18 13:11:31  host01   sshd[41295]:
+Nov 18 13:11:32  host01   inetd[20348]:
+Nov 18 13:11:50  host01   rpdtmd[20567]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:12:20  host01   kernel:
+Nov 18 13:12:20  host01   kernel:
+Nov 18 13:12:20  host01   kernel:
+Nov 18 13:12:27  host01   kernel:
+Nov 18 13:12:27  host01   kernel:
+Nov 18 13:12:27  host01   kernel:
+Nov 18 13:12:36  host01   mplsoamd[20530]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:12:49  host01   sshd[41351]:
+Nov 18 13:13:04  host01   kernel:
+Nov 18 13:13:04  host01   kernel:
+Nov 18 13:13:04  host01   kernel:
+Nov 18 13:13:03  host01   secure-dot1xd[20676]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:13:11  host01   mgd[41358]: UI_CHILD_SIGNALED:
+Nov 18 13:13:13  host01   chassisd[41352]: JAM:
+Nov 18 13:13:13  host01   chassisd[41352]: JAM:
+Nov 18 13:13:13  host01   chassisd[41352]: JAM:
+Nov 18 13:13:17  host01   rpd[20522]: JTASK_IO_CONNECT_FAILED:
+Nov 18 13:13:25  host01   sshd[41469]:
+Nov 18 13:13:32  host01   sshd[41476]:
+Nov 18 13:13:33  host01   inetd[20348]:
+Nov 18 13:13:34  host01   rpdtmd[20567]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:13:34  host01   secure-dot1xd[20676]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:13:34  host01   mplsoamd[20530]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:13:43  host01   mgd[41478]: UI_CHILD_SIGNALED:
+Nov 18 13:13:57  host01   sshd[41534]:
+Nov 18 13:14:01  host01   rpdtmd[20567]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:14:01  host01   kernel:
+Nov 18 13:14:01  host01   kernel:
+Nov 18 13:14:01  host01   kernel:
+Nov 18 13:14:06  host01   mplsoamd[20530]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:14:15  host01   mgd[41539]: UI_CHILD_SIGNALED:
+Nov 18 13:14:19  host01   kernel:
+Nov 18 13:14:19  host01   kernel:
+Nov 18 13:14:19  host01   kernel:
+Nov 18 13:14:19  host01   kernel:
+Nov 18 13:14:27  host01   mplsoamd[20530]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:14:27  host01   secure-dot1xd[20676]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:14:41  host01   sshd[41596]:
+Nov 18 13:14:42  host01   sshd[41595]:
+Nov 18 13:15:10  host01   rpdtmd[20567]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:15:10  host01   mplsoamd[20530]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:15:17  host01   secure-dot1xd[20676]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:15:22  host01   mplsoamd[20530]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:15:22  host01   rpd[20522]: JTASK_IO_CONNECT_FAILED:
+Nov 18 13:15:23  host01   mgd[41611]: UI_CHILD_SIGNALED:
+Nov 18 13:15:24  host01   mgd[41605]: UI_CHILD_SIGNALED:
+Nov 18 13:15:25  host01   ffp:
+Nov 18 13:15:28  host01   secure-dot1xd[20676]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:15:30  host01   mgd[41154]: UI_COMMIT_CONFIRMED_REMINDER:
+Nov 18 13:15:31  host01   rpd[20522]:
+Nov 18 13:15:31  host01   rpd[20522]: RPD_COMMIT_SYNC_STATUS:
+Nov 18 13:15:31  host01   rpd[20522]:
+Nov 18 13:15:31  host01   rpd[20522]: RPD_COMMIT_JOBS_STATUS:
+Nov 18 13:15:31  host01   rpd[20522]: RPD_COMMIT_JOBS_STATUS:
+Nov 18 13:15:36  host01   mgd[41154]: UI_CONFIGURATION_REVISION_UPDATED:
+Nov 18 13:15:36  host01   mgd[41154]: UI_COMMIT_COMPLETED:
+Nov 18 13:15:43  host01   mgd[41154]: UI_DBASE_LOGOUT_EVENT:
+Nov 18 13:15:44  host01   sshd[41141]:
+Nov 18 13:15:44  host01   sshd[41141]:
+Nov 18 13:15:44  host01   inetd[20348]:
+Nov 18 13:15:50  host01   sshd[41849]:
+Nov 18 13:15:56  host01   sshd[41868]:
+Nov 18 13:16:01  host01   mplsoamd[20530]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:16:03  host01   sshd[41869]:
+Nov 18 13:16:19  host01   kernel:
+Nov 18 13:16:19  host01   kernel:
+Nov 18 13:16:19  host01   kernel:
+Nov 18 13:16:23  host01   sshd[41892]:
+Nov 18 13:16:24  host01   rpdtmd[20567]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:16:24  host01   secure-dot1xd[20676]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:16:31  host01   sshd[41893]:
+Nov 18 13:16:32  host01   inetd[20348]:
+Nov 18 13:16:40  host01   mplsoamd[20530]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:16:40  host01   mgd[41899]: UI_CHILD_SIGNALED:
+Nov 18 13:16:47  host01   sshd[42015]:
+Nov 18 13:16:49  host01   sshd[41860]:
+Nov 18 13:16:49  host01   sshd[41860]:
+Nov 18 13:16:49  host01   inetd[20348]:
+Nov 18 13:16:53  host01   sshd[42024]:
+Nov 18 13:17:04  host01   mgd[41912]: UI_CHILD_SIGNALED:
+Nov 18 13:17:05  host01   mgd[42059]: UI_CHILD_SIGNALED:
+Nov 18 13:17:21  host01   rpd[20522]: JTASK_IO_CONNECT_FAILED:
+Nov 18 13:17:21  host01   kernel:
+Nov 18 13:17:24  host01   sshd[42035]:
+Nov 18 13:17:24  host01   sshd[42035]:
+Nov 18 13:17:24  host01   inetd[20348]:
+Nov 18 13:17:34  host01   sshd[42117]:
+Nov 18 13:17:43  host01   sshd[42146]:
+Nov 18 13:17:46  host01   rpdtmd[20567]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:17:51  host01   rpdtmd[20567]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:17:52  host01   sshd[42181]:
+Nov 18 13:17:53  host01   sshd[42181]:
+Nov 18 13:17:53  host01   inetd[20348]:
+Nov 18 13:17:53  host01   sshd[42156]:
+Nov 18 13:17:53  host01   sshd[42156]:
+Nov 18 13:17:53  host01   inetd[20348]:
+Nov 18 13:17:59  host01   sshd[42186]:
+Nov 18 13:18:04  host01   secure-dot1xd[20676]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:18:07  host01   sshd[42185]:
+Nov 18 13:18:13  host01   secure-dot1xd[20676]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:18:21  host01   sshd[42206]:
+Nov 18 13:18:21  host01   sshd[42206]:
+Nov 18 13:18:21  host01   inetd[20348]:
+Nov 18 13:18:29  host01   rpdtmd[20567]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:18:30  host01   sshd[42259]:
+Nov 18 13:18:44  host01   sshd[42295]:
+Nov 18 13:18:47  host01   mgd[42082]: UI_CHILD_SIGNALED:
+Nov 18 13:19:01  host01   sshd[42276]:
+Nov 18 13:19:01  host01   sshd[42276]:
+Nov 18 13:19:01  host01   inetd[20348]:
+Nov 18 13:19:06  host01   sshd[42234]:
+Nov 18 13:19:06  host01   sshd[42234]:
+Nov 18 13:19:06  host01   inetd[20348]:
+Nov 18 13:19:11  host01   sshd[42359]:
+Nov 18 13:19:15  host01   rpd[20522]: JTASK_IO_CONNECT_FAILED:
+Nov 18 13:19:18  host01   mgd[42321]: UI_CHILD_SIGNALED:
+Nov 18 13:19:20  host01   rpdtmd[20567]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:19:35  host01   sshd[42402]:
+Nov 18 13:19:36  host01   sshd[42402]:
+Nov 18 13:19:36  host01   inetd[20348]:
+Nov 18 13:19:39  host01   sshd[42441]:
+Nov 18 13:19:47  host01   mplsoamd[20530]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:20:02  host01   rpdtmd[20567]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:20:03  host01   mgd[42456]: UI_DBASE_LOGIN_EVENT:
+Nov 18 13:20:13  host01   mgd[42456]: UI_COMMIT:
+Nov 18 13:20:25  host01   rpdtmd[20567]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:20:33  host01   rpdtmd[20567]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:20:33  host01   mplsoamd[20530]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:21:10  host01   mplsoamd[20530]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:21:16  host01   rpdtmd[20567]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:21:17  host01   rpd[20522]: JTASK_IO_CONNECT_FAILED:
+Nov 18 13:21:21  host01   sshd[42526]:
+Nov 18 13:21:22  host01   sshd[42525]:
+Nov 18 13:21:29  host01   secure-dot1xd[20676]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:21:30  host01   rpdtmd[20567]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:21:41  host01   mplsoamd[20530]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:21:44  host01   sshd[42538]:
+Nov 18 13:21:44  host01   sshd[42538]:
+Nov 18 13:21:46  host01   inetd[20348]:
+Nov 18 13:21:51  host01   ffp:
+Nov 18 13:21:52  host01   sshd[42630]:
+Nov 18 13:21:58  host01   mgd[42456]: UI_CONFIGURATION_REVISION_UPDATED:
+Nov 18 13:21:58  host01   mgd[42456]: UI_COMMIT_COMPLETED:
+Nov 18 13:22:01  host01   mgd[42456]: UI_DBASE_LOGOUT_EVENT:
+Nov 18 13:22:01  host01   sshd[42445]:
+Nov 18 13:22:01  host01   sshd[42445]:
+Nov 18 13:22:01  host01   inetd[20348]:
+Nov 18 13:22:03  host01   sshd[42635]:
+Nov 18 13:22:03  host01   sshd[42635]:
+Nov 18 13:22:03  host01   inetd[20348]:
+Nov 18 13:22:12  host01   secure-dot1xd[20676]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:22:14  host01   sshd[42652]:
+Nov 18 13:22:20  host01   sshd[42654]:
+Nov 18 13:22:52  host01   sshd[42684]:
+Nov 18 13:22:52  host01   sshd[42684]:
+Nov 18 13:22:52  host01   inetd[20348]:
+Nov 18 13:23:02  host01   sshd[42775]:
+Nov 18 13:23:03  host01   rpd[20522]: JTASK_IO_CONNECT_FAILED:
+Nov 18 13:23:07  host01   sshd[42701]:
+Nov 18 13:23:07  host01   sshd[42701]:
+Nov 18 13:23:07  host01   inetd[20348]:
+Nov 18 13:23:13  host01   sshd[42822]:
+Nov 18 13:23:14  host01   secure-dot1xd[20676]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:23:26  host01   mplsoamd[20530]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:23:26  host01   rpdtmd[20567]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:23:26  host01   secure-dot1xd[20676]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:23:28  host01   mgd[42559]: UI_CHILD_SIGNALED:
+Nov 18 13:23:29  host01   sshd[42843]:
+Nov 18 13:23:30  host01   sshd[42843]:
+Nov 18 13:23:30  host01   inetd[20348]:
+Nov 18 13:23:38  host01   sshd[42868]:
+Nov 18 13:23:44  host01   sshd[42816]:
+Nov 18 13:23:44  host01   sshd[42816]:
+Nov 18 13:23:44  host01   inetd[20348]:
+Nov 18 13:23:47  host01   sshd[42876]:
+Nov 18 13:23:51  host01   kernel:
+Nov 18 13:23:59  host01   sshd[42894]:
+Nov 18 13:24:00  host01   sshd[42901]:
+Nov 18 13:24:00  host01   inetd[20348]:
+Nov 18 13:24:13  host01   sshd[42935]:
+Nov 18 13:24:13  host01   sshd[42885]:
+Nov 18 13:24:13  host01   sshd[42885]:
+Nov 18 13:24:13  host01   inetd[20348]:
+Nov 18 13:24:29  host01   rpdtmd[20567]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:24:36  host01   sshd[42930]:
+Nov 18 13:24:36  host01   sshd[42930]:
+Nov 18 13:24:36  host01   inetd[20348]:
+Nov 18 13:24:42  host01   sshd[42949]:
+Nov 18 13:24:51  host01   sshd[42982]:
+Nov 18 13:24:51  host01   sshd[42982]:
+Nov 18 13:24:51  host01   inetd[20348]:
+Nov 18 13:24:54  host01   secure-dot1xd[20676]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:24:57  host01   sshd[42951]:
+Nov 18 13:24:57  host01   sshd[42951]:
+Nov 18 13:24:58  host01   inetd[20348]:
+Nov 18 13:24:58  host01   sshd[42975]:
+Nov 18 13:25:03  host01   mplsoamd[20530]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:25:05  host01   rpd[20522]: JTASK_IO_CONNECT_FAILED:
+Nov 18 13:25:10  host01   sshd[42992]:
+Nov 18 13:25:10  host01   sshd[43001]:
+Nov 18 13:25:16  host01   sshd[43002]:
+Nov 18 13:25:16  host01   sshd[43002]:
+Nov 18 13:25:16  host01   inetd[20348]:
+Nov 18 13:25:22  host01   sshd[43026]:
+Nov 18 13:25:22  host01   sshd[43026]:
+Nov 18 13:25:22  host01   inetd[20348]:
+Nov 18 13:25:26  host01   sshd[43039]:
+Nov 18 13:25:30  host01   mplsoamd[20530]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:25:30  host01   rpdtmd[20567]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:25:33  host01   sshd[43033]:
+Nov 18 13:25:39  host01   sshd[43024]:
+Nov 18 13:25:39  host01   sshd[43024]:
+Nov 18 13:25:39  host01   inetd[20348]:
+Nov 18 13:25:41  host01   sshd[43058]:
+Nov 18 13:25:43  host01   kernel:
+Nov 18 13:25:43  host01   kernel:
+Nov 18 13:25:43  host01   mplsoamd[20530]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:25:43  host01   rpdtmd[20567]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:25:53  host01   sshd[43062]:
+Nov 18 13:25:53  host01   sshd[43062]:
+Nov 18 13:25:53  host01   inetd[20348]:
+Nov 18 13:25:56  host01   sshd[43051]:
+Nov 18 13:25:56  host01   sshd[43051]:
+Nov 18 13:25:56  host01   inetd[20348]:
+Nov 18 13:25:57  host01   sshd[43079]:
+Nov 18 13:25:59  host01   sshd[43081]:
+Nov 18 13:25:59  host01   inetd[20348]:
+Nov 18 13:26:01  host01   rpdtmd[20567]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:26:06  host01   sshd[43083]:
+Nov 18 13:26:06  host01   sshd[43083]:
+Nov 18 13:26:07  host01   inetd[20348]:
+Nov 18 13:26:08  host01   mplsoamd[20530]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:26:10  host01   sshd[43086]:
+Nov 18 13:26:16  host01   kernel:
+Nov 18 13:26:16  host01   kernel:
+Nov 18 13:26:16  host01   kernel:
+Nov 18 13:26:28  host01   sshd[43119]:
+Nov 18 13:26:30  host01   sshd[43106]:
+Nov 18 13:26:30  host01   inetd[20348]:
+Nov 18 13:26:30  host01   sshd[43103]:
+Nov 18 13:26:31  host01   inetd[20348]:
+Nov 18 13:26:34  host01   sshd[43118]:
+Nov 18 13:26:36  host01   sshd[43111]:
+Nov 18 13:26:40  host01   kernel:
+Nov 18 13:26:40  host01   kernel:
+Nov 18 13:26:40  host01   kernel:
+Nov 18 13:26:41  host01   inetd[20348]:
+Nov 18 13:26:41  host01   sshd[43107]:
+Nov 18 13:26:41  host01   sshd[43044]:
+Nov 18 13:26:42  host01   sshd[43044]:
+Nov 18 13:26:42  host01   inetd[20348]:
+Nov 18 13:26:43  host01   inetd[20348]:
+Nov 18 13:26:43  host01   sshd[43127]:
+Nov 18 13:26:43  host01   inetd[20348]:
+Nov 18 13:26:44  host01   sshd[43120]:
+Nov 18 13:26:45  host01   inetd[20348]:
+Nov 18 13:26:47  host01   sshd[43129]:
+Nov 18 13:26:47  host01   sshd[43129]:
+Nov 18 13:26:48  host01   inetd[20348]:
+Nov 18 13:26:53  host01   sshd[43145]:
+Nov 18 13:26:53  host01   sshd[43145]:
+Nov 18 13:26:53  host01   inetd[20348]:
+Nov 18 13:26:55  host01   sshd[43160]:
+Nov 18 13:26:55  host01   inetd[20348]:
+Nov 18 13:27:00  host01   sshd[43161]:
+Nov 18 13:27:00  host01   inetd[20348]:
+Nov 18 13:27:00  host01   sshd[43146]:
+Nov 18 13:27:01  host01   inetd[20348]:
+Nov 18 13:27:06  host01   sshd[43181]:
+Nov 18 13:27:06  host01   inetd[20348]:
+Nov 18 13:27:09  host01   secure-dot1xd[20676]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:27:09  host01   kernel:
+Nov 18 13:27:09  host01   kernel:
+Nov 18 13:27:09  host01   kernel:
+Nov 18 13:27:09  host01   sshd[43178]:
+Nov 18 13:27:09  host01   sshd[43171]:
+Nov 18 13:27:10  host01   sshd[43173]:
+Nov 18 13:27:10  host01   inetd[20348]:
+Nov 18 13:27:10  host01   inetd[20348]:
+Nov 18 13:27:10  host01   inetd[20348]:
+Nov 18 13:27:10  host01   sshd[43184]:
+Nov 18 13:27:10  host01   sshd[43104]:
+Nov 18 13:27:10  host01   sshd[43104]:
+Nov 18 13:27:10  host01   inetd[20348]:
+Nov 18 13:27:10  host01   inetd[20348]:
+Nov 18 13:27:10  host01   sshd[43183]:
+Nov 18 13:27:10  host01   sshd[43172]:
+Nov 18 13:27:10  host01   inetd[20348]:
+Nov 18 13:27:11  host01   inetd[20348]:
+Nov 18 13:27:13  host01   sshd[43194]:
+Nov 18 13:27:23  host01   rpd[20522]: JTASK_IO_CONNECT_FAILED:
+Nov 18 13:27:26  host01   sshd[43196]:
+Nov 18 13:27:26  host01   sshd[43196]:
+Nov 18 13:27:26  host01   inetd[20348]:
+Nov 18 13:27:27  host01   sshd[43201]:
+Nov 18 13:27:35  host01   secure-dot1xd[20676]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:27:36  host01   sshd[43203]:
+Nov 18 13:27:36  host01   sshd[43203]:
+Nov 18 13:27:36  host01   inetd[20348]:
+Nov 18 13:27:39  host01   sshd[43206]:
+Nov 18 13:27:54  host01   rpdtmd[20567]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:28:17  host01   kernel:
+Nov 18 13:28:21  host01   sshd[43208]:
+Nov 18 13:28:21  host01   sshd[43208]:
+Nov 18 13:28:21  host01   inetd[20348]:
+Nov 18 13:28:25  host01   sshd[43408]:
+Nov 18 13:28:30  host01   mplsoamd[20530]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:28:34  host01   sshd[43410]:
+Nov 18 13:28:34  host01   sshd[43410]:
+Nov 18 13:28:35  host01   inetd[20348]:
+Nov 18 13:28:39  host01   sshd[43415]:
+Nov 18 13:28:46  host01   mgd[43419]: UI_DBASE_LOGIN_EVENT:
+Nov 18 13:28:48  host01   mplsoamd[20530]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:28:51  host01   mgd[43419]: UI_DBASE_LOGOUT_EVENT:
+Nov 18 13:28:51  host01   sshd[43417]:
+Nov 18 13:28:51  host01   sshd[43417]:
+Nov 18 13:28:52  host01   inetd[20348]:
+Nov 18 13:28:55  host01   kernel:
+Nov 18 13:28:55  host01   kernel:
+Nov 18 13:28:55  host01   kernel:
+Nov 18 13:28:55  host01   rpdtmd[20567]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:28:56  host01   sshd[43420]:
+Nov 18 13:29:02  host01   sshd[43422]:
+Nov 18 13:29:03  host01   sshd[43422]:
+Nov 18 13:29:03  host01   inetd[20348]:
+Nov 18 13:29:05  host01   sshd[43427]:
+Nov 18 13:29:06  host01   mplsoamd[20530]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:29:09  host01   sshd[43429]:
+Nov 18 13:29:09  host01   inetd[20348]:
+Nov 18 13:29:12  host01   rpdtmd[20567]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:29:13  host01   sshd[43431]:
+Nov 18 13:29:13  host01   sshd[43431]:
+Nov 18 13:29:14  host01   inetd[20348]:
+Nov 18 13:29:22  host01   mplsoamd[20530]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:29:23  host01   sshd[43435]:
+Nov 18 13:29:28  host01   sshd[43437]:
+Nov 18 13:29:28  host01   sshd[43437]:
+Nov 18 13:29:28  host01   inetd[20348]:
+Nov 18 13:29:30  host01   sshd[43442]:
+Nov 18 13:29:30  host01   inetd[20348]:
+Nov 18 13:29:33  host01   rpd[20522]: JTASK_IO_CONNECT_FAILED:
+Nov 18 13:29:36  host01   sshd[43444]:
+Nov 18 13:29:43  host01   sshd[43446]:
+Nov 18 13:29:43  host01   sshd[43446]:
+Nov 18 13:29:43  host01   inetd[20348]:
+Nov 18 13:29:45  host01   secure-dot1xd[20676]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:29:47  host01   sshd[43450]:
+Nov 18 13:29:59  host01   rpdtmd[20567]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:30:01  host01   sshd[43452]:
+Nov 18 13:30:01  host01   sshd[43452]:
+Nov 18 13:30:02  host01   inetd[20348]:
+Nov 18 13:30:05  host01   mplsoamd[20530]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:30:06  host01   sshd[43461]:
+Nov 18 13:30:14  host01   sshd[43463]:
+Nov 18 13:30:14  host01   sshd[43463]:
+Nov 18 13:30:14  host01   inetd[20348]:
+Nov 18 13:30:16  host01   rpdtmd[20567]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:30:17  host01   sshd[43466]:
+Nov 18 13:30:28  host01   sshd[43506]:
+Nov 18 13:30:41  host01   mplsoamd[20530]: JTASK_SCHED_SLIP_KEVENT:
+Nov 18 13:30:50  host01   rpdtmd[20567]: JTASK_SCHED_SLIP_KEVENT:

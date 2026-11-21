@@ -1,0 +1,18 @@
+Stpd: g44stp	Port: 10	PortId: 800a	Stp: ENABLED	Path Cost: 30000
+Port Mode         : 802.1D		Port Role          : ----
+Port State        : DISABLED		Topology Change Ack: FALSE
+Port Priority     : 128
+Designated Root   : 00:00:00:00:00:00:00:00	Designated Cost: 0
+Designated Bridge : 00:00:00:00:00:00:00:00	Designated Port Id: 0
+Partner STP version     : Dot1w
+Restricted Role         : Disabled
+Active Role             : Disabled
+Edge Port Safe Guard    : Enabled
+BPDU Restrict           : Enabled
+Restricted TCN          : Off
+Loop Protect            : Off
+Loop Protect Partner    : Incapable
+Operational Edge        : TRUE
+Auto Edge               : On
+Reflection BPDU         : On
+Participating Vlans: g44probe

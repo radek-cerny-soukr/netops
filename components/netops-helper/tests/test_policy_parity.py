@@ -36,16 +36,44 @@ CANONICAL_PLATFORMS = {"fortinet": "fortios", "extreme_exos": "exos"}
 HOST_KEY_PIN = fingerprint_of(b64encode(b"policy-parity-host-key").decode("ascii"))
 
 REPRESENTATIVE_SLOT_VALUES = {
+    "acl_policy": "acl-example",
+    "nxos_acl_name": "acl-example",
+    "ipv4_neighbor": "192.0.2.20",
+    "ipv6_neighbor": "2001:db8::1",
+    "ip_literal": "192.0.2.20",
+    "diagnostic_dns_name": "example.com",
+    "eos_dns_name": "example.com",
+    "junos_dns_name": "example.com",
+    "junos_log_time": "2026-11-18T00:00:00",
+    "junos_log_severity": "6",
+    "vr": "VR-Default",
+    "vrf": "management",
+    "route_map": "pbr-sample",
+    "ipv4_prefix": "192.0.2.0/24",
     "fortios_address_object": "api.example",
     "fortios_station_mac": "00:00:5e:00:53:01",
     "fortios_wtp_id": "FAPEXAMPLE0000001",
     "wifi_log_lines": "50",
+    "eos_log_minutes": "10",
+    "nxos_log_count": "40",
+    "log_severity": "warnings",
+    "exos_log_source": "nvram",
+    "exos_log_severity": "warning",
+    "log_date": "2026-11-18",
+    "log_time": "12:00:00",
+    "c9800_ap_name": "AP1234.5678.9012",
     "wifi_mac_literal": "00:00:5e:00:53:01",
     "flow_port": "443",
     "ip_protocol": "6",
     "fortios_policy_type": "policy",
     "fortios_nat_pool": "pool-east",
+    "fortios_extender_serial": "FX211E0000000000",
     "vlan_name": "Users_10",
+    "junos_vlan_name": "Users_10",
+    "junos_filter_interface": "lo0.0",
+    "junos_firewall_filter": "customer-in",
+    "junos_security_zone": "trust",
+    "lookup_prefix": "2001:db8::/64",
     "managed_switch_serial": "S124FPTF23000001",
     "managed_switch_port": "port1",
     "managed_switch_trunk": "SRV1",
@@ -54,24 +82,35 @@ REPRESENTATIVE_SLOT_VALUES = {
     "service": "sshd",
     "switch": "edge-a",
     "ipv4_address": "192.0.2.20",
+    "address": "192.0.2.20",
     "ipv6_address": "2001:db8::1",
     "ipv4_lookup": "192.0.2.20",
     "ipv6_lookup": "2001:db8::1",
     "fortios_sdwan_health_check": "PingSLA",
     "fortios_link_monitor": "wan-monitor",
+    "fortios_ipsec_tunnel": "vpn-hq",
     "fortios_sdwan_member": "1",
     "fortios_sdwan_rule": "4000",
     "fortios_interface": "port1",
     "fortios_physical_interface": "wan1",
     "fortiadc_interface": "port1",
+    "fortiadc_member_id": "1",
     "fortiadc_vdom": "root",
     "fortiadc_virtual_server": "vs-web-80",
+    "ruckus_wlan_name": "Guest-WLAN",
     "cisco_ios_interface": "GigabitEthernet1/0/1",
     "cisco_ios_physical_interface": "GigabitEthernet1/0/1",
+    "cisco_ios_switchport": "Port-channel1",
+    "cisco_xe_switchport": "Port-channel1",
     "cisco_xe_interface": "GigabitEthernet1/0/1",
     "cisco_xe_physical_interface": "GigabitEthernet1/0/1",
     "cisco_nxos_interface": "Ethernet1/1",
     "cisco_nxos_errors_interface": "Loopback0",
+    "cisco_nxos_non_subinterface": "Loopback0",
+    "cisco_nxos_ethernet": "Ethernet1/2",
+    "cisco_nxos_port_channel": "Port-channel128",
+    "vpc_id": "128",
+    "etherchannel_group_id": "1",
     "extreme_physical_port": "1:1",
     "eos_interface": "Ethernet1",
     "eos_physical_interface": "Ethernet3/1",
@@ -86,6 +125,7 @@ REPRESENTATIVE_SLOT_VALUES = {
     "junos_physical_interface": "xe-0/0/1",
     "junos_logical_interface": "ge-1/0/47.0",
     "junos_lacp_interface": "et-0/0/0",
+    "routing_instance": "customer-a",
 }
 
 
@@ -324,16 +364,16 @@ class PolicyParityTests(unittest.TestCase):
         }
         expected_counts = {
             "linux": 16,
-            "fortinet": 120,
-            "extreme_exos": 65,
-            "cisco_ios": 49,
-            "cisco_xe": 50,
-            "cisco_nxos": 61,
-            "arista_eos": 55,
-            "juniper_junos": 41,
-            "juniper_junos_els": 55,
-            "ruckus_unleashed": 4,
-            "fortiadc": 33,
+            "fortinet": 136,
+            "extreme_exos": 115,
+            "cisco_ios": 137,
+            "cisco_xe": 163,
+            "cisco_nxos": 156,
+            "arista_eos": 135,
+            "juniper_junos": 88,
+            "juniper_junos_els": 96,
+            "ruckus_unleashed": 24,
+            "fortiadc": 41,
         }
         self.assertEqual(read_policy.PLATFORM_MAP, expected_aliases)
         self.assertEqual(
@@ -343,7 +383,7 @@ class PolicyParityTests(unittest.TestCase):
             },
             expected_counts,
         )
-        self.assertEqual(sum(expected_counts.values()), 549)
+        self.assertEqual(sum(expected_counts.values()), 1107)
         expected_names = {
             platform: frozenset(queries)
             for platform, queries in read_policy.READ_QUERIES.items()
@@ -398,6 +438,7 @@ class PolicyParityTests(unittest.TestCase):
                         "vlans": [],
                         "sdwan_health_checks": [],
                         "link_monitors": [],
+                        "ipsec_tunnels": [],
                         "sdwan_members": [],
                         "sdwan_rules": [],
                         "managed_switches": [],
@@ -415,6 +456,10 @@ class PolicyParityTests(unittest.TestCase):
                     }
                     for slot_name, slot in query.slots.items():
                         value = REPRESENTATIVE_SLOT_VALUES[slot.kind]
+                        if query_name == "log_history" and slot_name == "end":
+                            value = "2026-11-18T01:00:00"
+                        if platform in {"cisco_ios", "cisco_xe", "cisco_nxos"} and query_name == "log_history" and slot_name == "end_time":
+                            value = "13:00:00"
                         parameters[slot_name] = value
                         if slot.inventory in (None, "literal"):
                             continue
@@ -426,7 +471,13 @@ class PolicyParityTests(unittest.TestCase):
                     device["platform"] = CANONICAL_PLATFORMS.get(platform, platform)
                     policy["ssh_platform"] = device["platform"]
                     policy["enabled_queries"] = [query_name]
+                    if query_name == "log_history" and platform not in {"cisco_nxos", "extreme_exos"}:
+                        policy["enabled_queries"].append("clock" if platform in {"cisco_ios", "cisco_xe"} else "uptime")
                     policy["read_inventory"] = inventory
+                    if query.group:
+                        policy["device_types"] = [query.group]
+                    if query_name == "interface_firewall_filter":
+                        inventory["config_access"] = ["read"]
 
                     entries, digest = loaded(device)
                     section = helper_inventory.section(entries[0], KINDS)
@@ -466,10 +517,14 @@ class PolicyParityTests(unittest.TestCase):
                             target.read_inventory,
                         )
                     self.assertEqual(normalized, platform)
-                    self.assertEqual(
-                        rendered,
-                        query.command.format_map(parameters),
+                    expected_parameters = (
+                        {"interface": "lo0 unit 0"} if query_name == "interface_firewall_filter" else parameters
                     )
+                    if platform in {"cisco_ios", "cisco_xe"} and query_name in {"mac_table_address", "c9800_client_detail"}:
+                        expected_parameters = {"mac": "0000.5e00.531a"}
+                    if (platform, query_name) == ("extreme_exos", "log_history"):
+                        expected_parameters = {**parameters, "begin_date": "11/18/2026", "end_date": "11/18/2026"}
+                    self.assertEqual(rendered, query.command.format_map(expected_parameters))
 
                     bundle = generator.build_bundle(
                         entries, global_egress(), digest,
@@ -480,7 +535,7 @@ class PolicyParityTests(unittest.TestCase):
                     )
                     exercised += 1
 
-        self.assertEqual(exercised, 137)
+        self.assertEqual(exercised, 413)
 
     def test_typed_query_rejections_have_proxy_render_parity(self) -> None:
         cases = (
@@ -634,6 +689,11 @@ class PolicyParityTests(unittest.TestCase):
                 "cisco_ios", "interface_errors",
                 "Gi1/0/1", "GigabitEthernet1/0/1",
             ),
+            # r3: module/slot/port names including zeros (IOSvL2 Gi0/0, ISR Gi0/0/0, 2960-X uplink Gi1/1/1).
+            ("cisco_ios", "interface_details", "Gi0/0", "GigabitEthernet0/0"),
+            ("cisco_ios", "interface_details", "Gi1/1", "GigabitEthernet1/1"),
+            ("cisco_ios", "interface_errors", "Gi0/0/0", "GigabitEthernet0/0/0"),
+            ("cisco_ios", "interface_errors", "Gi1/1/1", "GigabitEthernet1/1/1"),
             (
                 "cisco_xe", "interface_details",
                 "Gi0/0", "GigabitEthernet0/0",
@@ -711,6 +771,7 @@ class PolicyParityTests(unittest.TestCase):
                 "cisco_nxos", "interface_errors",
                 "Loopback1023", "Loopback1023",
             ),
+            ("cisco_nxos", "interface_errors", "Ethernet1/1.100", "Ethernet1/1.100"),
             ("cisco_nxos", "interface_details", "mgmt0", "mgmt0"),
             ("cisco_nxos", "interface_details", "Tunnel9999", "Tunnel9999"),
         )
@@ -739,7 +800,6 @@ class PolicyParityTests(unittest.TestCase):
             ("cisco_ios", "interface_details", "status"),
             ("cisco_ios", "interface_details", "description"),
             ("cisco_ios", "interface_details", "counters"),
-            ("cisco_ios", "interface_details", "Gi0/0"),
             ("cisco_ios", "interface_details", "Ethernet16/0"),
             ("cisco_ios", "interface_details", "Ethernet0/16"),
             ("cisco_ios", "interface_details", "Ethernet00/0"),
@@ -750,7 +810,9 @@ class PolicyParityTests(unittest.TestCase):
             ("cisco_xe", "interface_details", "Ethernet1"),
             ("cisco_xe", "interface_errors", "Ethernet0/16"),
             ("cisco_ios", "interface_details", "Gi9/0/1"),
-            ("cisco_ios", "interface_details", "Gi1/1/1"),
+            ("cisco_ios", "interface_details", "Gi9/0"),
+            ("cisco_ios", "interface_details", "Gi1/9/1"),
+            ("cisco_ios", "interface_details", "Gi1/1/0/1"),
             ("cisco_ios", "interface_details", "Gi1/0/100"),
             ("cisco_ios", "interface_details", "Gi01/0/1"),
             ("cisco_ios", "interface_details", "Gi1/0/01"),
@@ -817,9 +879,10 @@ class PolicyParityTests(unittest.TestCase):
             ("cisco_nxos", "interface_details", "mgmt1"),
             ("cisco_nxos", "interface_details", "Tunnel10000"),
             (
-                "cisco_nxos", "interface_errors",
+                "cisco_nxos", "interface_transceiver",
                 "Ethernet1/1.100",
             ),
+            ("cisco_nxos", "interface_errors", "Ethernet1/1.0"),
             ("cisco_nxos", "interface_errors", "Port-channel1"),
             ("cisco_nxos", "interface_errors", "mgmt0"),
         )
@@ -921,26 +984,47 @@ class PolicyParityTests(unittest.TestCase):
         self.assert_all_accept(device)
         entries, _ = loaded(device)
         section = helper_inventory.section(entries[0], KINDS)
+        target = TargetAuth.decode(
+            ALIAS,
+            encode_envelope(device, policy),
+        )
+        # G53 r3: the short name of the enrolled IOS port is the same port on both paths.
+        proxy_module.Proxy._authorize_tool(
+            "ssh_read",
+            {
+                "platform": "cisco_ios",
+                "query": "interface_details",
+                "parameters": {"interface": "Gi1/0/1"},
+            },
+            entries[0],
+            section,
+        )
+        self.assertEqual(
+            read_policy.render_read_query(
+                "cisco_ios",
+                "interface_details",
+                {"interface": "Gi1/0/1"},
+                target.read_inventory,
+            )[1],
+            "show interfaces GigabitEthernet1/0/1",
+        )
+        # Another port stays outside the inventory on both paths.
         with self.assertRaises(proxy_module.PolicyScopeError):
             proxy_module.Proxy._authorize_tool(
                 "ssh_read",
                 {
                     "platform": "cisco_ios",
                     "query": "interface_details",
-                    "parameters": {"interface": "Gi1/0/1"},
+                    "parameters": {"interface": "Gi1/0/2"},
                 },
                 entries[0],
                 section,
             )
-        target = TargetAuth.decode(
-            ALIAS,
-            encode_envelope(device, policy),
-        )
         with self.assertRaises(ValueError):
             read_policy.render_read_query(
                 "cisco_ios",
                 "interface_details",
-                {"interface": "Gi1/0/1"},
+                {"interface": "Gi1/0/2"},
                 target.read_inventory,
             )
 

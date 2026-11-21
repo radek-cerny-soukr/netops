@@ -1,0 +1,76 @@
+{
+  "platform": "ios",
+  "table": "l3-interface",
+  "versions": [
+    "15.9(3)M12",
+    "15.2(20200924:215240)"
+  ],
+  "exact_versions": true,
+  "ops": [
+    "create",
+    "update",
+    "delete"
+  ],
+  "key_pattern": "^(?:Loopback[0-9]{1,10}|Vlan(?:[1-9][0-9]{0,2}|[1-3][0-9]{3}|40[0-8][0-9]|409[0-4])|(?:Ethernet|FastEthernet|GigabitEthernet|TwoGigabitEthernet|FiveGigabitEthernet|TenGigabitEthernet|TwentyFiveGigE|FortyGigabitEthernet|HundredGigE)[0-9]{1,2}(?:/[0-9]{1,3}){1,2}\\.[0-9]{1,10})$",
+  "protected_keys": [],
+  "attributes": {
+    "description": {
+      "type": "text",
+      "max_length": 64,
+      "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9 ._:/()+-]{0,62}[A-Za-z0-9._:/()+-])?$",
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "required_on_create": false
+    },
+    "admin-state": {
+      "type": "text",
+      "max_length": 8,
+      "pattern": "^(enabled|disabled)$",
+      "default": "enabled",
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "required_on_create": false
+    },
+    "ipv4-address": {
+      "type": "text",
+      "max_length": 31,
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "required_on_create": false
+    },
+    "ipv6-address": {
+      "type": "text",
+      "max_length": 49,
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "required_on_create": false
+    },
+    "encapsulation": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 4094,
+      "update": false,
+      "unset": false,
+      "referenced_update": true,
+      "required_on_create": false
+    },
+    "vrf": {
+      "type": "text",
+      "max_length": 32,
+      "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,31}$",
+      "update": false,
+      "unset": false,
+      "referenced_update": true,
+      "required_on_create": false
+    }
+  },
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "G62 (IOS-M026), measured on IOSv 15.9(3)M12 (router, d-iosv: Loopback, subinterface of the free port GigabitEthernet0/3, VRF blue) and IOSvL2 15.2(20200924:215240) (switch, d-iosvl2: SVI interface Vlan<vid> and Loopback) in the GNS3 lab, task netops-20261118-517 (task-evidence/g62). Keys: Loopback<n>, Vlan<1-4094> (an SVI; the router image refuses 'interface Vlan') and Ethernet subinterfaces <port>.<n>; physical ports keep the interface and vlan-membership tables. Create: 'interface KEY', 'vrf forwarding V' (create only, before the addresses: on an addressed interface IOS removes its IPv4 and IPv6 addresses), 'encapsulation dot1Q VID' (create only, required for a subinterface; IOS refuses a second subinterface of the same port with the same VID and still creates the empty subinterface, so Admin refuses it before the write), 'description', 'ip address A M' (/8 to /32), 'ipv6 address P/L', and for an SVI 'no shutdown' unless admin-state is disabled (a new SVI starts with shutdown, measured). Update replaces the primary IPv4 address with 'ip address' or removes it with 'no ip address', and replaces the IPv6 address with 'no ipv6 address OLD' then 'ipv6 address NEW' (a second 'ipv6 address' adds a second address); delete is 'no interface KEY' (a deleted subinterface stays as 'deleted' in show interfaces description, a deleted Loopback or SVI disappears). A subinterface has no own admin-state in the profile: the check account sees the state of the parent port (measured: Gi0/3.900 shows admin down under the shut Gi0/3). IOS reports an address overlapping another interface of the VRF ('% A overlaps with IF') but on a shut SVI writes it anyway (measured), so Admin refuses the overlap before the write. One IPv4 and one IPv6 address; secondary addresses, routing protocol and other interface lines are outside the profile and refused; a referenced interface (a route or protocol line names it) is not deleted. The safeguard is the revert timer of the interface profile. Refused before any write: the management interface, its subinterfaces and its SVI, an interface of a management VRF, an address overlapping another interface of the same VRF, the management subnet or the SSH client address, a subinterface of a protected port, and (except the create of a new object and the undo of an own change) a change of the addresses, admin state or existence of a subinterface whose parent port has an LLDP/CDP neighbor (port_lldp_neighbor) or of an SVI whose VLAN has learned MAC addresses (port_learned_mac). The check account (privilege 1) reads show interfaces description, show ip interface KEY, show ipv6 interface KEY and, for a subinterface, show interfaces KEY."
+}

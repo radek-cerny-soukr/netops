@@ -1,0 +1,2 @@
+no sequence 999
+host01(config-ipv6-acl)#

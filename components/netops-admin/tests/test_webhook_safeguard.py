@@ -9,9 +9,10 @@ import pytest
 from fake_fortios import FakeFortiOS
 from fake_webhook import FakeFortiOSWebhook
 from test_access import Shell, device_access
+from test_firewall_policy import apply_approved
 from test_execute import make_runtime, request, steps
 
-from netops_admin import access, audit_gate, enrollment, exec_fortios, execute, fortios, profiles, readiness
+from netops_admin import access, audit_gate, enrollment, engine, exec_fortios, execute, fortios, profiles, readiness
 from netops_admin.errors import Rejected
 
 BASE = {"srcintf": ["port1"], "dstintf": ["port2"], "srcaddr": ["all"], "dstaddr": ["srv-web"],
@@ -38,7 +39,7 @@ def runtime(tmp_path, device, **fields):
 
 def rejected(tmp_path, device, req, **fields):
     with pytest.raises(Rejected) as caught:
-        execute.apply(runtime(tmp_path, device, **fields), "lab", req)
+        apply_approved(runtime(tmp_path, device, **fields), "lab", req)
     return " ".join(caught.value.reasons)
 
 
@@ -75,17 +76,21 @@ def test_profiles_list_the_webhook_build():
     policy_profile = profiles.find_profile("fortios", "firewall policy", "8.0.2 build0251")
     assert policy_profile.provisional
     assert "webhook" in policy_profile.rollback_evidence
-    assert profiles.find_profile("fortios", "firewall address", "8.0.2 build0251") is not None
-    for table in ("firewall addrgrp", "system dhcp server/reserved-address"):
-        with pytest.raises(Rejected):
-            profiles.find_profile("fortios", table, "8.0.2 build0251")
-    with pytest.raises(Rejected):
-        profiles.find_profile("fortios", "firewall policy", "8.0.1 build0185")
+    address = profiles.find_profile("fortios", "firewall address", "8.0.2 build0251")
+    assert profiles.firmware_support(address, "8.0.2 build0251")["status"] == "tested"
+    # G00-1: the group is untested on 8.0.2 (a warning); 1.0.12 G20: DHCP has a REST inverse (nested path) there
+    group = profiles.find_profile("fortios", "firewall addrgrp", "8.0.2 build0251")
+    assert profiles.firmware_support(group, "8.0.2 build0251")["status"] == "untested"
+    assert fortios.webhook_refusal(group, "8.0.2 build0251") is None
+    dhcp = profiles.find_profile("fortios", "system dhcp server/reserved-address", "8.0.2 build0251")
+    assert fortios.webhook_refusal(dhcp, "8.0.2 build0251") is None
+    assert fortios.webhook_refusal(dhcp, "8.0.0 build0167") is None
+    assert profiles.firmware_support(policy_profile, "8.0.1 build0185")["status"] == "untested"
 
 
 def test_7_6_8_keeps_the_cli_script_safeguard(tmp_path):
     device = Fake768()
-    record = execute.apply(runtime(tmp_path, device), "lab", policy())
+    record = apply_approved(runtime(tmp_path, device), "lab", policy())
     assert record["result"] == "confirmed"
     sent = lines(device)
     assert "set action-type cli-script" in sent
@@ -95,14 +100,14 @@ def test_7_6_8_keeps_the_cli_script_safeguard(tmp_path):
 def test_create_update_undo_are_confirmed_without_leftovers(tmp_path):
     device = FakeFortiOSWebhook()
     rt = runtime(tmp_path, device)
-    record = execute.apply(rt, "lab", policy())
+    record = apply_approved(rt, "lab", policy())
     assert record["result"] == "confirmed" and device.policies["9001"]["status"] == "disable"
     sent = lines(device)
     assert "set action-type webhook" in sent and "set action-type cli-script" not in sent
     assert "set method delete" in sent
     assert own_objects(device) == []
     assert device.calls == []
-    record = execute.apply(rt, "lab", policy(op="update", changes={"status": "enable"}, request_id="req-enable-1"))
+    record = apply_approved(rt, "lab", policy(op="update", changes={"status": "enable"}, endpoint_impact="9001", request_id="req-enable-1"))
     assert record["result"] == "confirmed" and device.policies["9001"]["status"] == "enable"
     back = execute.undo(rt, record["change_id"], "investigated")
     assert back["result"] == "confirmed" and device.policies["9001"]["status"] == "disable"
@@ -112,7 +117,7 @@ def test_create_update_undo_are_confirmed_without_leftovers(tmp_path):
 def test_firing_reverts_a_create_with_delete(tmp_path):
     device = FakeFortiOSWebhook()
     check_failure_after_change(device)
-    record = execute.apply(runtime(tmp_path, device), "lab", policy())
+    record = apply_approved(runtime(tmp_path, device), "lab", policy())
     assert record["result"] == "reverted"
     assert "9001" not in device.policies
     assert device.calls == [("delete", "api/v2/cmdb/firewall/policy/9001", 200)]
@@ -124,8 +129,8 @@ def test_firing_reverts_an_update_with_put(tmp_path):
     device.policies["1"].update(srcintf="port1", dstintf="port2", srcaddr="all", service="HTTP",
                                 schedule="always", action="accept", status="disable")
     check_failure_after_change(device)
-    record = execute.apply(runtime(tmp_path, device), "lab",
-                           policy(op="update", key="1", changes={"comments": "note", "status": "enable"}))
+    record = apply_approved(runtime(tmp_path, device), "lab",
+                           policy(op="update", key="1", changes={"comments": "note", "status": "enable"}, endpoint_impact="1"))
     assert record["result"] == "reverted"
     assert device.calls == [("put", "api/v2/cmdb/firewall/policy/1", 200)]
     assert device.policies["1"]["status"] == "disable" and "comments" not in device.policies["1"]
@@ -135,7 +140,7 @@ def test_firing_reverts_an_update_with_put(tmp_path):
 def test_firing_reverts_an_undo_of_create_with_post(tmp_path):
     device = FakeFortiOSWebhook()
     rt = runtime(tmp_path, device)
-    first = execute.apply(rt, "lab", policy())
+    first = apply_approved(rt, "lab", policy())
     assert first["result"] == "confirmed"
     check_failure_after_change(device)
     back = execute.undo(rt, first["change_id"], "investigated")
@@ -149,7 +154,7 @@ def test_address_enrollment_probe_style_create_reverts(tmp_path):
     device = FakeFortiOSWebhook()
     check = lambda fake, block: setattr(fake, "check_unreadable", block[0] == "config firewall address")
     device.on_apply = check
-    record = execute.apply(make_runtime(tmp_path, device), "lab", request())
+    record = apply_approved(make_runtime(tmp_path, device), "lab", request())
     assert record["result"] == "reverted" and "new-host" not in device.addresses
     assert device.calls == [("delete", "api/v2/cmdb/firewall/address/new-host", 200)]
 
@@ -158,9 +163,9 @@ def test_token_never_reaches_audit_state_record_or_preview(tmp_path):
     device = FakeFortiOSWebhook()
     rt = runtime(tmp_path, device)
     preview = execute.preview(rt, "lab", policy(key="9002", request_id="req-preview-1"))
-    confirmed = execute.apply(rt, "lab", policy())
+    confirmed = apply_approved(rt, "lab", policy())
     check_failure_after_change(device)
-    reverted = execute.apply(rt, "lab", policy(key="9003", request_id="req-reverted-1"))
+    reverted = apply_approved(rt, "lab", policy(key="9003", request_id="req-reverted-1"))
     assert confirmed["result"] == "confirmed" and reverted["result"] == "reverted"
     assert len(device.issued) == 2
     texts = [stored_text(tmp_path), json.dumps(preview), json.dumps(confirmed), json.dumps(reverted)]
@@ -198,7 +203,7 @@ def test_preflight_refuses_before_any_write(tmp_path, change, expected):
 def test_a_super_admin_write_account_passes_the_execute_check(tmp_path):
     device = FakeFortiOSWebhook()
     device.write_admins = {"netops-rw": "super_admin"}
-    assert execute.apply(runtime(tmp_path, device), "lab", policy())["result"] == "confirmed"
+    assert apply_approved(runtime(tmp_path, device), "lab", policy())["result"] == "confirmed"
 
 
 def test_doctor_accepts_a_super_admin_write_account(tmp_path):
@@ -230,7 +235,7 @@ def test_a_refused_installation_line_reaches_the_operation_steps(tmp_path):
             raise access.AccessError('line 13 (config system accprofile, edit "netops-sg-x-p") was refused by the'
                                      " device: object set operator error, -672 discard the setting", 12)
     device.on_apply = refuse
-    record = execute.apply(runtime(tmp_path, device), "lab", policy())
+    record = apply_approved(runtime(tmp_path, device), "lab", policy())
     detail = [step["detail"] for step in record["steps"] if step["step"] == "safeguard_not_verified"][0]
     assert record["result"] == "reverted"
     assert detail.startswith("safeguard installation failed (AccessError: line 13 (config system accprofile")
@@ -246,7 +251,7 @@ def test_a_refused_line_with_the_token_does_not_carry_the_token(tmp_path):
                                      " refused by the device: command parse error before 'Bearer %s'"
                                      % fake.issued[-1], 16)
     device.on_apply = refuse
-    record = execute.apply(runtime(tmp_path, device), "lab", policy())
+    record = apply_approved(runtime(tmp_path, device), "lab", policy())
     detail = [step["detail"] for step in record["steps"] if step["step"] == "safeguard_not_verified"][0]
     assert record["result"] == "reverted" and len(device.issued) == 1
     assert detail.startswith("safeguard installation failed (AccessError: line 17 (config system automation-action")
@@ -258,13 +263,15 @@ def test_a_refused_line_with_the_token_does_not_carry_the_token(tmp_path):
 def test_the_installation_reads_the_port_before_it_creates_the_api_user(tmp_path, monkeypatch):
     device = FakeFortiOSWebhook()
     checked = exec_fortios.plan_prechecks
+    rt, req = runtime(tmp_path, device), policy()
+    preview = execute.preview(rt, "lab", req)
 
     def port_lost_after_preflight(*args, **kwargs):
         reasons = checked(*args, **kwargs)
         device.admin_sport = 70000
         return reasons
     monkeypatch.setattr(exec_fortios, "plan_prechecks", port_lost_after_preflight)
-    record = execute.apply(runtime(tmp_path, device), "lab", policy())
+    record = execute.apply(rt, "lab", req, expected_plan_sha256=preview["plan_sha256"])
     assert record["result"] == "reverted" and "safeguard_not_verified" in steps(record)
     assert device.issued == [] and not any(line.startswith('edit "netops-sg-') for line in lines(device))
     assert "9001" not in device.policies and own_objects(device) == []
@@ -272,7 +279,7 @@ def test_the_installation_reads_the_port_before_it_creates_the_api_user(tmp_path
 
 def test_preflight_does_not_apply_to_cli_script_firmware(tmp_path):
     device = Fake768()
-    record = execute.apply(runtime(tmp_path, device, address="fw-lab.example"), "lab", policy())
+    record = apply_approved(runtime(tmp_path, device, address="fw-lab.example"), "lab", policy())
     assert record["result"] == "confirmed"
 
 
@@ -295,10 +302,23 @@ def test_rest_inverse_shapes_and_limits():
     with pytest.raises(Rejected) as caught:
         fortios.rest_inverse(policy_profile, "update", "7", big, "192.0.2.1")
     assert "request body limit" in " ".join(caught.value.reasons)
+    # 1.0.12 G20: a nested table is reached under its parent (paths read with GET on 7.6.8 and 8.0.2)
     dhcp = profiles.load_profiles()[("fortios", "system dhcp server/reserved-address")]
-    with pytest.raises(Rejected) as caught:
-        fortios.rest_inverse(dhcp, "create", "1:2", [], "192.0.2.1")
-    assert "no REST inverse for table system dhcp server/reserved-address" in " ".join(caught.value.reasons)
+    assert fortios.rest_inverse(dhcp, "create", "3:2", fortios.render_delete(dhcp, "3:2"), "192.0.2.1") == {
+        "method": "delete", "uri": "192.0.2.1/api/v2/cmdb/system.dhcp/server/3/reserved-address/2", "body": ""}
+    update = fortios.render_update(dhcp, "3:2", {"ip": "192.0.2.50"}, ["description"])
+    assert fortios.rest_inverse(dhcp, "update", "3:2", update, "192.0.2.1") == {
+        "method": "put", "uri": "192.0.2.1/api/v2/cmdb/system.dhcp/server/3/reserved-address/2",
+        "body": '{"description":"","ip":"192.0.2.50"}'}
+    recreate = fortios.render_create(dhcp, "3:2", {"ip": "192.0.2.50", "mac": "00:00:5e:00:53:02"})
+    assert fortios.rest_inverse(dhcp, "delete", "3:2", recreate, "192.0.2.1") == {
+        "method": "post", "uri": "192.0.2.1/api/v2/cmdb/system.dhcp/server/3/reserved-address",
+        "body": '{"id":2,"ip":"192.0.2.50","mac":"00:00:5e:00:53:02"}'}
+    dns = profiles.load_profiles()[("fortios", "system dns-database/dns-entry")]
+    assert fortios.rest_inverse(dns, "create", "netops-g20.test:4", fortios.render_delete(dns, "netops-g20.test:4"),
+                                "192.0.2.1")["uri"] == "192.0.2.1/api/v2/cmdb/system/dns-database/netops-g20.test/dns-entry/4"
+    ttl = fortios.render_update(dns, "netops-g20.test:4", {"ttl": "300"}, [])
+    assert fortios.rest_inverse(dns, "update", "netops-g20.test:4", ttl, "192.0.2.1")["body"] == '{"ttl":300}'
 
 
 def step_text(step):
@@ -325,7 +345,7 @@ def test_recover_after_interruption_lets_the_webhook_fire_and_revokes(tmp_path):
     device.on_apply = crash
     rt = runtime(tmp_path, device)
     with pytest.raises(KeyboardInterrupt):
-        execute.apply(rt, "lab", policy())
+        apply_approved(rt, "lab", policy())
     device.on_apply = None
     assert device.api_users and device.webhooks
     settled = execute.recover(rt, "lab")
@@ -356,7 +376,7 @@ def test_recover_removes_the_leftover_of_a_safeguard_that_was_not_verified(tmp_p
 
     device.on_apply = partial
     rt = runtime(tmp_path, device)
-    record = execute.apply(rt, "lab", policy())
+    record = apply_approved(rt, "lab", policy())
     assert (record["result"], record["reason"]) == ("unknown", "safeguard not verified")
     assert list(device.accprofiles) == ["netops-sg-%s-p" % record["change_id"][:12]]
     assert rt.store.blocked("lab")["change_id"] == record["change_id"]
@@ -381,7 +401,7 @@ def test_recover_with_a_disarmed_stitch_deletes_api_user_and_profile(tmp_path):
     device.on_apply = crash
     rt = runtime(tmp_path, device)
     with pytest.raises(KeyboardInterrupt):
-        execute.apply(rt, "lab", policy())
+        apply_approved(rt, "lab", policy())
     device.on_apply = None
     assert device.api_users and device.accprofiles
     settled = execute.recover(rt, "lab")
@@ -393,7 +413,7 @@ def test_firing_not_proven_revokes_the_token_and_keeps_the_stitch(tmp_path):
     device = FakeFortiOSWebhook()
     device.webhook_broken = True
     check_failure_after_change(device)
-    record = execute.apply(runtime(tmp_path, device), "lab", policy())
+    record = apply_approved(runtime(tmp_path, device), "lab", policy())
     assert record["result"] == "unknown"
     names = steps(record)
     assert names[-2:] == ["safeguard_kept", "safeguard_token_revoked"]
@@ -407,29 +427,34 @@ def test_firing_not_proven_reports_an_unproven_revocation(tmp_path, monkeypatch)
     device.webhook_broken = True
     check_failure_after_change(device)
     monkeypatch.setattr(fortios, "webhook_absent", lambda *args, **kwargs: False)
-    record = execute.apply(runtime(tmp_path, device), "lab", policy())
+    record = apply_approved(runtime(tmp_path, device), "lab", policy())
     assert record["result"] == "unknown"
     assert "safeguard_token_revoke_unverified" in steps(record)
 
 
 @pytest.mark.parametrize("fake", [Fake768, FakeFortiOSWebhook])
-def test_undo_of_create_refused_when_the_policy_is_no_longer_last(tmp_path, fake):
+def test_undo_of_create_when_another_policy_was_appended(tmp_path, fake):
     device = fake()
     rt = runtime(tmp_path, device)
-    first = execute.apply(rt, "lab", policy())
+    first = apply_approved(rt, "lab", policy())
     assert first["result"] == "confirmed"
     device.policies["9002"] = {"uuid": device._uuid(), "srcintf": "port1", "dstintf": "port2", "srcaddr": "all",
                                "dstaddr": "srv-web", "service": "HTTP", "schedule": "always", "status": "disable"}
-    with pytest.raises(Rejected) as caught:
-        execute.undo(rt, first["change_id"], "investigated")
-    assert "no longer the last policy" in " ".join(caught.value.reasons)
-    assert "9001" in device.policies
+    if fake is FakeFortiOSWebhook:
+        with pytest.raises(Rejected) as caught:
+            execute.undo(rt, first["change_id"], "investigated")
+        assert caught.value.reason_codes == ["safeguard_no_rest_inverse"]
+        assert "9001" in device.policies
+    else:
+        record = execute.undo(rt, first["change_id"], "investigated")
+        assert record["result"] == "confirmed"
+        assert list(device.policies) == ["1", "9002"]
 
 
 def test_tampered_header_is_not_verified_and_everything_is_removed(tmp_path):
     device = FakeFortiOSWebhook()
     device.header_override = "Bearer someone-else"
-    record = execute.apply(runtime(tmp_path, device), "lab", policy())
+    record = apply_approved(runtime(tmp_path, device), "lab", policy())
     assert record["result"] == "reverted" and "safeguard_not_verified" in steps(record)
     assert "9001" not in device.policies and own_objects(device) == []
 
@@ -437,7 +462,7 @@ def test_tampered_header_is_not_verified_and_everything_is_removed(tmp_path):
 def test_missing_api_key_fails_safely(tmp_path):
     device = FakeFortiOSWebhook()
     device.key_answer = "Please enter current administrator password:\nCommand fail. Return code -1\n"
-    record = execute.apply(runtime(tmp_path, device), "lab", policy())
+    record = apply_approved(runtime(tmp_path, device), "lab", policy())
     assert record["result"] == "reverted" and "safeguard_not_verified" in steps(record)
     assert "9001" not in device.policies and own_objects(device) == []
     assert not any("automation-action" in block[0] for block in device.applied_blocks)
@@ -511,7 +536,7 @@ def test_schema_prechecks_stay_cli_script():
 def test_a_trigger_that_is_not_scheduled_is_not_a_verified_safeguard(tmp_path, fake):
     device = fake()
     device.trigger_type_override = "event-based"
-    record = execute.apply(runtime(tmp_path, device), "lab", policy())
+    record = apply_approved(runtime(tmp_path, device), "lab", policy())
     assert record["result"] == "reverted" and "safeguard_not_verified" in steps(record)
     assert "9001" not in device.policies and own_objects(device) == []
     assert not any(block[0] == "config firewall policy" for block in device.applied_blocks)
@@ -625,7 +650,7 @@ def test_rest_inverse_of_a_service():
 def test_service_create_and_undo_are_confirmed_with_the_webhook(tmp_path):
     device = FakeFortiOSWebhook()
     rt = service_runtime(tmp_path, device)
-    record = execute.apply(rt, "lab", service_request())
+    record = apply_approved(rt, "lab", service_request())
     assert record["result"] == "confirmed" and device.services["TCP-8443"]["tcp-portrange"] == "8443"
     sent = lines(device)
     assert "set action-type webhook" in sent and "set method delete" in sent
@@ -638,7 +663,7 @@ def test_service_create_and_undo_are_confirmed_with_the_webhook(tmp_path):
 def test_service_firing_reverts_a_create_with_delete(tmp_path):
     device = FakeFortiOSWebhook()
     service_check_failure(device)
-    record = execute.apply(service_runtime(tmp_path, device), "lab", service_request())
+    record = apply_approved(service_runtime(tmp_path, device), "lab", service_request())
     assert record["result"] == "reverted" and "TCP-8443" not in device.services
     assert device.calls == [("delete", "api/v2/cmdb/firewall.service/custom/TCP-8443", 200)]
     assert own_objects(device) == []
@@ -648,7 +673,7 @@ def test_service_firing_reverts_an_update_with_put(tmp_path):
     device = FakeFortiOSWebhook()
     device.services["SRV-A"] = {"uuid": device._uuid(), "tcp-portrange": "8443"}
     service_check_failure(device)
-    record = execute.apply(service_runtime(tmp_path, device), "lab",
+    record = apply_approved(service_runtime(tmp_path, device), "lab",
                            service_request(key="SRV-A", op="update",
                                            changes={"tcp-portrange": "9443", "comment": "moved"}))
     assert record["result"] == "reverted"
@@ -661,9 +686,37 @@ def test_service_firing_reverts_a_delete_with_post(tmp_path):
     device = FakeFortiOSWebhook()
     device.services["SRV-A"] = {"uuid": device._uuid(), "udp-portrange": "5353", "comment": "mdns"}
     service_check_failure(device)
-    record = execute.apply(service_runtime(tmp_path, device), "lab",
+    record = apply_approved(service_runtime(tmp_path, device), "lab",
                            service_request(key="SRV-A", op="delete", changes={}))
     assert record["result"] == "reverted"
     assert device.calls == [("post", "api/v2/cmdb/firewall.service/custom", 200)]
     assert device.services["SRV-A"]["udp-portrange"] == "5353" and device.services["SRV-A"]["comment"] == "mdns"
     assert own_objects(device) == []
+
+
+@pytest.mark.parametrize(("table", "rest_table", "group"), [
+    ("system dns-database/dns-entry", "/api/v2/cmdb/system/dns-database/", "sysgrp"),
+    ("vpn ipsec phase2-interface", "/api/v2/cmdb/vpn.ipsec/phase2-interface/", "vpngrp"),
+])
+def test_webhook_identity_grants_only_the_group_for_the_measured_table(tmp_path, table, rest_table, group):
+    from test_fortios_g20 import FortiOSG20, ZONE, ask
+    from test_fortios_g26 import FortiOSG26, create
+
+    if table == fortios.DNS_TABLE:
+        measured = FortiOSG20()
+        change = ask(table, f"{ZONE}:1", "create", {"hostname": "review", "ip": "192.0.2.42"})
+    else:
+        measured = FortiOSG26()
+        change = create()
+    snapshot = measured.snapshot().replace("-7.6.8-FW-build3744-", "-8.0.2-FW-build0251-")
+    plan = engine.build_plan("fortios", snapshot.encode(), change, protected={"interface": ["wan1"]})
+    device = FakeFortiOSWebhook()
+    target = runtime(tmp_path, device).config.devices["lab"]
+    assert rest_table in exec_fortios._request(plan, target)["uri"]
+
+    change_id = "0123456789abcdef"
+    record = {"change_id": change_id, "safeguard": {"fire_at": "2026-11-20 12:00:00"}}
+    result = exec_fortios.install_safeguard(device, record, plan, target, exec_fortios.prompt_spec(device.hostname))
+    assert result == []
+    installed = device.accprofiles[fortios.webhook_names(change_id)["accprofile"]]
+    assert {name: value for name, value in installed.items() if value != "none"} == {group: "read-write"}

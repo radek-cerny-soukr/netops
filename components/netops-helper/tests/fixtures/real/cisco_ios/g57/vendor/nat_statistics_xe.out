@@ -1,0 +1,21 @@
+Total active translations: 6 (0 static, 6 dynamic; 3 extended)
+Outside interfaces:
+GigabitEthernet0/0/4
+Inside interfaces:
+GigabitEthernet0/0/3
+Hits: 11094661606 Misses: 10
+Reserved port setting disabled provisioned no
+Expired translations: 1412
+Dynamic mappings:
+-- Inside Source
+[Id: 2] access-list 1 pool NAT_Pool refcount 6
+pool NAT_Pool: id 2, netmask 255.255.255.240
+start 192.0.2.3   end 192.0.2.5
+type generic, total addresses 3, allocated 3 (100%), misses 3559386331
+nat-limit statistics:
+max entry: max allowed 0, used 0, missed 0
+In-to-out drops: 3559337007 Out-to-in drops: 0
+Pool stats drop: 0 Mapping stats drop: 0
+Port block alloc fail: 0
+IP alias add fail: 0
+Limit entry add fail: 0

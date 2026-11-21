@@ -1,0 +1,10 @@
+Port       Name            Status       Vlan     Duplex Speed  Type            Flags Encapsulation
+Et1                        connected    in Po200 full   1G     EbraTestPhyPort                   
+Et2                        connected    in Po200 full   1G     EbraTestPhyPort                   
+Et3                        connected    in Po128 full   1G     EbraTestPhyPort                   
+Et4                        connected    in Po128 full   1G     EbraTestPhyPort                   
+Et5                        connected    1        full   1G     EbraTestPhyPort                   
+Ma0                        connected    routed   full   10G    10/100/1000                       
+Po128      B04-MLAG-to-vPC connected    428      full   4G     N/A                               
+Po200      B04-PEER-LINK   connected    trunk    full   2G     N/A                               
+

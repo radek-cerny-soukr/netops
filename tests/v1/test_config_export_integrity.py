@@ -83,7 +83,7 @@ class ConfigurationExportIntegrity(unittest.IsolatedAsyncioTestCase):
         self.assertEqual({page["content_sha256"] for page in pages}, {hashlib.sha256(joined).hexdigest()})
         return joined, pages
 
-    def body(self, hostname="ADC-LAB"):
+    def body(self, hostname="ADC-LAB", *, include_defaults=False):
         # Lines that the proxy or worker rules rewrite: `set password` with its value, `unset password`
         # before the next line, a public value with `token:` and a value that holds the known login secret.
         admins = "".join('  edit "op%d"\n    set access-profile "netops-read"\n'
@@ -91,7 +91,7 @@ class ConfigurationExportIntegrity(unittest.IsolatedAsyncioTestCase):
                          % (index, index, index % 3) for index in range(400))
         admins += ('  edit "netops-read"\n    set access-profile "netops-read"\n'
                    '    set accprofile-override disable\n    set password ENC SECRET-OWN\n  next\n')
-        text = config(profiles=profile_lines(rights=READ), admins=admins)
+        text = config(profiles=profile_lines(rights=READ), admins=admins, include_defaults=include_defaults)
         return text.replace("set hostname ADC-LAB", "set hostname " + json.dumps(hostname))
 
     async def test_joined_pages_match_declared_hash_and_size(self):
@@ -102,7 +102,8 @@ class ConfigurationExportIntegrity(unittest.IsolatedAsyncioTestCase):
                         arguments = {"target": "adc-a", "platform": "fortiadc", "section": "all",
                                      "include_all": True, "redaction": "full",
                                      "include_defaults": include_defaults, "limit": limit}
-                        joined, pages = await self.pages("config_read", arguments, live(self.body(hostname)))
+                        raw = live(self.body(hostname, include_defaults=include_defaults))
+                        joined, pages = await self.pages("config_read", arguments, raw)
                         self.assertGreater(len(joined), 48000)
                         self.assertGreater(len(pages), 1)
                         self.assertNotIn(b"SECRET-", joined)
@@ -219,10 +220,10 @@ class ConfigurationExportIntegrity(unittest.IsolatedAsyncioTestCase):
         for hostname in ("ADC-LAB", "ADC-OTHER"):
             body = self.body(hostname)
             if hostname == "ADC-OTHER":
-                # Same counts (a diff compares captures of one shape), moved password lines.
+                # Remove 60 credential records. The line diff keeps each unchanged neighbor
+                # and paginates the removed redacted records.
                 for index in range(60):
-                    body = body.replace('    set password ENC SECRET-%d\n    unset password\n' % index,
-                                        '    unset password\n    set password ENC NEW-%d\n' % index)
+                    body = body.replace('    set password ENC SECRET-%d\n' % index, '', 1)
             snapshots.append((await self.pages("config_read", arguments, live(body)))[1][0]["snapshot_id"])
         section = json.loads((self.state / "helper" / "inventory.json").read_text())
         section["devices"][0]["helper"]["read_inventory"]["config_access"] = ["read", "compare"]
@@ -232,9 +233,10 @@ class ConfigurationExportIntegrity(unittest.IsolatedAsyncioTestCase):
                 joined, pages = await self.pages("config_diff", {
                     "target": "adc-a", "platform": "fortiadc", "base_snapshot": snapshots[0],
                     "other_snapshot": snapshots[1], "limit": limit})
-                self.assertIn(b"-    set password [REDACTED]\n+    unset password\n", joined)
+                self.assertEqual(joined.count(b"-    set password [REDACTED]\n"), 60)
+                self.assertNotIn(b"unset password", joined)
                 self.assertIn(b"ADC-OTHER", joined)
-                self.assertNotIn(b"NEW-", joined)
+                self.assertNotIn(b"SECRET-", joined)
                 self.assertRegex(joined, rb"(?m)^[+-]? *set password \[REDACTED\]$")
                 self.assertEqual(len(pages) > 1, limit == 1000)
 

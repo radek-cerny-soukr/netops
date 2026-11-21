@@ -1,0 +1,23 @@
+
+------------------------------------------------
+Local Intf: Gi0/2
+Chassis id: 0000.5e00.5304
+Port id: Ethernet1
+Port Description - not advertised
+System Name: host03
+
+System Description: 
+Arista Networks EOS version 4.36.1F-48405728.4361F (engineering build) running on an Arista cEOSLab
+
+Time remaining: 103 seconds
+System Capabilities: B,R
+Enabled Capabilities: B,R
+Management Addresses:
+    IP: 203.0.113.254
+Auto Negotiation - not supported
+Physical media capabilities - not advertised
+Media Attachment Unit type - not advertised
+Vlan ID: 1
+
+
+Total entries displayed: 1

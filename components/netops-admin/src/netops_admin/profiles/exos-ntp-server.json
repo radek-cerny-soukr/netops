@@ -1,0 +1,21 @@
+{
+  "platform": "exos",
+  "table": "ntp-server",
+  "versions": [
+    "33.6.1.14",
+    "33.7.1.6"
+  ],
+  "ops": [
+    "create",
+    "delete"
+  ],
+  "table_scoped_key": true,
+  "key_pattern": "^[A-Za-z][A-Za-z0-9_-]{0,31}/[0-9A-Fa-f:.]{2,45}$",
+  "protected_keys": [],
+  "attributes": {},
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "Targeted NTP server add and inverse delete. The IP must be unique across VRs. Readback uses the check account. Changes are applied to running configuration."
+}

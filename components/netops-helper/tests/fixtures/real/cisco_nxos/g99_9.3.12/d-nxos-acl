@@ -1,0 +1,129 @@
+
+IPV4 ACL copp-system-p-acl-auto-rp
+	Total ACEs Configured: 2
+	Configured on interfaces:
+	Active on interfaces:
+IPV4 ACL copp-system-p-acl-bgp
+	Total ACEs Configured: 2
+	Configured on interfaces:
+	Active on interfaces:
+IPV4 ACL copp-system-p-acl-dhcp
+	Total ACEs Configured: 2
+	Configured on interfaces:
+	Active on interfaces:
+IPV4 ACL copp-system-p-acl-dhcp-relay-response
+	Total ACEs Configured: 2
+	Configured on interfaces:
+	Active on interfaces:
+IPV4 ACL copp-system-p-acl-eigrp
+	Total ACEs Configured: 1
+	Configured on interfaces:
+	Active on interfaces:
+IPV4 ACL copp-system-p-acl-ftp
+	Total ACEs Configured: 4
+	Configured on interfaces:
+	Active on interfaces:
+IPV4 ACL copp-system-p-acl-hsrp
+	Total ACEs Configured: 1
+	Configured on interfaces:
+	Active on interfaces:
+IPV4 ACL copp-system-p-acl-http
+	Total ACEs Configured: 2
+	Configured on interfaces:
+	Active on interfaces:
+IPV4 ACL copp-system-p-acl-https
+	Total ACEs Configured: 2
+	Configured on interfaces:
+	Active on interfaces:
+IPV4 ACL copp-system-p-acl-icmp
+	Total ACEs Configured: 2
+	Configured on interfaces:
+	Active on interfaces:
+IPV4 ACL copp-system-p-acl-igmp
+	Total ACEs Configured: 1
+	Configured on interfaces:
+	Active on interfaces:
+IPV4 ACL copp-system-p-acl-msdp
+	Total ACEs Configured: 2
+	Configured on interfaces:
+	Active on interfaces:
+IPV4 ACL copp-system-p-acl-ntp
+	Total ACEs Configured: 2
+	Configured on interfaces:
+	Active on interfaces:
+IPV4 ACL copp-system-p-acl-openflow
+	Total ACEs Configured: 1
+	Configured on interfaces:
+	Active on interfaces:
+IPV4 ACL copp-system-p-acl-ospf
+	Total ACEs Configured: 1
+	Configured on interfaces:
+	Active on interfaces:
+IPV4 ACL copp-system-p-acl-pim
+	Total ACEs Configured: 3
+	Configured on interfaces:
+	Active on interfaces:
+IPV4 ACL copp-system-p-acl-pim-mdt-join
+	Total ACEs Configured: 1
+	Configured on interfaces:
+	Active on interfaces:
+IPV4 ACL copp-system-p-acl-pim-reg
+	Total ACEs Configured: 1
+	Configured on interfaces:
+	Active on interfaces:
+IPV4 ACL copp-system-p-acl-ptp
+	Total ACEs Configured: 2
+	Configured on interfaces:
+	Active on interfaces:
+IPV4 ACL copp-system-p-acl-ptp-uc
+	Total ACEs Configured: 2
+	Configured on interfaces:
+	Active on interfaces:
+IPV4 ACL copp-system-p-acl-radius
+	Total ACEs Configured: 8
+	Configured on interfaces:
+	Active on interfaces:
+IPV4 ACL copp-system-p-acl-rip
+	Total ACEs Configured: 1
+	Configured on interfaces:
+	Active on interfaces:
+IPV4 ACL copp-system-p-acl-sftp
+	Total ACEs Configured: 2
+	Configured on interfaces:
+	Active on interfaces:
+IPV4 ACL copp-system-p-acl-snmp
+	Total ACEs Configured: 4
+	Configured on interfaces:
+	Active on interfaces:
+IPV4 ACL copp-system-p-acl-ssh
+	Total ACEs Configured: 2
+	Configured on interfaces:
+	Active on interfaces:
+IPV4 ACL copp-system-p-acl-tacacs
+	Total ACEs Configured: 2
+	Configured on interfaces:
+	Active on interfaces:
+IPV4 ACL copp-system-p-acl-telnet
+	Total ACEs Configured: 4
+	Configured on interfaces:
+	Active on interfaces:
+IPV4 ACL copp-system-p-acl-tftp
+	Total ACEs Configured: 4
+	Configured on interfaces:
+	Active on interfaces:
+IPV4 ACL copp-system-p-acl-traceroute
+	Total ACEs Configured: 3
+	Configured on interfaces:
+	Active on interfaces:
+IPV4 ACL copp-system-p-acl-undesirable
+	Total ACEs Configured: 1
+	Configured on interfaces:
+	Active on interfaces:
+IPV4 ACL copp-system-p-acl-vpc
+	Total ACEs Configured: 1
+	Configured on interfaces:
+	Active on interfaces:
+IPV4 ACL copp-system-p-acl-vrrp
+	Total ACEs Configured: 1
+	Configured on interfaces:
+	Active on interfaces:

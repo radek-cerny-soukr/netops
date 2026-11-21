@@ -1,0 +1,3 @@
+channel-group 49 mode active
+Command rejected (Port-channel49, Gi1/1): Invalid group(slot) number
+host08(config-if)#

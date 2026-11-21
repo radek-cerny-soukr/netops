@@ -803,7 +803,7 @@ def _role_main(role, arguments, outcome=None):
     if role == "admin":
         from netops_admin.cli import main
         state_commands = {"apply", "preview", "doctor", "enroll", "status", "recover", "notify-retry", "unblock", "undo",
-                          "pool-member", "pool-member-add", "pool-member-remove"}
+                          "pool-member", "pool-member-add", "pool-member-remove", "certificate-import"}
         if arguments and arguments[0] in state_commands:
             arguments = [arguments[0], "--config", str(STATE / role / "config.json"), *arguments[1:]]
         return main(arguments, require_export=False)

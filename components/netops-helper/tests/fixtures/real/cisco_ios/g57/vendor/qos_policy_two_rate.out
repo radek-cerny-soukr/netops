@@ -1,0 +1,16 @@
+Serial3/0
+ Service-policy output: policy1
+  Class-map: police (match all)
+   148803 packets, 36605538 bytes
+   30 second offered rate 1249000 bps, drop rate 249000 bps
+   Match: access-group 101
+   police:
+    cir 500000 bps, conform-burst 10000, pir 1000000, peak-burst 100000
+    conformed 59538 packets, 14646348 bytes; action: transmit
+    exceeded 59538 packets, 14646348 bytes; action: set-prec-transmit 2
+    violated 29731 packets, 7313826 bytes; action: drop
+    conformed 499000 bps, exceed 500000 bps violate 249000 bps
+  Class-map: class-default (match-any)
+   19 packets, 1990 bytes
+   30 seconds offered rate 0 bps, drop rate 0 bps
+   Match: any

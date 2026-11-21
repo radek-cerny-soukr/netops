@@ -1,0 +1,12 @@
+
+
+
+Default domain is host04
+Name/address lookup uses static mappings
+
+Codes: UN - unknown, EX - expired, OK - OK, ?? - revalidate
+       temp - temporary, perm - permanent
+       NA - Not Applicable None - Not defined
+
+Host                      Port  Flags      Age Type   Address(es)
+netops-g66-test           None  (perm, OK)  0   IP    192.0.2.40

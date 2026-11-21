@@ -219,7 +219,8 @@ class DefaultRendering(unittest.TestCase):
     def snapshot_and_command(self, inventory, value):
         from types import SimpleNamespace
         snapshot = SimpleNamespace(inventory=frozenset(inventory))
-        command = SimpleNamespace(tokens=membership.DEFAULT_ROUTER + ("add", "ports", value))
+        command = l1_exos.Command(line=1, module="vlan",
+                                  tokens=membership.DEFAULT_ROUTER + ("add", "ports", value), text="")
         return snapshot, command
 
     def test_matches_the_previous_set_copy(self):
@@ -229,14 +230,14 @@ class DefaultRendering(unittest.TestCase):
             value = ",".join(sorted({"1:%d" % generator.randrange(1, 9) for _ in range(generator.randrange(1, 6))}))
             snapshot, command = self.snapshot_and_command(inventory, value)
             with self.subTest(inventory=inventory, value=value):
-                self.assertEqual(membership._default_rendering(snapshot, command),
+                self.assertEqual(membership.default_rendering(snapshot, command),
                                  membership.ports(value) == set(snapshot.inventory))
 
     def test_does_not_copy_the_inventory_per_command(self):
         def build(size):
             snapshot, command = self.snapshot_and_command(("1:%d" % number for number in range(1, size + 1)), "1:1")
             return snapshot, [command] * size
-        scales_linearly(self, build, lambda value: [membership._default_rendering(value[0], item) for item in value[1]],
+        scales_linearly(self, build, lambda value: [membership.default_rendering(value[0], item) for item in value[1]],
                         small=1000)
 
 

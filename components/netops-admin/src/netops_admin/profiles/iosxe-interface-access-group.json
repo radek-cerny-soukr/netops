@@ -1,0 +1,30 @@
+{
+  "platform": "iosxe",
+  "table": "interface-access-group",
+  "versions": [
+    "17.18.2"
+  ],
+  "exact_versions": true,
+  "ops": [
+    "update"
+  ],
+  "table_scoped_key": true,
+  "key_pattern": "^(?:(?:Ethernet|FastEthernet|GigabitEthernet|TwoGigabitEthernet|FiveGigabitEthernet|TenGigabitEthernet|TwentyFiveGigE|FortyGigabitEthernet|HundredGigE)[0-9]{1,2}(?:/[0-9]{1,3}){1,2}(?:\\.[1-9][0-9]{0,9})?|Vlan[1-9][0-9]{0,3}|Port-channel[1-9][0-9]{0,2}):(?:ipv4|ipv6):(?:in|out)$",
+  "protected_keys": [],
+  "attributes": {
+    "acl": {
+      "type": "text",
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "required_on_create": false,
+      "max_length": 64,
+      "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$"
+    }
+  },
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "G82 (XE-M030), measured on IOL XE 17.18.2 (router) in the GNS3 lab, task netops-20261119-639. The key is <interface>:ipv4|ipv6:in|out of a routed interface (Ethernet port, subinterface, port-channel or SVI). Update acl with the name of an existing non-empty extended ACL of the family or null to remove the attachment. Lines: 'ip access-group NAME in|out' and 'ipv6 traffic-filter NAME in|out' replace the ACL of the same direction without an unfiltered interval, 'no ip access-group NAME in|out' and 'no ipv6 traffic-filter NAME in|out' remove it. The safeguard is the revert timer of the interface profile; apply needs the approved expected_plan_sha256. An up interface needs endpoint_impact naming the key; the management interface, a protected interface, a port-channel member and a Layer 2 port are refused. The check account reads show ip interface and show ipv6 interface."
+}

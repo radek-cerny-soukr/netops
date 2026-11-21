@@ -1,0 +1,5 @@
+Type escape sequence to abort.
+Sending 5, 100-byte ICMP Echos to 2001:db8:1::250, timeout is 1 seconds:
+Packet sent with a source address of 2001:db8:1::7%blue
+.....
+Success rate is 0 percent (0/5)
