@@ -40,6 +40,19 @@ def tooling_run_block(workflow="candidate.yml"):
 
 
 class WorkflowCalls(unittest.TestCase):
+    def test_every_ci_and_candidate_job_describes_its_runner_first(self):
+        for workflow in ("ci.yml", "candidate.yml"):
+            with open(os.path.join(ROOT, ".github", "workflows", workflow), encoding="utf-8") as stream:
+                text = stream.read()
+            jobs = dict(re.findall(r"(?m)^  ([a-z][a-z0-9_-]*):[^\n]*\n((?:    .*\n|\n)*)",
+                                   text.split("\njobs:\n", 1)[1]))
+            self.assertTrue(jobs, workflow)
+            for job, body in jobs.items():
+                with self.subTest(workflow=workflow, job=job):
+                    first_step = re.search(r"(?m)^    steps:\n(?:[ \t]*#.*\n|[ \t]*\n)*      - (.*)$", body)
+                    self.assertIsNotNone(first_step)
+                    self.assertEqual(first_step.group(1), "name: Describe the runner")
+
     def test_workflows_call_release_scripts(self):
         self.assertGreater(len(invocations()), 5)
 
@@ -197,7 +210,8 @@ class WorkflowCalls(unittest.TestCase):
                                  "          if-no-files-found: error\n          retention-days: 30")
         self.assertEqual(text.count("ci-result/sha"), 6)
         report = jobs["report"]
-        collect, record = steps(report)
+        describe, collect, record = steps(report)
+        self.assertTrue(describe.startswith("name: Describe the runner\n"))
         self.assertEqual(collect, "name: Collect the results of every job and matrix item\n"
                                   "        continue-on-error: true\n        uses: " + download + "\n        with:\n"
                                   "          pattern: ci-result-${{ github.run_attempt }}-*\n          path: ci-results\n\n")
