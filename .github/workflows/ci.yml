@@ -7,18 +7,56 @@ on:
     tags:
       - "**"
   pull_request:
+  # manual run against a released tag or commit: the jobs test the code of "ref" with the
+  # CI tools of this workflow revision, and the report job records the result as the
+  # check run "CI" on the commit of "ref"
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Tag or commit SHA to test
+        required: true
+        type: string
 
 permissions:
   contents: read
 
+env:
+  # Number of installed unit test shards; the unit matrix below must list 1..UNIT_SHARDS
+  # (release/tests/test_unit_shards.py checks both).
+  UNIT_SHARDS: "3"
+
 jobs:
-  tests:
+  tooling:
     runs-on: ubuntu-24.04
-    timeout-minutes: 75
+    env:
+      # CI scripts of this workflow revision (a manual run tests a tree that may predate them)
+      CI_TOOLS: ${{ github.event_name == 'workflow_dispatch' && 'ci-tools' || '.' }}
+    # longest GitHub run of the whole job in PR #11 (runs 45022466018, 45022462276: 5.4 min) x 1.5, rounded up
+    timeout-minutes: 9
     steps:
       - name: Check out source
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || '' }}
+          persist-credentials: false
+
+      - name: Identify the tested commit
+        id: tested
+        run: |
+          set -euo pipefail
+          # push and pull_request keep testing GITHUB_SHA; a manual run names the checked-out commit of ref
+          sha="$GITHUB_SHA"
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then sha="$(git rev-parse HEAD)"; fi
+          [[ "$sha" =~ ^[0-9a-f]{40}$ ]]
+          printf 'TESTED_SHA=%s\n' "$sha" >> "$GITHUB_ENV"
+          printf 'sha=%s\n' "$sha" >> "$GITHUB_OUTPUT"
+
+      - name: Check out the CI tools of this workflow revision
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.sha }}
+          path: ci-tools
           persist-credentials: false
 
       - name: Set up Python 3.14.10
@@ -38,60 +76,362 @@ jobs:
           mkdir -p test-logs
           python3 -B -m unittest discover -s tests -v 2>&1 | tee test-logs/root.log
 
+      - name: Check that the unit test shards cover every installed test
+        if: ${{ github.event_name != 'workflow_dispatch' }}
+        run: python3 -B release/unit_shards.py --shards "$UNIT_SHARDS" --check
+
+      - name: Check that the unit test shards cover every test of the tested tree
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        run: python3 -B "$CI_TOOLS"/release/unit_shards.py --tests tests/v1 --shards "$UNIT_SHARDS" --check --ignore-stale-weights
+
       - name: Test the release and acceptance tooling
         env:
           NETOPS_SIGN_TEST_WORKERS: "2"
         run: |
           set -euo pipefail
-          mkdir -p test-logs
-          {
-          for test in release/tests/test_*.py release/acceptance/tests/test_*.py release/sign/tests/test_*.py; do
-            python -B "$test"
+          mkdir -p test-logs/tooling
+          status=0
+          printf "%s\0" release/sign/tests/test_*.py release/acceptance/tests/test_*.py release/tests/test_*.py \
+            | xargs -0 -n1 -P "$(nproc)" bash -c '
+              log="test-logs/tooling/${1//\//_}.log"
+              start=$SECONDS
+              python3 -u -B "$1" > "$log" 2>&1
+              code=$?
+              printf "[%s] exit=%s seconds=%s\n" "$1" "$code" "$((SECONDS - start))"
+              test "$code" -eq 0
+            ' _ || status=$?
+          for test in release/sign/tests/test_*.py release/acceptance/tests/test_*.py release/tests/test_*.py; do
+            printf "::group::%s\n" "$test"
+            sed "s|^|[$test] |" "test-logs/tooling/${test//\//_}.log"
+            printf "::endgroup::\n"
           done
-          } 2>&1 | tee test-logs/release.log
+          test "$status" -eq 0
+
+      - name: Keep complete tooling test logs
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ci-tooling-logs
+          path: |
+            test-logs/
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Record that this job passed on the tested commit
+        if: ${{ success() && github.event_name == 'workflow_dispatch' }}
+        run: |
+          set -euo pipefail
+          mkdir -p ci-result
+          printf '%s %s\n' "$TESTED_SHA" "$GITHUB_RUN_ATTEMPT" > ci-result/sha
+
+      - name: Keep the result of this job for the report
+        if: ${{ success() && github.event_name == 'workflow_dispatch' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ci-result-${{ github.run_attempt }}-tooling
+          path: ci-result/sha
+          if-no-files-found: error
+          retention-days: 30
+
+  unit:
+    runs-on: ubuntu-24.04
+    env:
+      CI_TOOLS: ${{ github.event_name == 'workflow_dispatch' && 'ci-tools' || '.' }}
+    timeout-minutes: ${{ matrix.timeout }}
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+        # timeout = longest GitHub run of the whole job (runs 45022466018, 45022462276) x 1.5, rounded up:
+        # shard 2 3.0 min -> 5, shard 3 4.2 min -> 7 (test_admin_text_limits now runs alone after the parallel part);
+        # shard 1 29.0 min (push run on 27174f7c8, job 137208180176; test_redaction_1_0_6_floor dominates) -> 44
+        include:
+          - shard: 1
+            timeout: 44
+          - shard: 2
+            timeout: 5
+          - shard: 3
+            timeout: 7
+    steps:
+      - name: Check out source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || '' }}
+          persist-credentials: false
+
+      - name: Identify the tested commit
+        id: tested
+        run: |
+          set -euo pipefail
+          # push and pull_request keep testing GITHUB_SHA; a manual run names the checked-out commit of ref
+          sha="$GITHUB_SHA"
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then sha="$(git rev-parse HEAD)"; fi
+          [[ "$sha" =~ ^[0-9a-f]{40}$ ]]
+          printf 'TESTED_SHA=%s\n' "$sha" >> "$GITHUB_ENV"
+          printf 'sha=%s\n' "$sha" >> "$GITHUB_OUTPUT"
+
+      - name: Check out the CI tools of this workflow revision
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.sha }}
+          path: ci-tools
+          persist-credentials: false
+
+      - name: Set up Python 3.14.10
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: 3.14.10
 
       - name: Build the native product image from locked dependencies
         run: |
           set -euo pipefail
-          docker build --pull --build-arg SOURCE_DATE_EPOCH="$(git log -1 --format=%ct)" --iidfile "$RUNNER_TEMP/netops-ci-unit.iid" -t "netops-ci-product:$GITHUB_SHA" .
-          test "$(docker image inspect -f '{{.Id}}' "netops-ci-product:$GITHUB_SHA")" = "$(cat "$RUNNER_TEMP/netops-ci-unit.iid")"
+          docker build --pull --build-arg SOURCE_DATE_EPOCH="$(git log -1 --format=%ct)" --iidfile "$RUNNER_TEMP/netops-ci-unit.iid" -t "netops-ci-product:$TESTED_SHA" .
+          test "$(docker image inspect -f '{{.Id}}' "netops-ci-product:$TESTED_SHA")" = "$(cat "$RUNNER_TEMP/netops-ci-unit.iid")"
 
-      - name: Run the installed product unit tests
+      - name: Run the image selftest
+        if: ${{ matrix.shard == 1 }}
         run: |
           set -euo pipefail
           ref="$(cat "$RUNNER_TEMP/netops-ci-unit.iid")"
           [[ "$ref" =~ ^sha256:[0-9a-f]{64}$ ]]
           mkdir -p test-logs
           docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges --user 51000:51000 "$ref" selftest 2>&1 | tee test-logs/selftest.log
-          docker run --rm --network none --read-only --tmpfs /tmp:rw,nosuid,nodev,noexec,size=64m --cap-drop ALL \
-            --security-opt no-new-privileges --user 51000:51000 --entrypoint python "$ref" -B -m unittest discover -s /opt/netops/tests -v 2>&1 | tee test-logs/unit.log
 
-      - name: Run all four installed engine suites
+      - name: Run the installed product unit tests
+        env:
+          SHARD: ${{ matrix.shard }}
         run: |
           set -euo pipefail
           ref="$(cat "$RUNNER_TEMP/netops-ci-unit.iid")"
-          product="netops-ci-product:$GITHUB_SHA"
-          test "$(docker image inspect -f '{{.Id}}' "$product")" = "$ref"
-          docker build --build-arg NETOPS_TEST_IMAGE="$product" -f release/engine-regression.Dockerfile -t netops-ci-engine-tests .
+          [[ "$ref" =~ ^sha256:[0-9a-f]{64}$ ]]
+          export ref
+          mkdir -p test-logs/unit
+          # the modules listed from the source must be exactly the test modules in the image
+          installed="$(docker run -i --rm --network none --read-only --tmpfs /tmp:rw,nosuid,nodev,noexec,size=64m --cap-drop ALL \
+            --security-opt no-new-privileges --user 51000:51000 --workdir /opt/netops/tests --entrypoint python "$ref" \
+            -B - --tests /opt/netops/tests --list < "$CI_TOOLS"/release/unit_shards.py)"
+          test "$installed" = "$(python3 -B "$CI_TOOLS"/release/unit_shards.py --tests tests/v1 --list)"
+          python3 -B "$CI_TOOLS"/release/unit_shards.py --tests tests/v1 --shards "$UNIT_SHARDS" --shard "$SHARD" --part parallel > "$RUNNER_TEMP/unit-parallel"
+          # time-sensitive modules (SERIAL_MODULES in unit_shards.py) of this shard: alone, after the parallel part
+          python3 -B "$CI_TOOLS"/release/unit_shards.py --tests tests/v1 --shards "$UNIT_SHARDS" --shard "$SHARD" --part serial > "$RUNNER_TEMP/unit-serial"
+          cat "$RUNNER_TEMP/unit-parallel" "$RUNNER_TEMP/unit-serial" > "$RUNNER_TEMP/unit-modules"
+          test -s "$RUNNER_TEMP/unit-modules"
+          test "$(sort "$RUNNER_TEMP/unit-modules")" = "$(python3 -B "$CI_TOOLS"/release/unit_shards.py --tests tests/v1 --shards "$UNIT_SHARDS" --shard "$SHARD" | sort)"
+          run_module='
+            start=$SECONDS
+            docker run --rm --network none --read-only --tmpfs /tmp:rw,nosuid,nodev,noexec,size=64m --cap-drop ALL \
+              --security-opt no-new-privileges --user 51000:51000 --workdir /opt/netops/tests --entrypoint python "$ref" -B -m unittest -v "$1" \
+              > "test-logs/unit/$1.log" 2>&1 < /dev/null
+            code=$?
+            printf "[%s] exit=%s seconds=%s\n" "$1" "$code" "$((SECONDS - start))"
+            test "$code" -eq 0
+          '
           status=0
-          for role in core helper auditor admin; do
-            mkdir -p "qualification/$role"
-            chmod 0777 "qualification/$role"
-            docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges --memory 2g --cpus 2 \
-              --tmpfs /tmp:rw,nosuid,nodev,exec,size=512m,mode=1777 --tmpfs /pytmp:rw,nosuid,nodev,exec,size=2g,mode=1777 \
-              --mount "type=bind,source=$PWD/qualification/$role,target=/reports" netops-ci-engine-tests \
-              --role "$role" --candidate-commit "$GITHUB_SHA" --candidate-image "$ref" --output /reports/engine-report.json \
-              2>&1 | tee "test-logs/engine-$role.log" || status=1
-          done
-          exit "$status"
+          xargs -r -a "$RUNNER_TEMP/unit-parallel" -n1 -P "$(nproc)" bash -c "$run_module" _ || status=$?
+          # xargs has waited for every parallel container; no retry and no changed budget for the serial modules
+          while read -r -u 3 module; do
+            printf "[%s] serial: alone after the parallel part\n" "$module"
+            bash -c "$run_module" _ "$module" || status=1
+          done 3< "$RUNNER_TEMP/unit-serial"
+          total=0
+          while read -r module; do
+            printf "::group::%s\n" "$module"
+            cat "test-logs/unit/$module.log"
+            printf "::endgroup::\n"
+            ran="$(sed -n 's/^Ran \([0-9][0-9]*\) tests\{0,1\} in .*/\1/p' "test-logs/unit/$module.log" | tail -n 1)"
+            total=$((total + ${ran:-0}))
+          done < "$RUNNER_TEMP/unit-modules"
+          printf "shard %s/%s: %s modules (%s alone after the parallel part), %s tests\n" "$SHARD" "$UNIT_SHARDS" \
+            "$(wc -l < "$RUNNER_TEMP/unit-modules")" "$(wc -l < "$RUNNER_TEMP/unit-serial")" "$total" | tee test-logs/unit/summary.txt
+          test "$status" -eq 0
 
-      - name: Keep complete test logs and engine reports
+      - name: Keep complete unit test logs
         if: ${{ always() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: ci-test-logs
+          name: ci-unit-logs-${{ matrix.shard }}
+          path: |
+            test-logs/
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Record that this job passed on the tested commit
+        if: ${{ success() && github.event_name == 'workflow_dispatch' }}
+        run: |
+          set -euo pipefail
+          mkdir -p ci-result
+          printf '%s %s\n' "$TESTED_SHA" "$GITHUB_RUN_ATTEMPT" > ci-result/sha
+
+      - name: Keep the result of this job for the report
+        if: ${{ success() && github.event_name == 'workflow_dispatch' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ci-result-${{ github.run_attempt }}-unit-${{ matrix.shard }}
+          path: ci-result/sha
+          if-no-files-found: error
+          retention-days: 30
+
+  engine:
+    runs-on: ubuntu-24.04
+    timeout-minutes: ${{ matrix.timeout }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        role: [core, helper, auditor, admin]
+        # timeout = longest GitHub run of the whole job in PR #11 x 1.5, rounded up: core 2.2 min -> 4 and
+        # auditor 6.7 min -> 11 (runs 45022466018, 45022462276); helper 32.0 min -> 48 and admin 42 min 40 s -> 64
+        # (runs 45014535372, 45014547993)
+        include:
+          - role: core
+            timeout: 4
+          - role: helper
+            timeout: 48
+          - role: auditor
+            timeout: 11
+          - role: admin
+            timeout: 64
+    steps:
+      - name: Check out source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || '' }}
+          persist-credentials: false
+
+      - name: Identify the tested commit
+        id: tested
+        run: |
+          set -euo pipefail
+          # push and pull_request keep testing GITHUB_SHA; a manual run names the checked-out commit of ref
+          sha="$GITHUB_SHA"
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then sha="$(git rev-parse HEAD)"; fi
+          [[ "$sha" =~ ^[0-9a-f]{40}$ ]]
+          printf 'TESTED_SHA=%s\n' "$sha" >> "$GITHUB_ENV"
+          printf 'sha=%s\n' "$sha" >> "$GITHUB_OUTPUT"
+
+      - name: Build the native product image from locked dependencies
+        run: |
+          set -euo pipefail
+          docker build --pull --build-arg SOURCE_DATE_EPOCH="$(git log -1 --format=%ct)" --iidfile "$RUNNER_TEMP/netops-ci-unit.iid" -t "netops-ci-product:$TESTED_SHA" .
+          test "$(docker image inspect -f '{{.Id}}' "netops-ci-product:$TESTED_SHA")" = "$(cat "$RUNNER_TEMP/netops-ci-unit.iid")"
+
+      - name: Run the installed engine suite
+        env:
+          ROLE: ${{ matrix.role }}
+        run: |
+          set -euo pipefail
+          ref="$(cat "$RUNNER_TEMP/netops-ci-unit.iid")"
+          product="netops-ci-product:$TESTED_SHA"
+          test "$(docker image inspect -f '{{.Id}}' "$product")" = "$ref"
+          docker build --build-arg NETOPS_TEST_IMAGE="$product" -f release/engine-regression.Dockerfile -t netops-ci-engine-tests .
+          mkdir -p test-logs "qualification/$ROLE"
+          chmod 0777 "qualification/$ROLE"
+          docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges --memory 2g --cpus 2 \
+            --tmpfs /tmp:rw,nosuid,nodev,exec,size=512m,mode=1777 --tmpfs /pytmp:rw,nosuid,nodev,exec,size=2g,mode=1777 \
+            --mount "type=bind,source=$PWD/qualification/$ROLE,target=/reports" netops-ci-engine-tests \
+            --role "$ROLE" --candidate-commit "$TESTED_SHA" --candidate-image "$ref" --output /reports/engine-report.json \
+            2>&1 | tee "test-logs/engine-$ROLE.log"
+
+      - name: Keep the engine log and report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ci-engine-${{ matrix.role }}
           path: |
             test-logs/
             qualification/
           if-no-files-found: warn
           retention-days: 30
+
+      - name: Record that this job passed on the tested commit
+        if: ${{ success() && github.event_name == 'workflow_dispatch' }}
+        run: |
+          set -euo pipefail
+          mkdir -p ci-result
+          printf '%s %s\n' "$TESTED_SHA" "$GITHUB_RUN_ATTEMPT" > ci-result/sha
+
+      - name: Keep the result of this job for the report
+        if: ${{ success() && github.event_name == 'workflow_dispatch' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ci-result-${{ github.run_attempt }}-engine-${{ matrix.role }}
+          path: ci-result/sha
+          if-no-files-found: error
+          retention-days: 30
+
+  report:
+    if: ${{ always() && github.event_name == 'workflow_dispatch' }}
+    needs: [tooling, unit, engine]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      checks: write
+      contents: read
+    steps:
+      # every matrix item uploads ci-result-<attempt>-<job>[-<item>] with its tested commit and run attempt only when it passed; the
+      # aggregated needs.<job>.result and the shared matrix outputs cannot tell a missing or cancelled item
+      - name: Collect the results of every job and matrix item
+        continue-on-error: true
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: ci-result-${{ github.run_attempt }}-*
+          path: ci-results
+
+      - name: Record the result as the check run CI on the tested commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REF: ${{ inputs.ref }}
+          ATTEMPT: ${{ github.run_attempt }}
+          # must equal the engine role matrix (release/tests/test_unit_shards.py checks it)
+          ENGINE_ROLES: core helper auditor admin
+        run: |
+          set -euo pipefail
+          sha="$(gh api "repos/$GITHUB_REPOSITORY/commits/$(jq -rn --arg ref "$REF" '$ref | @uri')" --jq .sha)"
+          [[ "$sha" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$UNIT_SHARDS" =~ ^[1-9][0-9]*$ ]]
+          expected=(tooling)
+          for shard in $(seq 1 "$UNIT_SHARDS"); do expected+=("unit-$shard"); done
+          for role in $ENGINE_ROLES; do expected+=("engine-$role"); done
+          conclusion=success
+          missing=()
+          rows=""
+          # every expected item must have passed and tested the commit of ref (a tag moved during the run fails it)
+          for item in "${expected[@]}"; do
+            file="ci-results/ci-result-$ATTEMPT-$item/sha"
+            tested=""; attempt=""
+            if [ -f "$file" ] && [ ! -L "$file" ]; then read -r tested attempt _ < <(head -c 100 "$file") || true; [ "${attempt:-}" = "$ATTEMPT" ] || tested=""; fi
+            if [ -z "$tested" ]; then
+              state=missing
+            elif [ "$tested" = "$sha" ]; then
+              state=success
+            else
+              state="other commit"
+            fi
+            if [ "$state" != success ]; then conclusion=failure; missing+=("$item ($state)"); fi
+            if ! [[ "$tested" =~ ^[0-9a-f]{40}$ ]]; then tested=none; fi
+            rows+="$(printf '| %s | %s | %s |' "$item" "$state" "$tested")"$'\n'
+          done
+          # results of items that are not expected (a changed matrix) also fail the run
+          if [ -d ci-results ]; then
+            for found in ci-results/*; do
+              [ -e "$found" ] || continue
+              item="${found#ci-results/ci-result-$ATTEMPT-}"
+              known=0
+              for name in "${expected[@]}"; do if [ "$item" = "$name" ]; then known=1; fi; done
+              if [ "$known" -eq 0 ]; then conclusion=failure; missing+=("$item (unexpected)"); fi
+            done
+          fi
+          run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          summary="$(printf 'Manual CI run %s against ref `%s`, commit `%s`.\n\n| job | result | tested commit |\n| --- | --- | --- |\n%s' \
+            "$run_url" "$REF" "$sha" "$rows")"
+          if [ "${#missing[@]}" -gt 0 ]; then
+            listed=""
+            for entry in "${missing[@]}"; do listed+="${listed:+, }$entry"; done
+            summary+=$'\n\n'"missing or failed: $listed"
+          fi
+          printf '%s\n\nconclusion: %s\n' "$summary" "$conclusion" | tee -a "$GITHUB_STEP_SUMMARY"
+          gh api --method POST "repos/$GITHUB_REPOSITORY/check-runs" \
+            -f name=CI -f head_sha="$sha" -f status=completed -f conclusion="$conclusion" -f details_url="$run_url" \
+            -f "output[title]=CI $conclusion for $REF" -f "output[summary]=$summary" --jq '.html_url'
