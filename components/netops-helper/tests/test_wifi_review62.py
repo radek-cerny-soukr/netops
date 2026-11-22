@@ -143,8 +143,8 @@ def test_documentation_review_contracts_and_whitespace():
         assert '15-read' in text
     assert 'helper.fortios_rest_port is invalid' in guide
     assert '48 000 bytes' in guide and 'history_offset' in guide and 'source_sha256' in guide
-    assert '`netops-test-ro` reading `show system api-user netops-test-api-ro`' in guide
-    assert 'netops-20261109-53' in guide and 'cleanup' in guide
+    assert 'returned neither the selected API-user entry nor its profile binding' in guide
+    assert 'provisioning login, token creator and cleanup of the' in guide
     assert 'All-read is the measured baseline' not in guide and '`authgrp read`' in guide
     assert 'verify `fortios_rest_port` equals the effective `admin-sport`' in guide
     dns = guide.split('openssl s_client -connect fg.example.net:443')[0].rsplit('```sh', 1)[1]
