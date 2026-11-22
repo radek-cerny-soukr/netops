@@ -57,19 +57,11 @@ subtype; otherwise `invalid_response` is reported. No free-form filter is accept
 This is the administrator's checklist for optional **Helper Wi-Fi REST** access.
 The setup blocks below change FortiGate or NetOps configuration; execute them only
 as an authorized administrator. Readback and MCP verification use only reads.
-Separate measurements have separate provenance. The earlier authorized laboratory
-provisioning and permission-isolation task on 2026-11-09 created profile
-`netops-t53-min` and exercised token generation and seven GETs; its supplied
-measurement record identifies task netops-20261109-53, but does not identify the
-provisioning login, token creator or cleanup of its temporary API user. Those
-lifecycle details remain unverified; this guide does not claim the test account
-was removed. A later readback on 2026-11-09 found `netops-t53-min` absent;
-that verifies profile removal, not the unspecified temporary API-user/token
-lifecycle. The retained all-read runtime account is a separate identity.
-The documentation readback on 2026-11-09, including the later explicit
-`netops-test-ro` visibility check, made no device changes, generated no keys and
-triggered no HA failover. The password prompt observation comes from earlier
-provisioning, not that readback.
+On 2026-11-09, authorized provisioning created a temporary API profile, generated a token and exercised seven GETs.
+A later readback confirmed the profile had been removed. The provisioning login, token creator and cleanup of the
+temporary API user and token remain unverified. The retained all-read runtime account is separate. The documentation
+readback used a read-only account and made no configuration changes, generated no keys and triggered no HA failover.
+The password prompt was observed during provisioning.
 
 Example values are placeholders: `192.0.2.1` is the enrolled FortiGate/cluster
 address, `192.0.2.10` is the NetOps source **as seen by FortiGate after NAT**, and
@@ -169,8 +161,8 @@ Never substitute a secret into a command shown here.
   active-passive pair reported both members `in-sync` via `get system ha status`.
   FGCP normally replicates configuration; this is the basis for expecting the
   API user and its stored key to follow the primary, **not a measured proof of
-  token replication or failover**. The explicit 2026-11-09 check as `netops-test-ro` did not expose the
-  protected API-user entry; the secondary's entry/key was not inspected, and no failover was forced.
+  token replication or failover**. The read-only check on 2026-11-09 returned no API-user entry.
+  The secondary’s entry and key were not inspected, and no failover was forced.
   An administrator with an authorized session to the secondary through the
   primary should compare the selected API user's profile, VDOM and trusthosts
   without exposing `api-key`/ENC values. Do not generate a new key on each member.
@@ -263,12 +255,10 @@ Never substitute a secret into a command shown here.
   explains bearer tokens, trusted hosts, PKI and optional token expiry.
 
 - [ ] **Verify safe readback as the provisioning administrator.** These commands
-  select the intended entry and suppress its encrypted key. On 2026-11-09,
-  `netops-test-ro` reading `show system api-user netops-test-api-ro` returned no
-  API-user entry or profile binding (SSH completed successfully). Earlier
-  readbacks made through the device's provisioning login are not evidence of
-  RO visibility. Visibility depends on the login/profile; an empty RO readback
-  does not establish deletion or an invalid token.
+  select the intended entry and suppress its encrypted key. On 2026-11-09, an SSH read from the read-only check
+  account completed successfully and returned neither the selected API-user entry nor its profile binding. Earlier
+  provisioning reads used a different login. An empty readback from the read-only account leaves the user’s
+  existence and the token’s validity unverified.
 
   ```text
   show system accprofile "netops-api-ro"

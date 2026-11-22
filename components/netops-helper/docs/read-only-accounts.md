@@ -381,8 +381,8 @@ firmware or a live MCP read. No console/output setting is changed.
 
 ### FortiGate-local normalized tables (2026-11-10)
 
-On FortiGate 80F, FortiOS 8.0.2 build0251, HA primary, `netops-test-ro`
-accepted the existing read-only queries below without any account or console change:
+On the FortiGate 80F HA primary with FortiOS 8.0.2 build0251, the read-only account accepted the existing
+queries below. The account and console settings were unchanged.
 
 | Table without `managed_switch` | Enable query | Device command and observed result |
 |---|---|---|

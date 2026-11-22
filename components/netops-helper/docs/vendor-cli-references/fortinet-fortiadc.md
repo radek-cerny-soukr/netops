@@ -141,7 +141,7 @@ not ssh_read queries. Each executes the corresponding fixed show command.
 Object names use the Helper's existing 1–35 character FortiADC object grammar.
 The returned configuration is section-only, with unknown fields reported rather
 than exposed. Live captures exist only for `show full-configuration` of virtual-server, pool,
-schedule-pool and schedule-group on FortiADC-KVM 7.6.7 build0676 (VM220, 2026-11-14, task 173). The other
+schedule-pool and schedule-group on FortiADC-KVM 7.6.7 build0676 (standalone VM, 2026-11-14). The other
 object views (health-check, WAF profile, certificate group and real-server), and
 the bare `show` forms (`include_defaults=false`), remain awaiting live qualification. The client-SSL-profile GET view is described below. The certificate-group view preserves member default selection,
 local certificate names and intermediate CA group references; it does not fetch
@@ -168,14 +168,14 @@ claim raw configuration faithfulness or fetch referenced certificate/key materia
 
 ## Deferred findings
 
-- HA state: the standalone output was measured on FortiADC 7.6.7 build 0676 (`Mode` and `State` Standalone, peer count 0, config sync N/A). In one active-passive pair of two FortiADC-KVM 7.6.7 build0676 VMs, `ha_status` was measured on 2026-11-02 on both nodes in their first roles (primary and secondary, peer count 1, in sync; reads from 08:09:05Z), after a forced failover (the first node secondary, the second primary, in sync; reads from 08:32:56Z) and after the return (first roles again; reads from 08:42:42Z). The traffic-group brief view returned no output in standalone mode and in the active-passive pair on both nodes and in both roles (see Environment findings, Traffic groups); the Administration Guide (p. 246) describes traffic groups for active-active-VRRP, and output there was not measured. Other HA modes remain unverified. Findings from setting up a pair are under [Environment findings](#environment-findings-ha-setup-on-fortiadc-vm-767).
+- HA state: the standalone output was measured on FortiADC 7.6.7 build 0676 (`Mode` and `State` Standalone, peer count 0, config sync N/A). In one active-passive pair of two FortiADC-KVM 7.6.7 build0676 VMs, `ha_status` was measured on 2026-11-02 on both nodes in their first roles (primary and secondary, peer count 1, in sync; reads from 08:09:05Z), after a forced failover (the first node secondary, the second primary, in sync; reads from 08:32:56Z) and after the return (first roles again; reads from 08:42:42Z). The traffic-group brief view returned no output in standalone mode and in the active-passive pair on both nodes and in both roles (see Environment findings, Traffic groups); the Administration Guide (p. 246) describes traffic groups for active-active-VRRP, and output there was not measured. Other HA modes remain unverified. Findings from setting up a pair are under [Environment findings](#environment-findings-ha-setup-on-fortiadc-kvm-767).
 - Further FortiADC queries (real-server configuration, statistics other than `slb_vs_stat` and the session tables) stay out until each command has measured output on a FortiADC and a reviewed contract.
 - A read-only administrator profile and its AAA behaviour on FortiADC: not verified.
 - FortiADC versions other than 7.6.7 (other maintenance releases and other major versions): not compared; the registry cites none of them.
 
 The three DoS queries accept only the enrolled `virtual_server` name with the existing `adc_virtual_servers` name constraint. Each query fixes its own `dos-access-limit`, `dos-conn-limit` or `dos-req-limit` choice; no `clean`, setter or raw CLI is exposed. They return the bounded CLI text without parsing or inventing a counter. A first observation on one virtual server ended at the prompt with echo/blank only: this is an empty response, not a zero block count and not installed Helper counter qualification. The 7.6.7 reference title and captured path identify the reviewed source; its HTML canonical link points to 8.0.4, which is a source limitation and does not qualify that version. Through the installed Helper with an `admin-bounded` account, the three queries on one virtual server without an attached DoS profile returned only `Total access alloc node = 0` and `Alloced num 0` followed by the 150-item display line; this is no block count. Block counts under an active DoS limit are not qualified.
 
-## Environment findings: HA setup on FortiADC-VM 7.6.7
+## Environment findings: HA setup on FortiADC-KVM 7.6.7
 
 NetOps does not configure FortiADC HA; the Helper only reads `ha_status` and the HA views of the table. These findings come from preparing an HA pair of two FortiADC-KVM 7.6.7 build0676 VMs on 2026-11-01 and 2026-11-02 with a separate tool, and they matter to anyone who builds such a pair before reading it with NetOps. They are one observation on one hypervisor and firmware.
 
@@ -230,7 +230,7 @@ Pools from those entries are `configured_candidate`; a pool named by `slb_vs_sta
 is separately `reported_by_vs_stat`. Missing entries/groups make the verdict
 incomplete. Candidate pool/member/backend-health reads are not run in this path.
 
-Measured captures (FortiADC-KVM 7.6.7 build0676, 2026-11-14, task 173) show why no active pool is claimed: the device hides the
+Measured captures (FortiADC-KVM 7.6.7 build0676, 2026-11-14) show why no active pool is claimed: the device hides the
 previously stored `load-balance-pool` when schedule-list is enabled, but its runtime
 statistics either name that stored pool or, when no pool is stored, print
 `no rs for this vs`, even while a schedule selects a different pool. A runtime pool outside a complete candidate

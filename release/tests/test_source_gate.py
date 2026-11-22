@@ -1,10 +1,122 @@
+import hashlib
 import importlib.util
 from pathlib import Path
+from tempfile import TemporaryDirectory
 import unittest
+from unittest import mock
 ROOT = Path(__file__).resolve().parents[2]
 spec = importlib.util.spec_from_file_location("source_gate", ROOT / "release/check_source.py")
 gate = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(gate)
+
+VM_FINDING = "lab identifier (vm number)"
+SYNTHETIC_HOST = "synthetic-lab-host"
+SYNTHETIC_DOMAIN = "synthetic.zone"
+
+def fingerprint(token):
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+def synthetic_fingerprints():
+    """A test copy of the fingerprint list with neutral tokens that name no real lab."""
+    return mock.patch.dict(gate.LAB_IDENTIFIER_FINGERPRINTS,
+                           {fingerprint(SYNTHETIC_HOST): "host name", fingerprint(SYNTHETIC_DOMAIN): "domain name"})
+
+class PublicLabIdentifiers(unittest.TestCase):
+    def scan_file(self, relative, text):
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(text, encoding="utf-8")
+            return gate.lab_identifier_errors(relative, path.read_text(encoding="utf-8"))
+
+    def assert_line_findings(self, value, kinds, relative="docs/example.md"):
+        findings = self.scan_file(relative, f"heading\n\nexample `{value}` in text\n")
+        self.assertEqual(findings, [f"{relative}:3: lab identifier ({kind})" for kind in kinds])
+        for finding in findings:
+            self.assertNotIn(value.lower(), finding.lower())
+
+    def test_general_lab_shapes_report_only_their_type_and_line(self):
+        cases = (
+            ("VM987", ("vm number",)), ("vm987", ("vm number",)), ("vm 987", ("vm number",)),
+            ("Vm_987", ("vm number",)), ("vM-987", ("vm number",)),
+            ("rpi" + "5-test", ("host name",)), ("RPI" + "4-log", ("host name",)),
+            ("192.168." + "1.9", ("internal address",)), ("10.255." + "1.9", ("internal address",)),
+            ("FGT" + "0AB0000001", ("serial number",)), ("fgt" + "0ab0000001", ("serial number",)),
+            ("netops-2026" + "1122-99", ("task reference",)),
+            ("netops-t" + "99-example", ("task reference",)), ("Task " + "471-r3", ("task reference",)),
+            ("task" + "-557", ("task reference",)), ("task #" + "105", ("task reference",)),
+            ("task-" + "evidence/report.json", ("evidence path",)),
+            ("VM987 at 192.168." + "1.9", ("vm number", "internal address")),
+        )
+        for value, kinds in cases:
+            with self.subTest(value=value):
+                self.assert_line_findings(value, kinds)
+
+    def test_fingerprinted_lab_names_match_whole_tokens_and_their_parts(self):
+        with synthetic_fingerprints():
+            for value, kinds in (
+                (SYNTHETIC_HOST, ("host name",)),
+                (SYNTHETIC_HOST.upper(), ("host name",)),
+                (SYNTHETIC_HOST + "-wsl", ("host name",)),
+                ("node." + SYNTHETIC_HOST + ".", ("host name",)),
+                ("nas." + SYNTHETIC_DOMAIN, ("domain name",)),
+                (SYNTHETIC_HOST + "." + SYNTHETIC_DOMAIN, ("host name", "domain name")),
+            ):
+                with self.subTest(value=value):
+                    self.assert_line_findings(value, kinds)
+            for value in ("x" + SYNTHETIC_HOST, SYNTHETIC_HOST + "x", SYNTHETIC_HOST + "_extra",
+                          "synthetic lab host", "synthetic.zones"):
+                with self.subTest(value=value):
+                    self.assertEqual(self.scan_file("docs/example.md", value), [])
+
+    def test_escaped_identifiers_keep_their_line_number(self):
+        escaped = chr(92) + "u0056M987"
+        with synthetic_fingerprints():
+            host = SYNTHETIC_HOST.replace("h", chr(92) + "x68")
+            self.assertEqual(self.scan_file("docs/example.json", '{\n  "a": "' + escaped + '",\n  "b": "' + host + '"\n}\n'),
+                             ["docs/example.json:2: " + VM_FINDING, "docs/example.json:3: lab identifier (host name)"])
+
+    def test_fingerprint_list_holds_only_digests_of_known_types(self):
+        self.assertTrue(gate.LAB_IDENTIFIER_FINGERPRINTS)
+        for digest, kind in gate.LAB_IDENTIFIER_FINGERPRINTS.items():
+            with self.subTest(digest=digest):
+                self.assertRegex(digest, r"^[0-9a-f]{64}$")
+                self.assertIn(kind, {"host name", "lab name", "domain name", "device name", "account name"})
+
+    def test_public_markdown_and_docs_json_are_in_scope(self):
+        for relative in ("README.md", "CHANGELOG.md", "release/notes-1.0.9.md", "docs/example.md",
+                         "docs/tests/guide.md", "docs/tests/example.json", "docs/fixtures/nested/example.json",
+                         "fixtures/example.md", "components/netops-core/docs/guide.md",
+                         "components/x/docs/a.json", "components/x/docs/tests/nested/a.json",
+                         "docs/example.json", "docs/nested/example.json"):
+            with self.subTest(relative=relative):
+                self.assertEqual(self.scan_file(relative, '{\n  "device": "VM987"\n}\n'),
+                                 [f"{relative}:2: {VM_FINDING}"])
+
+    def test_product_names_models_and_documentation_addresses_are_allowed(self):
+        text = ("FG-60F, FortiGate-80F, FortiADC-KVM 7.6.7, X440-G2, 192.0.2.10, 2001:db8::1, VMware\n"
+                "XVM987, VM9870, IOSv, IOL-L2 XE 17.18.2, netops-api-ro\n"
+                "RPi5 (Raspberry Pi OS 64-bit), Raspberry Pi 5, RPi4, a task list, task 1, the tasks\n")
+        self.assertEqual(self.scan_file("docs/example.md", text), [])
+
+    def test_model_abbreviation_passes_the_privacy_check(self):
+        rules = gate.legacy(ROOT)
+        for text in ("RPi5 (Raspberry Pi OS 64-bit)", "Raspberry Pi 5 with 8 GB RAM"):
+            with self.subTest(text=text):
+                self.assertEqual(gate.privacy_text(rules, "README.md", text), [])
+
+    def test_tests_fixtures_and_code_are_out_of_scope(self):
+        for relative in ("tests/README.md", "tests/unit/fixtures/example.md", "release/tests/example.md",
+                         "release/tests/fixtures/example.md", "components/netops-core/tests/example.md",
+                         "components/netops-core/tests/fixtures/example.md", "docs/example.py",
+                         "release/example.json", "components/x/example.json"):
+            with self.subTest(relative=relative):
+                self.assertEqual(self.scan_file(relative, '"VM987"\n'), [])
+
+    def test_ip_prefixes_inside_addresses_are_allowed(self):
+        for address in ("7." + "10.255.1", "7." + "192.168.1", "110.255." + "1.2", "1192.168." + "1.2"):
+            with self.subTest(address=address):
+                self.assertEqual(self.scan_file("docs/example.md", address), [])
 
 class Privacy(unittest.TestCase):
     def setUp(self):
@@ -390,6 +502,35 @@ class SharedProductBoundaries(unittest.TestCase):
         subprocess.run(["git","init","-q",str(self.root)],check=True,capture_output=True)
         subprocess.run(["git","-C",str(self.root),"add","."],check=True,capture_output=True)
         self.assertEqual(gate.check(self.root),[])
+
+    def test_tracked_public_docs_block_the_source_gate(self):
+        import subprocess
+
+        relative = "release/notes-1.0.9.md"
+        path = self.root / relative
+        path.parent.mkdir()
+        path.write_text("# Release note\nVerified VM987.\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(self.root), "add", relative], check=True, capture_output=True)
+        self.assertEqual(gate.check(self.root), [f"{relative}:2: {VM_FINDING}"])
+
+    def test_only_root_task_artifacts_are_excluded_from_the_lab_identifier_check(self):
+        import subprocess
+
+        public = ("docs/TASK.md", "docs/RESULT.md", "docs/ref/review.md")
+        for relative in ("TASK.md", "RESULT.md", "ref/review.md", "ref/nested/result.md", *public):
+            path = self.root / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("Verified vm987.\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(self.root), "add", "."], check=True, capture_output=True)
+        self.assertEqual(gate.check(self.root), [f"{relative}:1: {VM_FINDING}" for relative in sorted(public)])
+
+    def test_task_artifacts_keep_the_other_source_checks(self):
+        import subprocess
+
+        (self.root / "ref").mkdir(exist_ok=True)
+        (self.root / "ref/invalid.md").write_bytes(b"\xff")
+        subprocess.run(["git", "-C", str(self.root), "add", "."], check=True, capture_output=True)
+        self.assertIn("unreadable tracked text: ref/invalid.md", gate.check(self.root))
 
     def test_single_version_mismatch_blocks_the_source(self):
         p=self.root/"src/netops/__init__.py"

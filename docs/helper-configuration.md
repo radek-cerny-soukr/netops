@@ -148,7 +148,7 @@ Each category holds at most 256 unique, non-empty strings (`schema_paths`: 4096)
 | `schema_paths` | up to 32 words separated by single spaces, each word of letters, digits and `_ . + -` starting with a letter or digit | `schema_read` (FortiOS with `system_status` enabled) |
 | `diagnostic_recipes` | `ping`, `traceroute`, `sniffer`, `sessions`, `flow`, `logs`, `nslookup`, `http_probe`, `health_check_verify`, `system_event_logs`, `waf_attack_logs`, `health_check_event_logs`, `admin_event_logs`, `configuration_event_logs`, `slb_http_traffic_logs`, `slb_layer4_traffic_logs`, `session_list`, `persistence_list`, `disk_usage`, `ntp_status` or `packet_capture` | `fortios_diagnostics` (FortiOS or FortiADC with `system_status` enabled; a FortiOS target accepts `ping`, `traceroute`, `sniffer`, `sessions`, `flow` and `logs`, a FortiADC target every other value and `ping` and `traceroute`; any other recipe fails the inventory; see [Helper tools](../components/netops-helper/docs/tools.md)) |
 | `diagnostic_names` | a lowercase DNS name of at least two labels without a trailing dot, the last label starting with a letter | `fortios_diagnostics` `nslookup` (FortiADC) and FortiOS `ping` / `traceroute` targets; an explicit FortiOS `source_address` applies to IPv4 and DNS-name targets |
-| `diagnostic_http_endpoints` | `http://`, a canonical unicast IPv4 address, `:port` only when the port is not 80, and a path of `/`-separated segments of letters, digits and `_ . ~ -` not starting with `.`; no query, fragment or credentials; at most 128 characters | `fortios_diagnostics` `http_probe` (FortiADC) |
+| `diagnostic_http_endpoints` | `http://`, a canonical unicast IPv4 address, `:port` only when the port is not 80, and a path of `/`-separated segments of letters, digits and `_ . ~ -` not starting with `.`; no query, fragment or credentials; at most 128 characters | `fortios_diagnostics` `http_probe` (FortiADC); a diagnostic request that the FortiADC appliance sends to an explicitly enrolled service under test, not a NetOps transport (the NetOps MCP endpoint is HTTPS only) |
 | `adc_health_checks` | letters, digits and `_ . -`, starting with a letter or digit, at most 35 characters | `fortios_diagnostics` `health_check_verify` (FortiADC) |
 | `diagnostic_vdoms` | VDOM names: a letter or digit followed by up to 30 letters, digits, `_`, `.` or `-` | explicit `vdom` of `fortios_diagnostics` (FortiOS; a FortiADC target refuses a selector) |
 | `adc_vdoms` | letters, digits and `_ . -`, starting with a letter or digit, at most 35 characters | 3 FortiADC queries (`slb_vs_stat`, `slb_vs_overview`, `slb_rs_stat`) |
@@ -314,15 +314,15 @@ The existing capture limits, snapshot lifetime, paging, literal filters and
 session redaction guard also apply.
 
 **Device rights.** Enrollment does not grant permission to read configuration.
-Cisco privilege-1 accounts (measured on the virtual IOSv 15.9(3)M12 and IOL XE 17.18.2, tasks 178 and 191,
+Cisco privilege-1 accounts (measured on the virtual IOSv 15.9(3)M12 and IOL XE 17.18.2,
 2026-11-14) can answer `show running-config` with
 `Line has invalid autocommand` and exit status 0; this is `device-refused`, not an
 empty snapshot. Use independently reviewed command authorization for the fixed
 read; numeric privilege alone is insufficient. On the measured cEOS 4.36.1F, privilege
 15 together with `aaa authorization exec default local` was needed for `show running-config`
-(without it the account stayed at privilege 1; tasks 178 and 191, 2026-11-14); that privilege can also allow writes,
+(without it the account stayed at privilege 1; 2026-11-14); that privilege can also allow writes,
 so it must not be presented as proof of a read-only account. EXOS read-only
-accounts refused `show configuration` (X440G2-12p-10G4 33.7.1.6-patch1-11, task 191, 2026-11-14);
+accounts refused `show configuration` (X440G2-12p-10G4 33.7.1.6-patch1-11, 2026-11-14);
 the Helper returns `device-refused`. A Junos account in the built-in `read-only` class
 (`netops-ro` on vJunos-switch 26.2R1.7) receives `/* ACCESS-DENIED */` lines instead of
 the configuration; the Helper returns `device-refused` without a snapshot. The Junos
@@ -391,13 +391,13 @@ status and checksum, NTP, autoupdate versions) run in a verified `config global`
 context and are labelled `data_scope: device`; an account that may not enter
 `config global` leaves them missing (`permission_denied`). Reading another VDOM
 than the session VDOM is not supported; the context reads were measured for the global `super_admin` and
-`super_admin_readonly` accounts on FortiGate-60F 7.6.8 build3744 (2026-11-14, tasks 172, 197 and 204).
+`super_admin_readonly` accounts on FortiGate-60F 7.6.8 build3744 (2026-11-14).
 
 **Per-VDOM administrator.** FortiOS gives an administrator whose account has `set vdom <one VDOM>` only that
 VDOM: it logs in only through an interface assigned to its VDOM (or the console), and global settings and other
 VDOMs are for a `super_admin` or global administrator only (Fortinet, FortiOS 8.0.2 Administration Guide,
 [General configurations, Create per-VDOM administrators](https://docs.fortinet.com/document/fortigate/8.0.2/administration-guide/32293/general-configurations)).
-Measured on FortiGate-60F 7.6.8 build3744 (task 197): such an account answers `config vdom` with
+Measured on FortiGate-60F 7.6.8 build3744: such an account answers `config vdom` with
 `Unknown action 0` (also with `cli-config`), its `get system status` names its own VDOM as `Current virtual domain`,
 and it reads per-VDOM commands directly after the login, where a global session answers `-61`; a login through an
 interface of another VDOM fails (`name_invalid`). Enroll the target with the address of an interface of that VDOM
@@ -416,7 +416,7 @@ as a whole with this code before any command is sent; without the join its rows 
 refused with `vdom_membership_unverified`. `triage_health` lists these steps in `missing` with that reason,
 `error_code` and `error`, and so does the `ha_checksum` step skipped after a refused `ha_status`. A VDOM not enrolled for the session stays `vdom_scope_required`. `fortios_diagnostics`,
 `config_read` and `triage_flow` keep their rules above. This path is covered by automated tests on the measured
-outputs and was verified live on the FortiGate-60F 7.6.8 build3744 on 2026-11-15 (task 222, source 7bec0b7, 112/112 checks passed): logged in through an interface of its VDOM, it read ARP, routing and IPsec of its own VDOM in its login context (`data_scope: vdom`, no `vdom_index`), identical to the CLI of the same account; reads beyond its VDOM returned `vdom_admin_global_scope_unavailable` and a request for another VDOM `vdom_scope_required`.
+outputs and was verified live on the FortiGate-60F 7.6.8 build3744 on 2026-11-15 (source 7bec0b7, 112/112 checks passed): logged in through an interface of its VDOM, it read ARP, routing and IPsec of its own VDOM in its login context (`data_scope: vdom`, no `vdom_index`), identical to the CLI of the same account; reads beyond its VDOM returned `vdom_admin_global_scope_unavailable` and a request for another VDOM `vdom_scope_required`.
 
 Responses identify `vdom_mode`, `vdom`, and, when verified, `vdom_index` and
 `data_scope`: `vdom`, `device`, `all_vdoms` or `unverified`. Device-wide session
@@ -470,8 +470,10 @@ These rules cover the five probes only. The FortiADC log, session and persistenc
 and the log and state recipes set a temporary filter that is cleared and read back); see [Helper tools](../components/netops-helper/docs/tools.md).
 
 `http_probe` sends one plain HTTP request from the appliance to an endpoint listed exactly
-in `diagnostic_http_endpoints`; enroll only idempotent endpoints. The caller passes the
-enrolled endpoint as `address` and cannot add a method, header, body, credential or other
+in `diagnostic_http_endpoints`. It is a diagnostic request of the FortiADC appliance to an
+explicitly enrolled service under test, not a NetOps transport: NetOps itself is reached only
+through its single HTTPS MCP endpoint and does not support unencrypted HTTP. Enroll only
+idempotent endpoints. The caller passes the enrolled endpoint as `address` and cannot add a method, header, body, credential or other
 option. The appliance keeps global `execute curl-option` settings that apply to every
 `execute curl`, so before the request the Helper reads `execute curl-option view-settings`
 and refuses, without sending the request, unless the current `Header` and `Raw data` are
@@ -838,7 +840,7 @@ For a virtual server with `schedule-list enable`, `triage_slb` follows its
 `schedule-pool-list` (at most four entries) to `load-balance schedule-pool` and
 `system schedule-group` objects. It reports sourced `configured_candidate` pools
 and separately `reported_by_vs_stat` references, not the active pool. On the
-measured FortiADC-KVM 7.6.7 build0676 (VM220, 2026-11-14, task 173; product check task 198), runtime statistics either name a previously
+measured FortiADC-KVM 7.6.7 build0676 (standalone VM, 2026-11-14, with a later product check), runtime statistics either name a previously
 stored pool or, when no pool is stored, print `no rs for this vs`; this does not establish selection or
 backend health. Schedule groups preserve their `schedule-member` rows and fields;
 the tool does not calculate the active window from the device clock. It does not

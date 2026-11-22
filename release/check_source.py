@@ -35,6 +35,89 @@ def pinned_vendored_schema(relative, text):
 
 ESCAPE_SEQUENCE = re.compile(r"\\(?:x([0-9A-Fa-f]{2})|u([0-9A-Fa-f]{4})|U([0-9A-Fa-f]{8}))")
 
+# Administrator decision of 2026-11-22: keep lab identifiers out of public documentation.
+# General shapes stay readable rules; each is reported only by its type, never by pattern or line content.
+LAB_IDENTIFIER_PATTERNS = (
+    ("vm number", re.compile(r"\bVM[ _-]?[0-9]{3}\b", re.IGNORECASE)),
+    # a host name such as rpi<N>-<role>; the model abbreviation RPi5 on its own stays allowed
+    ("host name", re.compile(r"\brpi[0-9]+-[a-z]", re.IGNORECASE)),
+    ("internal address", re.compile(r"(?<![\d.])192\.168\.")),
+    ("internal address", re.compile(r"(?<![\d.])10\.255\.")),
+    ("serial number", re.compile(r"\bFGT[0-9A-Z]{10,}\b", re.IGNORECASE)),
+    ("task reference", re.compile(r"netops-20[0-9]{6}-")),
+    ("task reference", re.compile(r"\bnetops-t[0-9]+\b", re.IGNORECASE)),
+    ("task reference", re.compile(r"\btask[ _-]?#?[0-9]{2,}\b", re.IGNORECASE)),
+    ("evidence path", re.compile(r"task-evidence/", re.IGNORECASE)),
+)
+
+# Names of the maintainer's lab (hosts, devices, domain, test kit, temporary accounts and profiles) are kept
+# only as SHA-256 fingerprints of the lowercase token, so this public gate does not publish them itself.
+LAB_IDENTIFIER_FINGERPRINTS = {
+    "3a321923989772675264c7b12ac8dd102af59e2829f019c73f3d5d98a7c1fbf3": "host name",
+    "13015d079f0842c20f910818ba42801d6c22f60fd06491cda807174d179d2e48": "host name",
+    "df96faf3f0903da7e99986a2b13813b289d79f9a07b982a2ec846d943751bdd1": "host name",
+    "378a4a3f2c2380c72ab7c90671c43d018955185c2acc1a6cc0844c943672c936": "host name",
+    "172421c1c87292bc98a8a17ea4e4ad631e6df65c5e2a7c7da3f306a714bf0d29": "host name",
+    "a4ee1eef94d828af0d1beb34de5a3731e5b057596d04a9ee106fed3a025c2507": "lab name",
+    "ee641363d4dc946df7a620f6b4ee237b8c81e6b699a74dd7dd1c8de5edc2f470": "lab name",
+    "b2e2af04179af933c71f903ec20acab578474a0d7b9dc6d3ac9dfecfb5a21f25": "domain name",
+    "a3053e5e355c09213744b410db1fe0173f0dea2fa1d94d8486e5c396514771a8": "device name",
+    "9ff1baad71a3b50caff4ca0b9cf8ab6db94144a3b9f65e76bcc51d3b1adc98bb": "device name",
+    "3d819eaa0398212d59d5ac1f429571c50c6ad2c22d3480efa474319cf942db37": "device name",
+    "9a45c68e83e05380986c2a4a53ff3039e80e7f8c04bee61437aaa9387191975c": "device name",
+    "ba13f1eddf678ecb447e471d30cddf1ddb34c293bcd6b38f3410049e59221bd6": "device name",
+    "b6aae1020fee3b322ddedc901e402e160af33fc327d588e58a6d600710124392": "device name",
+    "7a7398ea50e105e78d264eb35e934e72743ad791b48f8e1e043bf4bc0801c16e": "device name",
+    "f112f6027d1604855e8a16300b7b90eae9feb8f8f0e17258249d89669cb9b226": "device name",
+    "06c99cb7954912952fa6153383dffedd6090b3a39a49370d9fb669ac153bedf5": "account name",
+    "79390ec03b017d01508f21ba70022b3b54c6a7a06a8858ba070c13e8268bf744": "account name",
+    "d0dd14c00677d357b3827220be2041f39dd5cdad44252bb89b01b7368393184d": "account name",
+    "28041b42f958646fcf60b0164a42953fd5bf7d740d202c20bf0c12af1ec60806": "account name",
+}
+
+LAB_TOKEN = re.compile(r"[\w.-]+")
+LAB_TOKEN_SEPARATOR = re.compile(r"([.-])")
+
+def lab_token_candidates(line):
+    """Lowercase words of a line (letters, digits, `_`, `-`, `.`) and every run of their `-`/`.` separated parts."""
+    for token in LAB_TOKEN.findall(line.lower()):
+        pieces = LAB_TOKEN_SEPARATOR.split(token)
+        for first in range(0, len(pieces), 2):
+            for last in range(first, len(pieces), 2):
+                candidate = "".join(pieces[first:last + 1])
+                if candidate:
+                    yield candidate
+
+def lab_identifier_types(line):
+    types = [kind for kind, pattern in LAB_IDENTIFIER_PATTERNS if pattern.search(line)]
+    types += [LAB_IDENTIFIER_FINGERPRINTS.get(hashlib.sha256(candidate.encode("utf-8")).hexdigest())
+              for candidate in lab_token_candidates(line)]
+    return [kind for kind in dict.fromkeys(types) if kind]
+
+def lab_identifier_errors(relative, text):
+    if relative in {"TASK.md", "RESULT.md"} or relative.startswith("ref/"):
+        return []
+    path = Path(relative)
+    directories = path.parts[:-1]
+    component_dirs = directories[2:] if directories[:1] == ("components",) else ()
+    if (directories[:1] == ("tests",) or directories[:2] == ("release", "tests")
+            or component_dirs[:1] == ("tests",)):
+        return []
+    suffix = path.suffix.lower()
+    is_docs = directories[:1] == ("docs",) or component_dirs[:1] == ("docs",)
+    if suffix != ".md" and (suffix != ".json" or not is_docs):
+        return []
+    errors = []
+    for number, line in enumerate(text.splitlines(), 1):
+        variants = [line]
+        try:
+            variants.append(decode_text_escapes(line))
+        except ValueError:
+            pass  # privacy_text already reports the unusable escape for this file
+        types = dict.fromkeys(kind for variant in variants for kind in lab_identifier_types(variant))
+        errors += [f"{relative}:{number}: lab identifier ({kind})" for kind in types]
+    return errors
+
 def decode_text_escapes(text):
     for _ in range(8):
         decoded = ESCAPE_SEQUENCE.sub(
@@ -59,6 +142,7 @@ def decoded_json_strings(value):
 
 def privacy_text_once(rules, relative, text, domains=True):
     checked = re.sub(r"(?i)\braspberry\s+pi\s+os(?:\s+64)?\b", "Supported ARM operating system", text)
+    checked = re.sub(r"(?i)\braspberry\s+pi\s+[0-9]+\b", "Supported ARM board model", checked)
     errors = []
     if any(marker.search(relative) for marker in rules.PRIVATE_MARKERS):
         errors.append("private marker in path: " + relative)
@@ -197,6 +281,7 @@ def check(root, release=False):
             if chr(0) in text:
                 errors.append("NUL in text: " + relative)
             errors.extend(privacy_text(rules, relative, text))
+            errors.extend(lab_identifier_errors(relative, text))
         except (OSError, UnicodeError):
             errors.append("unreadable tracked text: " + relative)
     project = tomllib.loads((root / "pyproject.toml").read_text())["project"]
