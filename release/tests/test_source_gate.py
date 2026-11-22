@@ -787,20 +787,27 @@ class CandidateBranchTriggers(unittest.TestCase):
         self.version = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]["version"]
         self.texts = {name: (ROOT / ".github/workflows" / name).read_text(encoding="utf-8")
                       for name in ("ci.yml", "candidate.yml", "codeql.yml")}
-    def test_current_workflows_name_the_same_candidate_branch(self):
+    def test_current_workflow_triggers(self):
         self.assertEqual(gate.workflow_branch_errors(self.texts, self.version), [])
     def test_wildcard_or_stale_candidate_branch_is_refused(self):
         branch = "release/" + self.version + "-candidate"
-        for name, new in (("ci.yml", "release/*-candidate"), ("candidate.yml", "release/0.9.9-candidate"),
-                          ("codeql.yml", "release/0.9.9-candidate")):
-            with self.subTest(name=name, new=new):
-                self.assertIn(branch, self.texts[name])
-                texts = dict(self.texts, **{name: self.texts[name].replace(branch, new)})
-                self.assertTrue(gate.workflow_branch_errors(texts, self.version))
-    def test_workflow_without_candidate_branch_is_refused(self):
-        branch = "release/" + self.version + "-candidate"
-        texts = dict(self.texts, **{"ci.yml": self.texts["ci.yml"].replace(branch, "main")})
-        self.assertTrue(gate.workflow_branch_errors(texts, self.version))
+        for name in ("candidate.yml", "codeql.yml"):
+            for replacement in ("release/*-candidate", "release/0.9.9-candidate", "main"):
+                with self.subTest(name=name, replacement=replacement):
+                    self.assertIn(branch, self.texts[name])
+                    texts = dict(self.texts, **{name: self.texts[name].replace(branch, replacement)})
+                    errors = gate.workflow_branch_errors(texts, self.version)
+                    self.assertTrue(any(error.startswith(name + " ") for error in errors))
+    def test_ci_must_include_every_branch(self):
+        branches = '    branches:\n      - "**"\n'
+        for replacement in ('    branches-ignore:\n      - "release/*-candidate"\n',
+                            branches + '\n      - "!release/*-candidate"\n',
+                            '    branches:\n      - "main"\n', ""):
+            with self.subTest(replacement=replacement):
+                self.assertIn(branches, self.texts["ci.yml"])
+                texts = dict(self.texts, **{"ci.yml": self.texts["ci.yml"].replace(branches, replacement)})
+                self.assertEqual(gate.workflow_branch_errors(texts, self.version),
+                                 ["ci.yml must run on pushes to all branches and tags"])
 
 if __name__ == "__main__":
     unittest.main()

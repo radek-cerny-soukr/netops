@@ -2,8 +2,8 @@ name: CI
 
 on:
   push:
-    branches-ignore:
-      - "release/1.0.12-candidate"
+    branches:
+      - "**"
     tags:
       - "**"
   pull_request:
