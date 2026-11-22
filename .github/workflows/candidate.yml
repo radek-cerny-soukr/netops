@@ -33,6 +33,34 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
+      - name: Describe the runner
+        shell: bash
+        run: |
+          export LC_ALL=C
+          arch=$(uname -m || true)
+          cores=$(nproc || true)
+          cpu_info=$(lscpu 2>/dev/null || true)
+          model=$(awk -F ': *' '$1 == "Model name" { print $2; exit }' <<< "$cpu_info" || true)
+          if [[ -z "$model" && -r /proc/cpuinfo ]]; then
+            model=$(awk -F ': *' '$1 ~ /^(model name|Hardware)[[:space:]]*$/ { print $2; exit }' /proc/cpuinfo || true)
+          fi
+          mhz=$(awk -F ': *' '$1 == "CPU MHz" { print $2; exit }' <<< "$cpu_info" || true)
+          if [[ -z "$mhz" ]]; then
+            mhz=$(awk -F ': *' '$1 == "CPU max MHz" { print $2 " (max)"; exit }' <<< "$cpu_info" || true)
+          fi
+          ram=$(free -m | awk '$1 == "Mem:" { print $2 " MiB"; exit }' || true)
+          root_free=$(df -h --output=avail / | awk 'NR == 2 { print $1 }' || true)
+          temp_free=
+          if [[ -n "${RUNNER_TEMP:-}" ]]; then
+            temp_free=$(df -h --output=avail "$RUNNER_TEMP" | awk 'NR == 2 { print $1 }' || true)
+          fi
+          docker_version=$(docker --version 2>/dev/null || true)
+          summary="Runner: ${arch:-unknown} | CPU: ${model:-unknown} | nproc: ${cores:-unknown} | MHz: ${mhz:-unknown} | RAM: ${ram:-unknown} | Free /: ${root_free:-unknown} | Free RUNNER_TEMP: ${temp_free:-unknown} | Docker: ${docker_version:-unavailable}"
+          printf '%s\n' "$summary"
+          if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
+            printf '%s\n' "$summary" >> "$GITHUB_STEP_SUMMARY" || true
+          fi
+
       - name: Check out source
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -107,6 +135,34 @@ jobs:
       contents: read
       packages: write
     steps:
+      - name: Describe the runner
+        shell: bash
+        run: |
+          export LC_ALL=C
+          arch=$(uname -m || true)
+          cores=$(nproc || true)
+          cpu_info=$(lscpu 2>/dev/null || true)
+          model=$(awk -F ': *' '$1 == "Model name" { print $2; exit }' <<< "$cpu_info" || true)
+          if [[ -z "$model" && -r /proc/cpuinfo ]]; then
+            model=$(awk -F ': *' '$1 ~ /^(model name|Hardware)[[:space:]]*$/ { print $2; exit }' /proc/cpuinfo || true)
+          fi
+          mhz=$(awk -F ': *' '$1 == "CPU MHz" { print $2; exit }' <<< "$cpu_info" || true)
+          if [[ -z "$mhz" ]]; then
+            mhz=$(awk -F ': *' '$1 == "CPU max MHz" { print $2 " (max)"; exit }' <<< "$cpu_info" || true)
+          fi
+          ram=$(free -m | awk '$1 == "Mem:" { print $2 " MiB"; exit }' || true)
+          root_free=$(df -h --output=avail / | awk 'NR == 2 { print $1 }' || true)
+          temp_free=
+          if [[ -n "${RUNNER_TEMP:-}" ]]; then
+            temp_free=$(df -h --output=avail "$RUNNER_TEMP" | awk 'NR == 2 { print $1 }' || true)
+          fi
+          docker_version=$(docker --version 2>/dev/null || true)
+          summary="Runner: ${arch:-unknown} | CPU: ${model:-unknown} | nproc: ${cores:-unknown} | MHz: ${mhz:-unknown} | RAM: ${ram:-unknown} | Free /: ${root_free:-unknown} | Free RUNNER_TEMP: ${temp_free:-unknown} | Docker: ${docker_version:-unavailable}"
+          printf '%s\n' "$summary"
+          if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
+            printf '%s\n' "$summary" >> "$GITHUB_STEP_SUMMARY" || true
+          fi
+
       - name: Check out source
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -214,6 +270,34 @@ jobs:
       contents: read
       packages: write
     steps:
+      - name: Describe the runner
+        shell: bash
+        run: |
+          export LC_ALL=C
+          arch=$(uname -m || true)
+          cores=$(nproc || true)
+          cpu_info=$(lscpu 2>/dev/null || true)
+          model=$(awk -F ': *' '$1 == "Model name" { print $2; exit }' <<< "$cpu_info" || true)
+          if [[ -z "$model" && -r /proc/cpuinfo ]]; then
+            model=$(awk -F ': *' '$1 ~ /^(model name|Hardware)[[:space:]]*$/ { print $2; exit }' /proc/cpuinfo || true)
+          fi
+          mhz=$(awk -F ': *' '$1 == "CPU MHz" { print $2; exit }' <<< "$cpu_info" || true)
+          if [[ -z "$mhz" ]]; then
+            mhz=$(awk -F ': *' '$1 == "CPU max MHz" { print $2 " (max)"; exit }' <<< "$cpu_info" || true)
+          fi
+          ram=$(free -m | awk '$1 == "Mem:" { print $2 " MiB"; exit }' || true)
+          root_free=$(df -h --output=avail / | awk 'NR == 2 { print $1 }' || true)
+          temp_free=
+          if [[ -n "${RUNNER_TEMP:-}" ]]; then
+            temp_free=$(df -h --output=avail "$RUNNER_TEMP" | awk 'NR == 2 { print $1 }' || true)
+          fi
+          docker_version=$(docker --version 2>/dev/null || true)
+          summary="Runner: ${arch:-unknown} | CPU: ${model:-unknown} | nproc: ${cores:-unknown} | MHz: ${mhz:-unknown} | RAM: ${ram:-unknown} | Free /: ${root_free:-unknown} | Free RUNNER_TEMP: ${temp_free:-unknown} | Docker: ${docker_version:-unavailable}"
+          printf '%s\n' "$summary"
+          if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
+            printf '%s\n' "$summary" >> "$GITHUB_STEP_SUMMARY" || true
+          fi
+
       - name: Check out source
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -290,6 +374,34 @@ jobs:
       INDEX_DIGEST: ${{ needs.index.outputs.index_digest }}
       ARCH: ${{ matrix.arch }}
     steps:
+      - name: Describe the runner
+        shell: bash
+        run: |
+          export LC_ALL=C
+          arch=$(uname -m || true)
+          cores=$(nproc || true)
+          cpu_info=$(lscpu 2>/dev/null || true)
+          model=$(awk -F ': *' '$1 == "Model name" { print $2; exit }' <<< "$cpu_info" || true)
+          if [[ -z "$model" && -r /proc/cpuinfo ]]; then
+            model=$(awk -F ': *' '$1 ~ /^(model name|Hardware)[[:space:]]*$/ { print $2; exit }' /proc/cpuinfo || true)
+          fi
+          mhz=$(awk -F ': *' '$1 == "CPU MHz" { print $2; exit }' <<< "$cpu_info" || true)
+          if [[ -z "$mhz" ]]; then
+            mhz=$(awk -F ': *' '$1 == "CPU max MHz" { print $2 " (max)"; exit }' <<< "$cpu_info" || true)
+          fi
+          ram=$(free -m | awk '$1 == "Mem:" { print $2 " MiB"; exit }' || true)
+          root_free=$(df -h --output=avail / | awk 'NR == 2 { print $1 }' || true)
+          temp_free=
+          if [[ -n "${RUNNER_TEMP:-}" ]]; then
+            temp_free=$(df -h --output=avail "$RUNNER_TEMP" | awk 'NR == 2 { print $1 }' || true)
+          fi
+          docker_version=$(docker --version 2>/dev/null || true)
+          summary="Runner: ${arch:-unknown} | CPU: ${model:-unknown} | nproc: ${cores:-unknown} | MHz: ${mhz:-unknown} | RAM: ${ram:-unknown} | Free /: ${root_free:-unknown} | Free RUNNER_TEMP: ${temp_free:-unknown} | Docker: ${docker_version:-unavailable}"
+          printf '%s\n' "$summary"
+          if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
+            printf '%s\n' "$summary" >> "$GITHUB_STEP_SUMMARY" || true
+          fi
+
       - name: Check out source
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -409,6 +521,34 @@ jobs:
       ARCH: ${{ matrix.arch }}
       ROLE: ${{ matrix.role }}
     steps:
+      - name: Describe the runner
+        shell: bash
+        run: |
+          export LC_ALL=C
+          arch=$(uname -m || true)
+          cores=$(nproc || true)
+          cpu_info=$(lscpu 2>/dev/null || true)
+          model=$(awk -F ': *' '$1 == "Model name" { print $2; exit }' <<< "$cpu_info" || true)
+          if [[ -z "$model" && -r /proc/cpuinfo ]]; then
+            model=$(awk -F ': *' '$1 ~ /^(model name|Hardware)[[:space:]]*$/ { print $2; exit }' /proc/cpuinfo || true)
+          fi
+          mhz=$(awk -F ': *' '$1 == "CPU MHz" { print $2; exit }' <<< "$cpu_info" || true)
+          if [[ -z "$mhz" ]]; then
+            mhz=$(awk -F ': *' '$1 == "CPU max MHz" { print $2 " (max)"; exit }' <<< "$cpu_info" || true)
+          fi
+          ram=$(free -m | awk '$1 == "Mem:" { print $2 " MiB"; exit }' || true)
+          root_free=$(df -h --output=avail / | awk 'NR == 2 { print $1 }' || true)
+          temp_free=
+          if [[ -n "${RUNNER_TEMP:-}" ]]; then
+            temp_free=$(df -h --output=avail "$RUNNER_TEMP" | awk 'NR == 2 { print $1 }' || true)
+          fi
+          docker_version=$(docker --version 2>/dev/null || true)
+          summary="Runner: ${arch:-unknown} | CPU: ${model:-unknown} | nproc: ${cores:-unknown} | MHz: ${mhz:-unknown} | RAM: ${ram:-unknown} | Free /: ${root_free:-unknown} | Free RUNNER_TEMP: ${temp_free:-unknown} | Docker: ${docker_version:-unavailable}"
+          printf '%s\n' "$summary"
+          if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
+            printf '%s\n' "$summary" >> "$GITHUB_STEP_SUMMARY" || true
+          fi
+
       - name: Check out source
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:

@@ -259,9 +259,15 @@ CANDIDATE_BRANCH = re.compile(r"release/[^\s\"']*-candidate")
 
 def workflow_branch_errors(texts, version):
     expected = "release/" + version + "-candidate"
-    return [name + " names candidate branch " + found + ", not " + expected
-            for name, text in sorted(texts.items())
-            for found in sorted(set(CANDIDATE_BRANCH.findall(text)) or {"(none)"}) if found != expected]
+    push = re.search(r"^on:\n  push:\n(.*?)(?=^ {0,2}\w|\Z)", texts["ci.yml"], re.MULTILINE | re.DOTALL)
+    errors = []
+    if push is None or push[1] != '    branches:\n      - "**"\n    tags:\n      - "**"\n':
+        errors.append("ci.yml must run on pushes to all branches and tags")
+    for name in ("candidate.yml", "codeql.yml"):
+        for found in sorted(set(CANDIDATE_BRANCH.findall(texts[name])) or {"(none)"}):
+            if found != expected:
+                errors.append(name + " names candidate branch " + found + ", not " + expected)
+    return errors
 
 def check(root, release=False):
     rules = legacy(root)

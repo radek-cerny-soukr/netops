@@ -440,7 +440,7 @@ class ManualRun(unittest.TestCase):
         text = workflow_text()
         self.assertIn("  workflow_dispatch:\n    inputs:\n      ref:\n        description: Tag or commit SHA to test\n"
                       "        required: true\n        type: string\n", text)
-        self.assertIn("  push:\n    branches-ignore:\n", text)
+        self.assertIn('  push:\n    branches:\n      - "**"\n    tags:\n      - "**"\n', text)
         self.assertIn("  pull_request:\n", text)
 
     def test_every_job_checks_out_ref_and_the_unit_jobs_take_the_ci_tools_of_this_revision(self):
