@@ -343,6 +343,7 @@ class BuildInputs(unittest.TestCase):
                 self.assertNotIn("netops-ca", line)
 
     def test_wheel_is_built_with_the_commit_time_as_source_date_epoch(self):
+        import re
         lines = (ROOT / "Dockerfile").read_text().splitlines()
         builder = lines.index("FROM base AS builder")
         runtime = lines.index("FROM base AS runtime")
@@ -353,12 +354,23 @@ class BuildInputs(unittest.TestCase):
         self.assertTrue(stage[guard].startswith('RUN case "$SOURCE_DATE_EPOCH" in ""|*[!0-9]*) '))
         self.assertIn("exit 1;; esac", stage[guard])
         commit_time = '--build-arg SOURCE_DATE_EPOCH="$(git log -1 --format=%ct)"'
-        for workflow, build in (("candidate.yml", "docker buildx build "), ("ci.yml", "docker build ")):
+        # candidate.yml builds the product once; ci.yml builds it once in every job that tests it
+        # (the unit shards and the engine roles run as parallel jobs on separate runners)
+        for workflow, build, jobs in (("candidate.yml", "docker buildx build ", ("build",)),
+                                      ("ci.yml", "docker build ", ("unit", "engine"))):
             with self.subTest(workflow=workflow):
                 text = (ROOT / ".github/workflows" / workflow).read_text().replace("\\\n", " ")
-                calls = [line for line in text.splitlines() if build in line and " -f " not in line]
-                self.assertEqual(len(calls), 1)
-                self.assertIn(commit_time, calls[0])
+                sections = re.split(r"(?m)^  ([a-z][a-z0-9_-]*):\n", text.split("\njobs:\n", 1)[1])[1:]
+                builders = {}
+                for job, body in zip(sections[::2], sections[1::2]):
+                    calls = [line for line in body.splitlines() if build in line and " -f " not in line]
+                    if calls:
+                        builders[job] = calls
+                self.assertEqual(sorted(builders), sorted(jobs))
+                for job, calls in builders.items():
+                    with self.subTest(job=job):
+                        self.assertEqual(len(calls), 1)
+                        self.assertIn(commit_time, calls[0])
 
 class SharedProductBoundaries(unittest.TestCase):
     def setUp(self):

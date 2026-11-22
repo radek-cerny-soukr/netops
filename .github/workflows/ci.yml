@@ -11,10 +11,16 @@ on:
 permissions:
   contents: read
 
+env:
+  # Number of installed unit test shards; the unit matrix below must list 1..UNIT_SHARDS
+  # (release/tests/test_unit_shards.py checks both).
+  UNIT_SHARDS: "3"
+
 jobs:
-  tests:
+  tooling:
     runs-on: ubuntu-24.04
-    timeout-minutes: 75
+    # preliminary: expected GitHub duration (no run of this job yet) 7.7 min x 1.5, rounded up
+    timeout-minutes: 12
     steps:
       - name: Check out source
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -38,17 +44,68 @@ jobs:
           mkdir -p test-logs
           python3 -B -m unittest discover -s tests -v 2>&1 | tee test-logs/root.log
 
+      - name: Check that the unit test shards cover every installed test
+        run: python3 -B release/unit_shards.py --shards "$UNIT_SHARDS" --check
+
       - name: Test the release and acceptance tooling
         env:
           NETOPS_SIGN_TEST_WORKERS: "2"
         run: |
           set -euo pipefail
-          mkdir -p test-logs
-          {
-          for test in release/tests/test_*.py release/acceptance/tests/test_*.py release/sign/tests/test_*.py; do
-            python -B "$test"
+          mkdir -p test-logs/tooling
+          status=0
+          printf "%s\0" release/sign/tests/test_*.py release/acceptance/tests/test_*.py release/tests/test_*.py \
+            | xargs -0 -n1 -P "$(nproc)" bash -c '
+              log="test-logs/tooling/${1//\//_}.log"
+              start=$SECONDS
+              python3 -u -B "$1" > "$log" 2>&1
+              code=$?
+              printf "[%s] exit=%s seconds=%s\n" "$1" "$code" "$((SECONDS - start))"
+              test "$code" -eq 0
+            ' _ || status=$?
+          for test in release/sign/tests/test_*.py release/acceptance/tests/test_*.py release/tests/test_*.py; do
+            printf "::group::%s\n" "$test"
+            sed "s|^|[$test] |" "test-logs/tooling/${test//\//_}.log"
+            printf "::endgroup::\n"
           done
-          } 2>&1 | tee test-logs/release.log
+          test "$status" -eq 0
+
+      - name: Keep complete tooling test logs
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ci-tooling-logs
+          path: |
+            test-logs/
+          if-no-files-found: warn
+          retention-days: 30
+
+  unit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: ${{ matrix.timeout }}
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+        # preliminary timeouts (no GitHub run of the shards yet): expected GitHub duration x 1.5, rounded up;
+        # shard 1 holds test_redaction_1_0_6_floor, a single test method of about 10 min on a fast machine
+        include:
+          - shard: 1
+            timeout: 40
+          - shard: 2
+            timeout: 8
+          - shard: 3
+            timeout: 9
+    steps:
+      - name: Check out source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Set up Python 3.14.10
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: 3.14.10
 
       - name: Build the native product image from locked dependencies
         run: |
@@ -56,21 +113,57 @@ jobs:
           docker build --pull --build-arg SOURCE_DATE_EPOCH="$(git log -1 --format=%ct)" --iidfile "$RUNNER_TEMP/netops-ci-unit.iid" -t "netops-ci-product:$GITHUB_SHA" .
           test "$(docker image inspect -f '{{.Id}}' "netops-ci-product:$GITHUB_SHA")" = "$(cat "$RUNNER_TEMP/netops-ci-unit.iid")"
 
-      - name: Run the installed product unit tests
+      - name: Run the image selftest
+        if: ${{ matrix.shard == 1 }}
         run: |
           set -euo pipefail
           ref="$(cat "$RUNNER_TEMP/netops-ci-unit.iid")"
           [[ "$ref" =~ ^sha256:[0-9a-f]{64}$ ]]
           mkdir -p test-logs
           docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges --user 51000:51000 "$ref" selftest 2>&1 | tee test-logs/selftest.log
-          docker run --rm --network none --read-only --tmpfs /tmp:rw,nosuid,nodev,noexec,size=64m --cap-drop ALL \
-            --security-opt no-new-privileges --user 51000:51000 --entrypoint python "$ref" -B -m unittest discover -s /opt/netops/tests -v 2>&1 | tee test-logs/unit.log
 
-      - name: Keep complete test logs and engine reports
+      - name: Run the installed product unit tests
+        env:
+          SHARD: ${{ matrix.shard }}
+        run: |
+          set -euo pipefail
+          ref="$(cat "$RUNNER_TEMP/netops-ci-unit.iid")"
+          [[ "$ref" =~ ^sha256:[0-9a-f]{64}$ ]]
+          export ref
+          mkdir -p test-logs/unit
+          # the modules listed from the source must be exactly the test modules in the image
+          installed="$(docker run -i --rm --network none --read-only --tmpfs /tmp:rw,nosuid,nodev,noexec,size=64m --cap-drop ALL \
+            --security-opt no-new-privileges --user 51000:51000 --workdir /opt/netops/tests --entrypoint python "$ref" \
+            -B - --tests /opt/netops/tests --list < release/unit_shards.py)"
+          test "$installed" = "$(python3 -B release/unit_shards.py --list)"
+          python3 -B release/unit_shards.py --shards "$UNIT_SHARDS" --shard "$SHARD" > "$RUNNER_TEMP/unit-modules"
+          test -s "$RUNNER_TEMP/unit-modules"
+          status=0
+          xargs -a "$RUNNER_TEMP/unit-modules" -n1 -P "$(nproc)" bash -c '
+            start=$SECONDS
+            docker run --rm --network none --read-only --tmpfs /tmp:rw,nosuid,nodev,noexec,size=64m --cap-drop ALL \
+              --security-opt no-new-privileges --user 51000:51000 --workdir /opt/netops/tests --entrypoint python "$ref" -B -m unittest -v "$1" \
+              > "test-logs/unit/$1.log" 2>&1
+            code=$?
+            printf "[%s] exit=%s seconds=%s\n" "$1" "$code" "$((SECONDS - start))"
+            test "$code" -eq 0
+          ' _ || status=$?
+          total=0
+          while read -r module; do
+            printf "::group::%s\n" "$module"
+            cat "test-logs/unit/$module.log"
+            printf "::endgroup::\n"
+            ran="$(sed -n 's/^Ran \([0-9][0-9]*\) tests\{0,1\} in .*/\1/p' "test-logs/unit/$module.log" | tail -n 1)"
+            total=$((total + ${ran:-0}))
+          done < "$RUNNER_TEMP/unit-modules"
+          printf "shard %s/%s: %s modules, %s tests\n" "$SHARD" "$UNIT_SHARDS" "$(wc -l < "$RUNNER_TEMP/unit-modules")" "$total" | tee test-logs/unit/summary.txt
+          test "$status" -eq 0
+
+      - name: Keep complete unit test logs
         if: ${{ always() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: ci-test-logs
+          name: ci-unit-logs-${{ matrix.shard }}
           path: |
             test-logs/
           if-no-files-found: warn
@@ -78,13 +171,23 @@ jobs:
 
   engine:
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: ${{ matrix.timeout }}
     permissions:
       contents: read
     strategy:
       fail-fast: false
       matrix:
         role: [core, helper, auditor, admin]
+        # timeout = longest GitHub run of the role in PR #11 (runs 45014535372 and 45014547993) x 1.5, rounded up
+        include:
+          - role: core
+            timeout: 3
+          - role: helper
+            timeout: 48
+          - role: auditor
+            timeout: 7
+          - role: admin
+            timeout: 64
     steps:
       - name: Check out source
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0

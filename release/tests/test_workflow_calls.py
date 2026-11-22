@@ -21,8 +21,8 @@ def invocations():
     return found
 
 
-def tooling_run_block():
-    path = os.path.join(ROOT, ".github", "workflows", "candidate.yml")
+def tooling_run_block(workflow="candidate.yml"):
+    path = os.path.join(ROOT, ".github", "workflows", workflow)
     with open(path, encoding="utf-8") as stream:
         text = stream.read()
     step = text.index("      - name: Test the release and acceptance tooling\n")
@@ -104,6 +104,62 @@ class WorkflowCalls(unittest.TestCase):
             for code in (1, 255):
                 with self.subTest(directory=directory, code=code):
                     self.check_tooling_pipeline(directory, failing=code)
+
+    def check_ci_tooling_pipeline(self, failing):
+        directories = ("release/tests", "release/acceptance/tests", "release/sign/tests")
+        names = ("test_a.py", "test_b.py")
+        with tempfile.TemporaryDirectory(prefix="ci-tooling-pipeline-") as directory:
+            for test_directory in directories:
+                suite = os.path.join(directory, test_directory)
+                os.makedirs(suite)
+                for name in names:
+                    code = int(failing) if (test_directory, name) == ("release/acceptance/tests", "test_a.py") else 0
+                    fixture = ("from pathlib import Path\n"
+                               "import sys\n"
+                               "print(\"fixture stdout %s\")\n"
+                               "print(\"fixture stderr %s\", file=sys.stderr)\n"
+                               "Path(__file__).with_suffix(\".done\").write_text(\"complete\")\n"
+                               "raise SystemExit(%d)\n" % (name, name, code))
+                    with open(os.path.join(suite, name), "w", encoding="utf-8") as stream:
+                        stream.write(fixture)
+            environment = dict(os.environ)
+            if failing == 255:
+                tools = os.path.join(directory, "bin")
+                os.mkdir(tools)
+                nproc = os.path.join(tools, "nproc")
+                with open(nproc, "w", encoding="utf-8") as stream:
+                    stream.write("#!/bin/sh\nprintf '1\\n'\n")
+                os.chmod(nproc, 0o700)
+                environment["PATH"] = tools + os.pathsep + environment.get("PATH", os.defpath)
+            result = subprocess.run(["bash", "-c", tooling_run_block("ci.yml")], cwd=directory, env=environment,
+                                    capture_output=True, text=True, timeout=60)
+            diagnostic = result.stdout + result.stderr
+            self.assertEqual(result.returncode != 0, bool(failing), diagnostic)
+            lines = result.stdout.splitlines()
+            for test_directory in directories:
+                for name in names:
+                    path = test_directory + "/" + name
+                    code = int(failing) if path == "release/acceptance/tests/test_a.py" else 0
+                    with self.subTest(test=path):
+                        with open(os.path.join(directory, test_directory, name.replace(".py", ".done")), encoding="utf-8") as stream:
+                            self.assertEqual(stream.read(), "complete")
+                        log = os.path.join(directory, "test-logs", "tooling", path.replace("/", "_") + ".log")
+                        with open(log, encoding="utf-8") as stream:
+                            self.assertEqual(stream.read().splitlines(), ["fixture stdout " + name, "fixture stderr " + name])
+                        self.assertTrue(any(line.startswith("[%s] exit=%d seconds=" % (path, code)) for line in lines), diagnostic)
+                        self.assertIn("[%s] fixture stdout %s" % (path, name), lines, diagnostic)
+                        self.assertIn("[%s] fixture stderr %s" % (path, name), lines, diagnostic)
+
+    def test_ci_tooling_runs_every_file_in_parallel_with_a_log_per_file(self):
+        self.check_ci_tooling_pipeline(failing=False)
+        block = tooling_run_block("ci.yml")
+        self.assertIn('xargs -0 -n1 -P "$(nproc)"', block)
+        self.assertEqual(block.count("release/sign/tests/test_*.py release/acceptance/tests/test_*.py release/tests/test_*.py"), 2)
+
+    def test_ci_tooling_failure_propagates_after_other_files_finish(self):
+        for code in (1, 255):
+            with self.subTest(code=code):
+                self.check_ci_tooling_pipeline(failing=code)
 
 
 if __name__ == "__main__":
