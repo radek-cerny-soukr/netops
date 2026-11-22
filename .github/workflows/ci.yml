@@ -118,17 +118,17 @@ jobs:
           retention-days: 30
 
       - name: Record that this job passed on the tested commit
-        if: ${{ success() }}
+        if: ${{ success() && github.event_name == 'workflow_dispatch' }}
         run: |
           set -euo pipefail
           mkdir -p ci-result
-          printf '%s\n' "$TESTED_SHA" > ci-result/sha
+          printf '%s %s\n' "$TESTED_SHA" "$GITHUB_RUN_ATTEMPT" > ci-result/sha
 
       - name: Keep the result of this job for the report
-        if: ${{ success() }}
+        if: ${{ success() && github.event_name == 'workflow_dispatch' }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: ci-result-tooling
+          name: ci-result-${{ github.run_attempt }}-tooling
           path: ci-result/sha
           if-no-files-found: error
           retention-days: 30
@@ -257,17 +257,17 @@ jobs:
           retention-days: 30
 
       - name: Record that this job passed on the tested commit
-        if: ${{ success() }}
+        if: ${{ success() && github.event_name == 'workflow_dispatch' }}
         run: |
           set -euo pipefail
           mkdir -p ci-result
-          printf '%s\n' "$TESTED_SHA" > ci-result/sha
+          printf '%s %s\n' "$TESTED_SHA" "$GITHUB_RUN_ATTEMPT" > ci-result/sha
 
       - name: Keep the result of this job for the report
-        if: ${{ success() }}
+        if: ${{ success() && github.event_name == 'workflow_dispatch' }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: ci-result-unit-${{ matrix.shard }}
+          name: ci-result-${{ github.run_attempt }}-unit-${{ matrix.shard }}
           path: ci-result/sha
           if-no-files-found: error
           retention-days: 30
@@ -346,17 +346,17 @@ jobs:
           retention-days: 30
 
       - name: Record that this job passed on the tested commit
-        if: ${{ success() }}
+        if: ${{ success() && github.event_name == 'workflow_dispatch' }}
         run: |
           set -euo pipefail
           mkdir -p ci-result
-          printf '%s\n' "$TESTED_SHA" > ci-result/sha
+          printf '%s %s\n' "$TESTED_SHA" "$GITHUB_RUN_ATTEMPT" > ci-result/sha
 
       - name: Keep the result of this job for the report
-        if: ${{ success() }}
+        if: ${{ success() && github.event_name == 'workflow_dispatch' }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: ci-result-engine-${{ matrix.role }}
+          name: ci-result-${{ github.run_attempt }}-engine-${{ matrix.role }}
           path: ci-result/sha
           if-no-files-found: error
           retention-days: 30
@@ -370,19 +370,20 @@ jobs:
       checks: write
       contents: read
     steps:
-      # every matrix item uploads ci-result-<job>[-<item>] with its tested commit only when it passed; the
+      # every matrix item uploads ci-result-<attempt>-<job>[-<item>] with its tested commit and run attempt only when it passed; the
       # aggregated needs.<job>.result and the shared matrix outputs cannot tell a missing or cancelled item
       - name: Collect the results of every job and matrix item
         continue-on-error: true
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          pattern: ci-result-*
+          pattern: ci-result-${{ github.run_attempt }}-*
           path: ci-results
 
       - name: Record the result as the check run CI on the tested commit
         env:
           GH_TOKEN: ${{ github.token }}
           REF: ${{ inputs.ref }}
+          ATTEMPT: ${{ github.run_attempt }}
           # must equal the engine role matrix (release/tests/test_unit_shards.py checks it)
           ENGINE_ROLES: core helper auditor admin
         run: |
@@ -398,9 +399,9 @@ jobs:
           rows=""
           # every expected item must have passed and tested the commit of ref (a tag moved during the run fails it)
           for item in "${expected[@]}"; do
-            file="ci-results/ci-result-$item/sha"
-            tested=""
-            if [ -f "$file" ] && [ ! -L "$file" ]; then tested="$(head -c 100 "$file" | tr -d '\n')"; fi
+            file="ci-results/ci-result-$ATTEMPT-$item/sha"
+            tested=""; attempt=""
+            if [ -f "$file" ] && [ ! -L "$file" ]; then read -r tested attempt _ < <(head -c 100 "$file") || true; [ "${attempt:-}" = "$ATTEMPT" ] || tested=""; fi
             if [ -z "$tested" ]; then
               state=missing
             elif [ "$tested" = "$sha" ]; then
@@ -416,10 +417,10 @@ jobs:
           if [ -d ci-results ]; then
             for found in ci-results/*; do
               [ -e "$found" ] || continue
-              item="${found#ci-results/ci-result-}"
+              item="${found#ci-results/ci-result-$ATTEMPT-}"
               known=0
               for name in "${expected[@]}"; do if [ "$item" = "$name" ]; then known=1; fi; done
-              if [ "$known" -eq 0 ]; then conclusion=failure; missing+=("${found#ci-results/} (unexpected)"); fi
+              if [ "$known" -eq 0 ]; then conclusion=failure; missing+=("$item (unexpected)"); fi
             done
           fi
           run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"

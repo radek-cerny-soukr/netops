@@ -538,12 +538,15 @@ class ManualRun(unittest.TestCase):
             calls.mkdir()
             # the layout of actions/download-artifact with a pattern: one directory per artifact
             for item, sha in list(results.items()) + [(name, TAGGED) for name in extra]:
-                (root / "ci-results" / ("ci-result-" + item)).mkdir(parents=True)
-                (root / "ci-results" / ("ci-result-" + item) / "sha").write_text(sha + "\n", encoding="utf-8")
+                # a stored "<sha> <attempt>"; names starting with "old:" are artifacts of an earlier attempt
+                old = item.startswith("old:")
+                name = "ci-result-%s-%s" % ("1" if old else "2", item[4:] if old else item)
+                (root / "ci-results" / name).mkdir(parents=True)
+                (root / "ci-results" / name / "sha").write_text(sha + (" 1\n" if old else " 2\n"), encoding="utf-8")
             import urllib.parse
             environment = dict(os.environ, CALLS=str(calls), TAGGED=TAGGED, EXPECTED_PATH=urllib.parse.quote(ref, safe=""),
                                GITHUB_REPOSITORY="owner/repo", GITHUB_SERVER_URL="https://server.invalid",
-                               GITHUB_RUN_ID="42", GITHUB_STEP_SUMMARY=str(root / "summary"), REF=ref, GH_TOKEN="token",
+                               GITHUB_RUN_ID="42", ATTEMPT="2", GITHUB_STEP_SUMMARY=str(root / "summary"), REF=ref, GH_TOKEN="token",
                                UNIT_SHARDS=shards, ENGINE_ROLES=REPORT_ROLES,
                                PATH=str(tools) + os.pathsep + os.environ.get("PATH", os.defpath))
             result = subprocess.run(["bash", "-c", run_block("Record the result as the check run CI on the tested commit")],
@@ -590,6 +593,14 @@ class ManualRun(unittest.TestCase):
             for other in (HEAD, ""):
                 with self.subTest(item=item, sha=other):
                     self.assertEqual(self.run_report(dict(everything, **{item: other}))[0], "failure")
+        with self.subTest(stale="artifact of an earlier attempt"):
+            # shard 1 passed in attempt 1 and failed in attempt 2: its old result must not complete the set
+            results = dict(everything)
+            del results["unit-1"]
+            results["old:unit-1"] = TAGGED
+            conclusion, summary = self.run_report(results)
+            self.assertEqual(conclusion, "failure")
+            self.assertIn("unit-1 (missing)", summary)
         with self.subTest(artifacts="none"):
             conclusion, summary = self.run_report({})
             self.assertEqual(conclusion, "failure")
@@ -601,7 +612,7 @@ class ManualRun(unittest.TestCase):
         self.assertEqual(self.run_report({item: TAGGED for item in expected_items(4)}, shards="4")[0], "success")
         conclusion, summary = self.run_report({item: TAGGED for item in expected_items(3)}, extra=("unit-4",))
         self.assertEqual(conclusion, "failure")
-        self.assertIn("ci-result-unit-4 (unexpected)", summary)
+        self.assertIn("unit-4 (unexpected)", summary)
 
     def test_report_resolves_a_commit_sha_and_quotes_the_ref_in_the_api_path(self):
         everything = {item: TAGGED for item in expected_items(3)}
