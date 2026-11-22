@@ -2029,6 +2029,7 @@ def management_refusals(snapshot, table: str, key: str, before, after, clients, 
 
 SHOWN_FIELD = re.compile(r"^[^\S\n]*(IPv4 Forwarding|IPv6 Forwarding|Primary IP|IPv6):[^\S\n]*(.*?)\s*$", re.MULTILINE)
 SHOWN_IPV6_MORE = re.compile(r"^\t+[^\S\n]*([0-9a-fA-F:]+/\d+)")
+SHOWN_IPV6_LINE = re.compile(r"^[^\S\n]*IPv6:")
 
 
 def shown_l3(text: str, strict=False) -> dict:
@@ -2057,17 +2058,18 @@ def shown_l3(text: str, strict=False) -> dict:
         interface = ipaddress.IPv4Interface(primary.split()[0])
         state["ipaddress"] = "%s %s" % (interface.ip, interface.network.netmask)
     addresses = []
-    lines = text.splitlines()
-    for index, line in enumerate(lines):
-        if re.match(r"^[^\S\n]*IPv6:", line):
-            first = line.split(":", 1)[1].split()
-            addresses += first[:1] if first and first[0] != "None" else []
-            for other in lines[index + 1:]:
-                more = SHOWN_IPV6_MORE.match(other)
-                if more is None:
-                    break
-                addresses.append(more.group(1))
-            break
+    if "IPv6:" in text:
+        lines = text.splitlines()
+        for index, line in enumerate(lines):
+            if "IPv6:" in line and SHOWN_IPV6_LINE.match(line):
+                first = line.split(":", 1)[1].split()
+                addresses += first[:1] if first and first[0] != "None" else []
+                for other in lines[index + 1:]:
+                    more = SHOWN_IPV6_MORE.match(other)
+                    if more is None:
+                        break
+                    addresses.append(more.group(1))
+                break
     globals_ = [str(ipaddress.IPv6Interface(item)) for item in addresses
                 if not ipaddress.IPv6Interface(item).ip.is_link_local]
     if globals_:

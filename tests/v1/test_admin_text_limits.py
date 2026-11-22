@@ -26,7 +26,7 @@ try:
             result=exos.upm_listing_complete(text,"profiles")
         elif kind=="sessions":
             result=exos.foreign_sessions(text)
-        elif kind=="vlan":
+        elif kind in ("vlan","vlan-ipv6-tail"):
             result=exos.shown_vlan(text,"synthetic")
         else:
             result=membership.shown(text,"1")
@@ -105,6 +105,7 @@ class AdminTextLimits(unittest.TestCase):
     def test_large_device_answers_have_bounded_work(self):
         size=16*1024*1024
         vlan_prefix="VLAN Interface with name synthetic created\n802.1Q Tag 123\n"
+        ipv6_tail="IPv6: 2001:db8::1/64\n"+"\n"*19
         membership_prefix="VLAN Name(s)\n1 Untagged a"
         for kind,text,expected in (
             ("upm","\n"*size,{"value":False}),
@@ -112,6 +113,8 @@ class AdminTextLimits(unittest.TestCase):
              {"rejected":["the session list is not readable"]}),
             ("vlan",vlan_prefix+"\n"*(size-len(vlan_prefix)),
              {"value":{"tag":"123"}}),
+            ("vlan-ipv6-tail",vlan_prefix+"\n"*(size-len(vlan_prefix)-len(ipv6_tail))+ipv6_tail,
+             {"value":{"tag":"123","ipv6-address":"2001:db8::1/64"}}),
             ("membership",membership_prefix+" "*(size-len(membership_prefix)-3)+"b!\n",
              {"rejected":["unsupported VLAN name in membership answer"]}),
         ):
