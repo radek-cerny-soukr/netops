@@ -15,7 +15,8 @@ def invocations():
         with open(workflow, encoding="utf-8") as stream:
             text = stream.read().replace("\\\n", " ")
         for line in text.splitlines():
-            match = re.search(r"python3? -B (release/[\w/]+\.py)(.*)", line)
+            # a manual CI run calls the scripts of the workflow revision from "$CI_TOOLS"
+            match = re.search(r"python3? -B (?:\"\$CI_TOOLS\"/)?(release/[\w/]+\.py)(.*)", line)
             if match:
                 found.append((os.path.basename(workflow), match.group(1), re.findall(r"(?<![\w-])(--[a-z][a-z0-9-]*)", match.group(2))))
     return found
@@ -41,6 +42,13 @@ def tooling_run_block(workflow="candidate.yml"):
 class WorkflowCalls(unittest.TestCase):
     def test_workflows_call_release_scripts(self):
         self.assertGreater(len(invocations()), 5)
+
+    def test_calls_through_the_ci_tools_directory_are_checked(self):
+        calls = [(script, flags) for workflow, script, flags in invocations() if workflow == "ci.yml"]
+        self.assertIn(("release/unit_shards.py", ["--tests", "--shards", "--check", "--ignore-stale-weights"]), calls)
+        self.assertIn(("release/unit_shards.py", ["--tests", "--shards", "--shard"]), calls)
+        self.assertIn(("release/unit_shards.py", ["--tests", "--shards", "--shard", "--part"]), calls)
+        self.assertIn(("release/unit_shards.py", ["--tests", "--list"]), calls)
 
     def test_every_flag_is_accepted_by_the_script(self):
         helps = {}

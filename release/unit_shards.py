@@ -8,13 +8,30 @@ loaded process slot of all shards (PARALLEL slots per shard; ties: lower
 slot, then lower shard) using the measured WEIGHTS, so the same tree always
 gives the same shards.
 
+Time-sensitive modules (SERIAL_MODULES: a test with a wall-clock budget that
+fails when other test containers compete for the CPU) stay in the shard the
+split gives them, but the runner starts them only after the parallel part of
+the shard has finished, one at a time, with no other test container running.
+
   --list                 print every test module, sorted (CI runs it on the
                          source and, from stdin, inside the product image and
                          compares both lists)
-  --shards N --shard K   print the modules of shard K, one per line, longest
-                         first (the order the runner starts them in)
+  --shards N --shard K   print the modules of shard K, one per line: the
+                         parallel part longest first (the order the runner
+                         starts them in), then the serial part
+  --part parallel|serial with --shard: print only the modules the runner starts
+                         in parallel, or only the SERIAL_MODULES of the shard
+                         (run alone, one after another, after the parallel
+                         part; may be empty)
   --shards N --check     prove the shards are disjoint, non-empty and together
                          contain every test module (nothing can drop out)
+  --tests DIR            split the test modules of another tree (a manual CI
+                         run tests a released tag with the tools of the
+                         workflow revision)
+  --ignore-stale-weights with --check: weights and serial modules that the tested
+                         tree does not have are not an error (they cannot change
+                         the split); coverage, disjointness and non-empty
+                         shards are still proven
 
 Standard library only; it never imports the product or the tests.
 """
@@ -155,6 +172,15 @@ WEIGHTS = {
     "test_worker_snmp_get": 1.3,
 }
 DEFAULT_WEIGHT = 10.0
+# Modules with a wall-clock budget inside the test: under four concurrent test
+# containers test_admin_text_limits exceeded its 10 s parser budget on GitHub
+# (runs 45022462276 and 45022466018) although it passes alone.  Each runs in its
+# shard after the parallel part, alone; the budget itself is never changed and a
+# failure is not retried.  The single list of such modules: --check proves that
+# each of them is a test module and in the serial part of exactly one shard.
+SERIAL_MODULES = (
+    "test_admin_text_limits",
+)
 # Test processes per shard: a GitHub ubuntu-24.04 runner has 4 vCPUs and the job runs xargs -P "$(nproc)".
 PARALLEL = 4
 
@@ -177,14 +203,19 @@ def modules(tests=TESTS):
     return found
 
 
-def assign(names, shards, weights=None, parallel=None):
+def assign(names, shards, weights=None, parallel=None, serial=None):
     """Longest module first onto the least loaded of the shards x parallel process slots.
 
-    Returns the modules of every shard, longest first (the order the runner starts
-    them in), and the estimated duration of every shard (its busiest slot).
+    Returns the modules of every shard and the estimated duration of every shard.
+    The members of a shard are its parallel part longest first (the order the
+    runner starts them in), then its serial modules longest first.  Serial
+    modules are placed like the others (the split does not depend on the serial
+    list), but the estimate of a shard is its busiest slot without them plus
+    their sum (they run one at a time after the parallel part).
     """
     weights = WEIGHTS if weights is None else weights
     parallel = PARALLEL if parallel is None else parallel
+    serial = set(SERIAL_MODULES if serial is None else serial)
     if shards < 1 or parallel < 1:
         raise ShardError("the number of shards and of parallel processes must be at least 1")
     if shards > len(names):
@@ -192,21 +223,41 @@ def assign(names, shards, weights=None, parallel=None):
     weight = lambda name: weights.get(name, DEFAULT_WEIGHT)
     plan = [[] for _ in range(shards)]
     slots = [[0.0] * parallel for _ in range(shards)]
+    running = [[0.0] * parallel for _ in range(shards)]
+    alone = [[] for _ in range(shards)]
     for name in sorted(names, key=lambda item: (-weight(item), item)):
         shard, slot = min(((shard, slot) for shard in range(shards) for slot in range(parallel)),
                           key=lambda place: (slots[place[0]][place[1]], place[1], place[0]))
-        plan[shard].append(name)
         slots[shard][slot] += weight(name)
-    return plan, [max(loads) for loads in slots]
+        if name in serial:
+            alone[shard].append(name)
+        else:
+            plan[shard].append(name)
+            running[shard][slot] += weight(name)
+    loads = [max(loads) + sum(weight(name) for name in tail) for loads, tail in zip(running, alone)]
+    return [members + tail for members, tail in zip(plan, alone)], loads
 
 
-def check(names, shards, weights=None):
+def parts(members, serial=None):
+    """Split the members of a shard into the part run in parallel and the part run alone afterwards."""
+    serial = set(SERIAL_MODULES if serial is None else serial)
+    return [name for name in members if name not in serial], [name for name in members if name in serial]
+
+
+def check(names, shards, weights=None, ignore_stale=False, serial=None):
     weights = WEIGHTS if weights is None else weights
+    serial = SERIAL_MODULES if serial is None else tuple(serial)
     errors = []
     stale = sorted(set(weights) - set(names))
-    if stale:
+    if stale and not ignore_stale:
         errors.append("weights name missing test modules: " + ", ".join(stale))
-    plan, loads = assign(names, shards, weights)
+    repeated = sorted(name for name in set(serial) if serial.count(name) > 1)
+    if repeated:
+        errors.append("serial modules listed more than once: " + ", ".join(repeated))
+    absent = sorted(set(serial) - set(names))
+    if absent and not ignore_stale:
+        errors.append("serial modules name missing test modules: " + ", ".join(absent))
+    plan, loads = assign(names, shards, weights, serial=serial)
     seen = {}
     for number, members in enumerate(plan, 1):
         if not members:
@@ -221,6 +272,12 @@ def check(names, shards, weights=None):
     extra = sorted(set(seen) - set(names))
     if extra:
         errors.append("shards name unknown modules: " + ", ".join(extra))
+    for name in sorted(set(serial) & set(names)):
+        alone = [number for number, members in enumerate(plan, 1) if name in parts(members, serial)[1]]
+        together = [number for number, members in enumerate(plan, 1) if name in parts(members, serial)[0]]
+        if len(alone) != 1 or together:
+            errors.append("serial module %s is in the serial part of %d shards and in the parallel part of %d"
+                          % (name, len(alone), len(together)))
     return errors, plan, loads
 
 
@@ -228,9 +285,13 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description="Split the installed product unit tests into CI shards.")
     parser.add_argument("--shards", type=int, help="number of shards")
     parser.add_argument("--shard", type=int, help="shard to print (1..N)")
+    parser.add_argument("--part", choices=("parallel", "serial"),
+                        help="with --shard: only the modules run in parallel, or only those run alone afterwards")
     parser.add_argument("--check", action="store_true", help="verify that the shards cover every test module once")
     parser.add_argument("--list", action="store_true", help="print every test module")
     parser.add_argument("--tests", default=str(TESTS), help="test directory (default: tests/v1)")
+    parser.add_argument("--ignore-stale-weights", action="store_true",
+                        help="with --check: do not refuse weights or serial modules missing from the test directory")
     args = parser.parse_args(argv)
     try:
         names = modules(args.tests)
@@ -239,11 +300,18 @@ def main(argv=None):
             return 0
         if args.shards is None:
             parser.error("--shards is required with --shard or --check")
+        if args.part and (args.check or args.shard is None):
+            parser.error("--part needs --shard and cannot be combined with --check")
         if args.check:
-            errors, plan, loads = check(names, args.shards)
+            errors, plan, loads = check(names, args.shards, ignore_stale=args.ignore_stale_weights)
+            unweighted = sorted(set(names) - set(WEIGHTS))
+            if unweighted:
+                print("modules without a measured weight (%.0f s assumed): %s" % (DEFAULT_WEIGHT, ", ".join(unweighted)))
             for number, (members, load) in enumerate(zip(plan, loads), 1):
-                print("shard %d/%d: %d modules, estimated %.0f s at the measured speed with %d processes"
-                      % (number, args.shards, len(members), load, PARALLEL))
+                alone = parts(members)[1]
+                print("shard %d/%d: %d modules (%d run alone afterwards%s), estimated %.0f s at the measured speed with %d processes"
+                      % (number, args.shards, len(members), len(alone), (": " + ", ".join(alone)) if alone else "",
+                         load, PARALLEL))
             print("%d test modules in %d shards" % (sum(len(members) for members in plan), args.shards))
             for error in errors:
                 print("error: " + error, file=sys.stderr)
@@ -251,7 +319,11 @@ def main(argv=None):
         if args.shard is None or not 1 <= args.shard <= args.shards:
             parser.error("--shard must be between 1 and --shards")
         plan, _ = assign(names, args.shards)
-        print("\n".join(plan[args.shard - 1]))
+        members = plan[args.shard - 1]
+        if args.part:
+            members = parts(members)[0 if args.part == "parallel" else 1]
+        if members:
+            print("\n".join(members))
         return 0
     except ShardError as error:
         print("error: %s" % error, file=sys.stderr)
