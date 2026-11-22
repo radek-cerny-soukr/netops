@@ -169,6 +169,49 @@ class WorkflowCalls(unittest.TestCase):
             with self.subTest(code=code):
                 self.check_ci_tooling_pipeline(failing=code)
 
+    def test_ci_report_checks_a_result_artifact_of_every_matrix_item(self):
+        with open(os.path.join(ROOT, ".github", "workflows", "ci.yml"), encoding="utf-8") as stream:
+            text = stream.read()
+        with open(os.path.join(ROOT, ".github", "workflows", "candidate.yml"), encoding="utf-8") as stream:
+            candidate = stream.read()
+        jobs = dict(re.findall(r"(?m)^  ([a-z][a-z0-9_-]*):\n((?:    .*\n|\n)*)", text.split("\njobs:\n", 1)[1]))
+        steps = lambda body: re.split(r"(?m)^      - (?=name: )", body)[1:]
+        upload = re.search(r"uses: (actions/upload-artifact@[0-9a-f]{40} # v[0-9.]+)\n", text).group(1)
+        download = re.search(r"uses: (actions/download-artifact@[0-9a-f]{40} # v[0-9.]+)\n", candidate).group(1)
+        # each job and matrix item uploads its own result, only when it passed, as its last two steps
+        for job, name in (("tooling", "ci-result-tooling"), ("unit", "ci-result-unit-${{ matrix.shard }}"),
+                          ("engine", "ci-result-engine-${{ matrix.role }}")):
+            with self.subTest(job=job):
+                body = jobs[job]
+                self.assertNotIn("    outputs:\n", body)
+                record, keep = steps(body)[-2:]
+                self.assertEqual(record, "name: Record that this job passed on the tested commit\n"
+                                         "        if: ${{ success() }}\n        run: |\n          set -euo pipefail\n"
+                                         "          mkdir -p ci-result\n"
+                                         "          printf '%s\\n' \"$TESTED_SHA\" > ci-result/sha\n\n")
+                self.assertEqual(keep.rstrip("\n"), "name: Keep the result of this job for the report\n"
+                                 "        if: ${{ success() }}\n        uses: " + upload + "\n        with:\n"
+                                 "          name: " + name + "\n          path: ci-result/sha\n"
+                                 "          if-no-files-found: error\n          retention-days: 30")
+        self.assertEqual(text.count("ci-result/sha"), 6)
+        report = jobs["report"]
+        collect, record = steps(report)
+        self.assertEqual(collect, "name: Collect the results of every job and matrix item\n"
+                                  "        continue-on-error: true\n        uses: " + download + "\n        with:\n"
+                                  "          pattern: ci-result-*\n          path: ci-results\n\n")
+        self.assertTrue(record.startswith("name: Record the result as the check run CI on the tested commit\n"))
+        # the report reads neither the aggregated job results nor shared matrix outputs
+        self.assertIsNone(re.search(r"\$\{\{[^}]*\bneeds\.", text), "ci.yml reads needs.<job> in an expression")
+        self.assertNotRegex(text, r"(?m)^    outputs:")
+        # the expected list: tooling, UNIT_SHARDS unit shards and every engine role of the matrix
+        roles = re.search(r"(?m)^        role: \[([a-z, ]+)\]$", jobs["engine"]).group(1).split(", ")
+        self.assertIn("          ENGINE_ROLES: %s\n" % " ".join(roles), record)
+        self.assertIn('expected=(tooling)\n', record)
+        self.assertIn('for shard in $(seq 1 "$UNIT_SHARDS"); do expected+=("unit-$shard"); done\n', record)
+        self.assertIn('for role in $ENGINE_ROLES; do expected+=("engine-$role"); done\n', record)
+        self.assertIn('file="ci-results/ci-result-$item/sha"', record)
+        self.assertEqual(record.count("conclusion=success"), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

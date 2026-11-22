@@ -317,7 +317,8 @@ class Workflow(unittest.TestCase):
 
     def test_timeouts_are_the_measured_job_durations_with_half_again_as_reserve(self):
         # longest GitHub run of the whole job in tenths of a minute -> timeout >= x 1.5, the next whole minute;
-        # admin: 64 is exactly 150 % of its longest run (42 min 40 s, shown as 42.7); shard 1 is not measured yet
+        # admin: 64 is exactly 150 % of its longest run (42 min 40 s, shown as 42.7); shard 1: 29.0 min, the push run
+        # on 27174f7c8 (29:01, job 137208180176) -> 43.5 -> 44
         jobs = job_bodies()
         engine = dict(re.findall(r"(?m)^          - role: ([a-z]+)\n            timeout: ([1-9][0-9]*)$", jobs["engine"]))
         unit = dict(re.findall(r"(?m)^          - shard: ([0-9]+)\n            timeout: ([1-9][0-9]*)$", jobs["unit"]))
@@ -325,7 +326,7 @@ class Workflow(unittest.TestCase):
                       "admin": engine["admin"], "shard 1": unit["1"], "shard 2": unit["2"], "shard 3": unit["3"],
                       "tooling": re.search(r"(?m)^    timeout-minutes: ([0-9]+)$", jobs["tooling"]).group(1)}
         expected = {"core": (22, 4), "helper": (320, 48), "auditor": (67, 11), "admin": (None, 64),
-                    "shard 1": (None, 40), "shard 2": (30, 5), "shard 3": (42, 7), "tooling": (54, 9)}
+                    "shard 1": (290, 44), "shard 2": (30, 5), "shard 3": (42, 7), "tooling": (54, 9)}
         for name, (tenths, timeout) in expected.items():
             with self.subTest(job=name):
                 self.assertEqual(int(configured[name]), timeout)
@@ -425,6 +426,11 @@ CHECKOUT_TOOLS = """      - name: Check out the CI tools of this workflow revisi
 """
 HEAD = "1" * 40
 TAGGED = "2" * 40
+REPORT_ROLES = "core helper auditor admin"
+
+
+def expected_items(shards):
+    return ["tooling"] + ["unit-%d" % shard for shard in range(1, shards + 1)] + ["engine-" + role for role in REPORT_ROLES.split()]
 
 
 class ManualRun(unittest.TestCase):
@@ -446,7 +452,8 @@ class ManualRun(unittest.TestCase):
                 self.assertEqual(body.count(CHECKOUT_SOURCE), 1)
                 self.assertEqual(body.count(CHECKOUT_TOOLS), 0 if job == "engine" else 1)
                 self.assertLess(body.index(CHECKOUT_SOURCE), body.index("      - name: Identify the tested commit\n"))
-                self.assertIn("    outputs:\n      sha: ${{ steps.tested.outputs.sha }}\n", body)
+                # no shared matrix output: every item reports its own tested commit as an artifact
+                self.assertNotIn("    outputs:\n", body)
                 self.assertIn("        id: tested\n", body)
         self.assertNotIn("actions/checkout", jobs["report"])
 
@@ -507,7 +514,8 @@ class ManualRun(unittest.TestCase):
         self.assertEqual(text.count("inputs.ref"), 4)
         self.assertIn("          REF: ${{ inputs.ref }}\n", report)
 
-    def run_report(self, results, shas, ref="v1.0.12"):
+    def run_report(self, results, ref="v1.0.12", shards="3", extra=()):
+        """results maps an item (tooling, unit-<n>, engine-<role>) to the SHA it uploaded; absent = no artifact."""
         with tempfile.TemporaryDirectory(prefix="ci-report-") as directory:
             root = Path(directory)
             tools = root / "bin"
@@ -528,14 +536,16 @@ class ManualRun(unittest.TestCase):
                 (tools / tool).chmod(0o700)
             calls = root / "calls"
             calls.mkdir()
+            # the layout of actions/download-artifact with a pattern: one directory per artifact
+            for item, sha in list(results.items()) + [(name, TAGGED) for name in extra]:
+                (root / "ci-results" / ("ci-result-" + item)).mkdir(parents=True)
+                (root / "ci-results" / ("ci-result-" + item) / "sha").write_text(sha + "\n", encoding="utf-8")
             import urllib.parse
             environment = dict(os.environ, CALLS=str(calls), TAGGED=TAGGED, EXPECTED_PATH=urllib.parse.quote(ref, safe=""),
                                GITHUB_REPOSITORY="owner/repo", GITHUB_SERVER_URL="https://server.invalid",
                                GITHUB_RUN_ID="42", GITHUB_STEP_SUMMARY=str(root / "summary"), REF=ref, GH_TOKEN="token",
+                               UNIT_SHARDS=shards, ENGINE_ROLES=REPORT_ROLES,
                                PATH=str(tools) + os.pathsep + os.environ.get("PATH", os.defpath))
-            for job, result, sha in zip(("TOOLING", "UNIT", "ENGINE"), results, shas):
-                environment[job] = result
-                environment[job + "_SHA"] = sha
             result = subprocess.run(["bash", "-c", run_block("Record the result as the check run CI on the tested commit")],
                                     cwd=root, env=environment, capture_output=True, text=True, timeout=60)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
@@ -551,28 +561,52 @@ class ManualRun(unittest.TestCase):
             self.assertEqual(fields["output[title]"], "CI %s for %s" % (fields["conclusion"], ref))
             self.assertIn("`%s`" % ref, "\n".join(post))
             self.assertIn("`%s`" % TAGGED, "\n".join(post))
-            for job, job_result in zip(("tooling", "unit", "engine"), results):
-                self.assertIn("| %s | %s |" % (job, job_result), "\n".join(post))
+            # the fake gh writes one argument per line, so the multi-line summary is taken from the step summary
+            summary = (root / "summary").read_text().rsplit("\n\nconclusion: ", 1)[0]
+            self.assertIn("output[summary]=" + summary, "\n".join(post))
+            for item in expected_items(int(shards)):
+                # an empty result file counts as missing
+                state = "missing" if not results.get(item) else ("success" if results[item] == TAGGED else "other commit")
+                self.assertIn("| %s | %s |" % (item, state), summary)
+                if state != "success":
+                    self.assertIn(item + " (" + state + ")", summary.split("missing or failed: ", 1)[1])
             self.assertIn("conclusion: " + fields["conclusion"], (root / "summary").read_text())
-            return fields["conclusion"]
+            return fields["conclusion"], summary
 
-    def test_report_is_success_only_when_every_job_passed_on_the_commit_of_ref(self):
-        self.assertEqual(self.run_report(("success",) * 3, (TAGGED,) * 3), "success")
-        for failed in range(3):
-            for outcome in ("failure", "cancelled", "skipped"):
-                with self.subTest(job=failed, outcome=outcome):
-                    results = ["success"] * 3
-                    results[failed] = outcome
-                    self.assertEqual(self.run_report(results, (TAGGED,) * 3), "failure")
-            with self.subTest(job=failed, sha="other or missing"):
-                for other in (HEAD, ""):
-                    shas = [TAGGED] * 3
-                    shas[failed] = other
-                    self.assertEqual(self.run_report(("success",) * 3, shas), "failure")
+    def test_report_is_success_only_when_every_matrix_item_passed_on_the_commit_of_ref(self):
+        everything = {item: TAGGED for item in expected_items(3)}
+        self.assertEqual(len(everything), 8)
+        conclusion, summary = self.run_report(everything)
+        self.assertEqual(conclusion, "success")
+        self.assertNotIn("missing or failed", summary)
+        for item in everything:
+            with self.subTest(item=item, artifact="missing"):
+                # a failed, cancelled or never started item uploads nothing
+                results = dict(everything)
+                del results[item]
+                conclusion, summary = self.run_report(results)
+                self.assertEqual(conclusion, "failure")
+                self.assertIn("missing or failed: %s (missing)" % item, summary)
+            for other in (HEAD, ""):
+                with self.subTest(item=item, sha=other):
+                    self.assertEqual(self.run_report(dict(everything, **{item: other}))[0], "failure")
+        with self.subTest(artifacts="none"):
+            conclusion, summary = self.run_report({})
+            self.assertEqual(conclusion, "failure")
+            self.assertEqual(summary.split("missing or failed: ", 1)[1].count("(missing)"), 8)
+
+    def test_report_expects_one_result_per_configured_shard_and_no_other(self):
+        # a fourth shard that never ran fails a run configured for four shards
+        self.assertEqual(self.run_report({item: TAGGED for item in expected_items(3)}, shards="4")[0], "failure")
+        self.assertEqual(self.run_report({item: TAGGED for item in expected_items(4)}, shards="4")[0], "success")
+        conclusion, summary = self.run_report({item: TAGGED for item in expected_items(3)}, extra=("unit-4",))
+        self.assertEqual(conclusion, "failure")
+        self.assertIn("ci-result-unit-4 (unexpected)", summary)
 
     def test_report_resolves_a_commit_sha_and_quotes_the_ref_in_the_api_path(self):
-        self.assertEqual(self.run_report(("success",) * 3, (TAGGED,) * 3, ref=TAGGED), "success")
-        self.assertEqual(self.run_report(("success",) * 3, (TAGGED,) * 3, ref="../x?y"), "success")
+        everything = {item: TAGGED for item in expected_items(3)}
+        self.assertEqual(self.run_report(everything, ref=TAGGED)[0], "success")
+        self.assertEqual(self.run_report(everything, ref="../x?y")[0], "success")
 
 
 if __name__ == "__main__":

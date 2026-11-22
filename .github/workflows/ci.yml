@@ -28,8 +28,6 @@ env:
 jobs:
   tooling:
     runs-on: ubuntu-24.04
-    outputs:
-      sha: ${{ steps.tested.outputs.sha }}
     env:
       # CI scripts of this workflow revision (a manual run tests a tree that may predate them)
       CI_TOOLS: ${{ github.event_name == 'workflow_dispatch' && 'ci-tools' || '.' }}
@@ -119,10 +117,24 @@ jobs:
           if-no-files-found: warn
           retention-days: 30
 
+      - name: Record that this job passed on the tested commit
+        if: ${{ success() }}
+        run: |
+          set -euo pipefail
+          mkdir -p ci-result
+          printf '%s\n' "$TESTED_SHA" > ci-result/sha
+
+      - name: Keep the result of this job for the report
+        if: ${{ success() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ci-result-tooling
+          path: ci-result/sha
+          if-no-files-found: error
+          retention-days: 30
+
   unit:
     runs-on: ubuntu-24.04
-    outputs:
-      sha: ${{ steps.tested.outputs.sha }}
     env:
       CI_TOOLS: ${{ github.event_name == 'workflow_dispatch' && 'ci-tools' || '.' }}
     timeout-minutes: ${{ matrix.timeout }}
@@ -132,10 +144,10 @@ jobs:
         shard: [1, 2, 3]
         # timeout = longest GitHub run of the whole job (runs 45022466018, 45022462276) x 1.5, rounded up:
         # shard 2 3.0 min -> 5, shard 3 4.2 min -> 7 (test_admin_text_limits now runs alone after the parallel part);
-        # shard 1 18.1 min (run 45022466018; test_redaction_1_0_6_floor dominates) -> 28
+        # shard 1 29.0 min (push run on 27174f7c8, job 137208180176; test_redaction_1_0_6_floor dominates) -> 44
         include:
           - shard: 1
-            timeout: 28
+            timeout: 44
           - shard: 2
             timeout: 5
           - shard: 3
@@ -244,10 +256,24 @@ jobs:
           if-no-files-found: warn
           retention-days: 30
 
+      - name: Record that this job passed on the tested commit
+        if: ${{ success() }}
+        run: |
+          set -euo pipefail
+          mkdir -p ci-result
+          printf '%s\n' "$TESTED_SHA" > ci-result/sha
+
+      - name: Keep the result of this job for the report
+        if: ${{ success() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ci-result-unit-${{ matrix.shard }}
+          path: ci-result/sha
+          if-no-files-found: error
+          retention-days: 30
+
   engine:
     runs-on: ubuntu-24.04
-    outputs:
-      sha: ${{ steps.tested.outputs.sha }}
     timeout-minutes: ${{ matrix.timeout }}
     permissions:
       contents: read
@@ -319,6 +345,22 @@ jobs:
           if-no-files-found: warn
           retention-days: 30
 
+      - name: Record that this job passed on the tested commit
+        if: ${{ success() }}
+        run: |
+          set -euo pipefail
+          mkdir -p ci-result
+          printf '%s\n' "$TESTED_SHA" > ci-result/sha
+
+      - name: Keep the result of this job for the report
+        if: ${{ success() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ci-result-engine-${{ matrix.role }}
+          path: ci-result/sha
+          if-no-files-found: error
+          retention-days: 30
+
   report:
     if: ${{ always() && github.event_name == 'workflow_dispatch' }}
     needs: [tooling, unit, engine]
@@ -328,31 +370,66 @@ jobs:
       checks: write
       contents: read
     steps:
+      # every matrix item uploads ci-result-<job>[-<item>] with its tested commit only when it passed; the
+      # aggregated needs.<job>.result and the shared matrix outputs cannot tell a missing or cancelled item
+      - name: Collect the results of every job and matrix item
+        continue-on-error: true
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: ci-result-*
+          path: ci-results
+
       - name: Record the result as the check run CI on the tested commit
         env:
           GH_TOKEN: ${{ github.token }}
           REF: ${{ inputs.ref }}
-          TOOLING: ${{ needs.tooling.result }}
-          UNIT: ${{ needs.unit.result }}
-          ENGINE: ${{ needs.engine.result }}
-          TOOLING_SHA: ${{ needs.tooling.outputs.sha }}
-          UNIT_SHA: ${{ needs.unit.outputs.sha }}
-          ENGINE_SHA: ${{ needs.engine.outputs.sha }}
+          # must equal the engine role matrix (release/tests/test_unit_shards.py checks it)
+          ENGINE_ROLES: core helper auditor admin
         run: |
           set -euo pipefail
           sha="$(gh api "repos/$GITHUB_REPOSITORY/commits/$(jq -rn --arg ref "$REF" '$ref | @uri')" --jq .sha)"
           [[ "$sha" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$UNIT_SHARDS" =~ ^[1-9][0-9]*$ ]]
+          expected=(tooling)
+          for shard in $(seq 1 "$UNIT_SHARDS"); do expected+=("unit-$shard"); done
+          for role in $ENGINE_ROLES; do expected+=("engine-$role"); done
           conclusion=success
-          for result in "$TOOLING" "$UNIT" "$ENGINE"; do
-            if [ "$result" != success ]; then conclusion=failure; fi
+          missing=()
+          rows=""
+          # every expected item must have passed and tested the commit of ref (a tag moved during the run fails it)
+          for item in "${expected[@]}"; do
+            file="ci-results/ci-result-$item/sha"
+            tested=""
+            if [ -f "$file" ] && [ ! -L "$file" ]; then tested="$(head -c 100 "$file" | tr -d '\n')"; fi
+            if [ -z "$tested" ]; then
+              state=missing
+            elif [ "$tested" = "$sha" ]; then
+              state=success
+            else
+              state="other commit"
+            fi
+            if [ "$state" != success ]; then conclusion=failure; missing+=("$item ($state)"); fi
+            if ! [[ "$tested" =~ ^[0-9a-f]{40}$ ]]; then tested=none; fi
+            rows+="$(printf '| %s | %s | %s |' "$item" "$state" "$tested")"$'\n'
           done
-          # every job must have tested the commit of ref (a tag moved during the run fails it)
-          for tested in "$TOOLING_SHA" "$UNIT_SHA" "$ENGINE_SHA"; do
-            if [ "$tested" != "$sha" ]; then conclusion=failure; fi
-          done
+          # results of items that are not expected (a changed matrix) also fail the run
+          if [ -d ci-results ]; then
+            for found in ci-results/*; do
+              [ -e "$found" ] || continue
+              item="${found#ci-results/ci-result-}"
+              known=0
+              for name in "${expected[@]}"; do if [ "$item" = "$name" ]; then known=1; fi; done
+              if [ "$known" -eq 0 ]; then conclusion=failure; missing+=("${found#ci-results/} (unexpected)"); fi
+            done
+          fi
           run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
-          summary="$(printf 'Manual CI run %s against ref `%s`, commit `%s`.\n\n| job | result | tested commit |\n| --- | --- | --- |\n| tooling | %s | %s |\n| unit | %s | %s |\n| engine | %s | %s |\n' \
-            "$run_url" "$REF" "$sha" "$TOOLING" "${TOOLING_SHA:-none}" "$UNIT" "${UNIT_SHA:-none}" "$ENGINE" "${ENGINE_SHA:-none}")"
+          summary="$(printf 'Manual CI run %s against ref `%s`, commit `%s`.\n\n| job | result | tested commit |\n| --- | --- | --- |\n%s' \
+            "$run_url" "$REF" "$sha" "$rows")"
+          if [ "${#missing[@]}" -gt 0 ]; then
+            listed=""
+            for entry in "${missing[@]}"; do listed+="${listed:+, }$entry"; done
+            summary+=$'\n\n'"missing or failed: $listed"
+          fi
           printf '%s\n\nconclusion: %s\n' "$summary" "$conclusion" | tee -a "$GITHUB_STEP_SUMMARY"
           gh api --method POST "repos/$GITHUB_REPOSITORY/check-runs" \
             -f name=CI -f head_sha="$sha" -f status=completed -f conclusion="$conclusion" -f details_url="$run_url" \
