@@ -14,6 +14,7 @@ shards = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(shards)
 
 UNIT_DOCKER = ("docker run --rm --network none --read-only --tmpfs /tmp:rw,nosuid,nodev,noexec,size=64m --cap-drop ALL "
+               "-e NETOPS_REDACTION_FUZZ_PART -e NETOPS_REDACTION_FUZZ_PARTS "
                "--security-opt no-new-privileges --user 51000:51000 --workdir /opt/netops/tests --entrypoint python \"$ref\" "
                "-B -m unittest -v \"$1\"")
 
@@ -306,14 +307,20 @@ class Workflow(unittest.TestCase):
         self.assertEqual([name for name, _ in jobs], ["tooling", "unit", "engine", "report"])
         for name, body in jobs:
             with self.subTest(job=name):
-                self.assertRegex(body, r"(?m)^    timeout-minutes: (?:[1-9][0-9]*|\$\{\{ matrix\.timeout \}\})$")
+                if name == "unit":
+                    self.assertIn("    timeout-minutes: ${{ github.event_name == 'workflow_dispatch' && "
+                                  "matrix.legacy_timeout || matrix.timeout }}\n", body)
+                else:
+                    self.assertRegex(body, r"(?m)^    timeout-minutes: (?:[1-9][0-9]*|\$\{\{ matrix\.timeout \}\})$")
         engine = dict(jobs)["engine"]
         roles = re.search(r"(?m)^        role: \[([a-z, ]+)\]$", engine).group(1).split(", ")
         timeouts = dict(re.findall(r"(?m)^          - role: ([a-z]+)\n            timeout: ([1-9][0-9]*)$", engine))
         self.assertEqual(sorted(timeouts), sorted(roles))
         _, matrix = configured_shards()
-        timeouts = re.findall(r"(?m)^          - shard: ([0-9]+)\n            timeout: ([1-9][0-9]*)$", dict(jobs)["unit"])
-        self.assertEqual([int(shard) for shard, _ in timeouts], matrix)
+        timeouts = re.findall(r"(?m)^          - shard: ([0-9]+)\n            timeout: ([1-9][0-9]*)\n"
+                              r"            legacy_timeout: ([1-9][0-9]*)$", dict(jobs)["unit"])
+        self.assertEqual([int(shard) for shard, _, _ in timeouts], matrix)
+        self.assertTrue(all(int(timeout) == 18 for _, timeout, _ in timeouts))
 
     def test_timeouts_are_the_measured_job_durations_with_half_again_as_reserve(self):
         # longest GitHub run of the whole job in tenths of a minute -> timeout >= x 1.5, the next whole minute;
@@ -321,7 +328,8 @@ class Workflow(unittest.TestCase):
         # on 27174f7c8 (29:01, job 137208180176) -> 43.5 -> 44
         jobs = job_bodies()
         engine = dict(re.findall(r"(?m)^          - role: ([a-z]+)\n            timeout: ([1-9][0-9]*)$", jobs["engine"]))
-        unit = dict(re.findall(r"(?m)^          - shard: ([0-9]+)\n            timeout: ([1-9][0-9]*)$", jobs["unit"]))
+        unit = dict(re.findall(r"(?m)^          - shard: ([0-9]+)\n            timeout: [0-9]+\n"
+                               r"            legacy_timeout: ([1-9][0-9]*)$", jobs["unit"]))
         configured = {"core": engine["core"], "helper": engine["helper"], "auditor": engine["auditor"],
                       "admin": engine["admin"], "shard 1": unit["1"], "shard 2": unit["2"], "shard 3": unit["3"],
                       "tooling": re.search(r"(?m)^    timeout-minutes: ([0-9]+)$", jobs["tooling"]).group(1)}
@@ -372,6 +380,7 @@ class Workflow(unittest.TestCase):
             environment = dict(os.environ, RUNNER_TEMP=str(temp), SHARD="1", UNIT_SHARDS="1", CALLS=str(calls),
                                CI_TOOLS=tools_directory, EVENTS=str(root / "events"), FAIL_MODULE=failing_module,
                                FAIL_CODE=str(int(failing)),
+                               GITHUB_EVENT_NAME="workflow_dispatch" if tools_directory != "." else "push",
                                PATH=str(tools) + os.pathsep + os.environ.get("PATH", os.defpath))
             result = subprocess.run(["bash", "-c", run_block("Run the installed product unit tests")], cwd=root,
                                     env=environment, capture_output=True, text=True, timeout=60)
@@ -382,7 +391,8 @@ class Workflow(unittest.TestCase):
                 with self.subTest(module=name):
                     call = (calls / name).read_text(encoding="utf-8")
                     self.assertIn("--network none --read-only", call)
-                    self.assertIn("--cap-drop ALL --security-opt no-new-privileges --user 51000:51000", call)
+                    self.assertIn("--cap-drop ALL", call)
+                    self.assertIn("--security-opt no-new-privileges --user 51000:51000", call)
                     log = (root / "test-logs" / "unit" / (name + ".log")).read_text(encoding="utf-8")
                     self.assertIn("fixture output " + name, log)
                     self.assertIn("[%s] exit=%d" % (name, int(failing) if name == failing_module else 0), result.stdout)
