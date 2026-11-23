@@ -9,6 +9,9 @@ and a JSON string; no value hidden by 1.0.6 may be visible here, except the line
 
 NETOPS_REDACTION_FUZZ_CASES sets the number of random inputs (default 50000) and
 NETOPS_REDACTION_FUZZ_SEED the seed (default 20261109).
+NETOPS_REDACTION_FUZZ_PART and NETOPS_REDACTION_FUZZ_PARTS select a zero-based
+part of both corpora. The other checks run in part 0. Without either variable,
+the module checks the full corpora and runs every test.
 """
 import json
 import os
@@ -17,6 +20,7 @@ import random
 import re
 import runpy
 import unittest
+from unittest.mock import patch
 
 from netops.redaction import redact
 from types import SimpleNamespace
@@ -33,6 +37,8 @@ OLD_HELPER = runpy.run_path(str(FIXTURES / "sanitize_1_0_6.py"))["redact"]
 OLD_SANITIZE = runpy.run_path(str(FIXTURES / "proxy_sanitize_1_0_6.py"))["sanitize_object"]
 CASES = int(os.environ.get("NETOPS_REDACTION_FUZZ_CASES", "50000"))
 SEED = int(os.environ.get("NETOPS_REDACTION_FUZZ_SEED", "20261109"))
+PART = "NETOPS_REDACTION_FUZZ_PART"
+PARTS = "NETOPS_REDACTION_FUZZ_PARTS"
 
 MARKERS = ("<REDACTED>", "<REDACTED:credential#99>", "<redacted:credential#99>", "[REDACTED]",
            "<UNVERIFIED:unclassified-field>", "<UNVERIFIED:unsupported-format>", "<UNVERIFIED:x>",
@@ -187,6 +193,47 @@ def canaries(text):
     return set(re.findall(r"CNRY[0-9]{7}Q", text))
 
 
+def fuzz_partition():
+    if PART not in os.environ and PARTS not in os.environ:
+        return 0, 1
+    part, parts = int(os.environ[PART]), int(os.environ[PARTS])
+    if not 0 <= part < parts:
+        raise ValueError(f"{PART} must be between 0 and {PARTS} - 1")
+    return part, parts
+
+
+def partitioned_cases(corpus):
+    part, parts = fuzz_partition()
+    # Advance the seeded generator at every index to preserve the original corpus.
+    for index, case in enumerate(corpus):
+        if index % parts == part:
+            yield index, case
+
+
+def helper_cases(count):
+    generator = Generator(SEED + 1)
+    for index in range(count):
+        snmp, credential = generator.snmp()
+        text = snmp + VALUELESS_UNSET.sub("seX", generator.text())
+        # Every case uses CRLF, ANSI or C0 and includes a multiword value.
+        tail = "password: prefix " + generator.canary() + " " + generator.canary() + "\n"
+        kind = index % 4
+        if kind == 0:
+            text = (text + tail).replace("\n", "\r\n")
+        elif kind == 1:
+            text = "\x1b[0m\n" + text + tail
+        elif kind == 2:
+            text = "\x00\x0b\n" + text + tail
+        else:
+            text = "\x1b[1m\r\n" + text + tail.replace("password", "pass\x08word")
+        yield text, credential
+
+
+def differential_cases(count):
+    generator = Generator(SEED)
+    return (generator.text() for _ in range(count))
+
+
 class RedactionFloor106(unittest.TestCase):
     def test_the_proxy_retains_every_1_0_6_rule_plus_snmp_protection(self):
         # Range tracking changes plumbing, while each legacy matching rule must
@@ -238,23 +285,9 @@ class RedactionFloor106(unittest.TestCase):
             self.fail("frozen proxy-worker chain did not settle")
 
         auth = SimpleNamespace(redaction_secrets=())
-        generator = Generator(SEED + 1)
         count = max(50000, CASES)
-        for index in range(count):
-            snmp, credential = generator.snmp()
-            text = snmp + VALUELESS_UNSET.sub("seX", generator.text())
-            # Every case exercises CRLF, ANSI or C0; include multiword values
-            # because an early worker pass used to expose their suffix.
-            tail = "password: prefix " + generator.canary() + " " + generator.canary() + "\n"
-            kind = index % 4
-            if kind == 0:
-                text = (text + tail).replace("\n", "\r\n")
-            elif kind == 1:
-                text = "\x1b[0m\n" + text + tail
-            elif kind == 2:
-                text = "\x00\x0b\n" + text + tail
-            else:
-                text = "\x1b[1m\r\n" + text + tail.replace("password", "pass\x08word")
+        inputs = 0
+        for index, (text, credential) in partitioned_cases(helper_cases(count)):
             previous = old_full(text)
             for name, actual in (("engine", engine._redact_output(text, auth)),
                                  ("configuration", configuration_path(text)),
@@ -269,9 +302,12 @@ class RedactionFloor106(unittest.TestCase):
                     for canary in canaries(text):
                         if canary not in floor:
                             self.assertNotIn(canary, actual)
-            if index and index % 5000 == 0:
-                print("complete helper floor: %d/%d cases, 0 leaks" % (index, count), flush=True)
-        print("complete helper floor: %d inputs, %d paths, 0 leaks" % (count, 4 * count), flush=True)
+            inputs += 1
+            if inputs % 5000 == 0:
+                print("complete helper floor: %d cases checked, 0 leaks" % inputs, flush=True)
+        print("complete helper floor: %d inputs, %d paths, 0 leaks" % (inputs, 4 * inputs), flush=True)
+        part, parts = fuzz_partition()
+        self.assertEqual(inputs, len(range(part, count, parts)))
 
     def test_snmp_detection_requires_a_command_line_and_decodes_json(self):
         for text in ('config ' * 20000, 'comment config system snmp community', 'snmp_community'):
@@ -411,12 +447,10 @@ class RedactionFloor106(unittest.TestCase):
             self.assertEqual(json.loads(redact(raw)[0]), '[REDACTED]')
 
     def test_differential_fuzz_shows_nothing_that_1_0_6_hid(self):
-        generator = Generator(SEED)
         violations, allowed, stricter, compared, inputs, unset_inputs = [], 0, 0, 0, 0, 0
-        for index in range(CASES):
-            if index and index % 5000 == 0:
-                print("redaction fuzz: %d/%d inputs" % (index, CASES), flush=True)
-            text = generator.text()
+        for _, text in partitioned_cases(differential_cases(CASES)):
+            if inputs and inputs % 5000 == 0:
+                print("redaction fuzz: %d inputs checked" % inputs, flush=True)
             inputs += 1
             unset_inputs += "unset" in text.lower()
             neutral = VALUELESS_UNSET.sub("seX", text)
@@ -437,7 +471,39 @@ class RedactionFloor106(unittest.TestCase):
               "%d canaries after a value-less unset password, %d hidden only here"
               % (SEED, inputs, unset_inputs, compared, len(violations), allowed, stricter))
         self.assertEqual(violations[:5], [])
-        self.assertGreaterEqual(inputs, min(CASES, 50000))
+        part, parts = fuzz_partition()
+        self.assertEqual(inputs, len(range(part, CASES, parts)))
+
+
+FUZZ_METHODS = (
+    "test_complete_helper_paths_never_reveal_1_0_6_canaries",
+    "test_differential_fuzz_shows_nothing_that_1_0_6_hid",
+)
+
+
+def load_tests(loader, tests, pattern):
+    part, _ = fuzz_partition()
+    if part == 0:
+        return tests
+    return unittest.TestSuite(RedactionFloor106(name) for name in FUZZ_METHODS)
+
+
+class RedactionFloorPartition(unittest.TestCase):
+    def test_partition_preserves_both_seeded_corpora(self):
+        for corpus, count in ((helper_cases, max(50000, CASES)), (differential_cases, CASES)):
+            with self.subTest(corpus=corpus.__name__):
+                def cases():
+                    # Retain the input identities and ordering without keeping large text cases in memory.
+                    return (hashlib.sha256(repr(case).encode()).digest() for case in corpus(count))
+
+                original = list(enumerate(cases()))
+                with patch.dict(os.environ):
+                    os.environ.pop(PART, None)
+                    os.environ.pop(PARTS, None)
+                    self.assertEqual(list(partitioned_cases(cases())), original)
+                for part in range(3):
+                    with patch.dict(os.environ, {PART: str(part), PARTS: "3"}):
+                        self.assertEqual(list(partitioned_cases(cases())), original[part::3])
 
 
 if __name__ == "__main__":

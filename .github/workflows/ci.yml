@@ -87,10 +87,10 @@ jobs:
           path: ci-tools
           persist-credentials: false
 
-      - name: Set up Python 3.14.10
+      - name: Set up Python 3.15.2
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version: 3.14.10
+          python-version: 3.15.2
 
       - name: Check the public source for private data and product identity
         run: python -B release/check_source.py
@@ -165,21 +165,22 @@ jobs:
     runs-on: ubuntu-24.04
     env:
       CI_TOOLS: ${{ github.event_name == 'workflow_dispatch' && 'ci-tools' || '.' }}
-    timeout-minutes: ${{ matrix.timeout }}
+    timeout-minutes: ${{ github.event_name == 'workflow_dispatch' && matrix.legacy_timeout || matrix.timeout }}
     strategy:
       fail-fast: false
       matrix:
         shard: [1, 2, 3]
-        # timeout = longest GitHub run of the whole job (runs 45022466018, 45022462276) x 1.5, rounded up:
-        # shard 2 3.0 min -> 5, shard 3 4.2 min -> 7 (test_admin_text_limits now runs alone after the parallel part);
-        # shard 1 29.0 min (push run on 27174f7c8, job 137208180176; test_redaction_1_0_6_floor dominates) -> 44
+        # Provisional for the partitioned floor. After measuring in Actions, use ceil(longest new job x 1.5).
         include:
           - shard: 1
-            timeout: 44
+            timeout: 18
+            legacy_timeout: 44
           - shard: 2
-            timeout: 5
+            timeout: 18
+            legacy_timeout: 5
           - shard: 3
-            timeout: 7
+            timeout: 18
+            legacy_timeout: 7
     steps:
       - name: Describe the runner
         shell: bash
@@ -234,10 +235,10 @@ jobs:
           path: ci-tools
           persist-credentials: false
 
-      - name: Set up Python 3.14.10
+      - name: Set up Python 3.15.2
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version: 3.14.10
+          python-version: 3.15.2
 
       - name: Build the native product image from locked dependencies
         run: |
@@ -274,9 +275,20 @@ jobs:
           cat "$RUNNER_TEMP/unit-parallel" "$RUNNER_TEMP/unit-serial" > "$RUNNER_TEMP/unit-modules"
           test -s "$RUNNER_TEMP/unit-modules"
           test "$(sort "$RUNNER_TEMP/unit-modules")" = "$(python3 -B "$CI_TOOLS"/release/unit_shards.py --tests tests/v1 --shards "$UNIT_SHARDS" --shard "$SHARD" | sort)"
+          floor=test_redaction_1_0_6_floor
+          if [ "$GITHUB_EVENT_NAME" != workflow_dispatch ] && grep -wq NETOPS_REDACTION_FUZZ_PART "tests/v1/$floor.py"; then
+            # Replace the whole floor module with one disjoint corpus partition on each runner.
+            export NETOPS_REDACTION_FUZZ_PART="$((SHARD - 1))"
+            export NETOPS_REDACTION_FUZZ_PARTS="$UNIT_SHARDS"
+            for file in unit-parallel unit-modules; do
+              { printf '%s\n' "$floor"; sed "/^$floor$/d" "$RUNNER_TEMP/$file"; } > "$RUNNER_TEMP/$file.partition"
+              mv "$RUNNER_TEMP/$file.partition" "$RUNNER_TEMP/$file"
+            done
+          fi
           run_module='
             start=$SECONDS
             docker run --rm --network none --read-only --tmpfs /tmp:rw,nosuid,nodev,noexec,size=64m --cap-drop ALL \
+              -e NETOPS_REDACTION_FUZZ_PART -e NETOPS_REDACTION_FUZZ_PARTS \
               --security-opt no-new-privileges --user 51000:51000 --workdir /opt/netops/tests --entrypoint python "$ref" -B -m unittest -v "$1" \
               > "test-logs/unit/$1.log" 2>&1 < /dev/null
             code=$?
