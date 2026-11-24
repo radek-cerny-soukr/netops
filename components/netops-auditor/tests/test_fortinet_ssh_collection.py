@@ -15,11 +15,11 @@ from types import SimpleNamespace
 
 import pytest
 
-from netops_auditor import cli, collect
+from netops_auditor import cli, collect, fortios_audit
 from netops_core.session import fortinet_session
 from test_channel_events_on_failure import (
-    CONSOLE, DEVICE, DUMP, HOST, KEY_BLOB, KEY_PIN, PREFLIGHT, SHOW, TENANT, Credential,
-    write_inventory, write_vault,
+    CONSOLE, DEVICE, DUMP, HOST, IDENTITY, KEY_BLOB, KEY_PIN, PREFLIGHT, SHOW, STATUS, TENANT, Credential,
+    targeted, write_inventory, write_vault,
 )
 
 
@@ -69,6 +69,18 @@ for line in sys.stdin.buffer:
     if body is None:
         sys.stderr.write("device words CANARY-FORTIOS-SSH\n")
         sys.exit(255)
+    if command == b"show" and ANSWERS["get system console"].endswith(b": more\n"):
+        first, _, tail = body.partition(b"\n")
+        sys.stdout.buffer.write(command + b"\r\r\n" + first + b"\r\n--Mo")
+        sys.stdout.buffer.flush()
+        import time
+        time.sleep(0.005)
+        sys.stdout.buffer.write(b"re--")
+        sys.stdout.buffer.flush()
+        assert sys.stdin.buffer.read(1) == b" "
+        sys.stdout.buffer.write(b"\r         \r" + tail.replace(b"\n", b"\r\n") + prompt)
+        sys.stdout.buffer.flush()
+        continue
     sys.stdout.buffer.write(command + b"\r\r\n" + body.replace(b"\n", b"\r\n") + prompt)
     sys.stdout.buffer.flush()
 """
@@ -76,7 +88,9 @@ for line in sys.stdin.buffer:
 
 def _fake_client(tmp_path, monkeypatch, console, snapshot):
     log = tmp_path / "client.log"
-    answers = {"get system console": console, "show": snapshot}
+    answers = {"get system status": IDENTITY, "get system console": console, "show": snapshot}
+    answers.update({step.command: targeted(snapshot or b"", step.command)
+                    for step in fortios_audit.SSH_STEPS if step.command not in answers})
     script = (
         f"#!{sys.executable}\nLOG = {str(log)!r}\nKEY_LINE = {f'{HOST} {PUBLIC_KEY}'!r}\n"
         f"ANSWERS = {answers!r}\n" + FAKE_CLIENT
@@ -121,19 +135,17 @@ def test_collect_starts_one_ssh_and_no_scan(tmp_path, monkeypatch, capsys, stand
     log = _fake_client(tmp_path, monkeypatch, console, snapshot)
     code, actual_rows = _cli_collect(tmp_path, host_key=PUBLIC_KEY)
     out, err = capsys.readouterr()
-    commands = ["command: get system console"]
-    rows = [_event(PREFLIGHT, "ok" if standard else "failed", console)]
-    if standard:
-        assert (code, err) == (cli.EXIT_OK, "")
-        digest = hashlib.sha256(snapshot).hexdigest()
-        assert json.loads(out)["collection"]["snapshot_sha256"] == digest
-        rows.append(_event(SHOW, "ok", snapshot))
-        commands.append("command: show")
-    else:
-        assert (code, out) == (cli.EXIT_ERROR, "")
-        assert "reports output 'more' instead of 'standard'" in err
-    assert actual_rows == rows
-    assert log.read_text().splitlines() == ["ssh", *commands]
+    assert (code, err) == (cli.EXIT_OK, "")
+    assert json.loads(out)["collection"]["snapshot_sha256"] == hashlib.sha256(snapshot).hexdigest()
+    assert actual_rows[:3] == [
+        _event(STATUS, "ok", IDENTITY),
+        _event(PREFLIGHT, "ok", console),
+        _event(SHOW, "ok", snapshot),
+    ]
+    assert len(actual_rows) == len(fortios_audit.SSH_STEPS)
+    assert log.read_text().splitlines() == ["ssh", *[
+        "command: " + step.command for step in fortios_audit.SSH_STEPS
+    ]]
 
 
 def test_missing_inventory_key_is_refused_before_starting_a_client(tmp_path, monkeypatch, capsys):
@@ -142,7 +154,7 @@ def test_missing_inventory_key_is_refused_before_starting_a_client(tmp_path, mon
     out, err = capsys.readouterr()
     assert (code, out) == (cli.EXIT_ERROR, "")
     assert "add host_key at enrollment" in err
-    assert rows == [_event(PREFLIGHT, "failed", b"")]
+    assert rows == [_event(STATUS, "failed", b"")]
     assert not log.exists()
 
 
@@ -153,8 +165,8 @@ def test_disconnect_on_show_preserves_the_preflight_event(tmp_path, monkeypatch,
     assert (code, out) == (cli.EXIT_ERROR, "")
     assert "disconnected before a prompt" in err
     assert "CANARY-FORTIOS-SSH" not in err
-    assert rows == [_event(PREFLIGHT, "ok", CONSOLE), _event(SHOW, "failed", b"")]
-    assert log.read_text().splitlines() == ["ssh", "command: get system console", "command: show"]
+    assert rows == [_event(STATUS, "ok", IDENTITY), _event(PREFLIGHT, "ok", CONSOLE), _event(SHOW, "failed", b"")]
+    assert log.read_text().splitlines() == ["ssh", "command: get system status", "command: get system console", "command: show"]
 
 
 @pytest.mark.parametrize("standard", (True, False), ids=("standard", "more"))
@@ -164,17 +176,12 @@ def test_collection_leaves_the_borrowed_session_open(tmp_path, monkeypatch, stan
     target = SimpleNamespace(platform="fortios", address=HOST, port=22,
                              host_key_fingerprint=KEY_PIN, host_key=PUBLIC_KEY)
     credential = Credential()
-    commands = ["command: get system console"]
+    commands = ["command: " + step.command for step in fortios_audit.SSH_STEPS]
     with fortinet_session(target, credential) as opened:
         args = DEVICE, target.platform, HOST, 22, credential, KEY_PIN
-        if standard:
-            snapshot, events = collect.collect_ssh(*args, session=opened)
-            assert snapshot.text == DUMP
-            assert [event.outcome for event in events] == ["ok", "ok"]
-            commands.append("command: show")
-        else:
-            with pytest.raises(collect.CollectError, match="reports output 'more'"):
-                collect.collect_ssh(*args, session=opened)
+        snapshot, events = collect.collect_ssh(*args, session=opened)
+        assert snapshot.text == DUMP
+        assert [event.outcome for event in events] == ["ok"] * len(commands)
         assert opened.run("get system console").stdout == console
         commands.append("command: get system console")
     assert log.read_text().splitlines() == ["ssh", *commands]

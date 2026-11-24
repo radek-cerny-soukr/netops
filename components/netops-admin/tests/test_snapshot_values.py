@@ -15,6 +15,7 @@ from netops_admin.engine import build_plan
 from netops_admin.errors import Rejected
 from netops_admin.profiles import find_profile, load_profiles
 from netops_admin.request import canonical_value, parse_request
+from approved_apply import approved_apply
 
 GROUP = '        set member "grouped-host"'
 TRAILING_BACKSLASH = "C:\\temp\\"
@@ -110,7 +111,7 @@ def test_comment_ending_in_a_backslash_is_changed_and_undo_requests_it_back(tmp_
     device = FakeFortiOS()
     device.addresses["spare-host"]["comment"] = TRAILING_BACKSLASH
     runtime = make_runtime(tmp_path, device)
-    record = execute.apply(runtime, "lab", request(op=op, key="spare-host", changes=changes))
+    record = approved_apply(runtime, "lab", request(op=op, key="spare-host", changes=changes))
     assert (record["result"], record["reason"]) == ("confirmed", None)
     assert device.addresses.get("spare-host", {}).get("comment") != TRAILING_BACKSLASH
     undone = execute.undo(runtime, record["change_id"], "restore example")
@@ -121,7 +122,7 @@ def test_comment_ending_in_a_backslash_is_changed_and_undo_requests_it_back(tmp_
 @pytest.mark.parametrize("comment", ['say "hi"', TRAILING_BACKSLASH, 'a \\" b \\\\'])
 def test_fortios_comment_with_quotes_and_backslashes_is_requested_written_and_read_back(tmp_path, comment):
     device = FakeFortiOS()
-    record = execute.apply(make_runtime(tmp_path, device), "lab",
+    record = approved_apply(make_runtime(tmp_path, device), "lab",
                            request(op="update", key="spare-host", changes={"comment": comment}))
     assert (record["result"], record["reason"]) == ("confirmed", None)
     assert device.addresses["spare-host"]["comment"] == comment
@@ -154,7 +155,7 @@ def test_comment_ending_in_a_backslash_is_restored_by_the_safeguard(tmp_path):
     device.addresses["spare-host"]["comment"] = TRAILING_BACKSLASH
     device.drop_comment = True
     device.addresses["spare-host"]["subnet"] = "192.0.2.21 255.255.255.255"
-    record = execute.apply(make_runtime(tmp_path, device), "lab",
+    record = approved_apply(make_runtime(tmp_path, device), "lab",
                            request(op="update", key="spare-host", changes={"comment": "moved", "subnet": "192.0.2.22/32"}))
     assert (record["result"], record["reason"]) == ("reverted", "prediction mismatch")
     assert device.addresses["spare-host"]["comment"] == TRAILING_BACKSLASH

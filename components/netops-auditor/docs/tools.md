@@ -4,14 +4,14 @@ The HTTPS MCP endpoint exposes eight Auditor tools. They read the finished findi
 
 | Tool | Arguments | Current behavior |
 |---|---|---|
-| audit_status | optional `device`, optional `stale_after_hours` (positive number, default 26) | Per device: `state` `fresh`, `stale` (last run older than `stale_after_hours`), `never` (no run) or `incomplete` (last run not completely evaluated), `run_id`, finding counts per severity and per state, and rule status; without `device`, every device of the tenant |
-| list_rules | none | Rules of the configured catalog with ID, version, class, severity, title and references |
-| rule_detail | `rule_id` | One rule with remediation, evidence fields and known false positives |
+| audit_status | optional `device`, optional `stale_after_hours` (positive number, default 26), `platform` | Per device: `state` `fresh`, `stale` (last run older than `stale_after_hours`), `never` (no run) or `incomplete` (last run not completely evaluated), `run_id`, finding counts per severity and per state, and rule status; without `device`, every device of the tenant |
+| list_rules | optional `platform` | Rules of the configured catalog with ID, version, class, severity, title and references |
+| rule_detail | `rule_id`, optional `platform` | One rule with remediation, evidence fields and known false positives |
 | list_findings | `device`, optional `severity`, `state`, `since`, `group_by` | Findings of the last run of the device with their state, `gone` entries and counts per state |
 | finding_detail | `device`, `fingerprint` | One finding of the last run with its baseline and suppression record; a fingerprint that the run does not hold is an MCP error with `No finding matches the requested fingerprint for this device` |
 | compare | `device`, `first_run_id`, `second_run_id` (whole numbers) | `added`, `removed` and `kept` findings between two completely evaluated runs of the device |
 | schema_report | `device`, optional `view`, `offset`, `limit` | Reads an operator-pinned schema report manifest; NetOps 1.0 configures none, so the call is refused |
-| findings_summary | optional `device`, `severity`, `state`, `rule_id`, `limit` (whole number 1 to 200, default 50) | Brief findings of the last run of every device of the tenant, or of one `device`: `device`, `rule_id`, `severity`, `state`, `object_key` and `fingerprint` only, without evidence, section or line; see [Findings summary](#findings-summary) |
+| findings_summary | optional `device`, `severity`, `state`, `rule_id`, `platform`, `limit` (whole number 1 to 200, default 50) | Brief findings of the last run of every device of the tenant, or of one `device`: `device`, `rule_id`, `severity`, `state`, `object_key` and `fingerprint` only, without evidence, section or line; see [Findings summary](#findings-summary) |
 
 `list_findings` accepts these values:
 
@@ -22,7 +22,9 @@ The HTTPS MCP endpoint exposes eight Auditor tools. They read the finished findi
 | `since` | a UTC time written exactly as `YYYY-MM-DDTHH:MM:SSZ`, for example `2026-10-16T00:00:00Z`; when the last run started earlier, the result is empty with `run_state` `before-since` |
 | `group_by` | `object` only; it adds `groups`, one per object key with count, worst severity, rule IDs, states and fingerprints |
 
-`audit_status` and `list_findings` also return `suppressions_configured` (true when the reader has a suppression file); their other fields are unchanged.
+`audit_status` and `list_findings` also return `suppressions_configured` (true when the reader has a suppression file); `audit_status` and CLI audit output include `coverage.counts` for the stored rule
+states `evaluated`, `not_evaluated` and `unsupported`. Older runs without rule statuses show
+`counts: null`.
 
 `run_state` is `present`, `never` for a device without a run, or `before-since`. Use a `run_id` from `audit_status` or `list_findings` for `compare`. Arguments that do not match the input schema of the tool from `tools/list`, such as a wrong type or a missing required argument, are refused by the gateway with `Tool arguments do not match tools/list inputSchema`, followed by the missing required fields when there are any. Any other value outside the accepted ones, an unknown `rule_id` (in `rule_detail` and `findings_summary`), a `limit` outside 1 to 200, a run of another device, a run that is not completely evaluated in `compare` and every `schema_report` call are refused with the generic `Role operation failed; no automatic retry`, which does not name the argument. Some handled role errors also log a traceback; use the instance health and container state to check whether the service is running.
 
@@ -30,7 +32,14 @@ The HTTPS MCP endpoint exposes eight Auditor tools. They read the finished findi
 
 ## Findings summary
 
-`findings_summary` answers questions such as "all new high findings across the devices, only rule and object" in one short response. It reads the last run of every device of the configured tenant (devices in name order), or only `device` when given, and classifies the findings exactly as `list_findings` does, so `severity` and `state` take the same values and mean the same: the entries include `gone` and `not-evaluated` ones, and a filter applies to them too. `rule_id` must name a rule of the configured catalog. There is no `since`, no grouping, no paging and no history or `gone` detail; use `list_findings` and `finding_detail` for one device.
+`findings_summary` answers questions such as "all new high findings across the devices, only rule and object" in one short response. It reads the last run of every device of the configured tenant (devices in name order), or only `device` when given, and classifies the findings exactly as `list_findings` does, so `severity` and `state` take the same values and mean the same: the entries include `gone` and `not-evaluated` ones, and a filter applies to them too. `rule_id` is resolved against the explicitly selected catalog, or against the instance catalog
+when `platform` is omitted. For example, when the instance defaults to `fortios`, use
+`findings_summary(device="example-switch", platform="exos", rule_id="exos.mgmt.telnet-enabled")`
+to filter by the EXOS rule. The same catalog selection applies to `list_rules` and `rule_detail`.
+
+With `platform`, `findings_summary` and `audit_status` only include devices whose last
+committed run has a recognized matching catalog version. Older runs with an unknown format
+and devices without a run remain visible in unfiltered responses. There is no `since`, no grouping, no paging and no history or `gone` detail; use `list_findings` and `finding_detail` for one device.
 
 | Field | Meaning |
 |---|---|

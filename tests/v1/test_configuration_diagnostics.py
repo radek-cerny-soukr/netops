@@ -10,6 +10,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
+from netops_auditor.engine import available_platforms
 from netops import cli, operator
 from netops.diagnostics import configuration_error
 from netops.files import UIDS, write_private
@@ -37,7 +38,7 @@ class StructuredConfigurationDiagnostics(unittest.TestCase):
             (state / "gateway").mkdir(mode=0o700)
             (state / role).mkdir(mode=0o700)
             write_private(state / "gateway/config.json", json.dumps({
-                "version": 1, "product_version": "1.0.12", "audit": {"mode": "local"}}).encode())
+                "version": 1, "product_version": "1.0.13", "audit": {"mode": "local"}}).encode())
             stream = io.TextIOWrapper(io.BytesIO(json.dumps(document).encode()))
             errors, output = io.StringIO(), io.StringIO()
             with patch.dict(UIDS, {"gateway": current_uid, "auditor": current_uid}), patch.object(operator, "STATE", state), patch.object(operator, "demote"), \
@@ -72,7 +73,7 @@ class StructuredConfigurationDiagnostics(unittest.TestCase):
             (("inventory", "devices", 0, "auditor"), {CANARY: CANARY},
              "inventory.devices[].auditor.channel", "is required"),
             (("tenant",), None, "auditor.tenant", "string without U+001F"),
-            (("catalog",), CANARY, "auditor.catalog", "exos, fortiadc, fortios"),
+            (("catalog",), CANARY, "auditor.catalog", ", ".join(available_platforms())),
         ]
         for path, value, field, reason in cases:
             with self.subTest(path=path):
@@ -91,6 +92,24 @@ class StructuredConfigurationDiagnostics(unittest.TestCase):
             document["tenant"] = value
             message = self.invoke("auditor", document)
             self.assertIn("auditor.tenant: must be a string without U+001F", message)
+
+    def test_unreadable_selected_catalog_reports_the_cause(self):
+        from netops_auditor import engine
+
+        document = self.auditor()
+        document["catalog"] = "cisco-ios"
+        with tempfile.TemporaryDirectory() as directory:
+            broken = Path(directory) / "cisco-ios.json"
+            broken.write_text("{", encoding="utf-8")
+            catalog_path = engine.catalog_path
+            with patch.object(engine, "catalog_path", side_effect=lambda platform: (
+                    broken if platform == "cisco-ios" else catalog_path(platform))):
+                with self.assertLogs(engine.LOGGER, level="WARNING"):
+                    available = engine.available_platforms()
+                self.assertNotIn("cisco-ios", available)
+                self.assertIn("fortios", available)
+                message = self.invoke("auditor", document)
+        self.assertIn("auditor.catalog: catalog cisco-ios: catalog is not readable JSON", message)
 
     def test_fortiadc_inventory_explains_exported_snapshot_workflow(self):
         document = self.auditor()

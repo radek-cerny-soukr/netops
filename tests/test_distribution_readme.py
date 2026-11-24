@@ -22,15 +22,14 @@ class DistributionReadmeTest(unittest.TestCase):
             self.assertEqual(set(downloads), {version})
             self.assertIn(f'netops-{version}-SHA256SUMS.sigstore.json', document)
             self.assertIn(f'netops-{version}-SHA256SUMS', document)
-        self.assertIn('a 1.0.11 instance', readme)
-        self.assertIn('"upgrade":{"from":"1.0.11","to":"1.0.12"}', guide)
+        self.assertIn('a 1.0.12 instance', readme)
+        self.assertIn('"upgrade":{"from":"1.0.12","to":"1.0.13"}', guide)
         self.assertIn('No inventory or credential changes are required', guide)
         for document in (readme, guide):
-            self.assertIn('For the upgrade from 1.0.11 to 1.0.12, re-enroll every Admin device (`admin enroll`) before making changes with Admin.', document)
-        self.assertIn('lookup_prefixes', guide)
+            self.assertIn('For the upgrade from 1.0.12 to 1.0.13, re-enroll every Admin device (`admin enroll`) before making changes with Admin.', document)
         self.assertIn('keyboard-interactive', guide)
-        self.assertIn('five-second', guide)
-        self.assertIn('netops-1012', guide)
+        self.assertIn('five seconds', guide)
+        self.assertIn('netops-1013', guide)
 
     def test_current_release_documents_page_boundary_security_fix(self):
         root = Path(__file__).resolve().parents[1]
@@ -39,7 +38,7 @@ class DistributionReadmeTest(unittest.TestCase):
         for phrase in ('1.0.6', 'ssh_read', 'schema_read', 'session', 'transport',
                        'page boundary', 'two pages', 'before hashing and pagination', 'Upgrade to 1.0.7'):
             self.assertIn(phrase, security)
-        changelog = (root / 'CHANGELOG.md').read_text()
+        changelog = (root / 'docs/changelog-archive.md').read_text()
         heading = re.search(r'(?m)^## 1\.0\.7 - (?:TODO\(release-date\)|\d{4}-\d{2}-\d{2})$', changelog)
         current = changelog[heading.end():].split('\n## ', 1)[0]
         self.assertIn('### Security', current)
@@ -65,7 +64,7 @@ class DistributionReadmeTest(unittest.TestCase):
         self.assertIn(f'the tool count of step 9 is then `{without_admin}` instead of `{total}`', guide)
         tools = (root / 'components/netops-helper/docs/tools.md').read_text()
         self.assertIn(f'It exposes {helper} Helper tool names', tools)
-        self.assertEqual((helper, auditor, admin), (31, 8, 10))
+        self.assertEqual((helper, auditor, admin), (32, 8, 10))
 
     def test_normalized_coverage_matrix_and_legend_stay_consistent(self):
         root = Path(__file__).resolve().parents[1]
@@ -87,7 +86,7 @@ class DistributionReadmeTest(unittest.TestCase):
 
     def test_canonical_value_release_links_resolve_to_the_contract(self):
         root = Path(__file__).resolve().parents[1]
-        for name in ('CHANGELOG.md', 'release/notes-1.0.7.md'):
+        for name in ('docs/changelog-archive.md', 'release/notes-1.0.7.md'):
             text = (root / name).read_text()
             matches = re.findall(r'\[[^\]]+\]\(([^)]+#operational-value-names)\)', text)
             self.assertEqual(len(matches), 1, name)

@@ -2,6 +2,7 @@
   "platform": "iosxe",
   "table": "poe-cycle",
   "action": "poe-cycle",
+  "measured": false,
   "versions": [
     "17.18.2"
   ],
@@ -49,5 +50,5 @@
       "required_on_create": false
     }
   },
-  "rollback_evidence": "G79 (XE-M025): power inline never, a five-second hold and restoration of the prior mode and limit run under one device revert timer. The check account must see power off and then on, and running configuration must match the original. The operation was not measured on PoE hardware; IOL XE refuses show power inline. There is no separate undo."
+  "rollback_evidence": "xe port maintenance (XE-M025): power inline never, a five-second hold and restoration of the prior mode and limit run under one device revert timer. The check account must see power off and then on, and running configuration must match the original. The operation was not measured on PoE hardware; IOL XE refuses show power inline. There is no separate undo."
 }

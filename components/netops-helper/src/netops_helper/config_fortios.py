@@ -6,7 +6,7 @@ import shlex
 
 from . import configuration
 
-# Tested builds (G00, decision of 2026-11-17), one field policy config-fortios-<version>.json each. They are not a
+# Tested builds (startup, decision of 2026-11-17), one field policy config-fortios-<version>.json each. They are not a
 # gate: another version or build is read with the nearest policy (policy_firmware) and firmware_support "untested".
 # The redaction stays fail-closed there: a field outside the policy is hidden as <UNVERIFIED:...>.
 _BUILDS = {'7.6.8': '3744', '8.0.2': '0251'}
@@ -14,7 +14,7 @@ _HEADERS = frozenset(('config-version', 'conf_file_ver', 'buildno', 'global_vdom
 
 
 def _firmware(firmware):
-    # The product kind and a well-formed version are real boundaries; the version and build are not (G00 §2.4).
+    # The product kind and a well-formed version are real boundaries; the version and build are not (startup §2.4).
     if (type(firmware) is not tuple or len(firmware) != 3 or
             not all(type(value) is str for value in firmware) or
             not re.fullmatch(r'(?:FortiGate|FortiWiFi)-[A-Za-z0-9_.+-]+', firmware[0])):

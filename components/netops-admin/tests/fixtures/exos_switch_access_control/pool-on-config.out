@@ -1,0 +1,22 @@
+# Module vlan configuration.
+create vlan "netops-switch-access-control"
+# Module vlan configuration.
+configure vlan netops-switch-access-control tag 3940
+# Module vlan configuration.
+configure vlan netops-switch-access-control add ports 10 tagged
+# Module vlan configuration.
+configure vlan netops-switch-access-control ipaddress 192.0.2.1    255.255.255.0
+# Module vlan configuration.
+enable ipforwarding vlan netops-switch-access-control
+# Module netTools configuration.
+configure vlan netops-switch-access-control dhcp-address-range 192.0.2.30    - 192.0.2.49
+# Module netTools configuration.
+configure vlan netops-switch-access-control dhcp-lease-timer 3600
+# Module netTools configuration.
+configure vlan netops-switch-access-control dhcp-options default-gateway 192.0.2.1
+# Module netTools configuration.
+configure vlan netops-switch-access-control dhcp-options dns-server 192.0.2.2
+# Module netTools configuration.
+configure vlan netops-switch-access-control dhcp-options dns-server secondary 192.0.2.3
+# Module netTools configuration.
+enable dhcp ports 10 vlan netops-switch-access-control

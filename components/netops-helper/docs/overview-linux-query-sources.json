@@ -1,0 +1,23 @@
+{
+  "profile": "linux",
+  "activation": "pending",
+  "provenance": "../tests/fixtures/overview_h5/PROVENANCE.md",
+  "queries": {
+    "linux/overview_dmi_model": {
+      "command": "cat /sys/class/dmi/id/product_name",
+      "capture": "linux/overview_dmi_model/debian"
+    },
+    "linux/overview_proc_uptime": {
+      "command": "cat /proc/uptime",
+      "capture": "linux/overview_proc_uptime/debian"
+    },
+    "linux/overview_proc_stat": {
+      "command": "cat /proc/stat",
+      "captures": ["linux/overview_proc_stat/debian", "linux/overview_proc_stat/second"]
+    },
+    "linux/overview_link_statistics": {
+      "command": "ip -s -j link show",
+      "capture": "linux/overview_link_statistics/debian"
+    }
+  }
+}

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Standalone conservative Cisco IOS running-config stream consumer (task 96, bod 06).
+"""Standalone conservative Cisco IOS running-config stream consumer (verification, bod 06).
 
 The module under test, ``netops_helper.config_cisco_ios``, is a building block only: it is not a
 public ``config_read``, has no SSH command, no admitted firmware and no gate.  These tests drive the

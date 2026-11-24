@@ -1,8 +1,0 @@
-set firewall family inet filter g135-test term t1 from protocol icmp
-set firewall family inet filter g135-test term t1 then policer g135-pol
-set firewall family inet filter g135-test term t1 then count g135-cnt
-set firewall family inet filter g135-test term t1 then accept
-set firewall family inet filter g135-test term rest then accept
-set firewall policer g135-pol if-exceeding bandwidth-limit 1m
-set firewall policer g135-pol if-exceeding burst-size-limit 15k
-set firewall policer g135-pol then discard

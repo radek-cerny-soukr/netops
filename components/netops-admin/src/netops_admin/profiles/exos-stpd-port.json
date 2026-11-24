@@ -56,6 +56,6 @@
   "volatile": [],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "The port must already participate in the STPD. Undo restores the previous configured link type, protections and path cost.",
+  "rollback_evidence": "Live write and return on ExtremeXOS 33.6.1.14 / 33.7.1.6 (2026-11-19): The ELRP session, port link settings, LAG or STP configuration was changed, read back and undone. The port must already participate in the STPD. Undo restores the previous configured link type, protections and path cost.",
   "implicit_keys": true
 }

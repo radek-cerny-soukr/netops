@@ -2,6 +2,7 @@
   "platform": "ios",
   "table": "poe-cycle",
   "action": "poe-cycle",
+  "measured": false,
   "versions": [
     "15.2(20200924:215240)"
   ],
@@ -49,5 +50,5 @@
       "required_on_create": false
     }
   },
-  "rollback_evidence": "1.0.12 G61 (IOS-M024): 'power inline never', a pause, then the earlier 'power inline' line (auto, static, with or without max; 'power inline auto' when there was none) on one PoE-capable Ethernet port with a powered device, as ONE operation behind the revert timer of Admin. The PoE admin state before is restored exactly (checked in the running configuration); an expired timer returns the whole running configuration to the archive. Not measured on PoE hardware (see inline-power): the layout of show power inline INTERFACE (Admin off while never, Oper on when powered) is the one of the Cisco manual (fixtures/ios_g61/PROVENANCE.md). The operation has no undo; a device that does not draw power again within the wait is reported (result reverted with the reason) and the configuration stays as before."
+  "rollback_evidence": "1.0.12 ios port maintenance (IOS-M024): 'power inline never', a pause, then the earlier 'power inline' line (auto, static, with or without max; 'power inline auto' when there was none) on one PoE-capable Ethernet port with a powered device, as ONE operation behind the revert timer of Admin. The PoE admin state before is restored exactly (checked in the running configuration); an expired timer returns the whole running configuration to the archive. Not measured on PoE hardware (see inline-power): the layout of show power inline INTERFACE (Admin off while never, Oper on when powered) is the one of the Cisco manual (fixtures/ios_ios_port_maintenance/PROVENANCE.md). The operation has no undo; a device that does not draw power again within the wait is reported (result reverted with the reason) and the configuration stays as before."
 }

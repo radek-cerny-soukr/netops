@@ -1,0 +1,10 @@
+
+Warning: License key missing; requires 'BGP' license
+
+Group        Type       Peers     Established    Active/Received/Accepted/Damped
+measurement-bgp External 1        0          
+Default eBGP mode: advertise - accept, receive - accept
+
+Groups: 1  Peers: 1    External: 1    Internal: 0    Down peers: 1   Flaps: 0
+  inet.0           : 0/0/0/0 External: 0/0/0/0 Internal: 0/0/0/0
+

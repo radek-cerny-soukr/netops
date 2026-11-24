@@ -34,7 +34,7 @@ def test_triage_failed_identity_is_structured(monkeypatch, tool, args, error, co
 
 
 def test_health_untested_identity_runs_with_a_warning(monkeypatch):
-    # G00 (2026-11-17): an untested build is triaged; the result carries firmware_support and a warning.
+    # STARTUP (2026-11-17): an untested build is triaged; the result carries firmware_support and a warning.
     monkeypatch.setattr(engine, "read_from_device", lambda *a: (
         0, "Version: FortiGate-80F v8.0.2,build0252,260928 (GA.F)\nVirtual domain configuration: disable\n"))
     result = engine.triage_health(_target("fortinet", "system_status"))

@@ -14,6 +14,7 @@ from test_execute_exos import request as exos_request
 from netops_admin import engine, execute
 from netops_admin.errors import Rejected
 from netops_admin.request import parse_request
+from approved_apply import approved_apply
 
 
 def after_change(device, distort):
@@ -103,7 +104,7 @@ def check_reason(tmp_path, runtime, record, name, reason, blocked, detail=None):
 def test_fortios_snapshot_problem_after_the_change_names_its_cause_and_blocks(tmp_path, distort, reason):
     device = after_change(FakeFortiOS(), distort)
     runtime = fortios_runtime(tmp_path, device)
-    record = execute.apply(runtime, "lab", fortios_request())
+    record = approved_apply(runtime, "lab", fortios_request())
     assert device.distorted is True
     check_reason(tmp_path, runtime, record, "lab", reason, blocked=True)
     assert "new-host" not in device.addresses
@@ -113,7 +114,7 @@ def test_fortios_snapshot_problem_after_the_change_names_its_cause_and_blocks(tm
 def test_fortios_dump_cut_inside_a_section_is_incomplete_and_blocks_like_a_cut_at_a_boundary(tmp_path, distort):
     device = after_change(FakeFortiOS(), distort)
     runtime = fortios_runtime(tmp_path, device)
-    record = execute.apply(runtime, "lab", fortios_request())
+    record = approved_apply(runtime, "lab", fortios_request())
     assert device.distorted is True
     check_reason(tmp_path, runtime, record, "lab", "snapshot incomplete", blocked=True)
     assert "new-host" not in device.addresses
@@ -126,7 +127,7 @@ def test_fortios_dump_cut_before_the_change_is_refused_as_incomplete_without_blo
     device.snapshot = lambda: distort(original())
     runtime = fortios_runtime(tmp_path, device)
     with pytest.raises(Rejected) as caught:
-        execute.apply(runtime, "lab", fortios_request())
+        approved_apply(runtime, "lab", fortios_request())
     assert caught.value.reasons[0].startswith("snapshot is cut off: unterminated"), caught.value.reasons
     assert getattr(caught.value, "category", None) == "snapshot incomplete"
     assert runtime.store.blocked("lab") is None
@@ -137,7 +138,7 @@ def test_fortios_account_created_during_the_change_keeps_the_administrator_table
     device = FakeFortiOS()
     device.on_apply = lambda fake, lines: fake.admins.append("sneaky") if len(fake.applied_blocks) == 2 else None
     runtime = fortios_runtime(tmp_path, device)
-    record = execute.apply(runtime, "lab", fortios_request())
+    record = approved_apply(runtime, "lab", fortios_request())
     check_reason(tmp_path, runtime, record, "lab", "administrator table", blocked=True)
 
 
@@ -146,14 +147,14 @@ def test_fortios_account_entry_changed_during_the_change_keeps_the_administrator
     device.on_apply = (lambda fake, lines: fake.admin_comments.update({"netops-rw": "changed"})
                        if len(fake.applied_blocks) == 2 else None)
     runtime = fortios_runtime(tmp_path, device)
-    record = execute.apply(runtime, "lab", fortios_request())
+    record = approved_apply(runtime, "lab", fortios_request())
     check_reason(tmp_path, runtime, record, "lab", "administrator table", blocked=True)
 
 
 def test_exos_dump_cut_before_the_vlan_module_is_incomplete_not_an_account_change(tmp_path):
     device = after_change(FakeExos(), cut_before_vlan_module)
     runtime = exos_runtime(tmp_path, device)
-    record = execute.apply(runtime, "sw", exos_request())
+    record = approved_apply(runtime, "sw", exos_request())
     assert device.distorted is True
     check_reason(tmp_path, runtime, record, "sw", "snapshot incomplete", blocked=True)
 
@@ -162,7 +163,7 @@ def test_exos_account_created_during_the_change_keeps_the_administrator_table_re
     device = FakeExos()
     device.on_apply = lambda fake, steps: fake.accounts.append("sneaky") if len(fake.applied_blocks) == 2 else None
     runtime = exos_runtime(tmp_path, device)
-    record = execute.apply(runtime, "sw", exos_request())
+    record = approved_apply(runtime, "sw", exos_request())
     check_reason(tmp_path, runtime, record, "sw", "administrator table", blocked=True)
 
 
@@ -177,7 +178,7 @@ def test_rejection_without_a_snapshot_cause_after_the_change_is_not_called_an_ac
         return verify(plan, raw, expect)
 
     monkeypatch.setattr(execute.engine, "verify", refusing)
-    record = execute.apply(runtime, "lab", fortios_request())
+    record = approved_apply(runtime, "lab", fortios_request())
     check_reason(tmp_path, runtime, record, "lab", "postcheck rejected", blocked=True)
 
 

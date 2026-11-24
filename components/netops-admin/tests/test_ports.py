@@ -9,6 +9,7 @@ from netops_admin import exos, execute
 from netops_admin.engine import build_plan, verify
 from netops_admin.errors import Rejected
 from netops_admin.request import parse_request
+from approved_apply import approved_apply
 
 FIRMWARE = "33.7.1.6"
 
@@ -75,13 +76,13 @@ def test_port_answers_as_the_switch_prints_them():
     assert exos.shown_port("Port:\t11(Zyxel-5p-hloupy):\n", "11") == {"display-string": "Zyxel-5p-hloupy"}
     assert exos.shown_port("%% Unrecognized command\n%% Invalid port number detected.\r\n", "17") is None
     with pytest.raises(Rejected):
-        exos.shown_port("Port:\t12(Uplink-SW3):\n", "10")
+        exos.shown_port("Port:\t12(Uplink-SWB):\n", "10")
 
 
 def test_port_string_is_confirmed_checked_saved_and_undone(tmp_path):
     device = FakeExos()
     runtime = make_runtime(tmp_path, device)
-    record = execute.apply(runtime, "sw", port_request())
+    record = approved_apply(runtime, "sw", port_request())
     assert record["result"] == "confirmed" and device.port_strings["10"] == "Cam-01"
     assert "check_identity_passed" in [step["step"] for step in record["steps"]] and device.saves == 1
     back = execute.undo(runtime, record["change_id"], "investigated")
@@ -96,6 +97,6 @@ def test_check_account_seeing_another_string_reverts(tmp_path):
             fake.check_override = {"10": "Other"}
 
     device.on_apply = hook
-    record = execute.apply(make_runtime(tmp_path, device), "sw", port_request())
+    record = approved_apply(make_runtime(tmp_path, device), "sw", port_request())
     assert record["result"] == "reverted" and record["reason"] == "check identity mismatch"
     assert "10" not in device.port_strings

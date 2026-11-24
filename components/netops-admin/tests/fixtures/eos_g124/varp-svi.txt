@@ -1,5 +1,0 @@
-interface Vlan3985
-   description g124-varp
-   no autostate
-   ip address 198.51.100.2/24
-   ip virtual-router address 198.51.100.254

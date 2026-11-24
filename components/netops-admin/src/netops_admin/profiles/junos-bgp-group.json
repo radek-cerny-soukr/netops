@@ -1,6 +1,7 @@
 {
   "platform": "junos",
   "table": "bgp-group",
+  "measured": true,
   "versions": [
     "26.2R1.7"
   ],
@@ -55,5 +56,5 @@
   "volatile": [],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "Uses the Junos commit confirmed safeguard and scoped inverse (G132). The group owns its type, peer AS and ordered import and export policies. Neighbors are independent objects."
+  "rollback_evidence": "Measured on vJunos-switch 26.2R1.7 without a BGP license and with a local AS configured: an external group and its first neighbor were created in one hash-bound batch, the commit with the BGP license warning was accepted, the check account read the group with its neighbor and its peer AS, and the batch undo restored the configuration (SHA-256 before and after matched). A new group without neighbors is not shown by the check account (only the license warning), and a group whose only neighbor has another peer AS is shown with that AS; both fail the check closed and Admin returns the change, so create a group together with its first neighbor in one batch. The group owns its type, peer AS and ordered import and export policies."
 }

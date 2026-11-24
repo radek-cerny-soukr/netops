@@ -1,0 +1,3 @@
+fe80::10/64 dev dummy0 proto kernel metric 256 pref medium
+local fe80::11                  dev dummy0 table local proto kernel metric 0 pref medium
+multicast ff00::/8 dev dummy0 table local proto kernel metric 256 pref medium

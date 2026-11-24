@@ -1,7 +1,7 @@
 """Arista EOS plan adapter: interface description, admin state, speed, MTU and PoE, port VLAN membership and VLANs from
-show running-config; the port bounce and the PoE cycle (1.0.12 G123) as operations of their own tables.
+show running-config; the port bounce and the PoE cycle (1.0.12 eos port maintenance) as operations of their own tables.
 
-Measured on cEOSLab 4.36.1F (task netops-provoz-20261116-301, ref/c7-mereni): the running configuration is a
+Measured on cEOS 4.36.1F (verification, private measurement record): the running configuration is a
 flat list of top-level statements, each followed by its own lines indented by three spaces and closed by a
 line "!". The answer starts with "! Command: show running-config" and the device line, and ends with "end".
 EOS creates a missing VLAN or interface without an error ("! Access VLAN does not exist. Creating vlan N",
@@ -19,7 +19,7 @@ from netops_admin.ios import vlan_numbers, vlan_text
 
 PLATFORM = "eos"
 COMMAND_LINE = "! Command: show running-config"
-# measured over ssh exec (task 304): the answer starts with the echo "> show running-config" and the header
+# measured over ssh exec (verification): the answer starts with the echo "> show running-config" and the header
 # "! Command: show running-config at line 1"; in an interactive session the header has no "at line" part
 COMMAND_HEADER = re.compile(r"^! Command: show running-config(?: at line [0-9]+)?$")
 EXEC_ECHO = "> "
@@ -34,7 +34,7 @@ VLAN_HEADER = re.compile(r"^vlan ([0-9,-]+)$")
 VLAN_RANGE = re.compile(r"^vlan ([1-9][0-9]{0,3})-([1-9][0-9]{0,3})$")
 DEFAULT_VLAN = "1"
 CONTROL = re.compile(r"[\x00-\x1f\x7f]")
-# 1.0.12 G123: tables changed only by their own operation (profiles.ACTIONS): the port bounce owns the shutdown line, the
+# 1.0.12 eos port maintenance: tables changed only by their own operation (profiles.ACTIONS): the port bounce owns the shutdown line, the
 # PoE cycle the line "poe disabled" (measured shutdown on cEOS 4.36.1F; poe disabled from the Arista EOS manual)
 BOUNCE_TABLE = "port-bounce"
 POE_TABLE = "inline-power"
@@ -44,25 +44,25 @@ OWN_LINES = {
                   re.compile(r"^mtu [0-9]+$"), re.compile(r"^poe disabled$")),
     BOUNCE_TABLE: (re.compile(r"^(?:no )?shutdown$"),),
     POE_TABLE: (re.compile(r"^poe disabled$"),),
-    # 1.0.12 G122: the whole membership of the port (measured on cEOS 4.36.1F, task-evidence/g122)
+    # 1.0.12 eos switchport admin: the whole membership of the port (measured on cEOS 4.36.1F, private measurement record)
     "vlan-membership": (re.compile(r"^(?:no )?switchport (?:access vlan|mode|trunk allowed vlan|trunk native vlan|"
                                    r"phone vlan)(?: .+)?$"),
                         re.compile(r"^(?:no )?dot1x (?:pae authenticator|port-control(?: .+)?|"
                                    r"mac based authentication)$")),
 }
-# 1.0.12 G122 (E04/E46): membership lines of show running-config and their attributes; any other switchport or dot1x
+# 1.0.12 eos switchport admin (E04/E46): membership lines of show running-config and their attributes; any other switchport or dot1x
 # line of the port is configuration outside the profile
 MODES = {"switchport mode access": "access", "switchport mode trunk": "trunk",
          "switchport mode trunk phone": "trunk phone"}
 DEFAULT_MODE = "access"
 MEMBERSHIP_LINES = re.compile(r"^(?:switchport|dot1x) ")
-# 1.0.12 G122 r2 (E05/E46): lines that EOS keeps on an access port after "switchport mode access" and does not use
+# 1.0.12 eos switchport admin r2 (E05/E46): lines that EOS keeps on an access port after "switchport mode access" and does not use
 # there (measured: fixtures/eos_g122/show-running-config-interfaces-Ethernet12__access-stale-phone.txt); they stay as
 # they are and are compared as the rest of the configuration
 PHONE_TRUNK = re.compile(r"^switchport phone trunk (?:tagged|untagged)$")
 DOT1X_PAE = "dot1x pae authenticator"
 DOT1X_AUTO = "dot1x port-control auto"
-# 1.0.12 G122 (EP19): a port description is stored literally with any printable character (also diacritics);
+# 1.0.12 eos switchport admin (EP19): a port description is stored literally with any printable character (also diacritics);
 # '?' opens the help of the interactive CLI, a control character or a tab is dropped and a trailing space is cut
 DESCRIPTION_REFUSED = re.compile(r"[?\x00-\x1f\x7f-\x9f]")
 VLAN_TABLE = "vlan"
@@ -70,7 +70,7 @@ VLAN_NAME = re.compile(r"^[A-Za-z0-9_.-]{1,32}$")
 TRUNK = re.compile(r"^switchport (?:mode (?!access$)\S+|trunk )")
 LAG = re.compile(r"^channel-group ")
 ROUTED = re.compile(r"^no switchport$")
-# 1.0.12 G123 (E23): the speed values of "speed ?" and "speed auto ?" on cEOS 4.36.1F (task-evidence/g123/raw/probe1);
+# 1.0.12 eos port maintenance (E23): the speed values of "speed ?" and "speed auto ?" on cEOS 4.36.1F (private measurement record);
 # a forced speed disables autonegotiation, "auto" enables it, "auto SPEED" advertises one speed. The value is allowed
 # without a hardware entry for plain auto. Explicit rates require support in show interfaces N hardware.
 # EOS refused "speed auto 1g" on a port without autonegotiation (probe2).
@@ -95,7 +95,7 @@ class Entry:
         self.name = name
         self.attributes = {}
         self.unsupported = []
-        # G122 r2: left-over lines of an access port that EOS does not use (outside the profile state, kept as they are)
+        # eos switchport admin r2: left-over lines of an access port that EOS does not use (outside the profile state, kept as they are)
         self.leftover = []
 
 
@@ -245,8 +245,8 @@ class Snapshot:
                 _membership(entry, line, block, dot1x)
         if table != "vlan-membership":
             return entry
-        # G122 r2 (E05/E46): on an access port EOS ignores the phone trunk tagging and 802.1X without port-control
-        # auto (the port is force-authorized, measured); they are tolerated as left-over lines, as before G122
+        # eos switchport admin r2 (E05/E46): on an access port EOS ignores the phone trunk tagging and 802.1X without port-control
+        # auto (the port is force-authorized, measured); they are tolerated as left-over lines, as before eos switchport admin
         access = entry.attributes.get("mode", DEFAULT_MODE) == DEFAULT_MODE
         for line in phone_trunk:
             if access:
@@ -339,7 +339,7 @@ class Snapshot:
 
 def _own(table: str, line: str, siblings) -> bool:
     """A line of the port that the profile state renders. A left-over "dot1x pae authenticator" without port-control
-    auto (G122 r2) is not: it stays and is compared as the rest of the configuration."""
+    auto (eos switchport admin r2) is not: it stays and is compared as the rest of the configuration."""
     if table == "vlan-membership" and line == DOT1X_PAE and DOT1X_AUTO not in siblings:
         return False
     return any(pattern.match(line) for pattern in OWN_LINES.get(table, ()))
@@ -520,7 +520,7 @@ def render_update(profile, key: str, assign: dict, remove: list) -> list:
         return ["configure terminal", "vlan %s" % _vlan_id(key),
                 "name %s" % _vlan_name(name) if name else "no name", "end"]
     if profile.table in (BOUNCE_TABLE, POE_TABLE):
-        # G123: the operation owns one attribute, admin-state, rendered as its own line
+        # eos port maintenance: the operation owns one attribute, admin-state, rendered as its own line
         attribute = "admin-state" if profile.table == BOUNCE_TABLE else "poe"
         assign = {attribute: value for value in assign.values()}
         remove = [attribute for _name in remove]
@@ -546,12 +546,12 @@ def disruptive(table: str, before, after) -> bool:
     as admin down; the description alone does not."""
     before, after = before or {}, after or {}
     if table == "interface":
-        # G123 (E06/E23): speed and PoE cut the link or the power of the device; the MTU of a port is changed with the
+        # eos port maintenance (E06/E23): speed and PoE cut the link or the power of the device; the MTU of a port is changed with the
         # same checks, a routed port carries IP with it
         return any(after.get(name) != before.get(name) for name in ("admin-state", "speed", "mtu", "poe"))
     if table in (BOUNCE_TABLE, POE_TABLE):
         return True
-    # G122: every membership change (VLANs, mode, voice VLAN, 802.1X/MAB) can cut traffic of the port
+    # eos switchport admin: every membership change (VLANs, mode, voice VLAN, 802.1X/MAB) can cut traffic of the port
     return table == "vlan-membership" and before != after
 
 
@@ -575,7 +575,7 @@ def membership_prechecks(before, after, undo=False) -> list:
     """The combinations EOS applies as configured (measured: the phone VLAN acts only in trunk phone mode, MAC based
     authentication only with 802.1X).
 
-    G122 r2 (E05/E46): a phone VLAN or MAB that EOS left on the port without effect (it keeps them after "switchport
+    eos switchport admin r2 (E05/E46): a phone VLAN or MAB that EOS left on the port without effect (it keeps them after "switchport
     mode access") is tolerated while the change keeps it and the mode, and the undo of its removal restores it; a
     change never creates such a state."""
     state, before = after or {}, before or {}
@@ -596,7 +596,7 @@ def membership_prechecks(before, after, undo=False) -> list:
 
 
 def prechecks(snapshot, profile, op: str, key: str, after, undo=False) -> list:
-    """undo: the trusted undo path of execute (G122 r2): it restores the earlier state, also an allowed list with a VLAN
+    """undo: the trusted undo path of execute (eos switchport admin r2): it restores the earlier state, also an allowed list with a VLAN
     that does not exist and a left-over phone VLAN."""
     if profile.table in eos_acl.TABLES | eos_dhcp.TABLES | eos_l2.TABLES | eos_l3.TABLES | eos_routing.TABLES \
             | eos_services.TABLES | {eos_bgp.TABLE}:
@@ -617,7 +617,7 @@ def prechecks(snapshot, profile, op: str, key: str, after, undo=False) -> list:
         if any(LAG.match(line) for line in lines):
             raise Rejected(["port %s is a member of a port-channel; the change is refused" % key],
                            reason_codes=["port_lag_member"])
-        # G122: the membership of a trunk is changed (the runtime checks require endpoint_impact); the admin state
+        # eos switchport admin: the membership of a trunk is changed (the runtime checks require endpoint_impact); the admin state
         # of a trunk stays refused
         if profile.table != "vlan-membership" and any(TRUNK.match(line) for line in lines):
             raise Rejected(["port %s is a trunk; a trunk is treated as an uplink and is not changed" % key],
@@ -641,7 +641,7 @@ def prechecks(snapshot, profile, op: str, key: str, after, undo=False) -> list:
 
 
 def interface_target(table: str, key: str):
-    """The interface a profile key names, or None for an object that is not an interface (G131: batch protection)."""
+    """The interface a profile key names, or None for an object that is not an interface (eos port ownership: batch protection)."""
     if table in ("interface", "vlan-membership", BOUNCE_TABLE, POE_TABLE, eos_l3.INTERFACE, eos_l2.CHANNEL,
                  eos_l2.MEMBER, eos_l2.MLAG_PORT, eos_l2.STP_PORT):
         return key
@@ -659,9 +659,9 @@ def interface_protected(protected, interface: str) -> bool:
 
 def required_vlans(before, after, undo=False) -> set:
     """VLANs that must exist: the access, native and voice VLAN after the change and VLANs newly added to an allowed
-    list (a retained allowed VLAN may be missing, as on IOS). G122 r2 (E04): the undo restores an earlier allowed list,
+    list (a retained allowed VLAN may be missing, as on IOS). eos switchport admin r2 (E04): the undo restores an earlier allowed list,
     also with a VLAN that does not exist (EOS takes it without a warning and creates nothing, measured in
-    task-evidence/g122/r2/raw/probe10); only the trusted undo path of execute qualifies, as on IOS."""
+    private measurement record); only the trusted undo path of execute qualifies, as on IOS."""
     before, after = before or {}, after or {}
     found = {str(after.get("access-vlan", DEFAULT_VLAN))}
     found |= {str(after[name]) for name in ("native-vlan", "voice-vlan") if name in after}
@@ -763,7 +763,7 @@ def _vlan_snapshot_after(text: str, key: str, state) -> str:
     if replaced:
         insertion = replaced[0][0]
     elif last_vlan_end is not None and not higher:
-        # a VLAN above all others follows the last VLAN block (measured on d-ceos: before the aaa lines), not the
+        # a VLAN above all others follows the last VLAN block (measured on Arista cEOS 4.36.1F: before the aaa lines), not the
         # first interface; the rest of the next batch step is compared with this position
         insertion = last_vlan_end
     for start, end in reversed(replaced):
@@ -781,8 +781,8 @@ def default_vlan_name(key: str) -> str:
 
 
 def canonical_changes(table: str, key: str, changes: dict) -> dict:
-    """G122 r2 (E05/E19): the explicit name VLANnnnn of VLAN nnnn is its default name. EOS stores no name line for it
-    (measured, task-evidence/g122/r2/raw/probe9) and show vlan shows it like a VLAN without a name, so it is planned
+    """eos switchport admin r2 (E05/E19): the explicit name VLANnnnn of VLAN nnnn is its default name. EOS stores no name line for it
+    (measured, private measurement record) and show vlan shows it like a VLAN without a name, so it is planned
     as no name: preview, apply and readback agree."""
     if table in eos_routing.TABLES:
         return eos_routing.canonical_changes(table, key, changes)
@@ -798,14 +798,14 @@ def canonical_changes(table: str, key: str, changes: dict) -> dict:
 
 
 def check_view(table: str, state):
-    """G122 r2 (E05/E46): the part of a membership state that the check account (privilege 1) can read. EOS lists the
+    """eos switchport admin r2 (E05/E46): the part of a membership state that the check account (privilege 1) can read. EOS lists the
     phone VLAN only in trunk phone mode, and a port whose 802.1X is not enforced shows the default port control
     force-authorized, with which MAB has no effect (measured, fixtures/eos_g122). The write account reads the whole
     state in show running-config (postcheck); the check account compares this part of it."""
     if state is not None and table in eos_services.TABLES:
         return eos_services.check_view(table, state)
     if state is not None and table == "interface":
-        # G123 (E06/E23, measured on cEOS 4.36.1F, task-evidence/g123/raw/probe2): the check account reads no configured
+        # eos port maintenance (E06/E23, measured on cEOS 4.36.1F, private measurement record): the check account reads no configured
         # speed (show interfaces N status shows the operational one, which depends on the link partner), no MTU of a
         # switchport (show interfaces N shows the Ethernet MTU 9214 for any configured mtu) and no PoE (show poe is
         # Privileged EXEC in the Arista EOS manual; the check account got "% Invalid input"); the write account reads
@@ -828,7 +828,7 @@ def check_view(table: str, state):
     return state
 
 
-# ---- answers of the device (measured fixtures, ref/c7-mereni/fixtures) ----
+# ---- answers of the device (measured fixtures, private measurement record) ----
 
 def cli_error(text: str):
     """A refused line: an error ("% ...") or a warning that EOS would create something ("! ...")."""
@@ -846,7 +846,7 @@ MAC_TOTAL = re.compile(r"^Total Mac Addresses for this criterion:\s*([0-9]+)\s*$
 ACCESS_VLAN = re.compile(r"^Access Mode VLAN:\s*([0-9]+)\b", re.MULTILINE)
 ADMIN_MODE = re.compile(r"^Administrative Mode:\s*(.+?)\s*$", re.MULTILINE)
 SWITCHPORT_NAME = re.compile(r"^Name:\s*(\S+)\s*$", re.MULTILINE)
-# G122: over ssh exec the answer ends with " at line 1" and exit status 1 (measured, task-evidence/g122/raw/probe8)
+# eos switchport admin: over ssh exec the answer ends with " at line 1" and exit status 1 (measured, private measurement record)
 VLAN_MISSING = re.compile(r"^% VLAN ([0-9]+) not found in current VLAN database(?: at line [0-9]+)?\s*$", re.MULTILINE)
 
 
@@ -945,7 +945,7 @@ DOT1X_MAB = re.compile(r"^MAC-based authentication:\s*(enabled|disabled)\s*$", r
 
 
 def membership(text: str, key: str) -> dict:
-    """G122: the membership of the port as the check account reads it in show interfaces N switchport (measured: the
+    """eos switchport admin: the membership of the port as the check account reads it in show interfaces N switchport (measured: the
     phone VLAN is listed only in trunk phone mode, where EOS uses it)."""
     shown = switchport(text, key)
     native, allowed = NATIVE_VLAN.search(text), ALLOWED_VLANS.search(text)
@@ -961,7 +961,7 @@ def membership(text: str, key: str) -> dict:
 
 
 def dot1x_state(text: str, key: str) -> dict:
-    """G122: 802.1X and MAB of the port in show dot1x interface N; the answer is empty for a port without 802.1X."""
+    """eos switchport admin: 802.1X and MAB of the port in show dot1x interface N; the answer is empty for a port without 802.1X."""
     if not text.strip():
         return {}
     header = DOT1X_HEADER.search(text)
@@ -975,8 +975,8 @@ def dot1x_state(text: str, key: str) -> dict:
 
 
 def vlan_state(text: str, vlan: str):
-    """G122: name and state of a VLAN in show vlan id N; None when the VLAN does not exist. A VLAN without a name
-    line shows its default name VLANnnnn (an explicit name VLANnnnn stores no name line, G122 r2)."""
+    """eos switchport admin: name and state of a VLAN in show vlan id N; None when the VLAN does not exist. A VLAN without a name
+    line shows its default name VLANnnnn (an explicit name VLANnnnn stores no name line, eos switchport admin r2)."""
     missing = VLAN_MISSING.search(text)
     if missing is not None:
         if missing.group(1) != vlan:
@@ -1047,11 +1047,11 @@ SESSION_PREFIX = "netops-"
 SESSION_NAME = re.compile(r"^netops-[0-9a-f]{12}$")
 
 
-# ---- 1.0.12 G123: answers about speed, MTU, PoE and the link of a port ----
+# ---- 1.0.12 eos port maintenance: answers about speed, MTU, PoE and the link of a port ----
 
 HARDWARE_SPEEDS = re.compile(r"^\s*Speed/duplex:\s*(\S+)\s*$", re.MULTILINE | re.IGNORECASE)
 ETHERNET_MTU = re.compile(r"^\s*Ethernet MTU ([0-9]+) bytes", re.MULTILINE)
-# measured on cEOS 4.36.1F over ssh exec (task-evidence/g123/raw/probe1): show poe, show poe interface N and the
+# measured on cEOS 4.36.1F over ssh exec (private measurement record): show poe, show poe interface N and the
 # interface line "poe disabled" answer this on a switch without PoE hardware
 POE_UNAVAILABLE = "% Unavailable command (not supported on this hardware platform)"
 POE_HEADER = re.compile(r"^\s*Port\s+Enabled\s+Enabled\s+Limit\s+Power\s+State\s+Class\s+Power\s+Current\s+Voltage"
@@ -1059,7 +1059,7 @@ POE_HEADER = re.compile(r"^\s*Port\s+Enabled\s+Enabled\s+Limit\s+Power\s+State\s
 
 
 def hardware_speeds(text: str, key: str) -> set:
-    """G123 (E23): the speed/duplex list of port key in show interfaces N hardware (EXEC; measured on cEOS 4.36.1F:
+    """eos port maintenance (E23): the speed/duplex list of port key in show interfaces N hardware (EXEC; measured on cEOS 4.36.1F:
     "Speed/duplex: 10M/half,...,1G/full(default),..."; the Arista EOS manual writes "Speed/Duplex:" and lists "auto"
     for autonegotiation). "(default)" marks the default speed of the port."""
     blocks, current = {}, None
@@ -1091,8 +1091,8 @@ def speed_supported(value: str, speeds: set) -> bool:
 
 
 def ethernet_mtu(text: str, key: str) -> int:
-    """G123 (E23): the Ethernet MTU of show interfaces N; on cEOS a larger mtu is refused ("% Max MTU for Ethernet12
-    is 9214", task-evidence/g123/raw/probe2)."""
+    """eos port maintenance (E23): the Ethernet MTU of show interfaces N; on cEOS a larger mtu is refused ("% Max MTU for Ethernet12
+    is 9214", private measurement record)."""
     found = ETHERNET_MTU.findall(text)
     if re.search(r"^%s is " % re.escape(key), text, re.MULTILINE) is None or len(found) != 1:
         raise Rejected(["the interface answer about %s is not recognised" % key], reason_codes=["port_usage_unreadable"])
@@ -1104,7 +1104,7 @@ def poe_unavailable(status: int, text: str) -> bool:
 
 
 def poe_state(text: str, key: str) -> dict:
-    """G123 (E06/E07): PSE enabled and port state of show poe interface N. Layout of the Arista EOS manual (Ethernet
+    """eos port maintenance (E06/E07): PSE enabled and port state of show poe interface N. Layout of the Arista EOS manual (Ethernet
     Ports, show poe; fixtures/eos_g123/PROVENANCE.md): the two-row header names Port, PSE Enabled, LLDP Enabled, Power
     Limit, Granted Power, Port State, Class, Power, Current, Voltage and Temperature, the row starts with the port
     number. A port that the answer does not list or another layout is unreadable, never "no PoE"."""
@@ -1123,7 +1123,7 @@ def poe_state(text: str, key: str) -> dict:
 
 
 def link_state(text: str, key: str) -> str:
-    """G123 (E08): the Status column of show interfaces N status as the check account reads it (measured: connected,
+    """eos port maintenance (E08): the Status column of show interfaces N status as the check account reads it (measured: connected,
     disabled after shutdown and connected again right after no shutdown on cEOS)."""
     status = status_row(text, key)
     if status is None or not status:

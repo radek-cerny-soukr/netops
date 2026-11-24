@@ -206,7 +206,7 @@ def test_commands_are_show_only_and_shell_safe() -> None:
             continue
         if name in {"ping", "traceroute", "traceroute_source", "dns_lookup",
                     "logging_status", "snmp_status", "snmp_targets",
-                    "log_messages_last", "log_messages_range"}:  # G120: typed window slots only
+                    "log_messages_last", "log_messages_range"}:  # EOS-HEALTH: typed window slots only
             assert command == EXPECTED[name][0]
         else:
             assert _is_safe_arista_command(command), (name, command)

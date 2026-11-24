@@ -1,0 +1,25 @@
+config firewall policy
+
+FortiGate-60F (policy) $ edit 231399
+new entry '231399' added
+
+FortiGate-60F (231399) $ set action accept
+
+FortiGate-60F (231399) $ set inspection-mode proxy
+
+FortiGate-60F (231399) $ get | grep inspection
+inspection-mode     : proxy 
+ssl-ssh-profile     : no-inspection 
+
+FortiGate-60F (231399) $ set inspection-mode flow
+
+FortiGate-60F (231399) $ get | grep inspection
+inspection-mode     : flow 
+ssl-ssh-profile     : no-inspection 
+
+FortiGate-60F (231399) $ abort
+
+FortiGate-60F $ show firewall policy 231399
+entry is not found in table
+
+FortiGate-60F $ 

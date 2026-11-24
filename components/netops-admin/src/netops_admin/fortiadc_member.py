@@ -128,9 +128,31 @@ def _matches(entry: dict, real_server: str, port: str) -> bool:
         and entry.get("status") == "disable"
 
 
-def add(access, pool: str, member: str, real_server: str, port: str) -> dict:
+def _plan(operation: str, target: dict, hostname: str, record: dict, before: dict) -> dict:
+    """What the approved plan_sha256 binds: the configured target, the command, its writes and the whole pool."""
+    return {"operation": operation, "target": target, "hostname": hostname, "pool": record["pool"],
+            "member": record["member"],
+            "request": {key: record[key] for key in ("real_server", "service_port", "requested") if key in record},
+            "members_before": before, "commands": record["preview"]["commands"],
+            "inverse": record["preview"]["inverse"], "virtual_servers": record["preview"]["virtual_servers"]}
+
+
+def _approval(access, operation: str, target: dict, hostname: str, record: dict, before: dict, preview: bool,
+              expected_plan_sha256) -> str:
+    """The HA write role; checked, like the write does, before a preview is ready or the hash is compared."""
+    role = fortiadc.require_ha_write(access)
+    record["plan_sha256"] = fortiadc.member_approved(_plan(operation, target, hostname, record, before), preview,
+                                                     expected_plan_sha256)
+    return role
+
+
+def add(access, pool: str, member: str, real_server: str, port: str, *, target: dict, preview: bool = False,
+        expected_plan_sha256=None) -> dict:
     _check(pool, member, real_server, port)
-    spec = fortiadc.prompt_spec(fortiadc._hostname(access))
+    if not preview:
+        fortiadc.member_plan_required("pool-member-add", expected_plan_sha256)
+    hostname = fortiadc._hostname(access)
+    spec = fortiadc.prompt_spec(hostname)
     before = _members(access, pool)
     if member in before:
         raise Rejected(["the member number is already used in the pool"])
@@ -145,7 +167,9 @@ def add(access, pool: str, member: str, real_server: str, port: str) -> dict:
               "preview": {"commands": steps, "existing_members": sorted(before, key=int),
                           "virtual_servers": _users(access, pool),
                           "inverse": render_remove(pool, member)}}
-    role = fortiadc.require_ha_write(access)
+    role = _approval(access, "pool-member-add", target, hostname, record, before, preview, expected_plan_sha256)
+    if preview:
+        return dict(record, result="ready")
     failure = _write(access, spec, steps, role)
     after = _members_back(access, pool)
     others = None if after is None else {key: value for key, value in after.items() if key != member}
@@ -162,9 +186,13 @@ def add(access, pool: str, member: str, real_server: str, port: str) -> dict:
         access, role, pool, result, lambda text: parse_members(text, pool), after)
 
 
-def remove(access, pool: str, member: str) -> dict:
+def remove(access, pool: str, member: str, *, target: dict, preview: bool = False,
+           expected_plan_sha256=None) -> dict:
     _check(pool, member)
-    spec = fortiadc.prompt_spec(fortiadc._hostname(access))
+    if not preview:
+        fortiadc.member_plan_required("pool-member-remove", expected_plan_sha256)
+    hostname = fortiadc._hostname(access)
+    spec = fortiadc.prompt_spec(hostname)
     before = _members(access, pool)
     if member not in before:
         raise Rejected(["the member is not in the pool"])
@@ -182,7 +210,9 @@ def remove(access, pool: str, member: str) -> dict:
               "preview": {"commands": steps, "existing_members": sorted(before, key=int),
                           "virtual_servers": _users(access, pool), "member_before": dict(before[member]),
                           "inverse": inverse}}
-    role = fortiadc.require_ha_write(access)
+    role = _approval(access, "pool-member-remove", target, hostname, record, before, preview, expected_plan_sha256)
+    if preview:
+        return dict(record, result="ready")
     failure = _write(access, spec, steps, role)
     after = _members_back(access, pool)
     expected = {key: value for key, value in before.items() if key != member}

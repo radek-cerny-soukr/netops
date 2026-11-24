@@ -1,0 +1,2 @@
+no ipv6 access-list NETOPS-XE-ACCESS-CONTROL-NOPE6
+host01(config)#

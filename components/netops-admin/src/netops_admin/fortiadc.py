@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import hashlib
 import ipaddress
+import json
 import re
 from time import sleep
 
@@ -22,7 +23,7 @@ HOSTNAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
 HOSTNAME_LINE = re.compile(r"(?m)^Hostname:[ \t]+(\S+)[ \t]*$")
 PAGER = re.compile(r"--More-- \r {1,256}\r")
 TOKEN = re.compile(r'"((?:[^"\\]|\\.)*)"(?=[ \t]|$)|([^\s"\\]+)(?=[ \t]|$)')
-EXIT = {"confirmed": 0, "unchanged": 0, "rolled_back": 4, "unknown": 7}
+EXIT = {"ready": 0, "confirmed": 0, "unchanged": 0, "rolled_back": 4, "unknown": 7}
 REFUSALS = (
     (re.compile(r"command fail", re.IGNORECASE), "command failed"),
     (re.compile(r"command parse error", re.IGNORECASE), "command parse error"),
@@ -512,21 +513,75 @@ def _write(access, spec, pool: str, member: str, status: str, role: str):
     return None
 
 
-def run(access, pool: str, member: str, status: str) -> dict:
+# The deprecated direct pool member commands (pool-member, pool-member-add, pool-member-remove) write, like every
+# Admin apply, only with the plan_sha256 of their own approved preview of the same command and device state.
+MEMBER_PLAN_SHA256 = re.compile(r"[0-9a-f]{64}")
+MEMBER_PLAN_CHANGED = ("the fresh plan differs from the previewed plan (another device, or the pool changed since the"
+                       " preview); run the command with --preview again and approve its plan_sha256")
+
+
+def member_plan_required(command: str, expected_plan_sha256) -> None:
+    """Refuse a write of `command` without a well-formed approved hash, before the device is contacted."""
+    if expected_plan_sha256 is None:
+        raise Rejected(["%s writes only with the plan_sha256 of its approved --preview, passed as"
+                        " --expect-plan-sha256" % command], reason_codes=["plan_changed"])
+    if not isinstance(expected_plan_sha256, str) or MEMBER_PLAN_SHA256.fullmatch(expected_plan_sha256) is None:
+        raise Rejected(["expected_plan_sha256 must be 64 lowercase hexadecimal characters"])
+
+
+def member_target(device) -> dict:
+    """The configured identity of the target a plan_sha256 binds: alias, address, port and pinned SSH host key."""
+    return {"device": device.name, "address": device.address, "port": device.port,
+            "host_key_fingerprint": device.host_key_fingerprint}
+
+
+def member_plan_digest(plan: dict) -> str:
+    text = json.dumps(plan, sort_keys=True, ensure_ascii=True, separators=(",", ":"))
+    return hashlib.sha256(text.encode("ascii")).hexdigest()
+
+
+def member_approved(plan: dict, preview: bool, expected_plan_sha256) -> str:
+    """The plan_sha256 of `plan`; outside a preview it must equal the approved hash, else nothing is written."""
+    digest = member_plan_digest(plan)
+    if not preview and digest != expected_plan_sha256:
+        raise Rejected([MEMBER_PLAN_CHANGED], reason_codes=["plan_changed"],
+                       reason_details=[{"code": "plan_changed", "expected": expected_plan_sha256, "actual": digest}])
+    return digest
+
+
+def run(access, pool: str, member: str, status: str, *, target: dict, preview: bool = False,
+        expected_plan_sha256=None) -> dict:
     if not isinstance(pool, str) or POOL.fullmatch(pool) is None:
         raise Rejected(["the pool name is not valid"])
     if not isinstance(member, str) or MEMBER.fullmatch(member) is None:
         raise Rejected(["the member must be a pool member number"])
     if status not in STATUSES:
         raise Rejected(["the status must be one of: %s" % ", ".join(STATUSES)])
-    spec = prompt_spec(_hostname(access))
+    if not preview:
+        member_plan_required("pool-member", expected_plan_sha256)
+    from netops_admin.fortiadc_member import parse_members
+
+    hostname = _hostname(access)
+    spec = prompt_spec(hostname)
     listing = _listing(access, pool)
     before = parse_status(listing, pool, member)
     record = {"pool": pool, "member": member, "requested": status, "before": before}
-    if before == status:
+    changed = before != status
+    commands = render(pool, member, status) if changed else []
+    # The plan binds the configured target and every member of the pool as read (the backend of the member too).
+    plan = {"operation": "pool-member", "target": target, "hostname": hostname, "pool": pool, "member": member,
+            "before": before, "members_before": parse_members("\n".join(_lines(listing)), pool), "requested": status,
+            "commands": commands, "inverse": render(pool, member, before) if changed else []}
+    role = None
+    if changed:
+        prechecks(access, pool, member, status, listing)
+        role = require_ha_write(access)
+    record["plan_sha256"] = member_approved(plan, preview, expected_plan_sha256)
+    if preview:
+        return dict(record, result="ready" if changed else "unchanged",
+                    preview={"commands": plan["commands"], "inverse": plan["inverse"]})
+    if not changed:
         return dict(record, result="unchanged", after=before)
-    prechecks(access, pool, member, status, listing)
-    role = require_ha_write(access)
     failure = _write(access, spec, pool, member, status, role)
     after = _readback(access, pool, member)
     if failure is None and after == status:

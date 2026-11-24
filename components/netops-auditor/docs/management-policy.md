@@ -6,7 +6,7 @@ Unused addresses and VLANs without visible ports are informational. They can be 
 
 Both `run` and `collect` accept `--policy /absolute/operator-policy.json`. The optional file is version 1, has a platform, and is validated with unknown and duplicate keys rejected. It must be a regular file of at most 256 KiB: one byte more is refused as `policy is larger than 262144 bytes`, and a pipe or a device such as `/dev/zero` as `policy is not a regular file`, without waiting for a writer - and a refused policy is named with its path and the reason, such as the line and column of a JSON error. The report includes `rule_coverage`: evaluated, not-evaluated or not-configured, and the per-rule `rule_status`. A rule named in `required_rules` must be evaluated, otherwise the run is refused; a management rule outside `required_rules` is advisory, and its `not-evaluated` state is reported without failing the run. A management rule that is not evaluated reports no findings. A FortiOS management rule over addresses is evaluated only when the snapshot contains `config firewall address` (`address-unused`, `address-policy` and `group-dangling`); otherwise its state is `not-evaluated` (`section-missing: firewall address`). `show` leaves out a table without entries, so a snapshot without `config firewall addrgrp` or `config system dhcp server` has no address groups or DHCP servers, and `group-empty`, `group-dangling`, `group-cycle`, `dhcp-conflict` and `dhcp-subnet` are evaluated without findings. The FortiOS example below therefore needs a snapshot with `config firewall address`; without it the run ends with `mandatory policy rules not evaluated: address-policy`. A changed policy changes the audit rules-version digest. Existing suppressions remain specific to rule and object; they do not authorize changes through Admin.
 
-Inside NetOps, import the policy with the stopped instance: `docker compose run -T --rm netops auditor import-policy --name example-policy --platform fortios < operator-policy.json`. The command validates the policy before creating `/var/lib/netops/auditor/inputs/example-policy.policy.json` with mode 0600 under the Auditor UID. Use that printed path with `--policy` for `run` or `collect`. Use `--platform exos` for EXOS. Existing names are refused; a changed policy needs a new name and retains the [separate-store requirement](#policy-history). See the [input import workflow](../../../docs/quickstart-1.0.md#private-snapshot-and-policy-files).
+Inside NetOps, import the policy with the stopped instance: `docker compose run -T --rm netops auditor import-policy --name example-policy --platform fortios < operator-policy.json`. The command validates the policy before creating `/var/lib/netops/auditor/inputs/example-policy.policy.json` with mode 0600 under the Auditor UID. Use that printed path with `--policy` for `run` or `collect`. Use `--platform exos` for EXOS. For FortiOS and EXOS the import accepts the same documents as `--policy`: a management policy, a policy combined with [`audit_intent`](#audit-intent), or a document with only `audit_intent`. A document with only `audit_intent` is also accepted for `--platform cisco-ios`, `cisco-nxos`, `arista-eos` or `juniper-junos`. FortiADC is not supported by the import: `--platform fortiadc` is refused, so a FortiADC `audit_intent` can be given only through `--policy`. An invalid intent is refused like an invalid policy. Existing names are refused; a changed policy needs a new name and retains the [separate-store requirement](#policy-history). See the [input import workflow](../../../docs/quickstart-1.0.md#private-snapshot-and-policy-files).
 
 FortiOS example:
 
@@ -59,3 +59,36 @@ Sources: FortiOS 7.6 CLI reference for `config firewall addrgrp` and `config sys
 Stored history for a device is bound to its operator policy digest. Changing, adding or removing that policy requires a separate store for the new policy. A run refuses before recording instead of marking findings under the old policy as gone or reusing its accepted baseline. A run for a different platform under the same tenant and device alias refuses the same way, and needs a new alias or a separate store. In NetOps 1.0, omitting `--store` uses the configured persistent store.
 
 For FortiADC, only the required `factory-provenance-unproven` certificate gap is inherent: no export can provide this evidence. A collector visibility limitation is actionable only when it leaves a required catalogue rule unevaluated. For example, `visibility:networking` prevents evaluation of interface management access and exits 3; a limitation of `user`, which no current rule uses, can still exit 0 when all other required rules are evaluated and only the inherent factory certificate gap remains. Grant `read` for the areas required by those rules; unrelated limitations do not require broader collector rights. `coverage` describes rule evaluation, not the completeness of the export: inspect the snapshot metadata `configuration_complete` and `visibility_limitations` separately. JSON and SARIF `coverage` carry `complete`, `inherent_gaps` and `actionable_gaps` (each gap identifies its rule and reason); `evaluation_complete` remains false for either kind. Exit 0 permits inherent gaps, whereas any actionable required gap, such as a visibility limitation, an unverified access profile, missing data or unsupported identity, exits 3. Consumers must inspect `coverage`; exit 0 does not establish complete coverage or compliance. Store and query retain conservative incomplete evaluation and baseline semantics, and `auditor status` carries the same `coverage` for the last stored run. `auditor run` exit 0 and `auditor status` therefore differ deliberately for inherent gaps: the run exits 0, while `status` reports the state `incomplete` (exit 1) for the same device, because it judges the stored history conservatively. Read `coverage` to tell the two kinds of gap apart.
+
+## Audit intent
+
+`auditor run` and `auditor collect` accept `audit_intent` inside the JSON supplied with
+`--policy`; in NetOps, `auditor import-policy` stores such a document after the same validation
+for the platforms of its `--platform` option (FortiOS, EXOS, and intent-only documents for
+IOS, NX-OS, EOS and Junos). The import does not support FortiADC.
+A standalone intent document contains only the `audit_intent` key. When combined with a management
+policy, the existing policy fields determine its history digest. Audits with different intents
+can share the same device history.
+
+```json
+{
+  "audit_intent": {
+    "external_aaa_required": true,
+    "ntp_auth_required": true,
+    "syslog_severity": "warning",
+    "management_prefixes": ["192.0.2.0/24", "2001:db8::/32"],
+    "trusted_dhcp_ports": ["Ethernet1/1"],
+    "dhcp_snooping_vlans": [20],
+    "ports": {
+      "Ethernet1/1": {"role": "trunk", "native_vlan": 20, "default_vlan_allowed": false},
+      "Ethernet1/2": {"role": "edge", "discovery_allowed": false, "storm_control_required": true}
+    }
+  }
+}
+```
+
+Port roles are `edge`, `trunk` and `unused`. VLAN IDs are integers from 1 through 4094.
+Severity names are `emergency`, `alert`, `critical`, `error`, `warning`, `notice`, `info`
+and `debug`. EXOS also accepts `account_lockout_required`, an explicit list of account names.
+A rule whose intent is absent is optional. When an applicable rule lacks relevant evidence, its
+result is `not-evaluated` with the cause recorded in rule coverage.

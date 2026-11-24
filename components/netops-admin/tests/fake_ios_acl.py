@@ -1,8 +1,8 @@
-"""Simulated IOS 15.9 / IOS XE 17.18 router for the G64 tests (ACL rules and attachments).
+"""Simulated IOS 15.9 / IOS XE 17.18 router for the IOS-ACCESS-CONTROL tests (ACL rules and attachments).
 
 The running configuration, the ACL listings and the check account answers start from the anonymised outputs measured
-on the GNS3 routers d-iosv (IOSv 15.9(3)M12) and d-iolxe (IOL XE 17.18.2), fixtures/ios_g64 (PROVENANCE.md). The fake
-changes the configuration lines like the measured devices (test_ios_g64.py compares its states with the measured
+on the GNS3 routers iosv (IOSv 15.9(3)M12) and iol-xe-router (IOL XE 17.18.2), fixtures/ios_ios_access_control (PROVENANCE.md). The fake
+changes the configuration lines like the measured devices (test_ios_ios_access_control.py compares its states with the measured
 ones): IOS 15.9 prints no sequence numbers of IPv4 rules and only the IPv6 numbers that differ from the automatic
 10, 20, ... numbering, IOS XE prints them all; both list every rule with its number in show ip access-lists and
 show ipv6 access-list. A rollback to an archive renumbers the rules of IOS 15.9 (the archive text has no numbers).
@@ -17,7 +17,7 @@ from fake_ios import FakeIos
 from netops_admin import ios, ios_acl
 from netops_admin.access import AccessError
 
-F = Path(__file__).parent / "fixtures" / "ios_g64"
+F = Path(__file__).parent / "fixtures" / "ios_ios_access_control"
 NODES = {"iosv": ("ios", "15.9(3)M12", "GigabitEthernet0/2"), "iolxe": ("iosxe", "17.18.2", "Ethernet0/2")}
 # the names IOS prints for numbers (measured: 80 -> www, 23 -> telnet, 123 -> ntp, 161 -> snmp, 22 stays 22)
 NAMES = {("tcp", 80): "www", ("tcp", 23): "telnet", ("udp", 123): "ntp", ("udp", 161): "snmp", ("tcp", 25): "smtp"}

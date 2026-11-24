@@ -44,5 +44,5 @@
   "volatile": [],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "G46 X19. VR-Default IPv4 OSPF or IPv6 OSPFv3 on a named VLAN. The area must exist. A missing cost is automatic. Changing the area or passive mode reattaches the VLAN and reapplies its cost. See the G46 measurements on ExtremeXOS 33.6.1.14 (task netops-20261119-611)."
+  "rollback_evidence": "Live write and return on ExtremeXOS 33.6.1.14 (2026-11-19): The OSPF process, area or interface was changed and undone on the VMs. switch dynamic routing X19. VR-Default IPv4 OSPF or IPv6 OSPFv3 on a named VLAN. The area must exist. A missing cost is automatic. Changing the area or passive mode reattaches the VLAN and reapplies its cost. See the switch dynamic routing measurements on ExtremeXOS 33.6.1.14."
 }

@@ -175,6 +175,12 @@ The other optional fields:
 | `snmp_credential` | `null` or the name of a vault record of kind `snmpv3-authpriv` (a legacy `snmp-community` record is refused by `snmp_get` with the replacement instructions) | — | `null` | `target_scope` reports it as `snmp_enrolled`; an `snmpv3-authpriv` record (SHA256, AES128) activates `snmp_get` within the target UDP egress scope and the 1 to 20 OID limit; `snmp_enrolled` is false for a legacy record; SNMPv1, SNMPv2c, noAuthNoPriv and authNoPriv are not supported |
 | `tls_ca_certificate` | absolute canonical path of a PEM file below `/etc/netops-helper/certs`, never inline PEM | 64 KiB; only CA certificates (basicConstraints `CA=true`), no private key block | absent | `tls_probe` of this target verifies the chain against this CA instead of the system store; hostname/SAN checking and TLS 1.2 or newer stay mandatory |
 
+[`network_overview`](../components/netops-helper/docs/network-overview.md) uses each target’s declared
+`device_types` for group selection and enrolls no additional commands. Its steps require the same read-only
+account or existing catalogue-bounded role, permitted queries, typed inventory slots and egress as the corresponding Helper reads. The proxy
+reserves the eligible prefix, up to 30 reads, against both the target total and triage quota. Omitted reads
+leave partial coverage when the budget or the read-only account constrains the sample.
+
 `tls_ca_certificate` is for a target whose certificate comes from a private CA. With it, `tls_probe` trusts only that CA file for this target, not the system store as well, so a publicly signed certificate for the same name is not accepted either; without it the probe uses the system store as before. There is no option to skip verification. The file must exist and be readable for the Helper when the inventory is configured: the container file system is read-only and has no such directory, so mount a host directory read-only in a Compose override, for example `volumes: ["./netops-ca:/etc/netops-helper/certs:ro"]`, with the CA file mode 0644; a file that is missing, unreadable, outside that directory (also through a symlink), not a CA certificate or that holds a private key refuses the section. `configure helper` then names `inventory.devices[N].helper.tls_ca_certificate` and the reason, never the file content. The `tls_probe` result names the trust it used as `trust: "system"` or `trust: "inventory_ca"`, never the path or content of the CA.
 
 `sftp_roots` also makes the SSH port of the device an explicit egress port, so that port must not lie inside `tcp_port_ranges`. `target_scope` returns the stored `read_inventory`, `sftp_roots`, `rate_limit`, `triage_rate_limit` and `snmp_enrolled` of a target.
@@ -1028,3 +1034,46 @@ managed by FortiOS 8.0.2 (2). Cisco IOSvL2 added 2 VLAN checks separately throug
 transport; physical PoE on Cisco is covered by a documentation fixture only.
 Discord delivery is covered by automated tests only (stubbed HTTP, fixture
 webhook); no real webhook was called.
+
+## Helper capability overview
+
+Read-only queries against enrolled targets, using a named query catalogue of **1,107 query templates across 11 platform profiles** (`linux`, `fortinet`, `extreme_exos`, `cisco_ios`, `cisco_xe`, `cisco_nxos`, `arista_eos`, `juniper_junos`, `juniper_junos_els`, `ruckus_unleashed`, `fortiadc`). The `ssh_read` catalogue excludes running/startup/full configuration (except Ruckus `config_settings`, which runs a fixed `show config` and returns only allowlisted, redacted settings), arbitrary CLI, debug activation, packet capture, shells and every write or lifecycle action. Selected FortiSwitch queries read enrolled managed-switch state and configuration. Separately, `fortios_diagnostics` offers bounded sniffer and flow diagnostics, and `config_read` offers opt-in configuration capture. Each query accepts its documented parameter types and enrollment scope. See the [query catalogue](../components/netops-helper/docs/query-catalog.md) and [parameter exceptions](helper-configuration.md#optional-helper-fields).
+
+| Tool | Behavior |
+|---|---|
+| MCP prompts | Five text-only troubleshooting runbooks when Helper is enabled; see [Helper tools](../components/netops-helper/docs/tools.md#troubleshooting-prompts) |
+| `helper_status` | Enrolled aliases, validation and rate state; no device contact |
+| `target_scope` | Public enrollment boundary for one alias; no device contact |
+| `read_query_catalog` | Named typed queries and metadata; not automatic authorization |
+| `dns_probe` | Enrolled DNS resolution with address scope checks |
+| `tcp_probe` | Enrolled TCP port reachability |
+| `icmp_probe` | Explicitly permitted bounded diagnostics |
+| `tls_probe` | Verified peer certificate and enrolled SNI/port |
+| `network_overview` | Operational snapshot of enrolled targets with per-device read coverage. See [network overview](../components/netops-helper/docs/network-overview.md). |
+| `switch_read` | Normalized interface, IP interface, interface error counters, port VLAN tagging/mode, VLAN, MAC, ARP/ND, LLDP, route, OSPF neighbour, BGP peer, LAG and STP records for EXOS, IOS/IOS XE, NX-OS, EOS and Junos (the tables of each OS in [coverage matrix](../README.md#coverage-by-vendor-and-operating-system)), CDP neighbour records of IOS, IOS XE and NX-OS, interface, IP interface, IPv4 route, ARP/ND and bridge FDB records of a Linux host, ARP/ND, IPv4 routes, IP interfaces, physical interfaces, VLAN interfaces, LLDP and bridge MAC of a FortiGate and managed FortiSwitch MAC/LLDP, link/speed, errors/drops and configured VLANs via an enrolled `managed_switch` serial; source hashes, coverage and explicit unparsed lines ([coverage](../components/netops-helper/docs/tools.md#normalized-tables-switch_read)) |
+| `locate_endpoint` | Correlates 1–64 enrolled targets by IP, MAC or exact hostname. The 59.5-second deadline includes up to 40 reads for at most eight targets, or up to 8 reads per alias for a larger search. Reports the port, VLAN, vantage and any missing evidence. See [endpoint location](../components/netops-helper/docs/tools.md#endpoint-location-locate_endpoint). |
+| `ssh_read` | Enabled named query, pinned SSH host key, bounded/paginated output; FortiOS and FortiADC targets are first checked to be the selected product (`product_identity`) |
+| `sftp_stat` | Metadata within enrolled roots; no file content |
+| `schema_read` | Not a supported workflow in 1.0 (see [Known limitations](compatibility-boundaries.md#known-limitations)) |
+| `fortios_diagnostics` | Opt-in bounded FortiOS and FortiADC recipes. Identity, VDOM, account and recipe permissions apply. See [Helper tools](../components/netops-helper/docs/tools.md). |
+| `config_read` / `config_diff` | Opt-in redacted configuration capture and comparison for FortiOS, FortiADC, ExtremeXOS, Cisco IOS, IOS XE, NX-OS, Arista EOS, Junos and Ruckus. See [Helper tools](../components/netops-helper/docs/tools.md). |
+| `snmp_get` | SNMPv3 authPriv GET (SHA256, AES128) with the `snmp_credential` of the target, 1 to 20 OIDs, UDP port within the egress scope; SNMPv1, SNMPv2c, noAuthNoPriv and authNoPriv are not supported |
+| `ftp_list` | FTP and FTPS refused in the shipped profile |
+| `triage_health` | Fixed health reads with sourced findings. Availability and evidence depend on the platform. |
+| `triage_routing` | Bounded route diagnostics for an enrolled destination. Platform-specific reads report route, adjacency and probe evidence where available. |
+| `triage_flow` | IPv4 flow evidence on FortiOS (route, policy and session) and on IOS and IOS XE (enrolled ingress interface and addresses; RIB, CEF, ingress ACL and policy routing). Incomplete input or a missing device result can limit the verdict. |
+| `triage_vpn` | One enrolled FortiOS IPsec tunnel, with selector state, traffic and error counters, routing and IKE context. |
+| `wifi_clients` / `wifi_aps_live` / `wifi_rogue` | Live FortiOS clients with RSSI/SNR, managed AP state and rogue/interfering observations through a separate RO REST token; fixed GETs, certificate pin or CA, no writes; see [setup and security](fortios-wifi-rest.md) |
+| `wifi_triage` | Bounded client triage for FortiOS, Ruckus Unleashed and Cisco Catalyst 9800. A FortiOS hostname lookup reports `identity_trust: client_supplied`. Available association, RF and history evidence varies with the controller. |
+| `triage_slb` | One enrolled FortiADC virtual server through pool, members, health checks, TLS, WAF and DoS with sourced findings. |
+| `fortiswitch_overview` | FortiGate-managed switch inventory and runtime state through the enrolled read-only REST scope. |
+| `firewall_policy_hits` | FortiOS policy hit counters with an optional unused-only view. |
+| `triage_port` | Correlates supported interface, VLAN, neighbour and port-health reads. |
+| `triage_nxos_path` | Correlates NX-OS interface and IPv4 path evidence. |
+| `vpc_compare` | Compares vPC state across two enrolled NX-OS targets. |
+
+Each target has its own scope (enabled queries, egress addresses and ports, optional SFTP roots) and a per-target rate limit (default 30 requests per 60 seconds; the triage tools also have a sublimit of the same size; `triage_health`, `triage_routing`, `triage_vpn`, `triage_slb` and `network_overview` report progress). The account must be independently verified as read-only on the device; the JSON declaration alone does not restrict it.
+
+`netops check-intent <plan>` checks one intent plan from the `helper.intent` entries of the inventory through `switch_read` on the HTTPS MCP endpoint, prints a JSON result and exits `0` for `pass`, `1` for `fail` and `2` for `incomplete`. With `--notify` and a webhook in `NETOPS_DISCORD_WEBHOOK`, a `fail` result makes one attempt to send a summary of the mismatches to Discord; `notification` reports the result. It changes no device.
+
+See [Helper tools](../components/netops-helper/docs/tools.md) · [Query catalogue](../components/netops-helper/docs/query-catalog.md) · [Account boundaries](../components/netops-helper/docs/read-only-accounts.md)

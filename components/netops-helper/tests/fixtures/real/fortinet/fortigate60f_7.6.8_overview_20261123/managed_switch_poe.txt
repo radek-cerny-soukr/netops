@@ -1,0 +1,4 @@
+Vdom: root
+switch:S108ENTQ00000001 is not PoE capable
+Command fail. Return code -7622
+

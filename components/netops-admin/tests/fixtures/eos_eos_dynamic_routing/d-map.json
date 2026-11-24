@@ -1,0 +1,20 @@
+{
+    "routeMaps": {
+        "NETOPS-EOS-DYNAMIC-ROUTING-M": {
+            "entries": {
+                "10": {
+                    "filterType": "permit",
+                    "matchRules": {
+                        "prefixList": "NETOPS-EOS-DYNAMIC-ROUTING-P"
+                    },
+                    "subRouteMap": {
+                        "name": "",
+                        "invert": false
+                    },
+                    "setRules": {},
+                    "description": []
+                }
+            }
+        }
+    }
+}

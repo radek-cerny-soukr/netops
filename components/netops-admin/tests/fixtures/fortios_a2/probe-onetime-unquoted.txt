@@ -1,0 +1,73 @@
+config firewall schedule onetime
+
+FortiGate-60F (onetime) $ edit "netops-a2-probe"
+new entry 'netops-a2-probe' added
+
+FortiGate-60F (netops-a2-probe) $ set start 10:00 2026/12/01
+
+FortiGate-60F (netops-a2-probe) $ set end 11:30 2026/12/01
+
+FortiGate-60F (netops-a2-probe) $ show
+config firewall schedule onetime
+    edit "netops-a2-probe"
+        set uuid 00000000-0000-4000-8000-000000000011
+        set start 10:00 2026/12/01
+        set end 11:30 2026/12/01
+    next
+end
+
+FortiGate-60F (netops-a2-probe) $ get
+name                : netops-a2-probe
+uuid                : 00000000-0000-4000-8000-000000000011
+start               : 10:00 2026/12/01
+end                 : 11:30 2026/12/01
+color               : 0
+expiration-days     : 3
+fabric-object       : disable 
+
+
+FortiGate-60F (netops-a2-probe) $ set end 09:00 2026/12/01
+
+FortiGate-60F (netops-a2-probe) $ show
+config firewall schedule onetime
+    edit "netops-a2-probe"
+        set uuid 00000000-0000-4000-8000-000000000011
+        set start 10:00 2026/12/01
+        set end 09:00 2026/12/01
+    next
+end
+
+FortiGate-60F (netops-a2-probe) $ set start 9:5 2026/1/2
+
+FortiGate-60F (netops-a2-probe) $ show
+config firewall schedule onetime
+    edit "netops-a2-probe"
+        set uuid 00000000-0000-4000-8000-000000000011
+        set start 09:05 2026/01/02
+        set end 09:00 2026/12/01
+    next
+end
+
+FortiGate-60F (netops-a2-probe) $ abort
+
+FortiGate-60F $ config firewall schedule recurring
+
+FortiGate-60F (recurring) $ edit "netops-a2-probe"
+new entry 'netops-a2-probe' added
+
+FortiGate-60F (netops-a2-probe) $ set day monday
+
+FortiGate-60F (netops-a2-probe) $ set start 8:5
+
+FortiGate-60F (netops-a2-probe) $ show
+config firewall schedule recurring
+    edit "netops-a2-probe"
+        set uuid 00000000-0000-4000-8000-000000000012
+        set start 08:05
+        set day monday
+    next
+end
+
+FortiGate-60F (netops-a2-probe) $ abort
+
+FortiGate-60F $ 

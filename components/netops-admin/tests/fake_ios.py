@@ -1,7 +1,6 @@
 """Simulated Cisco IOS and IOS XE devices for netops-admin tests.
 
-Every answer is built from an anonymised output measured in the GNS3 lab (fixtures/ios_c45/<node>, task
-netops-provoz-20261116-310 and the exec reads of task netops-20261116-315): IOSv 15.9(3)M12 (router), IOSvL2
+Every answer is built from an anonymised output measured in the GNS3 lab (fixtures/ios_c45/<node>, verification and the exec reads of verification): IOSv 15.9(3)M12 (router), IOSvL2
 15.2(20200924:215240) (switch), IOL XE 17.18.2 (router) and IOL-L2 XE 17.18.2 (switch). The running configuration
 starts from the real exec answer; only the lines of the changed interface, the revert timer, the archive files and
 the ARCHIVE_DIFF log lines follow the measured behaviour: ``configure terminal revert timer N`` saves an archive at
@@ -24,7 +23,7 @@ from fake_fortios import DeviceRefused
 from netops_admin.access import AccessError
 
 FIXTURES = Path(__file__).parent / "fixtures" / "ios_c45"
-G61 = Path(__file__).parent / "fixtures" / "ios_g61"
+IOS_PORT_MAINTENANCE = Path(__file__).parent / "fixtures" / "ios_ios_port_maintenance"
 MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 DAYS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 NODES = {
@@ -41,8 +40,8 @@ def fixture(node: str, name: str) -> str:
     return (FIXTURES / node / name).read_text(encoding="utf-8")
 
 
-def g61(name: str) -> str:
-    return (G61 / name).read_text(encoding="utf-8")
+def ios_port_maintenance(name: str) -> str:
+    return (IOS_PORT_MAINTENANCE / name).read_text(encoding="utf-8")
 
 
 def short(name: str) -> str:
@@ -103,7 +102,7 @@ class FakeIos:
         self.sent_lines = []
         self.line_seconds = 0
         self.revert_now_ignored = False
-        # 1.0.12 G61: link of the test ports (the lab ports have no peer) and PoE (the lab nodes have none: the
+        # 1.0.12 IOS-PORT-MAINTENANCE: link of the test ports (the lab ports have no peer) and PoE (the lab nodes have none: the
         # commands are refused as measured; poe_ports names ports with PoE and whether a device is attached)
         self.link_up = set()
         self.link_delay = 0
@@ -232,9 +231,9 @@ class FakeIos:
                 self.enabled_at[name] = self.now
             elif words[:2] == ["power", "inline"]:
                 if name not in self.poe_ports:
-                    return g61("config__power-inline-never__invalid-input.txt")
+                    return ios_port_maintenance("config__power-inline-never__invalid-input.txt")
                 if not re.fullmatch(r"power inline (?:auto|never|static)(?: max [0-9]+)?", line.strip()):
-                    return g61("config__power-inline-never__invalid-input.txt")
+                    return ios_port_maintenance("config__power-inline-never__invalid-input.txt")
                 previous = self._poe_admin(name)
                 # "power inline auto" without a maximum is the default and shows no line in the configuration
                 self._set(name, re.compile(r"^power inline "), None if line.strip() == "power inline auto" else line.strip())
@@ -258,7 +257,7 @@ class FakeIos:
 
     def _exec(self, words, mode) -> str:
         if " ".join(words) == "show archive config rollback timer":
-            # the same answer as the exec read of the write account (measured; interactive read since task 320)
+            # the same answer as the exec read of the write account (measured; interactive read since verification)
             return self._timer_text()
         if words == ["configure", "terminal"]:
             mode[0] = "config"
@@ -465,7 +464,7 @@ class FakeIos:
         match = re.fullmatch(r"show power inline (\S+)", command)
         if match:
             if match.group(1) not in self.poe_ports:
-                return g61("show-power-inline__exec-refused.txt").replace("GigabitEthernet1/2", match.group(1))
+                return ios_port_maintenance("show-power-inline__exec-refused.txt").replace("GigabitEthernet1/2", match.group(1))
             return self._poe_text(match.group(1))
         if command == "show interfaces description":
             text = fixture(self.node, "show-interfaces-description__ro-baseline.txt")

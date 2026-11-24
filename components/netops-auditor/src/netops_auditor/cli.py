@@ -13,16 +13,16 @@ from pathlib import Path
 from netops_core import vault
 
 from . import management
-from . import checks_exos
 from . import checks_fortiadc
-from . import checks_fortios
 from . import collect
 from . import inventory
 from . import jsontext
 from . import l1_exos
 from . import l1_fortios
+from . import l1_cli
+from . import platforms
 from . import sarif
-from .engine import CATALOG_DIR, NOT_EVALUATED, CatalogError, CheckError, evaluate, load_catalog
+from .engine import NOT_EVALUATED, CatalogError, CheckError, catalog_path, evaluate, is_required, load_catalog
 from .findings import Finding, FingerprintError, checked_component
 from .inputs import InputError, read_regular
 from .state import STATE_GONE, STATE_NEW, STATE_OPEN_KNOWN, STATE_SUPPRESSED, classify
@@ -31,13 +31,8 @@ from .state import AGE_FRESH, AGE_STALE, age_state, suppressions_for_device
 from .store import Store, StoreError
 from .suppressions import MOMENT_FORMAT, SuppressionError, load_for_tenant
 
-PLATFORMS = {
-    "exos": (checks_exos, l1_exos),
-    "fortios": (checks_fortios, l1_fortios),
-    "fortiadc": (checks_fortiadc, l1_fortios),
-}
-
-PARSE_ERRORS = (l1_exos.ParseError, l1_fortios.ParseError)
+PLATFORMS = platforms.PLATFORMS
+PARSE_ERRORS = (l1_exos.ParseError, l1_fortios.ParseError, l1_cli.ParseError)
 RUN_ONLY_PLATFORMS = frozenset({"fortiadc"})
 
 SEVERITY_ORDER = ("high", "medium", "low", "info")
@@ -211,7 +206,7 @@ def _load_rules(platform: str) -> tuple:
 
 
 def _rules_version(platform: str, rules) -> str:
-    path = CATALOG_DIR / ("%s.json" % platform)
+    path = catalog_path(platform)
     try:
         digest = hashlib.sha256(path.read_bytes()).hexdigest()
     except OSError as error:
@@ -234,13 +229,15 @@ def _with_context(args, policy, digest):
     return checks_fortiadc.attach(policy, context)
 
 
-def _audit(platform: str, text: str, tenant: str, device: str, rules, policy=None) -> tuple:
+def _audit(platform: str, text: str, tenant: str, device: str, rules, policy=None, context=None) -> tuple:
     try:
-        tree = PLATFORMS[platform][1].parse(text)
+        tree = context.snapshot.tree if context is not None and context.snapshot is not None else None
+        if tree is None:
+            tree = PLATFORMS[platform].parser.parse(text)
     except PARSE_ERRORS as error:
         raise Failure("cannot parse configuration: %s" % error)
     try:
-        findings, states = evaluate(tree, tenant, device, rules, policy)
+        findings, states = evaluate(tree, tenant, device, rules, policy, context=context)
     except CheckError as error:
         raise Failure("catalog does not match the checks: %s" % error)
     for finding in findings:
@@ -253,14 +250,15 @@ def _audit(platform: str, text: str, tenant: str, device: str, rules, policy=Non
     return findings, states
 
 
-def _rule_status(platform, rules, states, policy) -> dict:
+def _rule_status(platform, rules, states, policy, context=None) -> dict:
     required = set((policy or {}).get("required_rules", []))
     prefix = "%s.management." % platform
     result = {}
     for rule in rules:
         state, reason = states[rule.id]
         name = rule.id[len(prefix):] if rule.id.startswith(prefix) else None
-        result[rule.id] = {"status": state, "reason": reason, "required": name is None or name in required}
+        result[rule.id] = {"status": state, "reason": reason,
+                           "required": (name is None or name in required) and is_required(rule, context)}
     return result
 
 
@@ -627,11 +625,12 @@ def _command_run(args) -> int:
     rules = _load_rules(args.platform)
     rules_version = _rules_version(args.platform, rules)
     suppression_items = suppressions_for_device(_load_suppressions(args.suppressions, args.tenant), args.device)
-    policy, coverage = _policy(args, args.platform, text, args.config)
+    policy, coverage, intent = _policy(args, args.platform, text, args.config)
     if policy:
         rules_version += ":" + management.policy_digest(policy)
-    findings, states = _audit(args.platform, text, args.tenant, args.device, rules, _with_context(args, policy, digest))
-    rule_status = _rule_status(args.platform, rules, states, policy)
+    context = platforms.AuditContext(intent=intent, management_policy=policy)
+    findings, states = _audit(args.platform, text, args.tenant, args.device, rules, _with_context(args, policy, digest), context)
+    rule_status = _rule_status(args.platform, rules, states, policy, context)
     previous, baseline, accepted = (), frozenset(), None
     if args.store:
         previous, baseline, accepted = _record(args, digest, rules_version, findings, rule_status)
@@ -711,7 +710,8 @@ def _inventory_record(path, name) -> tuple:
 
 
 def _catalog_platform(record) -> str:
-    if record.platform not in PLATFORMS:
+    key = platforms.catalog_key(record.platform)
+    if key is None:
         raise Failure(
             "device %s runs platform %s, the auditor holds no rule catalog for it"
             % (record.name, record.platform)
@@ -723,7 +723,7 @@ def _catalog_platform(record) -> str:
         )
         error.diagnostic = ("inventory.devices[].platform", "auditor-run-only")
         raise error
-    return record.platform
+    return key
 
 
 def _credential(record, section, path):
@@ -762,9 +762,10 @@ def _credential(record, section, path):
 
 
 def _gathered(record, section, credential, max_response_bytes) -> tuple:
+    key = platforms.catalog_key(record.platform)
     if section.channel == inventory.CHANNEL_FILE:
         snapshot, event = collect.collect_file(
-            record.name, record.platform, section.source, DEFAULT_PROFILE
+            record.name, key, section.source, DEFAULT_PROFILE
         )
         return snapshot, (event,)
     if section.channel == inventory.CHANNEL_REST:
@@ -777,15 +778,19 @@ def _gathered(record, section, credential, max_response_bytes) -> tuple:
             max_response_bytes=max_response_bytes,
         )
         return snapshot, (event,)
+    options = {}
+    if key in collect.EXEC_PLATFORMS:
+        options = dict(inventory_platform=record.platform, max_response_bytes=max_response_bytes)
     snapshot, events = collect.collect_ssh(
         record.name,
-        record.platform,
+        key,
         record.address,
         record.port,
         credential,
         record.host_key_fingerprint,
         legacy_ssh=record.legacy_ssh,
         host_key=record.host_key,
+        **options,
     )
     return snapshot, tuple(events)
 
@@ -811,18 +816,32 @@ def _collected(args, record, section, credential) -> tuple:
 
 
 def _completeness(tenant, record, section, snapshot):
+    metadata = snapshot.metadata
+    # An incomplete EXOS read retains its captured bytes, which may end inside a quoted command.
+    incomplete_exos = snapshot.platform == collect.PLATFORM_EXOS and metadata is not None and metadata.integrity_reason
     try:
-        missing = collect.missing_sections(
+        missing = () if incomplete_exos else collect.missing_sections(
             snapshot.text, section.required_sections, snapshot.platform
         )
+        if metadata is not None:
+            missing = tuple(name for name in missing if name not in metadata.sections
+                            or metadata.visibility(name).state == platforms.INCOMPLETE)
+            if metadata.complete:
+                parser = PLATFORMS[snapshot.platform].parser
+                families = getattr(parser, "SECTIONS", ())
+                missing = tuple(name for name in missing if name not in families)
         unterminated = collect.unterminated_line(snapshot.text, snapshot.platform)
         item = collect.completeness_finding(record.name, missing, unterminated)
+        if metadata is not None and metadata.integrity_reason:
+            item = item or collect.completeness_finding(record.name, (), 0)
+            item["evidence"].pop("unterminated_line", None)
+            item["evidence"]["reason"] = metadata.integrity_reason
     except collect.CollectError as error:
         raise Failure("completeness: %s" % error)
     if item is None:
         return None
     return Finding(
-        rule_id=COMPLETENESS_RULE % record.platform,
+        rule_id=COMPLETENESS_RULE % snapshot.platform,
         rule_version=COMPLETENESS_RULE_VERSION,
         tenant=tenant,
         device=record.name,
@@ -882,14 +901,15 @@ def _command_collect(args) -> int:
     seen = {}
     try:
         gate = _completeness(args.tenant, record, section, snapshot)
-        policy, coverage = _policy(args, platform, snapshot.text, snapshot.source, gate is not None)
+        policy, coverage, intent = _policy(args, platform, snapshot.text, snapshot.source, gate is not None)
+        context = platforms.AuditContext(intent, snapshot.metadata, snapshot.channel != collect.CHANNEL_FILE, policy)
         if policy:
             rules_version += ":" + management.policy_digest(policy)
         if gate is not None:
             findings, states = (gate,), {rule.id: (NOT_EVALUATED, COMPLETENESS_REASON) for rule in rules}
         else:
-            findings, states = _audit(platform, snapshot.text, args.tenant, record.name, rules, policy)
-        rule_status = _rule_status(platform, rules, states, policy)
+            findings, states = _audit(platform, snapshot.text, args.tenant, record.name, rules, policy, context)
+        rule_status = _rule_status(platform, rules, states, policy, context)
         previous, baseline, accepted = (), frozenset(), None
         if args.store:
             previous, baseline, accepted = _recorded(
@@ -981,11 +1001,11 @@ def main(argv=None) -> int:
 def _policy(args, platform, text, source, incomplete=False):
     path = getattr(args, "policy", None)
     try:
-        policy = management.load_policy(path, platform) if path else None
+        policy, intent = management.load_audit_policy(path, platform) if path else (None, {})
     except (OSError, ValueError, UnicodeError) as exc:
         raise Failure("policy %s cannot be loaded: %s" % (path, exc)) from None
     try:
-        tree = PLATFORMS[platform][1].parse(text)
+        tree = PLATFORMS[platform].parser.parse(text)
     except PARSE_ERRORS as exc:
         if not incomplete:
             raise Failure("cannot parse configuration %s: %s" % (source, exc)) from None
@@ -999,7 +1019,7 @@ def _policy(args, platform, text, source, incomplete=False):
     missing = [name for name in (policy or {}).get("required_rules", []) if coverage[name] != "evaluated"]
     if missing:
         raise Failure("mandatory policy rules not evaluated: " + ", ".join(missing))
-    return policy, coverage
+    return policy, coverage, intent
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -11,7 +11,7 @@ import netops_helper.engine as engine
 from netops_helper.auth import PolicyScopeError
 
 FIXTURES = Path(__file__).parent / "fixtures"
-PROMPT = b"FGT80F0000001111(Primary) $ "
+PROMPT = b"FGTEXAMPLE0001111(Primary) $ "
 SERIAL_1, SERIAL_2 = "FAPEXAMPLE0000001", "FAPEXAMPLE0000002"
 CLIENT = "00:00:5e:00:53:37"
 STATUS_80F = "Version: FortiGate-80F v8.0.2,build0251,260928 (GA.F)\nVirtual domain configuration: disable\n"

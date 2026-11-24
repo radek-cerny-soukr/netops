@@ -1,8 +1,6 @@
 import importlib.util
-import json
 from pathlib import Path
 import re
-import sys
 import tomllib
 import unittest
 
@@ -22,12 +20,12 @@ class ReleaseVersion(unittest.TestCase):
 
     def test_signing_gate_requires_the_current_predecessor(self):
         tool = (ROOT / 'release/sign/netops-release-sign.ps1').read_text()
-        self.assertIn('$MinimumVersion = [version]"1.0.12"', tool)
-        self.assertIn('$UpgradeFromVersion = "1.0.11"', tool)
+        self.assertIn('$MinimumVersion = [version]"1.0.13"', tool)
+        self.assertIn('$UpgradeFromVersion = "1.0.12"', tool)
         image = re.search(r'(?m)^FROM_IMAGE=(.+)$', (ROOT / 'release/acceptance/release.env').read_text())[1]
         self.assertIn(f'$UpgradeFromImage = "{image}"', tool)
 
-    def test_upgrade_declaration_is_valid_for_configured_release(self):
+    def test_historical_upgrade_declaration_retains_the_captured_changes(self):
         here = ROOT / 'release/acceptance'
         spec = importlib.util.spec_from_file_location('release_verify_version', here / 'verify_state.py')
         verify = importlib.util.module_from_spec(spec)
@@ -125,9 +123,21 @@ class ReleaseVersion(unittest.TestCase):
             ('wifi_triage', 'definition'): ['/description'],
         })
         self.assertEqual(info['file'], path.name)
+
+    def test_upgrade_declaration_is_valid_for_configured_release(self):
+        here = ROOT / 'release/acceptance'
+        spec = importlib.util.spec_from_file_location('release_verify_version', here / 'verify_state.py')
+        verify = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(verify)
+        path = here / 'api-changes-1.0.12-1.0.13.json'
+        self.assertTrue(path.is_file(), path.name)
+        items, problems, info = verify.load_api_changes(path, {'FROM_VERSION': '1.0.12', 'TO_VERSION': '1.0.13'})
+        self.assertEqual(problems, [])
+        self.assertIn(('network_overview', 'added'), {(item['tool'], item['kind']) for item in items})
+        self.assertEqual(info['file'], path.name)
         env = (here / 'release.env').read_text()
-        self.assertIn('TO_IMAGE=netops-candidate:1.0.12', env)
-        self.assertIn('FROM_IMAGE=ghcr.io/radek-cerny-soukr/netops@sha256:2acb7f386daebeb5261e9c0e8a82fab2c1740a5d80f85577652de9584ed1f121', env)
+        self.assertIn('TO_IMAGE=netops-candidate:1.0.13', env)
+        self.assertIn('FROM_IMAGE=ghcr.io/radek-cerny-soukr/netops@sha256:0b7dc202bbb6a895fb3e382dda1873edf1f4a60fa43790fe57551d6e83e3d579', env)
 
 
 if __name__ == '__main__':

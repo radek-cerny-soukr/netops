@@ -1,4 +1,4 @@
-"""G04 operator checks over actual parser output from the read-only lab."""
+"""LINK-DISCOVERY operator checks over actual parser output from the read-only lab."""
 from dataclasses import replace
 from pathlib import Path
 import json
@@ -16,7 +16,7 @@ from netops_helper.auth import EgressPolicy
 
 
 FIXTURES = Path(__file__).parent / "fixtures"
-G04 = FIXTURES / "real/g04"
+LINK_DISCOVERY = FIXTURES / "real/link-discovery"
 SERIAL = "S000SSSS00000001"
 PLAN = "daily"
 EXOS = {
@@ -27,15 +27,15 @@ EXOS = {
 KUF = {"vlan": [{"port": "port3", "vlan_id": 100, "membership": "untagged", "managed_switch": SERIAL}]}
 
 
-def replay(monkeypatch, source="d-exos", overrides=None):
-    fortios = source == "kufr"
+def replay(monkeypatch, source="exosvm", overrides=None):
+    fortios = source == "fortigate-ha"
     platform = "fortinet" if fortios else "extreme_exos"
     exos = {"show sharing": (250, "lag"), "show vlan detail": (250, "vlan"),
             "show ports no-refresh": (0, "ports"), "show inline-power info ports 1": (0, "poe")}
-    kufr = {f"show switch-controller managed-switch {SERIAL}": (0, "ports"),
+    fortigate_ha = {f"show switch-controller managed-switch {SERIAL}": (0, "ports"),
             "show system interface": (0, "vlan-ids")}
-    responses = {command: (rc, (G04 / f"{source}-{filename}.out").read_text())
-                 for command, (rc, filename) in (kufr if fortios else exos).items()}
+    responses = {command: (rc, (LINK_DISCOVERY / f"{source}-{filename}.out").read_text())
+                 for command, (rc, filename) in (fortigate_ha if fortios else exos).items()}
     if fortios:
         responses["get system status"] = (0, (FIXTURES / "fortios_80f_802_flow_status.txt").read_text())
         queries = ("system_status", "managed_switch_port_vlans", "interface_vlan_ids")
@@ -68,21 +68,21 @@ def replay(monkeypatch, source="d-exos", overrides=None):
 
 def test_real_exos_match_and_all_three_mismatches(monkeypatch):
     read, _ = replay(monkeypatch)
-    result = engine.check_intent(PLAN, [("d-exos", "extreme_exos", EXOS)], read)
+    result = engine.check_intent(PLAN, [("exosvm", "extreme_exos", EXOS)], read)
     assert result["status"] == "pass", result
     assert [check["actual"] for check in result["checks"]] == [["5"], "tagged", 0]
     changed = {"lag": [{"name": "5", "active_members": ["5", "6"]}],
                "vlan": [{"port": "3", "vlan_id": 304, "membership": "untagged"}],
                "poe": [{"port": "1", "min_w": 1, "max_w": 5}]}
-    result = engine.check_intent(PLAN, [("d-exos", "extreme_exos", changed)], read)
+    result = engine.check_intent(PLAN, [("exosvm", "extreme_exos", changed)], read)
     assert result["status"] == "fail"
     assert [check["status"] for check in result["checks"]] == ["fail"] * 3
 
 
 def test_real_fortiswitch_config_membership_and_read_reuse(monkeypatch):
-    read, calls = replay(monkeypatch, "kufr")
+    read, calls = replay(monkeypatch, "fortigate-ha")
     other = {**KUF["vlan"][0], "vlan_id": 4093, "membership": "untagged"}
-    result = engine.check_intent(PLAN, [("kufr", "fortinet", {"vlan": [KUF["vlan"][0], other]})], read)
+    result = engine.check_intent(PLAN, [("fortigate-ha", "fortinet", {"vlan": [KUF["vlan"][0], other]})], read)
     assert result["status"] == "pass", result
     assert [check["actual"] for check in result["checks"]] == ["untagged", "untagged"]
     assert calls.count(f"show switch-controller managed-switch {SERIAL}") == 1
@@ -90,26 +90,26 @@ def test_real_fortiswitch_config_membership_and_read_reuse(monkeypatch):
 
 
 @pytest.mark.parametrize("command,output,rc", [
-    ("show sharing", (G04 / "d-exos-lag.out").read_text().split("Number of load sharing trunks:")[0], 250),
+    ("show sharing", (LINK_DISCOVERY / "exosvm-lag.out").read_text().split("Number of load sharing trunks:")[0], 250),
     ("show sharing", "", 0),
     ("show inline-power info ports 1", "--More--\n", 0),
-    ("show inline-power info ports 1", (G04 / "d-exos-poe.out").read_text().replace("1 ", "2 ", 1), 0),
+    ("show inline-power info ports 1", (LINK_DISCOVERY / "exosvm-poe.out").read_text().replace("1 ", "2 ", 1), 0),
     ("show vlan detail", "Permission denied\n", 0),
-    ("show vlan detail", (G04 / "d-exos-vlan.out").read_text().replace("       Tag:        *3\n", "", 1), 250),
+    ("show vlan detail", (LINK_DISCOVERY / "exosvm-vlan.out").read_text().replace("       Tag:        *3\n", "", 1), 250),
     ("show ports no-refresh", "Permission denied\n", 0),
 ])
 def test_read_failure_preserves_other_observations_without_claiming_a_mismatch(monkeypatch, command, output, rc):
     read, _ = replay(monkeypatch, overrides={command: (rc, output)})
-    result = engine.check_intent(PLAN, [("d-exos", "extreme_exos", EXOS)], read)
+    result = engine.check_intent(PLAN, [("exosvm", "extreme_exos", EXOS)], read)
     assert result["status"] == "incomplete"
     assert sorted(check["status"] for check in result["checks"]) == ["incomplete", "pass", "pass"], result
     assert notify.discord_intent("fixture-webhook", result) == "not_needed"
 
 
 def test_forti_vlan_unresolved_is_incomplete(monkeypatch):
-    original = (G04 / "kufr-vlan-ids.out").read_text()
-    read, _ = replay(monkeypatch, "kufr", {"show system interface": (0, original.replace("fixture-vlan-003", "another-vlan"))})
-    result = engine.check_intent(PLAN, [("kufr", "fortinet", KUF)], read)
+    original = (LINK_DISCOVERY / "fortigate-ha-vlan-ids.out").read_text()
+    read, _ = replay(monkeypatch, "fortigate-ha", {"show system interface": (0, original.replace("fixture-vlan-003", "another-vlan"))})
+    result = engine.check_intent(PLAN, [("fortigate-ha", "fortinet", KUF)], read)
     assert result["status"] == "incomplete", result
 
 
@@ -134,7 +134,7 @@ def test_one_run_through_cli_sends_once_on_mismatch(monkeypatch, tmp_path, capsy
                    intent={PLAN: {"poe": [{"port": "1", "min_w": 1, "max_w": 3}]}})
     section["egress"]["tcp_ports"].append(22)
     device = _device(section, "exos")
-    device["name"] = "d-exos"
+    device["name"] = "exosvm"
     source = tmp_path / "inventory.json"
     source.write_text(json.dumps(_inventory(device)))
     token = tmp_path / "token"
@@ -168,13 +168,13 @@ def test_one_run_through_cli_sends_once_on_mismatch(monkeypatch, tmp_path, capsy
     assert result["notification"] == "sent" and result["status"] == "fail"
     assert calls == ["show version", "show inline-power info ports 1"]
     assert protocol == ["initialize", "notifications/initialized", "tools/call"]
-    assert len(payloads) == 1 and "d-exos: poe 1" in payloads[0]["json"]["content"]
+    assert len(payloads) == 1 and "exosvm: poe 1" in payloads[0]["json"]["content"]
     assert "fixture-only" not in output and token.read_text() not in output
 
 
 @pytest.mark.parametrize('measured, status', [(None, 'incomplete'), (0.0, 'pass'), (11.0, 'fail')])
 def test_ios_poe_intent_requires_measured_power(monkeypatch, measured, status):
-    from test_ios_ports_g53 import doc, transport
+    from test_ios_ports_router_ports import doc, transport
 
     output = doc('power_inline_detail')
     if measured is not None:
@@ -204,14 +204,14 @@ def test_ios_poe_intent_requires_measured_power(monkeypatch, measured, status):
     ('dscp', 'absent', 'incomplete', None),
 ])
 def test_ios_access_voice_vlan_intent(monkeypatch, voice, expected, status, actual):
-    from test_ios_ports_g53 import transport
+    from test_ios_ports_router_ports import transport
 
     real = FIXTURES / 'real/cisco_ios/iosvl2_15.2.20200924'
-    # DERIVED: use the captured access port and G60 voice capture with data VLAN 10 and voice VLAN 20.
+    # DERIVED: use the captured access port and IOS-SWITCHPORTS voice capture with data VLAN 10 and voice VLAN 20.
     status_text = (real / 'interfaces.txt').read_text().replace('connected    99', 'connected    10', 1)
-    g60 = FIXTURES.parents[2] / 'netops-admin/tests/fixtures/ios_g60/switchport-voice.txt'
-    switchport = g60.read_text().replace('Gi1/0', 'Gi0/0').replace('3780 (netops-g60)', '10 (data)')
-    voice_line = 'Voice VLAN: 3781 (netops-g60-voice)'
+    ios_switchports = FIXTURES.parents[2] / 'netops-admin/tests/fixtures/ios_ios_switchports/switchport-voice.txt'
+    switchport = ios_switchports.read_text().replace('Gi1/0', 'Gi0/0').replace('3780 (netops-ios-switchports)', '10 (data)')
+    voice_line = 'Voice VLAN: 3781 (netops-ios-switchports-voice)'
     switchport = switchport.replace(voice_line, '' if voice == 'missing' else f'Voice VLAN: {voice}')
     if voice == 'denied':
         switchport = '% Authorization failed.\n'

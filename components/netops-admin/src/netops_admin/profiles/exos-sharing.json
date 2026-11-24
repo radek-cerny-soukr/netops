@@ -36,5 +36,5 @@
   "volatile": [],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "The logical port stays in the LACP group. The scope includes every member before and after. Undo restores the previous group and membership."
+  "rollback_evidence": "Live write and return on ExtremeXOS 33.6.1.14 / 33.7.1.6 (2026-11-19): The ELRP session, port link settings, LAG or STP configuration was changed, read back and undone. The logical port stays in the LACP group. The scope includes every member before and after. Undo restores the previous group and membership."
 }

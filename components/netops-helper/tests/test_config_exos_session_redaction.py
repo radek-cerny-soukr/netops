@@ -1,4 +1,4 @@
-"""Task 87 (review 84-N1): EXOS config_read honours the whole Proxy session before store and hash.
+"""verification (review finding N1): EXOS config_read honours the whole Proxy session before store and hash.
 
 One Proxy session first serves an allowed read on target A whose valid vault password is ``Users``;
 the Proxy keeps it as a session secret.  Target B is an ExtremeXOS switch with another password whose

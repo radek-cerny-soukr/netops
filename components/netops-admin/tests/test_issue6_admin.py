@@ -7,6 +7,7 @@ from test_execute import make_runtime, request
 from test_execute_notify_and_budget import after_check, blind_safeguard, trail
 
 from netops_admin import execute
+from approved_apply import approved_apply
 
 
 class DelayedDispatch(FakeFortiOS):
@@ -27,7 +28,7 @@ def test_a_late_dispatched_safeguard_is_kept_until_its_firing_is_proven(tmp_path
     device = DelayedDispatch(execute.EXPIRY_GRACE_SECONDS + execute.EXPIRY_WAIT_SLACK_SECONDS + 300)
     runtime = make_runtime(tmp_path, device)
     after_check(monkeypatch, 1, ["first"])
-    record = execute.apply(runtime, "lab", request())
+    record = approved_apply(runtime, "lab", request())
     assert (record["result"], record["reason"]) == ("unknown", "prediction mismatch")
     assert trail(record)[-1] == ("safeguard_kept", "firing not proven")
     assert record["differences"]
@@ -42,6 +43,6 @@ def test_a_safeguard_already_gone_from_the_device_still_ends_as_revert_failed(tm
     device.on_apply = blind_safeguard
     runtime = make_runtime(tmp_path, device)
     after_check(monkeypatch, 1, ["first"])
-    record = execute.apply(runtime, "lab", request())
+    record = approved_apply(runtime, "lab", request())
     assert (record["result"], record["reason"]) == ("revert-failed", "prediction mismatch")
     assert trail(record)[-1] == ("safeguard_removed", None)

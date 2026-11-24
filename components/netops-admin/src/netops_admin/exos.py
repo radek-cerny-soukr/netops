@@ -24,8 +24,8 @@ SECRET_WORDS = ("community", "encrypted", "password", "shared-secret")
 FREE_TEXT = ("description", "description-string", "display-string", "syscontact", "syslocation", "sysname")
 KEYWORDS = SECRET_SUBJECTS + SECRET_WORDS + FREE_TEXT
 
-# Source: ExtremeXOS 33.6.1 User Guide, Object Names, Table 7 (+ rmon, task 469-r3), narrowed by a live check on
-# EXOS-VM 33.6.1.14 and X440-G2 33.7.1.6 (2026-11-17, task 469-r4, task-evidence/g43/r4/reserved-live.json):
+# Source: ExtremeXOS 33.6.1 User Guide, Object Names, Table 7 (+ rmon, verification), narrowed by a live check on
+# EXOS-VM 33.6.1.14 and X440-G2 33.7.1.6 (2026-11-17, verification, private measurement record):
 # words that both switches accept in `create vlan <word>` are removed (incl. ipv4); a word rejected by at least
 # one of them stays. Both reject ipv6 ("Name cannot be a reserved keyword").
 RESERVED_VLAN_NAMES = frozenset("""
@@ -152,8 +152,8 @@ class Snapshot:
         owner = self._owner(command)
         if owner is not None and owner[0].name.casefold() == folded:
             return True
-        # 1.0.12 G45: the IP lines of the VLAN (address, link-local, forwarding) belong to it (not for the G43
-        # rename digest: there they are references followed under the new name, as before G45)
+        # 1.0.12 switch ip routing: the IP lines of the VLAN (address, link-local, forwarding) belong to it (not for the switch rest
+        # rename digest: there they are references followed under the new name, as before switch ip routing)
         owned = l3_owner(command) if l3 else None
         return owned is not None and owned[0].casefold() == folded
 
@@ -359,7 +359,7 @@ def render_create(profile, key: str, attributes: dict) -> list:
     if profile.table == exos_acl.BINDING:
         return exos_acl.render_binding(key, attributes)
     if profile.table in STATE_TABLES or profile.table in exos_g44.TABLES:
-        return []           # 1.0.12 G45: rendered from the whole states by render_state
+        return []           # 1.0.12 switch ip routing: rendered from the whole states by render_state
     lines = ["create vlan %s tag %s" % (key, attributes["tag"])]
     if "description" in attributes:
         lines.append('configure vlan %s description "%s"' % (key, _text(attributes["description"])))
@@ -429,7 +429,7 @@ def prechecks(snapshot, profile, op: str, key: str, after, endpoint_impact=False
 
 
 # Data port operations cover the physical switch and the EXOS-VM. PoE measurements require a physical switch.
-# Firmware outside these measurements gets the G00 firmware_support warning.
+# Firmware outside these measurements gets the startup firmware_support warning.
 PORT_ACTION_FIRMWARE = ("33.7.1.6", "33.6.1.14")
 
 
@@ -484,7 +484,7 @@ def management_vlan_member(snapshot, key: str, names) -> bool:
 QUERY_LLDP = "show lldp neighbors"
 QUERY_FDB = "show fdb"
 LLDP_HEADER = re.compile(r"^Port\s+Chassis ID\s+Port ID\s+TTL\s+Age\s+System Name\s*$", re.MULTILINE)
-# 501-r3: EXOS-VM 33.6.1.14 lists the neighbors of the management port as `mgmt` (measured on d-exos)
+# EXOS-VM 33.6.1.14 lists the neighbors of the management port as `mgmt` (measured on ExtremeXOS VM 33.6.1.14)
 LLDP_ROW = re.compile(r"^([1-9][0-9]*(?::[1-9][0-9]*)?|mgmt)\s+\S", re.MULTILINE)
 FDB_HEADER = re.compile(r"^MAC\s+VLAN Name\( Tag\)\s+Age\s+Flags\s+Port / Virtual Port List\s*$", re.MULTILINE)
 FDB_ROW = re.compile(r"^(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}[^\S\n]+\S+\(\d{4}\)[^\S\n]+\d+[^\S\n]+"
@@ -848,7 +848,7 @@ def shown_vlan(text: str, key: str, strict_l3=False, include_l3=True):
     if description is not None and description.group(1).rstrip() != NO_DESCRIPTION:
         attributes["description"] = description.group(1).rstrip()
     if include_l3:
-        attributes.update(shown_l3(text, strict=strict_l3))     # 1.0.12 G45
+        attributes.update(shown_l3(text, strict=strict_l3))     # 1.0.12 switch ip routing
     return attributes
 
 
@@ -931,7 +931,7 @@ def poe_info(text: str, key: str) -> dict:
     raise Rejected(["the inline-power table holds no row for port %s" % key], reason_codes=["poe_state_unreadable"])
 
 
-# measured (ref 171, X435 port 9 and X440 port 13): show inline-power info ports N on a port without PoE ends
+# measured (X435 port 9 and X440 port 13): show inline-power info ports N on a port without PoE ends
 # with exit status 250 and prints only this line
 POE_NOT_CAPABLE_RC = 250
 
@@ -984,10 +984,10 @@ def vlan_absent_from_list(text, key):
                    for name in names)
 
 
-# 1.0.12 G43 (X14, XP14): a VLAN is renamed with "configure vlan <old> name <new>" and a VLAN plan may carry the
+# 1.0.12 switch rest (X14, XP14): a VLAN is renamed with "configure vlan <old> name <new>" and a VLAN plan may carry the
 # tagged and untagged ports of the VLAN, so a VLAN is created with its ports (or several ports are added and
 # removed) in one plan with one preview, one safeguard and one compensating inverse. Measured on X440-G2-12p-10G4
-# 33.7.1.6-patch1-11 (G43): the rename keeps the tag, the description and the port membership, and show
+# 33.7.1.6-patch1-11 (switch rest): the rename keeps the tag, the description and the port membership, and show
 # configuration prints every reference with the new name; "configure vlan <X> add ports <P> untagged" moves the
 # port from Default (auto-move); "delete vlan <X>" leaves its untagged ports without a native VLAN, so the
 # inverse of a create and every removal of an untagged port returns the port to Default first.
@@ -998,7 +998,7 @@ PLACEHOLDER = "\x00vlan"
 
 
 def vlan_change(profile, op: str, changes: dict):
-    """The G43 kind of a VLAN request: "rename", "ports" or None (an ordinary VLAN request)."""
+    """The switch rest kind of a VLAN request: "rename", "ports" or None (an ordinary VLAN request)."""
     if profile.platform != "exos" or profile.table != "vlan":
         return None
     if RENAME in changes:
@@ -1017,7 +1017,7 @@ def names_vlan_ports(changes) -> bool:
 
 
 def plan_kind(before, after):
-    """The G43 kind of a stored plan, read from its predicted states."""
+    """The switch rest kind of a stored plan, read from its predicted states."""
     sides = [state for state in (before, after) if state]
     if any(RENAME in state for state in sides):
         return "rename"
@@ -1108,7 +1108,7 @@ def changed_vlan_ports(before, after) -> set:
 
 
 def port_prechecks(snapshot, key: str, before, after, protected) -> list:
-    """The ports of a G43 port plan: real port numbers, no link aggregation, no protected port, and untagged ports
+    """The ports of a switch rest port plan: real port numbers, no link aggregation, no protected port, and untagged ports
     that come from (and return to) Default, because "add ports untagged" moves a port out of Default and the
     inverse brings it back there."""
     before, after = before or {}, after or {}
@@ -1148,14 +1148,14 @@ def port_prechecks(snapshot, key: str, before, after, protected) -> list:
 
 
 def render_vlan(key: str, before, after) -> list:
-    """Commands from one whole G43 VLAN state to another (create, delete, rename, port changes)."""
+    """Commands from one whole switch rest VLAN state to another (create, delete, rename, port changes)."""
     if before is None:
         lines = ["create vlan %s tag %s" % (key, after["tag"])]
         if "description" in after:
             lines.append('configure vlan %s description "%s"' % (key, _text(after["description"])))
         return lines + l3_lines(key, None, after) + _port_lines(key, {}, after)
     if after is None:
-        # an untagged port of a deleted VLAN keeps no native VLAN (G43 measurement): Default first, then the delete
+        # an untagged port of a deleted VLAN keeps no native VLAN (switch rest measurement): Default first, then the delete
         untagged = _port_list(before.get("untagged-ports"))
         lines = ["configure vlan %s add ports %s untagged" % (membership.DEFAULT_VLAN, _port_text(untagged))] if untagged else []
         return lines + ["delete vlan %s" % key]
@@ -1192,7 +1192,7 @@ def touched_untagged(before, after) -> list:
 
 
 def g43_rest_digest(snapshot, kind: str, name: str, touched=(), safeguard_id=None) -> str:
-    """The configuration outside a G43 VLAN plan.
+    """The configuration outside a switch rest VLAN plan.
 
     rename: every line except the own lines of the VLAN, with the current name of the VLAN (the old one before,
     the new one after) replaced by a placeholder, so a reference the switch did not rename shows as a difference.
@@ -1233,7 +1233,7 @@ def g43_rest_digest(snapshot, kind: str, name: str, touched=(), safeguard_id=Non
 
 
 def native_differences(snapshot, key: str, touched, wanted) -> list:
-    """Each untagged port of a G43 port plan is an untagged member of this VLAN when the expected state lists it,
+    """Each untagged port of a switch rest port plan is an untagged member of this VLAN when the expected state lists it,
     otherwise of Default."""
     current = natives(snapshot)
     listed = set(_port_list((wanted or {}).get("untagged-ports")))
@@ -1247,7 +1247,7 @@ def native_differences(snapshot, key: str, touched, wanted) -> list:
 
 
 def predicted_text(snapshot, plan, text: str) -> str:
-    """show configuration after a G43 VLAN plan (for the audit of the predicted configuration)."""
+    """show configuration after a switch rest VLAN plan (for the audit of the predicted configuration)."""
     before, after, key = plan["predicted"]["before"], plan["predicted"]["after"], plan["key"]
     if plan_kind(before, after) == "rename":
         # only the lines that name the VLAN change; module headers and every other line stay as they are
@@ -1329,14 +1329,14 @@ def shown_vlan_ports(text: str) -> dict:
     return result
 
 
-# ---- 1.0.12 G45: static routes (X12), VLAN IP addresses and forwarding (X13), VRRP (X39) ----
-# Measured on EXOS-VM 33.6.1.14 (GNS3 d-exos, licence Core, task netops-20261117-479, task-evidence/g45):
+# ---- 1.0.12 switch ip routing: static routes (X12), VLAN IP addresses and forwarding (X13), VRRP (X39) ----
+# Measured on EXOS-VM 33.6.1.14 (GNS3 ExtremeXOS VM 33.6.1.14, licence Core, verification, private measurement record):
 # * "configure iproute add|delete <net>/<len>|default <gateway> [vr <vr>]"; show configuration prints IPv4 as
 #   "configure iproute add A M GW", IPv6 as "... P/L GW", the default route as "... default GW" and omits
 #   "vr VR-Default" (another VR as "vr <name>"). A second gateway of the same destination is added as a second route,
 #   so a new gateway is added before the old route is deleted.
 #   The IPv6 default route ('configure iproute add default <IPv6 gw>') is printed the same way and shown by
-#   show iproute ipv6 as the row 'Default route' (task 479-r2, M2). A static route stays configured when the VLAN of its
+#   show iproute ipv6 as the row 'Default route' (verification, M2). A static route stays configured when the VLAN of its
 #   gateway is deleted (its gateway becomes unresolved).
 # * "configure vlan V ipaddress A/len" (printed "configure vlan V ipaddress A M"); a primary IPv4 address cannot be
 #   changed in place ("unconfigure vlan V ipaddress" first), and "unconfigure vlan V ipaddress" also disables IPv4
@@ -1546,7 +1546,7 @@ def route_name(vr: str, network) -> str:
     return ("" if vr == DEFAULT_VR else "vr:%s:" % vr) + str(network)
 
 
-# 1.0.12 G45 r2 (479-rv finding 1): an address attribute is a plain address before it is parsed. Python accepts an
+# 1.0.12 switch ip routing r2 (review finding 1): an address attribute is a plain address before it is parsed. Python accepts an
 # IPv6 zone identifier after "%" (with any text, white space included) and keeps it in str(), and str.strip() would
 # hide white space around the value; neither may reach a CLI line. The limits are the profile max_length values.
 ADDRESS_TEXT = {
@@ -1758,7 +1758,7 @@ def render_vrrp(key: str, before, after) -> list:
         if "priority" in after:
             lines.append("configure %s priority %s" % (base, after["priority"]))
         if "virtual-ip" in after:
-            # 479-rv finding 4: an instance without VIP (measured, vrrp-created) is recreated without one
+            # Review finding 4: an instance without VIP (measured, vrrp-created) is recreated without one
             lines.append("configure %s add %s" % (base, plain_address(after["virtual-ip"])))
         if after.get("admin-state", ENABLED) == ENABLED:
             lines.append("enable " + base)
@@ -1864,7 +1864,7 @@ def _gateways_in(snapshot, networks) -> list:
 
 
 def g45_prechecks(snapshot, profile, op: str, key: str, before, after, protected) -> list:
-    """Snapshot checks of a G45 plan (static route, VLAN IP attributes, VRRP); refusals are returned as reasons."""
+    """Snapshot checks of a switch ip routing plan (static route, VLAN IP attributes, VRRP); refusals are returned as reasons."""
     table = profile.table
     reasons = []
     if table == ROUTE_TABLE:
@@ -1896,7 +1896,7 @@ def g45_prechecks(snapshot, profile, op: str, key: str, before, after, protected
         if address is None:
             return ["VLAN %s has no IPv4 address; VRRP needs one" % vlan]
         if "virtual-ip" not in after:
-            # 479-rv finding 4 (M2 measured): an instance without VIP takes a priority and stays disabled; the switch
+            # Review finding 4 (M2 measured): an instance without VIP takes a priority and stays disabled; the switch
             # refuses to enable it ("VR must have at least 1 virtual IP address!")
             if after.get("admin-state", ENABLED) == ENABLED:
                 reasons.append("VRRP %s has no virtual address; the switch enables an instance only with at least one "
@@ -1983,7 +1983,7 @@ def routing_vrs(snapshot) -> list:
 
 
 def management_refusals(snapshot, table: str, key: str, before, after, clients, route_rows) -> list:
-    """A G45 plan does not take or change the path of a session client.
+    """A switch ip routing plan does not take or change the path of a session client.
 
     route_rows(vr, version) gives the rows of show iproute [ipv6] vr <vr> (every origin, dynamic routes included;
     a complete list). A route (create, update or delete) or a VLAN subnet (old or new) that holds a client needs the
@@ -2036,7 +2036,7 @@ def shown_l3(text: str, strict=False) -> dict:
     """IP attributes of show vlan <name> (measured on 33.6.1.14): Primary IP, IPv4/IPv6 Forwarding and the IPv6
     address rows (the link-local row of the automatic address is not an attribute).
 
-    Forwarding is read explicitly (479-rv finding 5): "Enabled" is the attribute, "Disabled" its default (no
+    Forwarding is read explicitly (review finding 5): "Enabled" is the attribute, "Disabled" its default (no
     attribute); strict (a plan with IP attributes) refuses an answer without the row or with another value, so a
     missing row never confirms a disabled forwarding."""
     fields = {}
@@ -2087,7 +2087,7 @@ ROUTE_TOTAL = re.compile(r"^Total number of routes = (\d+)\s*$", re.MULTILINE)
 def _shown_network(destination: str, version: int):
     if destination in ("Default Route", "Default route"):
         return ipaddress.ip_network("0.0.0.0/0" if version == 4 else "::/0")
-    # a link-local destination names its interface ("fe80::%g45m/64")
+    # a link-local destination names its interface ("fe80::%switch ip multicast/64")
     return ipaddress.ip_network(re.sub(r"%[^/]*", "", destination), strict=False)
 
 
@@ -2197,7 +2197,7 @@ def vrrp_absent_from_list(text: str, key: str) -> bool:
 
 
 def state_prediction(snapshot, table: str, key: str, state) -> str:
-    """show configuration after a G45 route or VRRP plan, in the form the switch prints (module rtmgr or vrrp)."""
+    """show configuration after a switch ip routing route or VRRP plan, in the form the switch prints (module rtmgr or vrrp)."""
     owned = route_owned if table == ROUTE_TABLE else vrrp_owned
     kept = [command for command in snapshot.commands if not owned(command, key)]
     added = []

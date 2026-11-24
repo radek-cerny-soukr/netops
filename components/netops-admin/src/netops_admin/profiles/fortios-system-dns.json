@@ -1,0 +1,65 @@
+{
+  "platform": "fortios",
+  "table": "system dns",
+  "versions": [
+    "7.6.8 build3744"
+  ],
+  "exact_versions": true,
+  "provisional": true,
+  "measured": true,
+  "ops": [
+    "update"
+  ],
+  "key_pattern": "^-$",
+  "protected_keys": [],
+  "attributes": {
+    "primary": {
+      "type": "ipv4-address",
+      "default": "0.0.0.0",
+      "required_on_create": false,
+      "update": true,
+      "unset": false,
+      "referenced_update": true
+    },
+    "secondary": {
+      "type": "ipv4-address",
+      "default": "0.0.0.0",
+      "required_on_create": false,
+      "update": true,
+      "unset": false,
+      "referenced_update": true
+    },
+    "ip6-primary": {
+      "type": "ipv6-address",
+      "default": "::",
+      "required_on_create": false,
+      "update": true,
+      "unset": false,
+      "referenced_update": true
+    },
+    "ip6-secondary": {
+      "type": "ipv6-address",
+      "default": "::",
+      "required_on_create": false,
+      "update": true,
+      "unset": false,
+      "referenced_update": true
+    },
+    "protocol": {
+      "type": "text",
+      "default": "cleartext",
+      "required_on_create": false,
+      "update": true,
+      "unset": false,
+      "referenced_update": true,
+      "pattern": "^cleartext$",
+      "max_length": 9
+    }
+  },
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "Verified live through Admin on the FortiGate-60F 7.6.8 build3744 with DNS in cleartext: update of secondary with endpoint_impact, readback by the check account and undo restoring the earlier server; DNS over TLS was refused before any write.",
+  "implicit_keys": true
+}

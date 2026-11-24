@@ -1,0 +1,17 @@
+config system dns-database
+    edit "netops-dhcp-dns.test"
+        set domain "netops-dhcp-dns.test"
+        config dns-entry
+            edit 1
+                set hostname "dhcp-dns-a"
+                set ip 198.51.100.77
+            next
+            edit 2
+                set type PTR
+                set ttl 300
+                set hostname "dhcp-dns-a.netops-dhcp-dns.test"
+                set ip 198.51.100.77
+            next
+        end
+    next
+end

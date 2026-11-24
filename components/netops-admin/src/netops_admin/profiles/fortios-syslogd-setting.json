@@ -1,0 +1,92 @@
+{
+  "platform": "fortios",
+  "table": "log syslogd setting",
+  "versions": [
+    "7.6.8 build3744"
+  ],
+  "exact_versions": true,
+  "provisional": true,
+  "measured": true,
+  "ops": [
+    "update"
+  ],
+  "key_pattern": "^-$",
+  "protected_keys": [],
+  "attributes": {
+    "status": {
+      "type": "text",
+      "default": "disable",
+      "required_on_create": false,
+      "update": true,
+      "unset": false,
+      "referenced_update": true,
+      "pattern": "^(enable|disable)$",
+      "max_length": 7
+    },
+    "server": {
+      "type": "text",
+      "default": "",
+      "required_on_create": false,
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "max_length": 127
+    },
+    "mode": {
+      "type": "text",
+      "default": "udp",
+      "required_on_create": false,
+      "update": false,
+      "unset": false,
+      "referenced_update": true,
+      "pattern": "^(udp|legacy-reliable)$",
+      "max_length": 15
+    },
+    "port": {
+      "type": "integer",
+      "default": "514",
+      "required_on_create": false,
+      "update": false,
+      "unset": false,
+      "referenced_update": true,
+      "minimum": 1,
+      "maximum": 65535
+    },
+    "facility": {
+      "type": "text",
+      "default": "local7",
+      "required_on_create": false,
+      "update": true,
+      "unset": false,
+      "referenced_update": true,
+      "pattern": "^(kernel|user|mail|daemon|auth|syslog|lpr|news|uucp|cron|authpriv|ftp|ntp|audit|alert|clock|local[0-7])$",
+      "max_length": 8
+    },
+    "format": {
+      "type": "text",
+      "default": "default",
+      "required_on_create": false,
+      "update": true,
+      "unset": false,
+      "referenced_update": true,
+      "pattern": "^(default|csv|cef|rfc5424|json)$",
+      "max_length": 7
+    },
+    "source-ip": {
+      "type": "text",
+      "default": "",
+      "required_on_create": false,
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "max_length": 15,
+      "pattern": "^(|(25[0-5]|2[0-4][0-9]|1?[0-9]{1,2})(\\.(25[0-5]|2[0-4][0-9]|1?[0-9]{1,2})){3})$"
+    }
+  },
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "Verified live through Admin on the FortiGate-60F 7.6.8 build3744 with syslog enabled: update of facility, readback by the check account and undo restoring the default by an explicit set; disabling without endpoint_impact and disabling the only syslog target (audit gate) were refused before any write. A syslogd at all defaults is missing from the whole show and is refused as an incomplete snapshot. port and mode are never updated: on end FortiOS 7.6.8 asks to confirm a port other than the default of the mode (514 udp, 601 legacy-reliable), a question the Admin write does not answer (measured live: the write ends in change_failed and the device is blocked); the target of an enabled syslog moves by server, with endpoint_impact.",
+  "implicit_keys": true
+}

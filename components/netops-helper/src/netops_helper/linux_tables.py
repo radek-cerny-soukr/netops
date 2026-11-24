@@ -1,7 +1,7 @@
 """Linux iproute2 text adapters; catalogue queries and permissions stay authoritative.
 
 Brief links have no MTU. Only the existing, inventory-bound interface_link query
-supplies it. Unknown tokens/lines are retained rather than inferred as defaults.
+supplies it. Route attributes outside the shared record schema are ignored.
 """
 from __future__ import annotations
 
@@ -75,13 +75,34 @@ def addresses(table, text):
     return t.lines(text, parse)
 
 
+ROUTE_VALUES = frozenset({'via', 'src', 'dev', 'metric', 'proto', 'scope'})
+ROUTE_METADATA = frozenset({'nhid', 'mtu', 'advmss', 'table', 'pref', 'expires', 'realm', 'weight'})
+ROUTE_FLAGS = frozenset({'linkdown', 'onlink'})
+
+
 def _route(value):
     parts = value.split()
     prefix = '0.0.0.0/0' if parts[0] == 'default' else str(ipaddress.IPv4Network(parts[0]))
     values, index = {}, 1
     while index < len(parts):
         key = parts[index]
-        if key in ('linkdown', 'onlink'):
+        if key == 'nexthop':
+            # A single record cannot represent a multipath route's forwarding choices.
+            return None
+        if key in ROUTE_FLAGS:
+            index += 1
+            continue
+        if key in ROUTE_METADATA:
+            item = parts[index + 1]
+            index += 3 if key in ('mtu', 'advmss') and item == 'lock' else 2
+            if index > len(parts):
+                return None
+            if key == 'nhid':
+                values[key] = item
+            continue
+        if key not in ROUTE_VALUES:
+            # An additional attribute may be a flag or have a value. Resume at
+            # the next recognized field so a flag cannot swallow that field.
             index += 1
             continue
         item = parts[index + 1]
@@ -97,10 +118,11 @@ def _route(value):
         elif key in ('proto', 'scope'):
             if not re.fullmatch(r'[A-Za-z0-9_-]+', item):
                 return None
-        else:
-            return None
         values[key] = item
         index += 2
+    if 'nhid' in values and 'via' not in values and 'dev' not in values:
+        # The ID alone does not describe a next hop, including for nexthop groups.
+        return None
     return t.record('route', prefix=prefix, next_hop=values.get('via'),
                     interface=values.get('dev'), protocol=values.get('proto'))
 

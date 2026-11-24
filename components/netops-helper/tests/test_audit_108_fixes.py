@@ -103,7 +103,7 @@ def test_a_entry_count_mismatch_is_never_complete():
     assert result['unparsed'][-1]['text'].startswith('Total cdp entries displayed : 2')
 
 
-# Review 141-rv: an "advertisement version" line injected in the Version text ends the section,
+# Review: an "advertisement version" line injected in the Version text ends the section,
 # and a following "Device ID:" without a dashed separator must still not open a record.
 FORGED_END = '\n'.join([
     '-------------------------',

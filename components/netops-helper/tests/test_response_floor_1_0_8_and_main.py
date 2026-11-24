@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""``redact_response`` hides everything the complete 1.0.8 and main chains hide (task 165-r4).
+"""``redact_response`` hides everything the complete 1.0.8 and main chains hide.
 
 The property is checked on the public output of the whole chain (Helper credential
 rules, proxy, product, SNMP mask, terminal-control cleaning): every character that
@@ -16,6 +16,7 @@ import json
 import pathlib
 import random
 import re
+import sys
 import time
 
 import pytest
@@ -76,7 +77,7 @@ def _check(text, secrets=()):
     return hidden_1_0_8, hidden_main, hidden_now, now, main
 
 
-# Review 165-r3rv: exact inputs and the safe results.
+# Review: exact inputs and the safe results.
 R3RV = {
     # Main hides the password through the product's `set password` rule; 1.0.8 hid `set`.
     "username-then-set-password": ("username a secret\nset password synthetic-canary\n",
@@ -88,7 +89,7 @@ R3RV = {
 
 
 @pytest.mark.parametrize("name", R3RV)
-def test_review_165_r3rv_inputs(name):
+def test_review_inputs(name):
     text, expected = R3RV[name]
     assert redact_response(text, ()) == expected
     assert CANARY not in redact_response(text, ())
@@ -96,7 +97,7 @@ def test_review_165_r3rv_inputs(name):
     _check(text.replace(CANARY, "一丁丂"))
 
 
-# Review 165-rv and the ref/result-164.md table (with the variants of the earlier tests).
+# The review and its private result table (with the variants of the earlier tests).
 FIXED = {
     "rv-nbsp-username-enc": " username a secret ENC synthetic-canary\n",
     "rv-algorithm-inside-account-prefix": "username a secret sha512 synthetic-canary\n",
@@ -141,7 +142,7 @@ def test_whole_chain_anchor_is_a_1_0_8_only_effect():
 
 @pytest.mark.parametrize("value", [314159, -314159, 3.14159, True, None, [314159], {"value": 314159}])
 def test_json_account_key_keeps_whole_document_floor(value):
-    # Review 165-r4rv finding 1: the current account rule consumes `set password`
+    # Review finding 1: the current account rule consumes `set password`
     # in the key before the product sees it. Reserializing for auth_pwd must not
     # reveal any value that the complete 1.0.8 chain withheld.
     text = json.dumps({'username a secret "set password x"': value, 'auth_pwd': 0},
@@ -156,7 +157,7 @@ def test_json_account_key_keeps_whole_document_floor(value):
 @pytest.mark.parametrize("compact", [False, True])
 @pytest.mark.parametrize("value", [314159, -314159, 3.14159, True, None, [314159], {"value": 314159}])
 def test_nested_json_account_key_keeps_document_floor(wrapper, compact, value):
-    # Review 217-rv: the inner document's non-string values/punctuation must
+    # Review: the inner document's non-string values/punctuation must
     # not lose the 1.0.8 floor when the product decodes and reserializes it.
     options = {"separators": (",", ":")} if compact else {}
     inner = json.dumps({'username a secret "set password x"': value, "auth_pwd": 0}, **options)
@@ -171,7 +172,7 @@ def test_nested_json_account_key_keeps_document_floor(wrapper, compact, value):
 @pytest.mark.parametrize("format", ["cli", "json"])
 @pytest.mark.parametrize("layer", ["product", "response"])
 def test_many_snmp_ranges_and_product_matches_keep_linear_time(layer, format):
-    """Reviews 165-r4rv/217-rv: n SNMP ranges and n substitutions, CLI and JSON."""
+    """Reviews: n SNMP ranges and n substitutions, CLI and JSON."""
     from netops.redaction import redact as product_redact
     from netops.redaction_spans import mask
 
@@ -189,7 +190,7 @@ def test_many_snmp_ranges_and_product_matches_keep_linear_time(layer, format):
             wanted = MAIN.redact_response(text, ())
         value = sanitize._mark_snmp(text) if layer == "product" else text
         samples = []
-        for _ in range(3):
+        for _ in range(5):
             started = time.perf_counter()
             result = mask(product_redact(value)[0]) if layer == "product" else redact_response(value, ())
             samples.append(time.perf_counter() - started)
@@ -197,9 +198,9 @@ def test_many_snmp_ranges_and_product_matches_keep_linear_time(layer, format):
             assert CANARY not in result and "public" not in result
         timings.append(min(samples))
     print(f"{layer}/{format} n=1000/2000/4000 seconds={timings}")
-    # Use the best of three runs and generous ratios to tolerate a shared lab PC.
+    # Use the best of five runs and generous ratios to tolerate a shared lab PC.
     # Four times the input should be ~4x, not the ~16x of the previous algorithm.
-    assert timings[2] < max(timings[0], 0.02) * 7, timings
+    assert timings[2] < max(timings[0], 0.02) * 10, timings  # linear 4x, quadratic 16x
     assert timings[2] < max(timings[1], 0.02) * 3.5, timings
 
 
@@ -261,7 +262,7 @@ def _case(generator, unique):
     return "".join(parts)
 
 
-# The texts the Helper's account rules may change (sanitize._ACCOUNT_HINT); since task 302-r2
+# The texts the Helper's account rules may change (sanitize._ACCOUNT_HINT); since the earlier change
 # `enable secret|password` is an account rule too and hides more than the main chain.
 _ACCOUNT_TEXT = re.compile(r"(?i)username|enable|account|(?:tacacs|radius)-server|\\u")
 _CONTROLS = re.compile(r"\x1b\[0m|[\x00-\x08\x0b-\x1f]")
@@ -283,7 +284,7 @@ def test_generated_inputs_keep_every_character_both_chains_hide():
                 and not _TYPED.search(text) and not _TYPED.search(_CONTROLS.sub("", text))):
             # Without account text both credential layers agree and without a typed
             # `secret|password` line both proxies agree (the main proxy has no
-            # CISCO_TYPED_SECRET, task 302-r3): the main result, unchanged.
+            # CISCO_TYPED_SECRET, the earlier change): the main result, unchanged.
             assert now == main, text
             same += 1
     assert checked > 1000 and only_1_0_8 > 20 and same > 300, (checked, only_1_0_8, same)
@@ -304,25 +305,51 @@ def _family(count):
     return "set community public\n" + " username a secret sha512\npassword synthetic-canary\n" * count
 
 
+def _traced():
+    monitoring = getattr(sys, "monitoring", None)
+    return sys.gettrace() is not None or (
+        monitoring is not None and any(monitoring.get_tool(tool) for tool in range(6)))
+
+
+def _linear_time(small, large, *, traced):
+    # Four times the input is about four times the work; quadratic work is about 16 times.
+    # Tracing and shared CI runners raise the observed linear ratio (6.5x under coverage,
+    # 6.06x on a hosted runner), so the limit is 10x in both modes. The absolute allowance
+    # for short samples stays, so a fast quadratic case still fails.
+    del traced
+    return large < max(0.30, small * 10) and large < 120
+
+
+@pytest.mark.parametrize(("small", "large", "traced", "expected"), [
+    (0.025, 0.400, True, False),   # Quadratic growth, previously hidden by the traced floor.
+    (0.025, 0.400, False, False),  # The same quadratic growth without tracing.
+    (0.060, 0.390, True, True),    # Observed 6.5x linear growth under coverage.
+    (0.453, 2.746, False, True),   # Observed 6.06x linear growth on a hosted runner.
+    (0.200, 3.200, False, False),  # 16x growth: quadratic.
+])
+def test_linear_time_decision_under_coverage(small, large, traced, expected):
+    assert _linear_time(small, large, traced=traced) is expected
+
+
 def test_floor_ranges_keep_linear_time():
-    """Review 165-r3rv finding 2: n floor ranges in an SNMP document stay linear."""
+    """Review finding 2: n floor ranges in an SNMP document stay linear."""
     expected = "set community <REDACTED>\n" + " username a secret <REDACTED>\npassword <REDACTED>\n" * 3
     assert redact_response(_family(3), ()) == expected
 
     def measured(count):
         text = _family(count)
         timings = []
-        for _ in range(2):
-            started = time.perf_counter()
+        for _ in range(3):
+            started = time.process_time()
             result = redact_response(text, ())
-            timings.append(time.perf_counter() - started)
+            timings.append(time.process_time() - started)
         assert CANARY not in result and "sha512" not in result
         return min(timings)
 
     small, large = measured(2000), measured(8000)
-    # Four times the input: about four times the time; quadratic work would be ~16 times.
-    assert large < max(small, 0.05) * 6, (small, large)
-    assert large < 120, (small, large)
+    # Four times the input should use about four times the CPU time. Quadratic work
+    # would take about 16 times as long. CPU time excludes scheduling delays.
+    assert _linear_time(small, large, traced=_traced()), (small, large)
 
 
 def test_frozen_proxy_1_0_8_matches_302_fixtures_and_is_independent(monkeypatch):

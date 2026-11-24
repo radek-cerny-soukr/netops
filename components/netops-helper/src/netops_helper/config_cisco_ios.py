@@ -1,4 +1,4 @@
-"""Conservative Cisco IOS ``show running-config`` stream consumer (task 96, bod 06).
+"""Conservative Cisco IOS ``show running-config`` stream consumer (verification, bod 06).
 
 The public IOS ``config_read`` path uses this stream consumer for redaction.  The engine and
 identity/profile adapter control device I/O and admitted firmware/model checks.  The bounded
@@ -29,7 +29,7 @@ Policy (a stateful line parser, not a shell parser and not an IOS interpreter):
   classification.
 * A ``menu`` header (``menu`` as a separate token, indented or not, in any context) outside an open
   banner/macro/quoted body is an unsupported multi-line format and refuses the whole stream
-  (task 108); there is no menu parser.  Inside such an open body the word stays masked text.
+  (verification); there is no menu parser.  Inside such an open body the word stays masked text.
 * A ``Building configuration...`` / ``Current configuration : N bytes`` preamble and a command echo
   are recognized only as exact frames before the body (the byte count is not verified and does not
   describe the redacted content); after the required global ``end`` only blank lines and an exact
@@ -469,7 +469,7 @@ class StreamRedactor:
         indented = line[:1] in (' ', '\t')
         body = line.lstrip(' \t')
         if _MENU.match(body):
-            # An unsupported multi-line menu text (task 108), indented or not and in any context:
+            # An unsupported multi-line menu text (verification), indented or not and in any context:
             # its body could contain an exact '!' followed by allowed-looking lines, so the whole
             # stream is refused.  Only reached outside an open banner/macro/quoted body.
             raise ValueError('unsupported menu stanza')

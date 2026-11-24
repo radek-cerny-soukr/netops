@@ -1,0 +1,17 @@
+DHCPv4 BOOTP Relay : Disabled on virtual router "VR-Default", but enabled on some VLANs
+    Include Secondary    : Disabled
+    BOOTP Relay Servers  :
+    DHCP Relay Agent Information Option: Disabled
+    DHCP Relay Agent Information Check : Disabled
+    DHCP Relay Agent Information Policy: Replace
+    DHCP Relay Agent Source VLAN       : None
+
+
+VLAN                                    DHCPv4 BOOTP Relay
+------------------------                ------------------
+VLAN "netops-switch-access-control":
+    BOOTP Relay                        : Enabled
+    BOOTP Relay Servers                : 192.0.2.254
+    DHCP Relay Agent Information Option: Disabled
+    DHCP Relay Agent Information Check : Disabled
+    DHCP Relay Agent Information Policy: Replace

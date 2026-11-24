@@ -11,8 +11,8 @@ from netops_admin import backup, backup_eos, cli
 from netops_core import hostkey, ssh
 
 REAL = Path(__file__).resolve().parents[2] / 'netops-helper/tests/fixtures/real/arista_eos'
-G121 = REAL / 'g121_ceos_4.36.1F'
-RUNNING = (G121 / 'running.out').read_bytes()
+EOS_CONFIG = REAL / 'eos_config_ceos_4.36.1F'
+RUNNING = (EOS_CONFIG / 'running.out').read_bytes()
 PIN = 'SHA256:' + 'A' * 43
 KEY = '3b' * 32
 
@@ -27,7 +27,7 @@ def _without_configuration(data):
 @pytest.fixture
 def wire(monkeypatch):
     replies = {
-        'show privilege': (0, (G121 / 'privilege-admin.out').read_bytes()),
+        'show privilege': (0, (EOS_CONFIG / 'privilege-admin.out').read_bytes()),
         'show version': (0, (REAL / 'ceos_4.36.1F/version.txt').read_bytes()),
         'show running-config': (0, RUNNING),
     }
@@ -80,7 +80,7 @@ def test_eos_preview_confirm_retention_and_restore_readback(wire, operator):
     cmd = [*args, '--confirm', plan['plan_sha256']]
     rc, first = run(cmd)
     assert rc == 0 and first['result'] == 'confirmed'
-    replies['show running-config'] = (0, (G121 / 'running-changed.out').read_bytes())
+    replies['show running-config'] = (0, (EOS_CONFIG / 'running-changed.out').read_bytes())
     rc, second = run(cmd)
     assert rc == 0 and second['retention_ok'] and second['firmware_support']['status'] == 'tested'
     assert events == ['pin', 'show privilege', 'show version', 'show running-config'] * 2
@@ -89,7 +89,7 @@ def test_eos_preview_confirm_retention_and_restore_readback(wire, operator):
     assert encrypted.read_bytes().startswith(b'NETOPS-EOS-BACKUP\x00\x01')
     assert hashlib.sha256(encrypted.read_bytes()).hexdigest() == second['sha256']
     assert stat.S_IMODE(encrypted.stat().st_mode) == 0o600
-    assert b'G121-VERIFY' not in encrypted.read_bytes()
+    assert b'EOS-CONFIG-VERIFY' not in encrypted.read_bytes()
 
     restored = directory / 'restore.cfg'
     unseal = ['backup-unseal', '--platform', 'eos', '--input', str(encrypted), '--output', str(restored)]
@@ -133,9 +133,9 @@ def test_eos_refusal_preserves_prior_backup(wire, operator, mode, reason):
             line for line in RUNNING.splitlines(keepends=True) if not line.startswith(prefix)
         ))
     elif mode == 'wrong-header':
-        replies['show running-config'] = (0, (G121 / 'startup.out').read_bytes())
+        replies['show running-config'] = (0, (EOS_CONFIG / 'startup.out').read_bytes())
     elif mode == 'unprivileged':
-        replies['show privilege'] = (0, (G121 / 'privilege-ro.out').read_bytes())
+        replies['show privilege'] = (0, (EOS_CONFIG / 'privilege-ro.out').read_bytes())
     else:
         cmd[-1] = '0' * 64
     rc, rejected = run(cmd)

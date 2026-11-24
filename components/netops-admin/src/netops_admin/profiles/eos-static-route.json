@@ -38,5 +38,5 @@
   "volatile": [],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "G124 on cEOSLab 4.36.1F. EOS configuration session timer and verified running-config readback apply. The key is the canonical destination prefix, optionally preceded by vrf:<name>:. A route has one IP next hop in the same family. The scoped configured route readback includes unresolved routes. Management paths and existing routes with additional paths or options are protected."
+  "rollback_evidence": "Live write and return on cEOSLab 4.36.1F (2026-11-18–19): The static routes, L3 interfaces or VRF forwarding changes were read back and undone. eos static routing on cEOS 4.36.1F. EOS configuration session timer and verified running-config readback apply. The key is the canonical destination prefix, optionally preceded by vrf:<name>:. A route has one IP next hop in the same family. The scoped configured route readback includes unresolved routes. Management paths and existing routes with additional paths or options are protected."
 }

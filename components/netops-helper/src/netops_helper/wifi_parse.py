@@ -909,7 +909,7 @@ def parse_ruckus_access_points(text: str, *, allow_empty: bool = False) -> dict[
                 elif key == "WLAN Services enabled":
                     radio["wlan_enabled"] = _r_bool(value)
             elif section == ("Network Setting",):
-                # G108 (RP09): management values as the AP prints them; no management VLAN is printed here.
+                # wireless path (RP09): management values as the AP prints them; no management VLAN is printed here.
                 field = {"IP Address": "ip", "Gateway": "gateway", "Netmask": "netmask",
                          "Device IP Settings": "ip_mode", "Protocol mode": "protocol_mode"}.get(key)
                 if field:
@@ -937,7 +937,7 @@ def _ruckus_ap_inventory(text: str) -> dict[str, Any]:
 
 
 def parse_ruckus_ethinfo(text: str) -> dict[str, Any]:
-    """`show ethinfo` (G108, RP09): the Ethernet ports of the device the CLI runs on (the master AP).
+    """`show ethinfo` (wireless path, RP09): the Ethernet ports of the device the CLI runs on (the master AP).
 
     One record per `Port N:` with interface, MAC, physical link and speed as printed. The output names no VLAN,
     tagging or LLDP neighbour, so none is stated.
@@ -1190,7 +1190,7 @@ _PING_RTT = re.compile(
 
 
 def parse_ruckus_ping(text: str) -> dict[str, Any]:
-    """`ping <ip>` (G108, R02): an echo probe sent from the Unleashed master AP.
+    """`ping <ip>` (wireless path, R02): an echo probe sent from the Unleashed master AP.
 
     One record with the target, every reply (seq, ttl, time) and the device's own totals. Without the totals line
     the answer is `incomplete` (an interrupted or cut read is never read as loss). The source is the master AP
@@ -1242,7 +1242,7 @@ def _ping_warning(code: str, detail: str) -> dict[str, str]:
 
 def _ping_warnings(record: dict[str, Any], unparsed: list[int], statistics_target: str | None,
                    error_seqs: list[int], reported_errors: int) -> list[dict[str, str]]:
-    """Why a ping answer is not complete (489-r3): readable causes instead of a silent `complete: false`."""
+    """Why a ping answer is not complete: readable causes instead of a silent `complete: false`."""
     warnings = []
     transmitted, received, replies = record["transmitted"], record["received"], record["replies"]
     if unparsed:
@@ -1405,7 +1405,7 @@ def parse_ruckus_static_routes(text: str) -> dict[str, Any]:
 
 
 def parse_ruckus_config(text: str) -> dict[str, Any]:
-    """G110 (RP08): `show config` after the section allowlist: one record per kept section with its settings.
+    """wireless network services (RP08): `show config` after the section allowlist: one record per kept section with its settings.
 
     A settings path is the nested headings and the label joined by ` / `; repeated labels (station lists) are
     collected in order. Withheld sections are counted, not read. The result is `incomplete` when an allowlisted section
@@ -1488,7 +1488,7 @@ def summarize_ruckus(query: str, text: str) -> dict[str, Any]:
     return RUCKUS_PARSERS[query](text)
 
 
-# Catalyst 9800 operational reads (G87).
+# Catalyst 9800 operational reads (wireless controller).
 _XE_MAC = _c9800.MAC
 _XE_SEPARATOR = re.compile(r"-+(?:\s+-+)*")
 _XE_AP_EXTENDED_HEADER = (

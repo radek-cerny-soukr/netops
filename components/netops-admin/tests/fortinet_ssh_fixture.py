@@ -1,7 +1,7 @@
 """OpenSSH test client backed by the existing Fortinet device fixtures.
 
 Configuration bodies and simulated writes come from FakeFortiOS and FakeADC
-(task 306, FortiADC 7.6.7 build0676). PTY framing and failures are derived
+(verification, FortiADC 7.6.7 build0676). PTY framing and failures are derived
 test inputs. The client never connects to a socket.
 """
 import base64
@@ -18,6 +18,34 @@ from netops_core import fortios, prompt
 
 BLOB = base64.b64encode(b"\0\0\0\x0bssh-ed25519\0\0\0\x20" + bytes(range(32))).decode()
 PUBLIC_KEY = "ssh-ed25519 " + BLOB
+
+# The interactive client emits output and then normally waits for more input.
+# Use a shorter quiet interval for these Admin tests. The production session
+# still reads the terminal and handles prompt probes, pagination, continuations,
+# idle timeouts and deadlines. The netops-core Fortinet session tests use their
+# own client and retain the production interval.
+TEST_QUIET_SECONDS = 0.005
+
+
+def install_clients(directory, monkeypatch, pycache):
+    """Install the fixture clients in directory and set PATH to that directory.
+
+    Use the shorter Fortinet quiet interval and let client subprocesses share
+    a bytecode cache under pytest's base temporary directory.
+    """
+    from netops_core import session
+
+    directory = Path(directory)
+    search_path = [str(Path(__file__).parent)] + [p for p in sys.path if p.startswith("/repo/")]
+    for client in ("ssh", "ssh-keyscan"):
+        path = directory / client
+        path.write_text(f"#!{sys.executable}\n"
+                        f"import sys\nsys.dont_write_bytecode = False\nsys.pycache_prefix = {str(pycache)!r}\n"
+                        f"sys.path[:0] = {search_path!r}\n"
+                        f"from fortinet_ssh_fixture import main\nmain({str(directory)!r})\n")
+        path.chmod(0o700)
+    monkeypatch.setenv("PATH", str(directory))
+    monkeypatch.setattr(session, "FORTINET_QUIET_SECONDS", TEST_QUIET_SECONDS)
 
 
 @dataclass
@@ -92,8 +120,8 @@ def main(directory):
         current = pickle.loads(state.read_bytes())
         if line == "get system console":
             answer = "output : standard\n"
-        elif line == 'execute vpn ipsec tunnel down "netops-g14" "netops-g14" 1':
-            capture = Path(__file__).parent / "fixtures/fortios_7_6_8_g26/execute-refused.txt"
+        elif line == 'execute vpn ipsec tunnel down "netops-ipsec" "netops-ipsec" 1':
+            capture = Path(__file__).parent / "fixtures/fortios_7_6_8_firewall_cleanup/execute-refused.txt"
             answer = capture.read_text()
         elif line == "show" and platform == "fortios":
             answer = current.snapshot()

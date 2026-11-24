@@ -1,0 +1,13 @@
+
+Routing instance        VLAN name             Tag          Interfaces
+default-switch          D10                   10       
+                                                           ge-0/0/0.0*
+default-switch          D20                   20       
+                                                           ge-0/0/0.0*
+                                                           ge-0/0/1.0*
+default-switch          default               1        
+
+default-switch          junos-vlan-admin-data             3901     
+                                                           ge-0/0/2.0
+default-switch          junos-vlan-admin-voice            3902     
+                                                           ge-0/0/2.0

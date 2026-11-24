@@ -177,7 +177,7 @@ def test_nxos_snmp_community_table_hidden_in_every_page_and_json(monkeypatch):
     ("show configuration session summary", "configuration_sessions", "Session Manager Database:"),
     ("show users", "users", "PID COMMENT"),
 ])
-def test_nxos_g95_unknown_sensitive_lines_never_leave_engine(monkeypatch, command, query, counter):
+def test_nxos_nxos_management_unknown_sensitive_lines_never_leave_engine(monkeypatch, command, query, counter):
     device, row = next((d, r) for d, r in CASES if d["device"] == "nxos" and r["role"] == "ADMIN"
                        and r["command"] == command)
     extra = "pwd qZ secret-phrase-tail\n"
@@ -192,7 +192,7 @@ def test_nxos_g95_unknown_sensitive_lines_never_leave_engine(monkeypatch, comman
     assert calls == ["show version", command]
 
 
-def test_nxos_g95_snmp_keys_outside_community_section(monkeypatch):
+def test_nxos_nxos_management_snmp_keys_outside_community_section(monkeypatch):
     device, row = next((d, r) for d, r in CASES if d["device"] == "nxos" and r["role"] == "ADMIN"
                        and r["command"] == "show snmp")
     body = row["stdout"].replace("SNMP USERS", "SNMP USERS\nuser-v3  auth qZ priv secret-phrase-tail")
@@ -205,7 +205,7 @@ def test_nxos_g95_snmp_keys_outside_community_section(monkeypatch):
     assert "[redacted]" in result["untrusted_device_output"]
 
 
-def test_nxos_g95_untested_firmware_warns_without_blocking(monkeypatch):
+def test_nxos_nxos_management_untested_firmware_warns_without_blocking(monkeypatch):
     device, row = next((d, r) for d, r in CASES if d["device"] == "nxos" and r["role"] == "ADMIN"
                        and r["command"] == "show hosts")
     device = {**device, "captures": [
@@ -219,10 +219,10 @@ def test_nxos_g95_untested_firmware_warns_without_blocking(monkeypatch):
 
 
 @pytest.mark.parametrize("expected_count", [1, 2])
-def test_nxos_g95_active_configuration_session_count(monkeypatch, expected_count):
+def test_nxos_nxos_management_active_configuration_session_count(monkeypatch, expected_count):
     device, row = next((d, r) for d, r in CASES if d["device"] == "nxos" and r["role"] == "ADMIN"
                        and r["command"] == "show configuration session summary")
-    fixture = FIXTURES.parent / "cisco_nxos/g95_9.3.12/configuration-session-one.out"
+    fixture = FIXTURES.parent / "cisco_nxos/nxos_management_9.3.12/configuration-session-one.out"
     capture = fixture.read_text()
     body = capture.replace("sessions = 1", f"sessions = {expected_count}")
     auth, query, _ = setup(monkeypatch, device, row, body=body)
@@ -233,7 +233,7 @@ def test_nxos_g95_active_configuration_session_count(monkeypatch, expected_count
     assert result["complete"] is (expected_count == 1)
 
 
-def test_nxos_g95_redaction_precedes_snapshot_paging(monkeypatch):
+def test_nxos_nxos_management_redaction_precedes_snapshot_paging(monkeypatch):
     device, row = next((d, r) for d, r in CASES if d["device"] == "nxos" and r["role"] == "ADMIN"
                        and r["command"] == "show snmp")
     # Derive a long capture from a real counter line and insert a short credential plus a pager.
@@ -254,11 +254,11 @@ def test_nxos_g95_redaction_precedes_snapshot_paging(monkeypatch):
     assert calls == ["show version", "show snmp"]
 
 
-@pytest.mark.parametrize("node", ["d-nxos", "b04-nx-a", "b04-nx-b"])
-def test_nxos_g95_active_ssh_user_from_live_capture(monkeypatch, node):
+@pytest.mark.parametrize("node", ["nexus9300v", "nexus-peer-a", "nexus-peer-b"])
+def test_nxos_nxos_management_active_ssh_user_from_live_capture(monkeypatch, node):
     device, row = next((d, r) for d, r in CASES if d["device"] == "nxos" and r["role"] == "RO"
                        and r["command"] == "show users")
-    capture = (FIXTURES.parent / f"cisco_nxos/g95_9.3.12/users-{node}.out").read_text()
+    capture = (FIXTURES.parent / f"cisco_nxos/nxos_management_9.3.12/users-{node}.out").read_text()
     auth, query, _ = setup(monkeypatch, device, row, body=capture)
     result = read(auth, query)
     assert result["status"] == "ok" and result["complete"]
@@ -266,10 +266,10 @@ def test_nxos_g95_active_ssh_user_from_live_capture(monkeypatch, node):
 
 
 @pytest.mark.parametrize("scope", ["default", "management"])
-def test_nxos_g95_configured_dns_from_real_capture(monkeypatch, scope):
+def test_nxos_nxos_management_configured_dns_from_real_capture(monkeypatch, scope):
     device, row = next((d, r) for d, r in CASES if d["device"] == "nxos" and r["role"] == "ADMIN"
                        and r["command"] == "show hosts")
-    capture = (FIXTURES.parent / f"cisco_nxos/g95_9.3.12/dns-{scope}-vrf.out").read_text()
+    capture = (FIXTURES.parent / f"cisco_nxos/nxos_management_9.3.12/dns-{scope}-vrf.out").read_text()
     auth, query, _ = setup(monkeypatch, device, row, body=capture)
     result = read(auth, query)
     assert result["status"] == "ok" and result["complete"]

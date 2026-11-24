@@ -1,0 +1,9 @@
+host01        $ config firewall address
+    edit "netops-firewall-addresses-mac"
+        set uuid 00000000-0000-4000-8000-000000000006
+        set type mac
+        set macaddr "00:00:5e:00:53:07" "00:00:5e:00:53:08"
+    next
+end
+
+host01        $

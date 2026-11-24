@@ -1,0 +1,15 @@
+FortiGate-60F $ list ipsec tunnel by names in vd 0
+------------------------------------------------------
+name=netops-ipsec-dn ver=2 serial=2 192.0.2.1:0->192.0.2.251:0 nexthop=192.0.2.251     tun_id=192.0.2.251     tun_id6=::192.0.2.251     status=down dst_mtu=0 weight=1
+bound_if=30 real_if=30 lgwy=static/1 tun=intf mode=auto/1 encap=none/552 options[0228]=npu frag-rfc  run_state=0 role=primary accept_traffic=1 overlay_id=0
+
+proxyid_num=1 child_num=0 refcnt=4 ilast=43250256 olast=43250256 ad=/0
+stat: rxp=0 txp=0 rxb=0 txb=0
+dpd: mode=on-demand on=0 status=fail idle=20000ms retry=3 count=0 seqno=0
+natt: mode=none draft=0 interval=0 remote_port=0
+fec: egress=0 ingress=0
+proxyid=netops-ipsec-dn proto=0 sa=0 ref=2 serial=1 auto-negotiate
+  src: 0:203.0.113.253-203.0.113.253:0
+  dst: 0:203.0.113.244-203.0.113.244:0
+
+FortiGate-60F $ 

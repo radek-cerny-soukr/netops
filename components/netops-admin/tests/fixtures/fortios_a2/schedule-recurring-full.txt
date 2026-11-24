@@ -1,0 +1,28 @@
+config firewall schedule recurring
+    edit "always"
+        set uuid 00000000-0000-4000-8000-000000000005
+        set start 00:00
+        set end 00:00
+        set day sunday monday tuesday wednesday thursday friday saturday
+        set label-day none
+        set color 0
+        set fabric-object disable
+    next
+    edit "none"
+        set uuid 00000000-0000-4000-8000-000000000006
+        set start 00:00
+        set end 00:00
+        set day none
+        set color 0
+        set fabric-object disable
+    next
+    edit "default-darrp-optimize"
+        set uuid 00000000-0000-4000-8000-000000000007
+        set start 01:00
+        set end 01:30
+        set day sunday monday tuesday wednesday thursday friday saturday
+        set label-day none
+        set color 0
+        set fabric-object disable
+    next
+end

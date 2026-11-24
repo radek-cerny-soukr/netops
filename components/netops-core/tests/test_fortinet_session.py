@@ -2,7 +2,7 @@
 
 FortiOS frames and answers come from the multi-VDOM context-197 capture (its
 README records the live source). FortiADC pool/erase bytes come from the Admin
-7.6.7 build0676 fixture; the refusal comes from Helper's G28 capture. The HA
+7.6.7 build0676 fixture; the refusal comes from Helper's ADC-STATISTICS capture. The HA
 prefix on the ADC replay is derived from the FortiADC CLI Reference examples
 linked in vendor-cli-references/fortinet-fortiadc.md. Transport timing, the
 false prompt, interruption, and the large repeated answer are test additions.
@@ -27,7 +27,7 @@ from test_session import CANARY_KEY, CANARY_PASSWORD, key_credential, password_c
 COMPONENTS = Path(__file__).resolve().parents[2]
 HELPER = COMPONENTS / "netops-helper/tests/fixtures"
 ADC_POOL = COMPONENTS / "netops-admin/tests/fixtures/fortiadc_767_0676/show_load-balance_pool.txt"
-ADC_REFUSAL = HELPER / "real/fortiadc/fortiadc-kvm_7.6.7_g28_20261117/refusal.out"
+ADC_REFUSAL = HELPER / "real/fortiadc/fortiadc-kvm_7.6.7_adc_statistics_20261117/refusal.out"
 FG_CONTEXT = HELPER / "real/fortinet/fortigate60f_7.6.8_multivdom/context-197.json"
 KEY_TYPE = b"ssh-ed25519"
 BLOB = base64.b64encode(b"\0\0\0\x0b" + KEY_TYPE + b"\0\0\0\x20" + bytes(range(32))).decode()
@@ -195,7 +195,7 @@ def test_fortiadc_ha_pager_false_prompt_and_refusal_in_one_process(fake_ssh):
 
 
 def test_fortiadc_read_only_prompt_preserves_prompt_like_output(fake_ssh):
-    # Sanitized VM220 netops-read prompt captured in live acceptance 614.
+    # Sanitized fortiadc-kvm netops-read prompt captured in a live acceptance run.
     prompt = b"LLLLLLLL-LLL $ "
     body = b"prefix " + prompt + b"\r\n" + prompt + b"suffix\r\n"
     events = fake_ssh(prompt, [(b"get system status", [body, prompt])])
@@ -328,7 +328,8 @@ def test_consumer_failure_and_interruption_close_the_session(fake_ssh, failure):
 def test_login_timeout_discards_banner_and_closes_the_client(fake_ssh, tmp_path):
     events = fake_ssh(b"private-CANARY", [])
     with pytest.raises(session.SessionError) as error:
-        session.fortinet_session(_device(), key_credential(), connect_timeout_seconds=0.25)
+        # Allow the fixture's Python process to start under parallel test load.
+        session.fortinet_session(_device(), key_credential(), connect_timeout_seconds=3)
     assert error.value.code == "timeout"
     assert "CANARY" not in str(error.value) and not error.value.final
     assert events() == ["ssh"]

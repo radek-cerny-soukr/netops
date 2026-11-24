@@ -273,33 +273,33 @@ The slot-free `vlan_detail` (`show vlan detail`) follow-up was captured read-onl
 
 | Query name | Exact command template | Inventory slot | Volume | Primary references |
 | --- | --- | --- | --- | --- |
-| `ping` | `ping count 5 vr {vr} {address}` | `address -> addresses.ipv4_address, vr -> virtual_routers.vr` | normal | E-G37-PING |
-| `ping_source` | `ping count 5 vr {vr} {address} from {source}` | `address -> addresses.ipv4_address, source -> addresses.ipv4_address, vr -> virtual_routers.vr` | normal | E-G37-PING |
-| `traceroute` | `traceroute vr {vr} {address}` | `address -> addresses.ipv4_address, vr -> virtual_routers.vr` | normal | E-G37-TRACE |
-| `traceroute_source` | `traceroute vr {vr} {address} from {source}` | `address -> addresses.ipv4_address, source -> addresses.ipv4_address, vr -> virtual_routers.vr` | normal | E-G37-TRACE |
-| `ospf_neighbors` | `show ospf neighbor` | none | high-volume | E-G37-OSPF-NEIGHBOR |
-| `ospf_interfaces` | `show ospf interfaces` | none | high-volume | E-G37-OSPF-INTERFACES |
-| `ospf_lsdb` | `show ospf lsdb` | none | high-volume | E-G37-OSPF-LSDB |
-| `ospfv3_neighbors` | `show ospfv3 neighbor` | none | high-volume | E-G37-OSPFV3-NEIGHBOR |
-| `ospfv3_interfaces` | `show ospfv3 interfaces` | none | high-volume | E-G37-OSPFV3-INTERFACES |
-| `bgp_summary` | `show bgp neighbor` | none | high-volume | E-G37-BGP-NEIGHBOR |
-| `bgp_neighbor` | `show bgp neighbor {address}` | `addresses.ipv4_address` | high-volume | E-G37-BGP-NEIGHBOR |
-| `bgp_routes` | `show bgp routes all` | none | high-volume | E-G37-BGP-ROUTES |
-| `vrrp` | `show vrrp` | none | high-volume | E-G37-VRRP |
-| `bfd_sessions` | `show bfd session vr all` | none | high-volume | E-G37-BFD |
+| `ping` | `ping count 5 vr {vr} {address}` | `address -> addresses.ipv4_address, vr -> virtual_routers.vr` | normal | E-SWITCH-ROUTING-PING |
+| `ping_source` | `ping count 5 vr {vr} {address} from {source}` | `address -> addresses.ipv4_address, source -> addresses.ipv4_address, vr -> virtual_routers.vr` | normal | E-SWITCH-ROUTING-PING |
+| `traceroute` | `traceroute vr {vr} {address}` | `address -> addresses.ipv4_address, vr -> virtual_routers.vr` | normal | E-SWITCH-ROUTING-TRACE |
+| `traceroute_source` | `traceroute vr {vr} {address} from {source}` | `address -> addresses.ipv4_address, source -> addresses.ipv4_address, vr -> virtual_routers.vr` | normal | E-SWITCH-ROUTING-TRACE |
+| `ospf_neighbors` | `show ospf neighbor` | none | high-volume | E-SWITCH-ROUTING-OSPF-NEIGHBOR |
+| `ospf_interfaces` | `show ospf interfaces` | none | high-volume | E-SWITCH-ROUTING-OSPF-INTERFACES |
+| `ospf_lsdb` | `show ospf lsdb` | none | high-volume | E-SWITCH-ROUTING-OSPF-LSDB |
+| `ospfv3_neighbors` | `show ospfv3 neighbor` | none | high-volume | E-SWITCH-ROUTING-OSPFV3-NEIGHBOR |
+| `ospfv3_interfaces` | `show ospfv3 interfaces` | none | high-volume | E-SWITCH-ROUTING-OSPFV3-INTERFACES |
+| `bgp_summary` | `show bgp neighbor` | none | high-volume | E-SWITCH-ROUTING-BGP-NEIGHBOR |
+| `bgp_neighbor` | `show bgp neighbor {address}` | `addresses.ipv4_address` | high-volume | E-SWITCH-ROUTING-BGP-NEIGHBOR |
+| `bgp_routes` | `show bgp routes all` | none | high-volume | E-SWITCH-ROUTING-BGP-ROUTES |
+| `vrrp` | `show vrrp` | none | high-volume | E-SWITCH-ROUTING-VRRP |
+| `bfd_sessions` | `show bfd session vr all` | none | high-volume | E-SWITCH-ROUTING-BFD |
 | `route_table_vr` | `show iproute vr {vr}` | `virtual_routers.vr` | high-volume | E-IPROUTE |
 | `ipv6_route_table_vr` | `show iproute ipv6 vr {vr}` | `virtual_routers.vr` | high-volume | E-IPROUTE6 |
 | `arp_table_vr` | `show iparp vr {vr}` | `virtual_routers.vr` | high-volume | E-IPARP |
 | `ipv6_neighbors_vr` | `show neighbor-discovery cache ipv6 vr {vr}` | `virtual_routers.vr` | high-volume | E-ND6 |
 
-- [E-G37-BFD](https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_bfd_session_vr_all.shtml)
-- [E-G37-BGP-NEIGHBOR](https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_bgp_neighbor.shtml)
-- [E-G37-BGP-ROUTES](https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_bgp_routes.shtml)
-- [E-G37-OSPF-INTERFACES](https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_ospf_interfaces.shtml)
-- [E-G37-OSPF-LSDB](https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_ospf_lsdb.shtml)
-- [E-G37-OSPF-NEIGHBOR](https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_ospf_neighbor.shtml)
-- [E-G37-OSPFV3-INTERFACES](https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_ospfv3_interfaces.shtml)
-- [E-G37-OSPFV3-NEIGHBOR](https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_ospfv3_neighbor.shtml)
-- [E-G37-PING](https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/ping.shtml)
-- [E-G37-TRACE](https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/traceroute.shtml)
-- [E-G37-VRRP](https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_vrrp.shtml)
+- [E-SWITCH-ROUTING-BFD](https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_bfd_session_vr_all.shtml)
+- [E-SWITCH-ROUTING-BGP-NEIGHBOR](https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_bgp_neighbor.shtml)
+- [E-SWITCH-ROUTING-BGP-ROUTES](https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_bgp_routes.shtml)
+- [E-SWITCH-ROUTING-OSPF-INTERFACES](https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_ospf_interfaces.shtml)
+- [E-SWITCH-ROUTING-OSPF-LSDB](https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_ospf_lsdb.shtml)
+- [E-SWITCH-ROUTING-OSPF-NEIGHBOR](https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_ospf_neighbor.shtml)
+- [E-SWITCH-ROUTING-OSPFV3-INTERFACES](https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_ospfv3_interfaces.shtml)
+- [E-SWITCH-ROUTING-OSPFV3-NEIGHBOR](https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_ospfv3_neighbor.shtml)
+- [E-SWITCH-ROUTING-PING](https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/ping.shtml)
+- [E-SWITCH-ROUTING-TRACE](https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/traceroute.shtml)
+- [E-SWITCH-ROUTING-VRRP](https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_vrrp.shtml)

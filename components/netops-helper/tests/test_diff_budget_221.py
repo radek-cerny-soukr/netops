@@ -1,4 +1,4 @@
-"""Whole Myers trace/reconstruction budget (review 186-r2rv, finding 1)."""
+"""Whole Myers trace/reconstruction budget (review finding 1)."""
 from array import array
 import sys
 import tracemalloc

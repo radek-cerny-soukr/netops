@@ -1017,7 +1017,13 @@ def test_single_history_lookup_gives_the_same_results_as_the_v106_path(store):
     complete = {"complete": True, "inherent_gaps": [], "actionable_gaps": []}
     for key in ("status", "device_status"):
         for device in new[key]["devices"]:
-            assert device.pop("coverage") == complete
+            current = device.pop("coverage")
+            counts = current.pop("counts")
+            if device["rule_status"]:
+                assert sum(counts.values()) == len(device["rule_status"])
+            else:
+                assert counts is None
+            assert current == complete
     assert new == old
     # the fixture really exercises the interesting states
     states = {item["fingerprint"]: item["state"] for item in new["listing"]["findings"]}

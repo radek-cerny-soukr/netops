@@ -15,18 +15,20 @@ from netops_admin.config import DEFAULT_LIMITS, Config, Device
 from netops_admin.engine import build_plan, verify
 from netops_admin.errors import Rejected, SnapshotRejected
 from netops_admin.request import parse_request
+from approved_apply import approved_apply
 
 ACCOUNTS = ("netops-admin", "netops-ro")
 SECRET_TEXT = "k7c Ios Vb8Wn"
 ALL = tuple(NODES)
 SWITCHES = ("iosvl2", "iolxe-l2")
 ROUTERS = ("iosv", "iolxe")
-# configure confirm and configure revert now follow a read of the timer in the same interactive session (task 320)
+# configure confirm and configure revert now follow a read of the timer in the same interactive session (verification)
 CONFIRM = [exec_ios.QUERY_TIMER, "configure confirm"]
 REVERT_NOW = [exec_ios.QUERY_TIMER, "configure revert now"]
 
 
-def make_runtime(tmp_path, device, accounts=ACCOUNTS, firmware=None, platform=None, seconds=180):
+def make_runtime(tmp_path, device, accounts=ACCOUNTS, firmware=None, platform=None, seconds=180,
+                 *, simulate_unmeasured_profiles=False):
     config = Config(
         state_dir=str(tmp_path / "state"), audit_file=str(tmp_path / "audit" / "audit.jsonl"),
         export_status_file=None, notify=None, limits=dict(DEFAULT_LIMITS),
@@ -38,7 +40,8 @@ def make_runtime(tmp_path, device, accounts=ACCOUNTS, firmware=None, platform=No
         )},
     )
     from enrollment_helpers import certify
-    runtime = execute.Runtime(config, lambda _device: device, sleep=device.advance, require_export=False)
+    runtime = execute.Runtime(config, lambda _device: device, sleep=device.advance, require_export=False,
+                              simulate_unmeasured_profiles=simulate_unmeasured_profiles)
     runtime.monotonic = lambda: device.uptime
     return certify(runtime, device, "lab-ios")
 
@@ -140,8 +143,8 @@ def test_access_vlan_plan_returns_to_vlan_1_by_name():
     ("iosv", {"key": "Loopback0"}, "port_unsupported_interface"),
     ("iosvl2", {"key": "Vlan99"}, "port_unsupported_interface"),
     ("iosvl2", {"key": "GigabitEthernet0/1", "changes": {"admin-state": "disabled"}}, "port_uplink"),
-    # G60: a vlan-membership change of a trunk is planned; the live prechecks require endpoint_impact
-    # (test_ios_g60.py::test_trunk_membership_without_impact_is_refused_before_any_write)
+    # IOS-SWITCHPORTS: a vlan-membership change of a trunk is planned; the live prechecks require endpoint_impact
+    # (test_ios_ios_switchports.py::test_trunk_membership_without_impact_is_refused_before_any_write)
     ("iosv", {"key": "GigabitEthernet0/0", "changes": {"admin-state": "disabled"}}, "port_ip_address"),
     ("iosv", {"key": "GigabitEthernet0/1", "changes": {"admin-state": "disabled"}}, "port_ip_address"),
     ("iolxe", {"key": "Ethernet0/1", "changes": {"admin-state": "disabled"}}, "port_ip_address"),
@@ -307,7 +310,7 @@ def test_preview_reads_and_writes_nothing(tmp_path, node):
 def test_description_is_confirmed_saved_after_the_confirmation_and_undone(tmp_path, node):
     device = FakeIos(node)
     runtime = make_runtime(tmp_path, device)
-    record = execute.apply(runtime, "lab-ios", request(device))
+    record = approved_apply(runtime, "lab-ios", request(device))
     assert record["result"] == "confirmed", (record["reason"], steps(record))
     assert device.applied_blocks[0] == ["configure terminal revert timer 3", "end"]
     assert device.applied_blocks[1] == ["configure terminal", "interface %s" % device.port,
@@ -329,10 +332,10 @@ def test_description_is_confirmed_saved_after_the_confirmation_and_undone(tmp_pa
 def test_no_shutdown_and_shutdown(tmp_path, node):
     device = FakeIos(node)
     runtime = make_runtime(tmp_path, device)
-    up = execute.apply(runtime, "lab-ios", request(device, changes={"admin-state": "enabled"}, request_id="req-up-1"))
+    up = approved_apply(runtime, "lab-ios", request(device, changes={"admin-state": "enabled"}, request_id="req-up-1"))
     assert up["result"] == "confirmed", (up["reason"], steps(up))
     assert "shutdown" not in device.interface(device.port)
-    down = execute.apply(runtime, "lab-ios", request(device, changes={"admin-state": "disabled"},
+    down = approved_apply(runtime, "lab-ios", request(device, changes={"admin-state": "disabled"},
                                                      request_id="req-down-1"))
     assert down["result"] == "confirmed" and "shutdown" in device.interface(device.port)
     assert device.saves == 2 and device.saved_while_pending == 0
@@ -342,7 +345,7 @@ def test_no_shutdown_and_shutdown(tmp_path, node):
 def test_access_vlan_is_confirmed_and_undone(tmp_path, node):
     device = FakeIos(node)
     runtime = make_runtime(tmp_path, device)
-    record = execute.apply(runtime, "lab-ios", request(device, table="vlan-membership", changes={"access-vlan": 10}))
+    record = approved_apply(runtime, "lab-ios", request(device, table="vlan-membership", changes={"access-vlan": 10}))
     assert record["result"] == "confirmed", (record["reason"], steps(record))
     assert "switchport access vlan 10" in device.interface(device.port)
     assert "show interfaces %s switchport" % device.port in device.check_queries
@@ -357,9 +360,9 @@ def test_access_vlan_is_confirmed_and_undone(tmp_path, node):
 def test_access_vlan_on_a_router_is_refused_before_any_write(tmp_path, node):
     device = FakeIos(node)
     with pytest.raises(Rejected) as caught:
-        execute.apply(make_runtime(tmp_path, device), "lab-ios",
+        approved_apply(make_runtime(tmp_path, device), "lab-ios",
                       request(device, table="vlan-membership", changes={"access-vlan": 10}))
-    # G00-1: the IOSv firmware is untested for vlan-membership, but that is no refusal; the router image is
+    # STARTUP-1: the IOSv firmware is untested for vlan-membership, but that is no refusal; the router image is
     assert caught.value.reason_codes == ["port_routed"]
     assert device.applied_blocks == []
 
@@ -383,7 +386,7 @@ def test_missing_vlan_and_management_are_refused_with_zero_writes(tmp_path, node
         return
     assert preview["result"] == "rejected" and preview["reason_codes"] == [code], preview
     with pytest.raises(Rejected):
-        execute.apply(runtime, "lab-ios", request(device, **fields))
+        approved_apply(runtime, "lab-ios", request(device, **fields))
     assert device.applied_blocks == [] and device.vlans <= {"1", "10", "20", "99"}
 
 
@@ -404,7 +407,7 @@ def test_port_in_use_is_refused_in_both_directions_before_any_write(tmp_path, no
             index > start and line == " shutdown" and index < start + 4)]
         device.saved = list(device.lines)
     with pytest.raises(Rejected) as caught:
-        execute.apply(make_runtime(tmp_path, device), "lab-ios", request(device, changes={"admin-state": state}))
+        approved_apply(make_runtime(tmp_path, device), "lab-ios", request(device, changes={"admin-state": state}))
     assert caught.value.reason_codes == [code]
     assert device.applied_blocks == []
 
@@ -412,7 +415,7 @@ def test_port_in_use_is_refused_in_both_directions_before_any_write(tmp_path, no
 def test_a_port_that_is_not_static_access_is_refused_on_the_switch(tmp_path):
     device = FakeIos("iolxe-l2")
     with pytest.raises(Rejected) as caught:
-        execute.apply(make_runtime(tmp_path, device), "lab-ios",
+        approved_apply(make_runtime(tmp_path, device), "lab-ios",
                       request(device, key="Ethernet0/2", changes={"admin-state": "enabled"}))
     assert caught.value.reason_codes == ["port_uplink"] and device.applied_blocks == []
 
@@ -421,11 +424,11 @@ def test_a_pending_timer_of_anyone_is_refused(tmp_path):
     device = FakeIos("iosv")
     device.foreign_timer = {"configured": device.now, "minutes": 10, "user": "admin"}
     with pytest.raises(Rejected) as caught:
-        execute.apply(make_runtime(tmp_path / "a", device), "lab-ios", request(device))
+        approved_apply(make_runtime(tmp_path / "a", device), "lab-ios", request(device))
     assert caught.value.reason_codes == ["rollback_timer_pending"] and device.applied_blocks == []
     device.foreign_timer["user"] = "netops-admin"
     with pytest.raises(Rejected) as caught:
-        execute.apply(make_runtime(tmp_path / "b", device), "lab-ios", request(device, request_id="req-own-left"))
+        approved_apply(make_runtime(tmp_path / "b", device), "lab-ios", request(device, request_id="req-own-left"))
     assert "a safeguard of an earlier operation is still installed" in caught.value.reasons[0]
     assert device.applied_blocks == []
 
@@ -434,17 +437,17 @@ def test_archive_not_configured_privilege_and_unsaved_changes_are_refused(tmp_pa
     device = FakeIos("iolxe")
     device.query_override["show archive"] = "\n%Archive feature not enabled\n"
     with pytest.raises(Rejected) as caught:
-        execute.apply(make_runtime(tmp_path / "a", device), "lab-ios", request(device))
+        approved_apply(make_runtime(tmp_path / "a", device), "lab-ios", request(device))
     assert caught.value.reason_codes == ["archive_not_configured"]
     device = FakeIos("iolxe")
     device.privilege = 1
     with pytest.raises(Rejected) as caught:
-        execute.apply(make_runtime(tmp_path / "b", device), "lab-ios", request(device))
+        approved_apply(make_runtime(tmp_path / "b", device), "lab-ios", request(device))
     assert caught.value.reason_codes == ["write_account_privilege"]
     device = FakeIos("iolxe")
     device.saved = [line for line in device.saved if line != " shutdown"]
     with pytest.raises(Rejected) as caught:
-        execute.apply(make_runtime(tmp_path / "c", device), "lab-ios", request(device))
+        approved_apply(make_runtime(tmp_path / "c", device), "lab-ios", request(device))
     assert "unsaved configuration changes" in caught.value.reasons[0]
     assert device.applied_blocks == []
 
@@ -452,12 +455,12 @@ def test_archive_not_configured_privilege_and_unsaved_changes_are_refused(tmp_pa
 def test_another_firmware_or_platform_than_the_device_is_refused(tmp_path):
     device = FakeIos("iolxe")
     with pytest.raises(Rejected) as caught:
-        execute.apply(make_runtime(tmp_path / "a", device, platform="ios"), "lab-ios", request(device))
+        approved_apply(make_runtime(tmp_path / "a", device, platform="ios"), "lab-ios", request(device))
     assert any("not the configured platform ios" in reason for reason in caught.value.reasons)
     device = FakeIos("iosvl2")
     device.firmware = "15.2(20200924:000000)"
     with pytest.raises(Rejected) as caught:
-        execute.apply(make_runtime(tmp_path / "b", device, firmware="15.2(20200924:215240)"), "lab-ios",
+        approved_apply(make_runtime(tmp_path / "b", device, firmware="15.2(20200924:215240)"), "lab-ios",
                       request(device))
     assert device.applied_blocks == []
 
@@ -475,7 +478,7 @@ def test_lost_check_account_leaves_the_change_unconfirmed_and_the_timer_reverts_
             fake.check_unreadable = True
 
     device.on_apply = lose_check_account
-    record = execute.apply(make_runtime(tmp_path, device), "lab-ios",
+    record = approved_apply(make_runtime(tmp_path, device), "lab-ios",
                            request(device, changes={"description": "netops-c45-b", "admin-state": "enabled"}))
     assert record["result"] == "reverted" and record["reason"] == "check identity unavailable", steps(record)
     assert device.interface(device.port) == FakeIos(node).interface(device.port) and device.timer is None
@@ -494,7 +497,7 @@ def test_check_account_mismatch_is_reverted(tmp_path):
                 "iosvl2", "show-interfaces-description__ro-baseline.txt")}
 
     device.on_apply = stale
-    record = execute.apply(make_runtime(tmp_path, device), "lab-ios", request(device))
+    record = approved_apply(make_runtime(tmp_path, device), "lab-ios", request(device))
     assert record["result"] == "reverted" and record["reason"] == "check identity mismatch"
     assert device.interface(device.port) == ["switchport mode access", "shutdown", "negotiation auto"]
 
@@ -507,7 +510,7 @@ def cleanup_blocks(device) -> list:
 def test_a_timer_of_another_user_is_never_confirmed(tmp_path):
     device = FakeIos("iolxe")
     device.timer_user = "admin"
-    record = execute.apply(make_runtime(tmp_path, device), "lab-ios", request(device))
+    record = approved_apply(make_runtime(tmp_path, device), "lab-ios", request(device))
     assert record["result"] == "unknown" and record["reason"] == "safeguard not verified", steps(record)
     assert cleanup_blocks(device) == []
     assert not any(block[:1] == ["configure terminal"] for block in device.applied_blocks)
@@ -516,7 +519,7 @@ def test_a_timer_of_another_user_is_never_confirmed(tmp_path):
 @pytest.mark.parametrize("node", ("iosvl2", "iolxe"))
 @pytest.mark.parametrize("user", ("netops-admin", "admin"))
 def test_a_second_timer_is_refused_by_the_device_and_never_touched(tmp_path, node, user):
-    """Review 315 finding 1: the prechecks see no timer, then another session (also of the same account and with the
+    """Review finding 1: the prechecks see no timer, then another session (also of the same account and with the
     same minutes and time) starts one; the own request is refused with "already activated". Admin never confirms,
     returns or saves over that timer, whatever its account and time."""
     device = FakeIos(node)
@@ -527,7 +530,7 @@ def test_a_second_timer_is_refused_by_the_device_and_never_touched(tmp_path, nod
 
     device.on_apply = foreign
     runtime = make_runtime(tmp_path, device)
-    record = execute.apply(runtime, "lab-ios", request(device))
+    record = approved_apply(runtime, "lab-ios", request(device))
     assert record["result"] == "rejected" and record["reason"] == "safeguard refused by the device", steps(record)
     assert record["reason_codes"] == ["rollback_timer_pending"]
     assert record["safeguard"]["install"] == "refused" and "verified" not in record["safeguard"]
@@ -570,7 +573,7 @@ def test_an_unverified_own_installation_is_left_to_the_device_and_never_confirme
 
     device.on_query = unreadable
     runtime = make_runtime(tmp_path, device)
-    record = execute.apply(runtime, "lab-ios", request(device))
+    record = approved_apply(runtime, "lab-ios", request(device))
     assert record["result"] == "unknown" and record["reason"] == "safeguard not verified", steps(record)
     assert record["safeguard"]["archive"] == device.archives[-1] and "verified" not in record["safeguard"]
     assert cleanup_blocks(device) == [] and device.timer is not None
@@ -580,7 +583,7 @@ def test_an_unverified_own_installation_is_left_to_the_device_and_never_confirme
     assert device.timer is None and device.lines == device.saved
 
 
-# ---- the safeguard protects the whole write (review 315 finding 2) ----
+# ---- the safeguard protects the whole write (review finding 2) ----
 
 def test_the_shortest_timer_is_two_minutes():
     assert [exec_ios._minutes(seconds) for seconds in (60, 61, 120, 121, 180, 900)] == [2, 2, 2, 3, 3, 15]
@@ -600,7 +603,7 @@ def test_slow_reads_after_the_installation_leave_the_change_unwritten(tmp_path, 
             fake.advance(60)
 
     device.on_query = slow
-    record = execute.apply(make_runtime(tmp_path, device, seconds=120), "lab-ios", request(device))
+    record = approved_apply(make_runtime(tmp_path, device, seconds=120), "lab-ios", request(device))
     assert record["result"] == "reverted" and record["reason"] == "no time left to write", steps(record)
     assert "change_not_written" in steps(record) and "change_start" not in steps(record)
     assert not any(block[:1] == ["configure terminal"] for block in device.applied_blocks)
@@ -616,7 +619,7 @@ def test_a_timer_that_is_gone_before_the_write_leaves_the_change_unwritten(tmp_p
             fake.timer = None
 
     device.on_query = confirmed_by_someone
-    record = execute.apply(make_runtime(tmp_path, device), "lab-ios", request(device))
+    record = approved_apply(make_runtime(tmp_path, device), "lab-ios", request(device))
     assert "change_not_written" in steps(record) and "change_start" not in steps(record), steps(record)
     assert record["result"] == "reverted" and record["reason"] == "no time left to write"
     assert "revert_now_unverified" in steps(record) and device.lines == device.saved
@@ -633,7 +636,7 @@ def test_a_line_is_not_sent_when_the_timer_is_nearly_over(tmp_path, node):
             fake.line_seconds = 28
 
     device.on_apply = slow_lines
-    record = execute.apply(make_runtime(tmp_path, device, seconds=120), "lab-ios",
+    record = approved_apply(make_runtime(tmp_path, device, seconds=120), "lab-ios",
                            request(device, changes={"description": "netops-c45-b", "admin-state": "enabled"}))
     assert record["result"] == "reverted" and record["reason"] == "change failed", steps(record)
     assert device.unsent_lines == 1 and "revert_now_done" in steps(record)
@@ -641,7 +644,7 @@ def test_a_line_is_not_sent_when_the_timer_is_nearly_over(tmp_path, node):
     assert device.interface(device.port) == FakeIos(node).interface(device.port) and device.timer is None
 
 
-# ---- the timer is read again in the session of configure confirm and configure revert now (task 320) ----
+# ---- the timer is read again in the session of configure confirm and configure revert now (verification) ----
 
 def installed(node):
     device = FakeIos(node)
@@ -713,14 +716,14 @@ def test_a_timer_gone_in_the_session_right_before_the_command_leaves_it_unsent(n
 def test_a_foreign_timer_before_the_confirmation_leaves_the_operation_unknown(tmp_path, node):
     device = FakeIos(node)
     device.on_apply = foreign_timer("netops-admin")
-    record = execute.apply(make_runtime(tmp_path, device), "lab-ios", request(device))
+    record = approved_apply(make_runtime(tmp_path, device), "lab-ios", request(device))
     assert record["result"] == "unknown" and record["reason"] == "confirmation unverified", steps(record)
     assert "confirm_unverified" in steps(record) and "revert_now_unverified" in steps(record)
     assert "configure confirm" not in device.sent_lines and "configure revert now" not in device.sent_lines
     assert device.foreign_touched == [] and device.foreign_timer is not None and device.saves == 0
 
 
-# ---- a failed write or readback is returned at once (review 315 finding 3) ----
+# ---- a failed write or readback is returned at once (review finding 3) ----
 
 @pytest.mark.parametrize("node", ALL)
 def test_a_failed_readback_is_returned_at_once_with_configure_revert_now(tmp_path, node):
@@ -731,7 +734,7 @@ def test_a_failed_readback_is_returned_at_once_with_configure_revert_now(tmp_pat
             fake.check_unreadable = True
 
     device.on_apply = lose_check_account
-    record = execute.apply(make_runtime(tmp_path, device), "lab-ios", request(device))
+    record = approved_apply(make_runtime(tmp_path, device), "lab-ios", request(device))
     assert record["result"] == "reverted" and record["reason"] == "check identity unavailable", steps(record)
     assert steps(record)[-3:] == ["revert_now_start", "revert_now_done", "configuration_saved"]
     assert device.applied_blocks[2:] == [REVERT_NOW, ["write memory"]]
@@ -748,7 +751,7 @@ def test_a_refused_change_line_is_returned_at_once(tmp_path):
                           for line in fake.lines]
 
     device.on_apply = remove_port
-    record = execute.apply(make_runtime(tmp_path, device), "lab-ios", request(device))
+    record = approved_apply(make_runtime(tmp_path, device), "lab-ios", request(device))
     assert record["result"] == "reverted" and record["reason"] == "change failed", steps(record)
     assert REVERT_NOW in device.applied_blocks and device.uptime < 30
     assert device.lines == device.saved and device.timer is None
@@ -764,7 +767,7 @@ def test_when_revert_now_fails_the_timer_is_awaited_by_reading_it(tmp_path):
                 "iosv", "show-interfaces-description__ro-baseline.txt")}
 
     device.on_apply = stale
-    record = execute.apply(make_runtime(tmp_path, device), "lab-ios", request(device))
+    record = approved_apply(make_runtime(tmp_path, device), "lab-ios", request(device))
     assert record["result"] == "reverted" and record["reason"] == "check identity mismatch", steps(record)
     assert "revert_now_unverified" in steps(record) and device.uptime >= 180
     assert device.lines == device.saved and device.timer is None and "show clock" not in device.queries
@@ -832,7 +835,7 @@ def test_recover_after_an_interrupted_apply_waits_for_the_timer(tmp_path):
 
     device.on_apply = kill
     with pytest.raises(Killed):
-        execute.apply(runtime, "lab-ios", request(device))
+        approved_apply(runtime, "lab-ios", request(device))
     assert device.timer is not None and "description netops-c45-test" in device.interface(device.port)
     settled = execute.recover(runtime, "lab-ios")
     assert len(settled) == 1 and settled[0]["result"] == "reverted", steps(settled[0])
@@ -855,13 +858,13 @@ def interrupted(tmp_path, node):
 
     device.on_apply = kill
     with pytest.raises(Killed):
-        execute.apply(runtime, "lab-ios", request(device))
+        approved_apply(runtime, "lab-ios", request(device))
     return device, runtime
 
 
 @pytest.mark.parametrize("node", ("iosv", "iolxe-l2"))
 def test_recover_reads_the_timer_until_it_ends_without_the_device_clock(tmp_path, node):
-    """Review 315 finding 4: recover decides by the state of the timer, read again and again within a limit on the
+    """Review finding 4: recover decides by the state of the timer, read again and again within a limit on the
     monotonic clock of Admin; show clock is never needed (here it is refused) and failed timer reads do not end it."""
     device, runtime = interrupted(tmp_path, node)
     device.query_override["show clock"] = fixture(node, "exec__invalid-command__rc0.txt")
@@ -895,7 +898,7 @@ def test_unexpected_account_blocks_the_device(tmp_path):
     device = FakeIos("iosv")
     runtime = make_runtime(tmp_path, device, accounts=("netops-admin",))
     with pytest.raises(Rejected) as caught:
-        execute.apply(runtime, "lab-ios", request(device))
+        approved_apply(runtime, "lab-ios", request(device))
     assert "accounts differ" in caught.value.reasons[0]
     assert runtime.store.blocked("lab-ios")["reason"] == "administrator table"
 
@@ -903,7 +906,7 @@ def test_unexpected_account_blocks_the_device(tmp_path):
 def test_audit_log_holds_no_text_and_no_secret(tmp_path):
     device = FakeIos("iolxe-l2")
     runtime = make_runtime(tmp_path, device)
-    record = execute.apply(runtime, "lab-ios", request(device, changes={"description": SECRET_TEXT}))
+    record = approved_apply(runtime, "lab-ios", request(device, changes={"description": SECRET_TEXT}))
     assert record["result"] == "confirmed"
     log = (tmp_path / "audit" / "audit.jsonl").read_text()
     assert SECRET_TEXT not in log and "REDIGOVANO" not in log
@@ -989,13 +992,13 @@ def test_classic_ios_exec_banner_loss_blocks_without_writing(tmp_path, scenario)
 
     device = BannerLoss("iosvl2")
     if scenario in ("ipv4-acl", "ipv6-acl"):
-        # Adapt the measured G64 IOSv ACL blocks, with unchanged sequences, to the C45 IOSvL2 baseline.
+        # Adapt the measured IOS-ACCESS-CONTROL IOSv ACL blocks, with unchanged sequences, to the C45 IOSvL2 baseline.
         measured = acl_fixture("iosv", "admin-show-running-config__acls.txt").splitlines()
         if scenario == "ipv4-acl":
-            acl = "ip access-list extended NETOPS-G64-V4"
+            acl = "ip access-list extended NETOPS-IOS-ACCESS-CONTROL-V4"
             ipv4_listing = acl_fixture("iosv", "admin-show-ip-access-lists__acls.txt")
         else:
-            acl = "ipv6 access-list NETOPS-G64-V6"
+            acl = "ipv6 access-list NETOPS-IOS-ACCESS-CONTROL-V6"
             ipv6_listing = acl_fixture("iosv", "admin-show-ipv6-access-list__acls.txt")
         start = measured.index(acl)
         end = next(i for i in range(start + 1, len(measured)) if not measured[i].startswith(" "))
@@ -1009,7 +1012,7 @@ def test_classic_ios_exec_banner_loss_blocks_without_writing(tmp_path, scenario)
                 fake.check_unreadable = True
 
         device.on_apply = lose_check_account
-        record = execute.apply(runtime, "lab-ios", request(device))
+        record = approved_apply(runtime, "lab-ios", request(device))
         expected_after_probe = REVERT_NOW
     else:
         runtime.notifier = lambda record: "sent"
@@ -1057,25 +1060,24 @@ def test_doctor_is_ready_after_enrollment(tmp_path, node):
     assert statuses["device prechecks"] == "ok" and statuses["enrollment"] == "ok", report
     expected = {"interface": "update", "vlan-membership": "update"}
     expected["vlan"] = "create update delete"
-    # 1.0.12 G62: static routes and L3 interfaces of IOS (measured on IOSv 15.9(3)M12 and IOSvL2 15.2)
+    # 1.0.12 IOS-STATIC-ROUTING: static routes and L3 interfaces of IOS (measured on IOSv 15.9(3)M12 and IOSvL2 15.2)
     expected["static-route"] = expected["l3-interface"] = "create update delete"
-    # 1.0.12 G61: the port bounce and the PoE tables (measured on IOSvL2 15.2 and IOL-L2 XE 17.18.2)
-    expected.update({"port-bounce": "port-bounce", "poe-cycle": "poe-cycle", "inline-power": "update"})
-    for table in ("poe-cycle", "inline-power"):
-        expected[table] += " (untested on %s)" % device.firmware
+    # 1.0.12 IOS-PORT-MAINTENANCE: the port bounce and the PoE tables (measured on IOSvL2 15.2 and IOL-L2 XE 17.18.2)
+    expected.update({"port-bounce": "port-bounce", "poe-cycle": readiness.unmeasured("poe-cycle"),
+                     "inline-power": readiness.unmeasured("update")})
     if node == "iosv":
         expected["vlan-membership"] = "update (untested on 15.9(3)M12)"
         expected["vlan"] = "create update delete (untested on 15.9(3)M12)"
         expected["port-bounce"] += " (untested on 15.9(3)M12)"
     if node in ("iosv", "iosvl2"):
-        # 1.0.12 G63: EtherChannel/LACP membership of IOS 15.2 (measured on IOSvL2 15.2(20200924:215240))
+        # 1.0.12 IOS-ETHERCHANNEL: EtherChannel/LACP membership of IOS 15.2 (measured on IOSvL2 15.2(20200924:215240))
         expected["etherchannel-member"] = ("create update delete (untested on 15.9(3)M12)" if node == "iosv"
                                            else "create update delete")
-    # DHCP was measured on IOSv (G65) and IOL XE (G83).
+    # DHCP was measured on IOSv (IOS-DHCP) and IOL XE (XE-DHCP).
     dhcp_suffix = " (untested on 15.2(20200924:215240))" if node == "iosvl2" else ""
     expected["dhcp-pool"] = expected["dhcp-reservation"] = "create update delete" + dhcp_suffix
     expected["dhcp-exclusion"] = expected["dhcp-relay"] = "create delete" + dhcp_suffix
-    # 1.0.12 G64: ACL rules and attachments (measured on IOSv 15.9(3)M12 and IOL XE 17.18.2)
+    # 1.0.12 IOS-ACCESS-CONTROL: ACL rules and attachments (measured on IOSv 15.9(3)M12 and IOL XE 17.18.2)
     expected["ip-access-list"], expected["interface-access-group"] = "create update delete", "update"
     if node == "iosvl2":
         expected["ip-access-list"] += " (untested on 15.2(20200924:215240))"

@@ -33,7 +33,7 @@ def read_interfaces(monkeypatch, addresses, routes=''):
 
 
 @pytest.mark.parametrize('routes', [
-    'default nhid 7 via 192.0.2.1 dev eth0 proto static\n',
+    'default via invalid-address dev eth0 proto static\n',
     'default nhid 7\n',
     'default nhid 7 proto static\n    nexthop via 192.0.2.1 dev eth0 weight 1\n',
 ])
@@ -57,7 +57,7 @@ def test_found_gateway_with_unknown_routes_keeps_complete_coverage(monkeypatch):
 
 def test_one_found_gateway_does_not_hide_another_missing_gateway(monkeypatch):
     result = read_interfaces(monkeypatch, 'eth0 UP 192.0.2.10/24\neth1 UP 198.51.100.10/24\n',
-                             'default via 192.0.2.1 dev eth0\ndefault nhid 7 via 198.51.100.1 dev eth1\n')
+                             'default via 192.0.2.1 dev eth0\ndefault via invalid-address dev eth1\n')
     assert [row['gateway'] for row in result['records']] == ['192.0.2.1', None]
     assert not result['coverage']['complete']
     assert 'routes_partial' in result['warnings']
@@ -65,7 +65,7 @@ def test_one_found_gateway_does_not_hide_another_missing_gateway(monkeypatch):
 
 @pytest.mark.parametrize('routes', [
     'FUTURE ROUTE OUTPUT\n',
-    '192.0.2.0/24 nhid 7 dev eth0\n',
+    '192.0.2.0/24 via invalid-address dev eth0\n',
     'blackhole 198.51.100.0/24\n',
 ])
 def test_unknown_nondefault_does_not_affect_gateway_coverage(monkeypatch, routes):
@@ -76,7 +76,7 @@ def test_unknown_nondefault_does_not_affect_gateway_coverage(monkeypatch, routes
 
 
 @pytest.mark.parametrize('unknown', [
-    'default nhid 7 via 192.0.2.254 dev eth0\n',
+    'default via invalid-address dev eth0\n',
     'default nhid 7 proto static\n    nexthop via 192.0.2.254 dev eth0 weight 1\n',
 ])
 def test_unknown_default_warns_without_penalizing_unrelated_interfaces(monkeypatch, unknown):

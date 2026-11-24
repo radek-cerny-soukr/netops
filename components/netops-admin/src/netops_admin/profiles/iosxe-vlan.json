@@ -35,5 +35,5 @@
   "volatile": [],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "G78: IOS XE VLAN database is read with show vlan brief separately from running-config. Only unused active Ethernet VLANs may be created, renamed or deleted. Normal-range VLANs are not reliably returned by the config archive; this table uses the existing compensating inverse and recover path, with independent check-account readback. There is no device timer for this table; loss of Admin/management requires recover. Measured on IOL-L2 17.18.2."
+  "rollback_evidence": "xe switchports: IOS XE VLAN database is read with show vlan brief separately from running-config. Only unused active Ethernet VLANs may be created, renamed or deleted. Normal-range VLANs are not reliably returned by the config archive; this table uses the existing compensating inverse and recover path, with independent check-account readback. There is no device timer for this table; loss of Admin/management requires recover. Measured on IOL-L2 17.18.2."
 }

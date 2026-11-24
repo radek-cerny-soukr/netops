@@ -1,0 +1,11 @@
+config system interface
+    edit "wan1"
+        set vdom "root"
+        set mode dhcp
+        set type physical
+        config ipv6
+            set ip6-address 2001:db8:1::2/64
+            set ip6-allowaccess ping
+        end
+    next
+end

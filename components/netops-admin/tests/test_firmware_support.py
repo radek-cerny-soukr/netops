@@ -1,6 +1,6 @@
-"""G00-1 (task 430): an untested firmware warns instead of refusing; the warning is part of plan_sha256.
+"""STARTUP-1 (verification): an untested firmware warns instead of refusing; the warning is part of plan_sha256.
 
-The golden digests were computed by task-evidence/430/golden_probe.py on the unchanged dev-1.0.12 tree (fef1757),
+The golden digests were computed by private measurement record on the unchanged dev-1.0.12 tree (fef1757),
 where the same plans had no firmware_support: a tested plan keeps the plan_sha256 of 1.0.10/1.0.11.
 """
 from __future__ import annotations
@@ -119,7 +119,7 @@ def test_doctor_lists_untested_operations_and_the_t1_limit():
     operations = readiness._operations("fortios", "8.0.2 build0251")
     assert operations["firewall address"] == "create update delete"
     assert operations["firewall addrgrp"] == "create update delete (untested on 8.0.2 build0251)"
-    # 1.0.12 G20: the webhook safeguard has a REST inverse for DHCP reservations (the T1 limit applies to no table now)
+    # 1.0.12 DHCP-DNS: the webhook safeguard has a REST inverse for DHCP reservations (the T1 limit applies to no table now)
     assert operations["system dhcp server/reserved-address"] == "create update delete (untested on 8.0.2 build0251)"
     assert operations["system dns-database/dns-entry"] == "create update delete (untested on 8.0.2 build0251)"
     support = readiness._firmware_support("fortios", "8.0.2 build0251")
@@ -128,6 +128,31 @@ def test_doctor_lists_untested_operations_and_the_t1_limit():
     assert support["system dhcp server/reserved-address"]["status"] == "untested"
     older = readiness._operations("fortios", "7.6.9 build4000")
     assert older["system dhcp server/reserved-address"] == "create update delete (untested on 7.6.9 build4000)"
+
+
+def test_doctor_reports_disabled_profiles_as_refused_not_untested():
+    # 1.0.13: preview and apply refuse a profile without live measurement for every firmware (profile_not_measured),
+    # so doctor lists its table as refused with that code, also on a version the profile names, never as available
+    # "(untested on ...)". A measured table keeps its operations.
+    from netops_admin.profiles import load_profiles
+
+    disabled = 0
+    for (platform, table), profile in sorted(load_profiles().items()):
+        operations = profile.action or " ".join(profile.ops)
+        for firmware in (profile.versions[0], "99.9.9"):
+            shown = readiness._operations(platform, firmware)[table]
+            if profile.measured:
+                assert "profile_not_measured" not in shown, (platform, table, shown)
+            else:
+                assert shown == ("refused: %s is disabled until a live verification of this profile"
+                                 " (profile_not_measured)" % operations), (platform, table, shown)
+                assert "untested" not in shown
+        disabled += not profile.measured
+    # 24 before the live measurements of EOS bgp-neighbor, NX-OS vpc-domain and vpc-peer-link and Junos bgp-group and
+    # bgp-neighbor enabled those five profiles; the 19 are the list of docs/verified-support.md
+    assert disabled == 19
+    assert readiness._operations("junos", "26.2R1.7")["inline-power"] == (
+        "refused: poe-cycle is disabled until a live verification of this profile (profile_not_measured)")
 
 
 def test_doctor_report_carries_firmware_support(tmp_path):

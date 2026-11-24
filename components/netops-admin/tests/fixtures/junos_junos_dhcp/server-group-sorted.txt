@@ -1,0 +1,3 @@
+set forwarding-options dhcp-relay server-group NETOPS-JUNOS-DHCP-SG 198.51.100.100
+set forwarding-options dhcp-relay server-group NETOPS-JUNOS-DHCP-SG 198.51.100.200
+set forwarding-options dhcp-relay server-group NETOPS-JUNOS-DHCP-SG2 198.51.100.250

@@ -14,7 +14,7 @@ create vlan "LAB"
 configure vlan LAB tag 50
 create vlan "VLAN100"
 configure vlan VLAN100 tag 100
-configure ports 1 display-string Uplink-SW3
+configure ports 1 display-string Uplink-SWB
 disable port 10
 configure ports 13 auto off speed 10000 duplex full 
 configure ports 14 auto off speed 10000 duplex full 

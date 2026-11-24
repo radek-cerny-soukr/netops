@@ -46,5 +46,5 @@
   "volatile": [],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "ExtremeXOS stores a disabled data port as 'disable port N' in the vlan module. The inverse 'enable ports N' restores the default and removes the line. The timed UPM safeguard enters persistent CLI mode so the inverse restores both the port and its configuration. The check account reads admin state and port descriptions via 'show ports N information detail'."
+  "rollback_evidence": "Live write and return on ExtremeXOS 33.7.1.6 / 33.6.1.14 (2026-11-14 / 2026-11-19): Port admin state and description changes were observed and the original configuration restored. ExtremeXOS stores a disabled data port as 'disable port N' in the vlan module. The inverse 'enable ports N' restores the default and removes the line. The timed UPM safeguard enters persistent CLI mode so the inverse restores both the port and its configuration. The check account reads admin state and port descriptions via 'show ports N information detail'."
 }

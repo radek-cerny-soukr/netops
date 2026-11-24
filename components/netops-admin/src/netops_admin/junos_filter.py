@@ -1,4 +1,4 @@
-"""Junos firewall filter, term/counter and interface binding profiles (1.0.12 G142, J26)."""
+"""Junos firewall filter, term/counter and interface binding profiles (1.0.12 junos firewall filters, J26)."""
 
 from __future__ import annotations
 

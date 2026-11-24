@@ -1,6 +1,7 @@
 {
   "platform": "exos",
   "table": "jumbo-frame-size",
+  "measured": false,
   "versions": [
     "33.6.1.14",
     "33.7.1.6"
@@ -27,6 +28,6 @@
   "reserved_values": {},
   "inverse_identity_changes": {},
   "table_scoped_key": true,
-  "rollback_evidence": "The frame size applies to the entire switch. Scope checks include every configured jumbo port.",
+  "rollback_evidence": "Live verification pending: Only per-port jumbo changes were measured live. Global frame size has automated coverage. The frame size applies to the entire switch. Scope checks include every configured jumbo port.",
   "implicit_keys": true
 }

@@ -28,5 +28,5 @@
   "volatile": [],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "G124 on cEOSLab 4.36.1F. EOS configuration session timer and verified running-config readback apply. The SVI needs an IPv4 address and the switch needs a global virtual MAC. One IPv4 virtual address without a prefix is read back with show ip virtual-router."
+  "rollback_evidence": "Live write and return on cEOSLab 4.36.1F (2026-11-18–19): The VRRP or VARP configuration was changed, read back and undone. eos static routing on cEOS 4.36.1F. EOS configuration session timer and verified running-config readback apply. The SVI needs an IPv4 address and the switch needs a global virtual MAC. One IPv4 virtual address without a prefix is read back with show ip virtual-router."
 }

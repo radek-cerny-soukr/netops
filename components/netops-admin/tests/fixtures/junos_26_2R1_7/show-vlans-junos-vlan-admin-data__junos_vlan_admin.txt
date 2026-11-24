@@ -1,0 +1,5 @@
+
+Routing instance        VLAN name             Tag          Interfaces
+default-switch          junos-vlan-admin-data             3901     
+                                                           ge-0/0/2.0
+                                                           ge-0/0/7.0

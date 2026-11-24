@@ -32,9 +32,9 @@
       }
     },
     "netops-auditor": {
-      "branches": 78,
-      "covered": 62,
-      "min_percent": 79,
+      "branches": 84,
+      "covered": 68,
+      "min_percent": 80,
       "modules": {
         "netops_auditor/cli.py": {
           "branches": 43,
@@ -43,10 +43,10 @@
           "min_percent": 69
         },
         "netops_auditor/collect.py": {
-          "branches": 23,
-          "branches_in_source": 23,
-          "covered": 20,
-          "min_percent": 86
+          "branches": 29,
+          "branches_in_source": 29,
+          "covered": 26,
+          "min_percent": 89
         },
         "netops_auditor/store.py": {
           "branches": 12,
@@ -88,13 +88,13 @@
       "modules": {
         "netops_helper/engine.py": {
           "branches": 223,
-          "branches_in_source": 223,
+          "branches_in_source": 224,
           "covered": 223,
           "min_percent": 100
         },
         "netops_helper/proxy.py": {
           "branches": 88,
-          "branches_in_source": 88,
+          "branches_in_source": 100,
           "covered": 88,
           "min_percent": 92
         }

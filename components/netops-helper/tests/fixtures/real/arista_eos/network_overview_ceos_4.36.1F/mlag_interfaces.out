@@ -1,0 +1,4 @@
+                                                                   local/remote
+  mlag     desc                      state     local     remote          status
+-------- ------------------- --------------- --------- ----------- ------------
+   128     Peer-connection     active-full     Po128      Po128           up/up

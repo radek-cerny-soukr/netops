@@ -1,9 +1,9 @@
-"""Tasks 143/153: the public config_read path for the Arista EOS profile (G00: other identities read with a warning).
+"""Tasks 143/153: the public config_read path for the Arista EOS profile (STARTUP: other identities read with a warning).
 
 ``arista_eos`` / ``Arista cEOSLab`` with ``Software image version: 4.36.1F`` (any build suffix, which
 is kept in the firmware record) is the tested identity (``config_arista_eos_adapter``), the same pattern as the
-cisco_xe path (task 140) and the accepted ``cisco_ios`` path (task 128).  Task 153: the capture goes
-through the indentation-based ``config_indented.EosStreamRedactor`` (task 147), so hostname,
+cisco_xe path (verification) and the accepted ``cisco_ios`` path (verification).  verification: the capture goes
+through the indentation-based ``config_indented.EosStreamRedactor`` (verification), so hostname,
 descriptions, addresses, VLAN names and static/BGP/OSPF statements stay readable and every secret is
 masked.
 The positive reads run through the real root ``netops.worker.HelperBridge.call`` -> ``Proxy.request`` ->
@@ -18,7 +18,7 @@ Identity: ``show version`` is the immutable REAL capture
 ``fixtures/real/arista_eos/ceos_4.36.1F/version.txt``; the foreign-vendor case uses the REAL
 ``fixtures/real/cisco_xe/iolxe_17.18.2/version.txt``.  Other identity texts are DERIVED by editing
 those captures.  Every ``show running-config`` text below is SYNTHETIC: the EOS configuration of
-``tests/test_config_indented.py`` (task 143 gate, Arista EOS User Manual statement syntax) with its
+``tests/test_config_indented.py`` (verification gate, Arista EOS User Manual statement syntax) with its
 secrets replaced by sentinels and a few added rows (banner, caller credential, Ethernet3), not a live
 capture.  Nothing here measures account rights, the full-config format or any hardware/firmware.
 """
@@ -55,7 +55,7 @@ A_SECRET = 'Ethernet2'           # valid password of A; also a safe interface na
 A_NEW_SECRET = 'Ethernet3'       # A's next password, registered only after B's snapshot exists
 B_SECRET = 'b-router-sesame-only'
 M = EOS_MARKER
-# The task 143 profile (unchanged IOS line consumer); a snapshot under it is never paged as this profile.
+# The verification profile (unchanged IOS line consumer); a snapshot under it is never paged as this profile.
 OLD_PROFILE = 'arista_eos-full-1:' + hashlib.sha256(json.dumps(
     ('arista_eos', 'config_cisco_ios.StreamRedactor', 'ios-lines-menu-reject-1', config_cisco_ios.MARKER,
      'show running-config', ('show version',), ('cEOSLab', '4.36.1F')), separators=(',', ':')).encode()).hexdigest()
@@ -149,7 +149,7 @@ ROWS = (
     ('k', 'end'),
 )
 CONFIG = ''.join(text + '\n' for _, text in ROWS)
-# Readable statements of the SYNTHETIC configuration (task 153 goal): verbatim in every fresh read.
+# Readable statements of the SYNTHETIC configuration (verification goal): verbatim in every fresh read.
 READABLE = ('hostname lab-eos1', 'vlan 10', '   name users', '   name servers', 'interface Ethernet1',
             '   description uplink to spine1', '   ip address 198.51.100.1/31', '   ip address 192.0.2.1/32',
             'ip route 0.0.0.0/0 203.0.113.1', 'router bgp 65000', '   neighbor 198.51.100.2 remote-as 65001',
@@ -400,7 +400,7 @@ def test_fresh_public_read_pages_and_continues_without_more_ssh(env):
     assert first['redaction_profile'] == adapter.PROFILE
     assert first['firmware'] == {'model': 'cEOSLab', 'version': '4.36.1F',
                                  'build': '4.36.1F-48405728.4361F (engineering build)'}
-    # The tested identity (G00): the reply is as before, without firmware_support or warnings.
+    # The tested identity (STARTUP): the reply is as before, without firmware_support or warnings.
     assert 'firmware_support' not in first and 'warnings' not in first
     assert first['capture_complete'] is True and first['configuration_complete'] is False
     assert first['identity_scope_verified'] is False and first['config_scope'] == 'device-account-visible'
@@ -557,7 +557,7 @@ def test_engine_refuses_options_access_and_platform_before_ssh(env):
             _read(replace(auth, ssh_platform=platform))
     with pytest.raises(ValueError, match='not enabled'):
         _read(replace(auth, read_inventory={**auth.read_inventory, 'config_access': ()}))
-    # Task 157: config_diff is open for arista_eos, but only with compare (next to read) in config_access.
+    # verification: config_diff is open for arista_eos, but only with compare (next to read) in config_access.
     with pytest.raises(ValueError, match='not enabled'):
         engine.config_diff(auth, 'arista_eos', 'cfg_' + '0' * 32, 'cfg_' + '1' * 32)
     compare = replace(auth, read_inventory={**auth.read_inventory, 'config_access': ('read', 'compare')})
@@ -577,7 +577,7 @@ def test_engine_refuses_options_access_and_platform_before_ssh(env):
      {'model': 'cEOSLab', 'version': '4.35.1F', 'build': '4.35.1F-48405728.4361F (engineering build)'}),
 ], ids=['derived-other-model', 'derived-other-release'])
 def test_untested_identity_is_read_with_a_warning_through_the_public_chain(env, version, firmware):
-    """G00: an untested identity is read through worker, proxy and engine; same redaction, plus a warning."""
+    """STARTUP: an untested identity is read through worker, proxy and engine; same redaction, plus a warning."""
     wire = _rewire(env, Wire(version=version))
     first = _page(_call(env, 'config_read', _b(limit=200)))
     assert wire.commands() == ['show version', 'show running-config']
@@ -683,7 +683,7 @@ def test_cached_snapshot_keeps_profile_and_platform_binding(env):
         configuration._SNAPSHOTS[identity] = replace(stored, profile=profile)
         with pytest.raises(ValueError, match='invalid configuration profile|capture options mismatch'):
             _read(auth, snapshot_id=identity)
-    # G00: a stored untested record pages with its warning; a record of another shape is refused.
+    # STARTUP: a stored untested record pages with its warning; a record of another shape is refused.
     for firmware in (('cEOSLab', '4.35.1F', '4.35.1F'), ('vEOS-lab', '4.36.1F', '4.36.1F')):
         configuration._SNAPSHOTS[identity] = replace(stored, firmware=firmware)
         page = _read(auth, snapshot_id=identity)
@@ -722,16 +722,16 @@ def test_cached_snapshot_keeps_profile_and_platform_binding(env):
             configuration._snapshot_profile(profile, platform)
 
 
-G121 = REAL / 'arista_eos' / 'g121_ceos_4.36.1F'
+EOS_CONFIG = REAL / 'arista_eos' / 'eos_config_ceos_4.36.1F'
 
 
 class G121Wire(Wire):
     def __init__(self, running='running.out', startup='startup.out', native='diff-empty.out'):
         super().__init__()
         self.answers = {
-            'show running-config': (G121 / running).read_bytes(),
-            'show startup-config': (G121 / startup).read_bytes(),
-            'show running-config diffs': (G121 / native).read_bytes(),
+            'show running-config': (EOS_CONFIG / running).read_bytes(),
+            'show startup-config': (EOS_CONFIG / startup).read_bytes(),
+            'show running-config diffs': (EOS_CONFIG / native).read_bytes(),
         }
         self.status = {'show startup-config': int(startup == 'startup-denied.out')}
 
@@ -756,7 +756,7 @@ def _live_diff(env, **options):
 
 
 @pytest.mark.parametrize('changed', (False, True))
-def test_g121_live_diff_real_captures_and_continuation(env, changed):
+def test_eos_config_live_diff_real_captures_and_continuation(env, changed):
     _inventory(env['helper'], b_access=('read', 'compare'))
     wire = _rewire(env, G121Wire('running-changed.out' if changed else 'running.out',
                                 native='diff-changed.out' if changed else 'diff-empty.out'))
@@ -774,15 +774,15 @@ def test_g121_live_diff_real_captures_and_continuation(env, changed):
                                 offset=data['next_offset'], limit=80))
         text += data['untrusted_device_output']
     assert len(wire.calls) == 5
-    assert ('+ip access-list G121-VERIFY' in text) is changed
+    assert ('+ip access-list EOS-CONFIG-VERIFY' in text) is changed
     assert ('+   10 permit tcp 192.0.2.0/24 any eq https' in text) is changed
-    assert ('+ipv6 access-list G121-VERIFY' in text) is changed
-    assert ('+ip prefix-list G121-VERIFY seq 10 permit 198.51.100.0/24 le 32' in text) is changed
+    assert ('+ipv6 access-list EOS-CONFIG-VERIFY' in text) is changed
+    assert ('+ip prefix-list EOS-CONFIG-VERIFY seq 10 permit 198.51.100.0/24 le 32' in text) is changed
     assert 'Startup-config last modified' not in text
 
 
 @pytest.mark.parametrize('scenario', ('denied', 'truncated', 'no-compare'))
-def test_g121_live_diff_refuses_invalid_access_or_side(env, scenario):
+def test_eos_config_live_diff_refuses_invalid_access_or_side(env, scenario):
     if scenario != 'no-compare':
         _inventory(env['helper'], b_access=('read', 'compare'))
     wire = _rewire(env, G121Wire(startup='startup-denied.out' if scenario == 'denied' else 'startup.out'))
@@ -797,7 +797,7 @@ def test_g121_live_diff_refuses_invalid_access_or_side(env, scenario):
     assert 'show running-config diffs' not in wire.commands()
 
 
-def test_g121_incomplete_native_diff_keeps_the_redacted_difference(env):
+def test_eos_config_incomplete_native_diff_keeps_the_redacted_difference(env):
     _inventory(env['helper'], b_access=('read', 'compare'))
     wire = _rewire(env, G121Wire('running-changed.out', native='diff-changed.out'))
     # Derived truncation: the last context row is missing even though the line ending is intact.
@@ -805,10 +805,10 @@ def test_g121_incomplete_native_diff_keeps_the_redacted_difference(env):
     data = _page(_live_diff(env))
     assert not data['identical'] and data['unsaved_changes'] is None
     assert data['comparison_status'] == 'incomplete'
-    assert '+ip access-list G121-VERIFY' in data['untrusted_device_output']
+    assert '+ip access-list EOS-CONFIG-VERIFY' in data['untrusted_device_output']
 
 
-def test_g121_public_config_read_preserves_acl_and_routing_with_credentials_masked(env):
+def test_eos_config_public_config_read_preserves_acl_and_routing_with_credentials_masked(env):
     wire = _rewire(env, G121Wire('running-changed.out'))
     # Derived negative security cases: inject fictitious credentials into the measured structure,
     # including a short known credential embedded in the name of an otherwise admissible ACL.
@@ -819,12 +819,12 @@ def test_g121_public_config_read_preserves_acl_and_routing_with_credentials_mask
         b'   20 deny ip any any log\n',
         b'   20 deny ip any any log\n   30 remark FAKE-ACL-VALUE\n').replace(
         b'ip routing\n',
-        b'ip access-list g121-xy-hidden\n   10 permit ip any any\n!\n'
+        b'ip access-list eos-config-xy-hidden\n   10 permit ip any any\n!\n'
         b'management ssh\n   idle-timeout 10\n   hostkey FAKE-MANAGEMENT-VALUE\n!\nip routing\n')
     result = _page(_call(env, 'config_read', _b()))
     text = result['untrusted_device_output']
-    for line in ('ip access-list G121-VERIFY', '   20 deny ip any any log', 'management ssh',
+    for line in ('ip access-list EOS-CONFIG-VERIFY', '   20 deny ip any any log', 'management ssh',
                  '   idle-timeout 10', 'ip routing', 'router ospf 29', 'aaa authorization exec default local'):
         assert line in text.splitlines()
-    _assert_clean(result, 'FAKE-ACL-VALUE', 'FAKE-MANAGEMENT-VALUE', 'g121-xy-hidden', '10 permit ip any any')
+    _assert_clean(result, 'FAKE-ACL-VALUE', 'FAKE-MANAGEMENT-VALUE', 'eos-config-xy-hidden', '10 permit ip any any')
     assert result['credential_redactions'] >= 1 and result['unverified_count'] >= 1

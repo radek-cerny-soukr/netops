@@ -11,13 +11,14 @@ from test_execute_exos import make_runtime as make_exos_runtime
 from netops_admin import engine, execute, membership
 from netops_admin.errors import Rejected
 from netops_admin.request import parse_request
+from approved_apply import approved_apply
 
 
 DHCP = "system dhcp server/reserved-address"
 
 
 def request(table, key, changes, op="update", request_id="operation-example"):
-    # 1.0.12 G20: a DHCP reservation change names its impact (checklist 20b)
+    # 1.0.12 DHCP-DNS: a DHCP reservation change names its impact (checklist 20b)
     extra = {"endpoint_impact": key} if table == DHCP else {}
     return parse_request(request_bytes(table=table, op=op, key=key, changes=changes, request_id=request_id, **extra))
 
@@ -25,7 +26,7 @@ def request(table, key, changes, op="update", request_id="operation-example"):
 def apply_checked(runtime, name, request_):
     """Checklist 20a: a DHCP reservation is applied only from an approved preview."""
     if request_.table != DHCP:
-        return execute.apply(runtime, name, request_)
+        return approved_apply(runtime, name, request_)
     preview = execute.preview(runtime, name, request_)
     assert preview["result"] == "ready", preview
     return execute.apply(runtime, name, request_, expected_plan_sha256=preview["plan_sha256"])
@@ -87,7 +88,7 @@ def test_lost_control_read_triggers_real_simulated_timer_inverse(tmp_path, platf
 def test_last_group_member_is_refused_before_any_write(tmp_path):
     runtime, target, name = runtime_for(tmp_path, "fortios")
     with pytest.raises(Rejected, match="at least one"):
-        execute.apply(runtime, name, request("firewall addrgrp", "group-example", {"member": []}))
+        approved_apply(runtime, name, request("firewall addrgrp", "group-example", {"member": []}))
     assert not target.applied_blocks
 
 
@@ -118,7 +119,7 @@ def test_management_vlan_is_protected_even_when_allowlisted(tmp_path):
     runtime.config = replace(runtime.config, devices={name: replace(device, audit_policy=policy)})
     certify(runtime, target, name)
     with pytest.raises(Rejected, match="management VLAN"):
-        execute.apply(runtime, name, request("vlan-membership", "10", {"untagged": "staging"}))
+        approved_apply(runtime, name, request("vlan-membership", "10", {"untagged": "staging"}))
     assert not target.applied_blocks
 
 

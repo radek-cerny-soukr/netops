@@ -245,7 +245,7 @@ def test_existing_debug_is_not_disabled():
 
 
 def test_untested_identity_runs_and_reports_firmware_support():
-    # G00 (2026-11-17): a build outside the tested identities is not refused; the run reports it as untested.
+    # STARTUP (2026-11-17): a build outside the tested identities is not refused; the run reports it as untested.
     shell = Shell("ping")
     before = dict(shell.options)
     shell.status_line = shell.status_line.replace("build3704", "build9999")
@@ -550,7 +550,7 @@ def test_flow_runs_when_console_timestamp_is_not_enabled(timestamp):
     "Version: FortiGate-VM64-KVM v8.0.0,build0167,250101",
 ])
 def test_flow_with_untested_console_timestamp_runs_with_a_warning(adc_engine, monkeypatch, status_line):
-    # G00: timestamped trace lines were tested on three identities; elsewhere flow runs and warns.
+    # STARTUP: timestamped trace lines were tested on three identities; elsewhere flow runs and warns.
     from netops_helper import engine
     use, _ = adc_engine
     shell = TimestampFlowShell("flow")
@@ -700,8 +700,8 @@ def load_gate():
 @pytest.mark.parametrize("old,new", [
     ("diagnostics.authorize(auth, recipe, address, interface, vdom, source_address=source_address)",
      "diagnostics.authorize(auth, recipe, address, interface, None, source_address=source_address)"),
-    ("diagnostics.run(\n                    shell, recipe, address, interface, count, timeout, vdom,\n                    source_address=source_address, source_port=source_port,\n                    destination_port=destination_port, protocol=protocol, window=window, support=support,\n                    close_with_operation=True, reconnect=lambda: reader.cleanup_shell(\"fortinet\"), **g10)",
-     "diagnostics.run(\n                    shell, recipe, address, interface, count, timeout, None,\n                    source_address=source_address, source_port=source_port,\n                    destination_port=destination_port, protocol=protocol, window=window, support=support,\n                    close_with_operation=True, reconnect=lambda: reader.cleanup_shell(\"fortinet\"), **g10)"),
+    ("diagnostics.run(\n                    shell, recipe, address, interface, count, timeout, vdom,\n                    source_address=source_address, source_port=source_port,\n                    destination_port=destination_port, protocol=protocol, window=window, support=support,\n                    close_with_operation=True, reconnect=lambda: reader.cleanup_shell(\"fortinet\"), **g" "10)",
+     "diagnostics.run(\n                    shell, recipe, address, interface, count, timeout, None,\n                    source_address=source_address, source_port=source_port,\n                    destination_port=destination_port, protocol=protocol, window=window, support=support,\n                    close_with_operation=True, reconnect=lambda: reader.cleanup_shell(\"fortinet\"), **g" "10)"),
     ("@_audit_device_call\ndef fortios_diagnostics", "def fortios_diagnostics"),
     ("    diagnostics.adc_authorize(auth, recipe, address, health_check)\n", ""),
     ("diagnostics.adc_run(shell, recipe, address, timeout, count, health_check)", "diagnostics.adc_run(shell, recipe, address, 60, count, health_check)"),
@@ -961,7 +961,7 @@ def test_inventory_refuses_recipes_the_platform_lacks(platform, recipes, accepte
             validate_query_inventory(platform, (), {"diagnostic_recipes": recipes})
 
 
-# G09 (FP-04): FortiOS ping and traceroute take an enrolled DNS name too.
+# FIREWALL-HEALTH (FP-04): FortiOS ping and traceroute take an enrolled DNS name too.
 @pytest.mark.parametrize("platform,accepted", [("fortiadc", True), ("fortios", True), ("cisco_ios", False)])
 def test_inventory_refuses_dns_names_outside_fortiadc(platform, accepted):
     from netops_helper.read_policy import validate_query_inventory
@@ -1125,7 +1125,7 @@ def test_adc_log_session_failure_is_withheld_and_closed(adc_engine):
 
 
 def test_adc_untested_firmware_runs_with_a_warning(adc_engine):
-    # G00 (2026-11-17): another FortiADC build runs the recipe and reports firmware_support "untested".
+    # STARTUP (2026-11-17): another FortiADC build runs the recipe and reports firmware_support "untested".
     use, _ = adc_engine
     session = AdcSession(version="v7.6.8,build0700")
     result = use(session).fortios_diagnostics(AdcAuth(), "traceroute", IP, "", 3, 1, 16000)
@@ -1656,7 +1656,7 @@ def test_fortiadc_state_list_selects_enrolled_virtual_server_and_restores_empty_
     assert result["header_only"] and result["returned_records"] == 0 and result["virtual_server"] == ADC_VS
     assert shell.commands == adc_state_sequence(family)
     assert not any(command.endswith((" session clear", " persistence clear")) for command in shell.commands)
-    # G28 r2 (ADC-C08): rows are parsed; the shape of the measured rows (16 words per session, 13 per persistence).
+    # ADC-STATISTICS r2 (ADC-C08): rows are parsed; the shape of the measured rows (16 words per session, 13 per persistence).
     shaped = {"session": "192.0.2.1 %d 192.0.2.10 80 192.0.2.2 2 192.0.2.11 80 6 http ESTABLISHED 0 0 100 " + ADC_VS + " RS_A",
               "persistence": "192.0.2.1 %d 192.0.2.10 80 0.0.0.0 0 192.0.2.11 80 6 http 300 " + ADC_VS + " RS_A"}[family]
     rows = ADCStateShell(family, rows=(shaped % 1, shaped % 2))

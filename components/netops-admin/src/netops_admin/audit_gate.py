@@ -39,7 +39,7 @@ class Incomplete(Rejected):
 
 
 def _required(policy, table) -> set:
-    # 1.0.12 G24: a profile batch names every table of its steps
+    # 1.0.12 firewall commit: a profile batch names every table of its steps
     rules = set((policy or {}).get("required_rules", []))
     for name in (table if isinstance(table, tuple) else (table,)):
         rules |= TABLE_RULES.get(name, set())
@@ -186,10 +186,10 @@ def check_policy(plan, policy, text, prior=None):
         raise Rejected(["the requested object is protected by the audit policy"])
     if plan["platform"] == "exos" and table == "vrrp" and key.split(":", 1)[0].casefold() in {
             v.casefold() for v in policy.get("management_vlans", [])}:
-        # 1.0.12 G45: VRRP on a management VLAN is a change of the management VLAN
+        # 1.0.12 switch ip routing: VRRP on a management VLAN is a change of the management VLAN
         raise Rejected(["the requested object is protected by the audit policy"])
     if plan["platform"] == "exos" and table == "vrrp" and policy.get("protected_ports"):
-        # 1.0.12 G45 r2 (479-rv finding 3): VRRP changes its VLAN; a protected member port of that VLAN protects it
+        # 1.0.12 switch ip routing r2 (review finding 3): VRRP changes its VLAN; a protected member port of that VLAN protects it
         vlan = key.split(":", 1)[0]
         members = exos.vlan_ports(exos.Snapshot(text, plan["firmware"]), vlan)
         ports = set(" ".join(members.values()).split())

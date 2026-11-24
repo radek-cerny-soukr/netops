@@ -1,0 +1,39 @@
+host01(config)# vlan 3900
+host01(config)# exit
+host01(config)# vrf context nxos-routing-admin
+host01(config)# exit
+host01(config)# interface Vlan3900
+host01(config-if)# no shutdown
+host01(config-if)# ip address 192.0.2.1/28
+host01(config-if)# ipv6 address 2001:db8:3900::1/64
+! probe overlap-v4-same-prefix
+host01(config)# interface loopback900
+host01(config-if)# ip address 192.0.2.2/28
+overlapping network for ipv4 address: 192.0.2.2/28 on lo900, 192.0.2.1/28 already configured on vlan3900
+! probe overlap-v4-host-inside
+host01(config)# interface loopback900
+host01(config-if)# ip address 192.0.2.2/32
+% 192.0.2.2/32 overlaps with address configured on Vlan3900
+! probe overlap-v6
+host01(config)# interface loopback900
+host01(config-if)# ipv6 address 2001:db8:3900::2/64
+Subnet already configured on interface Vlan3900
+! probe overlap-other-vrf
+host01(config)# interface loopback901
+host01(config-if)# vrf member nxos-routing-admin
+Warning: Deleted all L3 config on interface loopback901
+host01(config-if)# ip address 192.0.2.2/28
+! probe network-address
+host01(config)# interface loopback900
+host01(config-if)# ip address 192.0.2.32/28
+All 0s host part is invalid: 192.0.2.32/28
+! probe broadcast-address
+host01(config)# interface loopback900
+host01(config-if)# ip address 192.0.2.47/28
+All 1s host part is invalid: 192.0.2.47/28
+! probe next-hop-own-address
+host01(config)# ip route 198.51.100.0/24 192.0.2.1
+ipv4 Nexthop: cannot be local address in same VRF: 192.0.2.1/32 configured in VRF-default, If-vlan3900
+! probe relay-use-vrf-default
+host01(config)# interface Vlan3900
+host01(config-if)# ip dhcp relay address 192.0.2.249 use-vrf default

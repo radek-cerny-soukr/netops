@@ -1,0 +1,1 @@
+configure ports 10 description-string "SWITCH-VLAN-ADMIN Room 210 Test Desk"

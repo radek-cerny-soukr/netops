@@ -174,6 +174,264 @@
         "ExtremeXOS v33.7.1 Command References, chapter Commands: configure vlan add ports"
       ],
       "known_false_positives": "Evaluates only visible configuration. Optional policy rules need an explicit operator policy. Unused objects are informational; absent evidence is not proof of a complete configuration."
+    },
+    {
+      "id": "exos.mgmt.http-enabled",
+      "version": 1,
+      "check": "exos_http_enabled",
+      "sections": [],
+      "class": "fakt",
+      "severity": "medium",
+      "evidence_fields": [
+        "state"
+      ],
+      "title": "The switch exposes plaintext HTTP management.",
+      "remediation": "Disable HTTP with disable web http and use encrypted management.",
+      "refs": [
+        "ExtremeXOS v33.7.1 Command References, chapter Commands: enable web http"
+      ],
+      "known_false_positives": "An omitted HTTP switch does not establish the listener state."
+    },
+    {
+      "id": "exos.mgmt.idle-timeout",
+      "version": 1,
+      "check": "exos_idle_timeout",
+      "sections": [],
+      "class": "fakt",
+      "severity": "low",
+      "evidence_fields": [
+        "state"
+      ],
+      "title": "The CLI idle timer is disabled.",
+      "remediation": "Enable the CLI idle timeout and choose an operationally appropriate limit.",
+      "refs": [
+        "ExtremeXOS v33.7.1 Command References, chapter Commands: enable cli idle-timeout"
+      ],
+      "known_false_positives": "Both the legacy and current idle-timer syntax are accepted."
+    },
+    {
+      "id": "exos.mgmt.lockout",
+      "version": 1,
+      "check": "exos_lockout",
+      "sections": [],
+      "class": "fakt",
+      "severity": "low",
+      "evidence_fields": [
+        "state"
+      ],
+      "title": "An account selected for login lockout has lockout disabled.",
+      "remediation": "Review the account lockout policy and keep an available administrator account.",
+      "refs": [
+        "ExtremeXOS v33.7.1 Command References, chapter Commands: configure account password-policy lockout-on-login-failures"
+      ],
+      "known_false_positives": "The switch keeps at least one administrator available. Ambiguous exceptions need a password-policy readback."
+    },
+    {
+      "id": "exos.mgmt.access-acl",
+      "version": 1,
+      "check": "exos_access_acl",
+      "sections": [],
+      "class": "fakt",
+      "severity": "medium",
+      "evidence_fields": [
+        "state"
+      ],
+      "title": "SSH accepts sources outside the declared management prefixes.",
+      "remediation": "Bind an SSH2 access profile that permits only the approved management prefixes.",
+      "refs": [
+        "ExtremeXOS v33.7.1 Command References, chapter Commands: configure ssh2 access-profile"
+      ],
+      "known_false_positives": "A named external policy needs its ordered source rules to establish the effective filter."
+    },
+    {
+      "id": "exos.aaa.external-login",
+      "version": 1,
+      "check": "exos_external_login",
+      "sections": [],
+      "class": "fakt",
+      "severity": "medium",
+      "evidence_fields": [
+        "state"
+      ],
+      "title": "Required external login authentication is disabled or lacks a server.",
+      "remediation": "Configure and enable a RADIUS management or TACACS+ server.",
+      "refs": [
+        "ExtremeXOS v33.7.1 Command References, chapter Commands: configure radius server client-ip",
+        "ExtremeXOS v33.7.1 Command References, chapter Commands: configure tacacs server client-ip"
+      ],
+      "known_false_positives": "This rule checks configuration. It does not measure server reachability."
+    },
+    {
+      "id": "exos.snmp.v1v2c-community",
+      "version": 1,
+      "check": "exos_v1v2c_community",
+      "sections": [],
+      "class": "fakt",
+      "severity": "medium",
+      "evidence_fields": [
+        "state"
+      ],
+      "title": "SNMPv1/v2c community-based access is enabled.",
+      "remediation": "Migrate needed monitoring to SNMPv3 with authentication and privacy, then disable SNMPv1/v2c access.",
+      "refs": [
+        "ExtremeXOS v33.7.1 Command References, chapter Commands: disable snmp access"
+      ],
+      "known_false_positives": "One finding per switch covers the visible active scope. Community values are omitted."
+    },
+    {
+      "id": "exos.snmp.v3-auth-priv",
+      "version": 1,
+      "check": "exos_v3_auth_priv",
+      "sections": [],
+      "class": "fakt",
+      "severity": "medium",
+      "evidence_fields": [
+        "state"
+      ],
+      "title": "An effective SNMPv3 access path lacks authentication or privacy.",
+      "remediation": "Require privacy for the USM users and their effective VACM access.",
+      "refs": [
+        "ExtremeXOS v33.7.1 Command References, chapter Commands: configure snmpv3 add access"
+      ],
+      "known_false_positives": "Unlinked users and notification-only groups do not establish management access."
+    },
+    {
+      "id": "exos.time.ntp-auth",
+      "version": 1,
+      "check": "exos_ntp_auth",
+      "sections": [],
+      "class": "fakt",
+      "severity": "medium",
+      "evidence_fields": [
+        "state"
+      ],
+      "title": "Required time-source authentication is missing.",
+      "remediation": "Enable NTP authentication and assign a trusted key to every configured NTP server or peer.",
+      "refs": [
+        "ExtremeXOS v33.7.1 Command References, chapter Commands: enable ntp authentication"
+      ],
+      "known_false_positives": "The rule evaluates configuration, without inferring clock synchronization."
+    },
+    {
+      "id": "exos.logging.syslog-level",
+      "version": 1,
+      "check": "exos_syslog_level",
+      "sections": [],
+      "class": "fakt",
+      "severity": "medium",
+      "evidence_fields": [
+        "state"
+      ],
+      "title": "An active syslog target filters events required by policy.",
+      "remediation": "Set the required severity or broader and use a filter that includes those events.",
+      "refs": [
+        "ExtremeXOS v33.7.1 Command References, chapter Commands: configure log target filter"
+      ],
+      "known_false_positives": "Delivery to or retention at the collector is outside configuration evidence."
+    },
+    {
+      "id": "exos.services.edge-discovery",
+      "version": 1,
+      "check": "exos_edge_discovery",
+      "sections": [],
+      "class": "fakt",
+      "severity": "low",
+      "evidence_fields": [
+        "state"
+      ],
+      "title": "A declared edge port transmits discovery traffic where policy forbids it.",
+      "remediation": "Disable EDP and LLDP transmission on the identified port.",
+      "refs": [
+        "ExtremeXOS v33.7.1 Command References, chapter Commands: enable lldp ports",
+        "ExtremeXOS v33.7.1 Command References, chapter Commands: disable edp ports"
+      ],
+      "known_false_positives": "Receive-only LLDP does not count as transmission."
+    },
+    {
+      "id": "exos.l2.bpdu-guard",
+      "version": 1,
+      "check": "exos_bpdu_guard",
+      "sections": [],
+      "class": "fakt",
+      "severity": "medium",
+      "evidence_fields": [
+        "state"
+      ],
+      "title": "A declared edge port lacks BPDU Restrict in an active STP domain.",
+      "remediation": "Enable BPDU Restrict in the applicable STP domain after configuring edge safeguard.",
+      "refs": [
+        "ExtremeXOS v33.7.1 Command References, chapter Commands: configure stpd ports bpdu-restrict"
+      ],
+      "known_false_positives": "An edge-safeguard setting alone does not prove BPDU Restrict."
+    },
+    {
+      "id": "exos.l2.default-vlan",
+      "version": 1,
+      "check": "exos_default_vlan",
+      "sections": [],
+      "class": "fakt",
+      "severity": "medium",
+      "evidence_fields": [
+        "state"
+      ],
+      "title": "A declared active physical edge port has untagged VLAN 1 against policy.",
+      "remediation": "Move the edge port to the intended untagged VLAN.",
+      "refs": [
+        "ExtremeXOS v33.7.1 Command References, chapter Commands: configure vlan add ports"
+      ],
+      "known_false_positives": "Tagged membership and link status alone do not establish an active untagged edge port."
+    },
+    {
+      "id": "exos.l2.dhcp-snooping",
+      "version": 1,
+      "check": "exos_dhcp_snooping",
+      "sections": [],
+      "class": "fakt",
+      "severity": "medium",
+      "evidence_fields": [
+        "state"
+      ],
+      "title": "A declared untrusted client port lacks DHCP snooping enforcement.",
+      "remediation": "Enable DHCP snooping with drop-packet on applicable client ports and review trusted DHCP paths.",
+      "refs": [
+        "ExtremeXOS v33.7.1 Command References, chapter Commands: enable ip-security dhcp-snooping"
+      ],
+      "known_false_positives": "Trust and client scope come from audit intent."
+    },
+    {
+      "id": "exos.l2.storm-control",
+      "version": 1,
+      "check": "exos_storm_control",
+      "sections": [],
+      "class": "fakt",
+      "severity": "medium",
+      "evidence_fields": [
+        "state"
+      ],
+      "title": "A declared edge port has an unlimited broadcast flood rate.",
+      "remediation": "Configure a finite broadcast flood limit suitable for the port.",
+      "refs": [
+        "ExtremeXOS v33.7.1 Command References, chapter Commands: configure ports rate-limit flood"
+      ],
+      "known_false_positives": "Hardware or effective limits that the configuration cannot establish are left unevaluated."
+    },
+    {
+      "id": "exos.ports.unused-up",
+      "version": 1,
+      "check": "exos_unused_up",
+      "sections": [],
+      "class": "fakt",
+      "severity": "medium",
+      "evidence_fields": [
+        "state"
+      ],
+      "title": "A port declared unused is administratively enabled.",
+      "remediation": "Disable the unused physical port after verifying its purpose.",
+      "refs": [
+        "ExtremeXOS v33.7.1 Command References, chapter Commands: enable ports",
+        "ExtremeXOS v33.7.1 Command References, chapter Commands: disable ports"
+      ],
+      "known_false_positives": "A down link does not establish that a port is unused."
     }
   ]
 }

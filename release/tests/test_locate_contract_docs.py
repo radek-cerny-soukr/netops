@@ -9,10 +9,10 @@ HELPER = ROOT / 'components/netops-helper'
 
 class LocateContractDocumentation(unittest.TestCase):
     def test_published_locate_limits_and_partial_coverage(self):
-        readme = (ROOT / 'README.md').read_text()
+        overview = (ROOT / 'docs/helper-configuration.md').read_text()
         guide = (HELPER / 'docs/tools.md').read_text().split('## Endpoint location (locate_endpoint)', 1)[1].split('\n## ', 1)[0]
         for phrase in ('1–64', '40 reads', '8 reads per alias', '59.5-second deadline'):
-            self.assertIn(phrase, readme)
+            self.assertIn(phrase, overview)
         for phrase in ('at most eight', '59.5 seconds from the parent call, including worker startup',
                        '60-second boundary', '40 physical CLI reads', 'eight reads per alias',
                        'limits.target_reads', '`incomplete`', 'coverage.complete',

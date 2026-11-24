@@ -1,0 +1,366 @@
+{
+  "platform": "cisco-ios",
+  "rules": [
+    {
+      "id": "cisco-ios.mgmt.telnet-enabled",
+      "version": 1,
+      "check": "ios_telnet_enabled",
+      "sections": [],
+      "class": "fakt",
+      "severity": "high",
+      "evidence_fields": [
+        "state"
+      ],
+      "title": "A VTY line allows Telnet.",
+      "remediation": "Restrict inbound VTY transport to SSH.",
+      "refs": [
+        "https://sec.cloudapps.cisco.com/security/center/resources/IOS_XE_hardening"
+      ]
+    },
+    {
+      "id": "cisco-ios.mgmt.http-enabled",
+      "version": 1,
+      "check": "ios_http_enabled",
+      "sections": [],
+      "class": "fakt",
+      "severity": "high",
+      "evidence_fields": [
+        "state"
+      ],
+      "title": "The plaintext HTTP listener is enabled.",
+      "remediation": "Disable the HTTP listener and review whether HTTPS is required.",
+      "refs": [
+        "https://sec.cloudapps.cisco.com/security/center/resources/IOS_XE_hardening"
+      ]
+    },
+    {
+      "id": "cisco-ios.mgmt.ssh-v2",
+      "version": 1,
+      "check": "ios_ssh_v2",
+      "sections": [],
+      "class": "fakt",
+      "severity": "medium",
+      "evidence_fields": [
+        "version"
+      ],
+      "title": "A VTY line permits an SSH mode compatible with SSH v1.",
+      "remediation": "Require SSH version 2 for active VTY lines.",
+      "refs": [
+        "https://sec.cloudapps.cisco.com/security/center/resources/IOS_XE_hardening"
+      ]
+    },
+    {
+      "id": "cisco-ios.mgmt.idle-timeout",
+      "version": 1,
+      "check": "ios_idle_timeout",
+      "sections": [],
+      "class": "fakt",
+      "severity": "low",
+      "evidence_fields": [
+        "seconds"
+      ],
+      "title": "A remote VTY session can remain idle for more than ten minutes.",
+      "remediation": "Set an EXEC timeout of at most ten minutes on each active VTY line.",
+      "refs": [
+        "https://sec.cloudapps.cisco.com/security/center/resources/IOS_XE_hardening"
+      ]
+    },
+    {
+      "id": "cisco-ios.mgmt.lockout",
+      "version": 1,
+      "check": "ios_lockout",
+      "sections": [],
+      "class": "fakt",
+      "severity": "low",
+      "evidence_fields": [
+        "state"
+      ],
+      "title": "An active local remote-login path lacks a login quiet period.",
+      "remediation": "Configure login blocking after repeated failures or verify equivalent external enforcement.",
+      "refs": [
+        "https://sec.cloudapps.cisco.com/security/center/resources/IOS_XE_hardening"
+      ]
+    },
+    {
+      "id": "cisco-ios.mgmt.access-acl",
+      "version": 1,
+      "check": "ios_access_acl",
+      "sections": [],
+      "class": "usudek",
+      "severity": "medium",
+      "evidence_fields": [
+        "state"
+      ],
+      "title": "A VTY filter is missing or permits sources outside the intended prefixes.",
+      "remediation": "Bind an ordered inbound VTY filter for each management address family.",
+      "refs": [
+        "https://sec.cloudapps.cisco.com/security/center/resources/IOS_XE_hardening"
+      ]
+    },
+    {
+      "id": "cisco-ios.aaa.external-login",
+      "version": 1,
+      "check": "ios_external_login",
+      "sections": [],
+      "class": "usudek",
+      "severity": "medium",
+      "evidence_fields": [
+        "state"
+      ],
+      "title": "An active VTY login path lacks the requested external AAA method.",
+      "remediation": "Bind the intended login method list to the VTY lines and define the external servers.",
+      "refs": [
+        "https://sec.cloudapps.cisco.com/security/center/resources/IOS_XE_hardening"
+      ]
+    },
+    {
+      "id": "cisco-ios.aaa.local-password-storage",
+      "version": 1,
+      "check": "ios_local_password_storage",
+      "sections": [],
+      "class": "fakt",
+      "severity": "high",
+      "evidence_fields": [
+        "storage_type",
+        "count"
+      ],
+      "title": "A local or enable password is stored in a readable or reversible form.",
+      "remediation": "Replace type 0 or type 7 passwords with supported strong secret types.",
+      "refs": [
+        "https://sec.cloudapps.cisco.com/security/center/resources/IOS_XE_hardening"
+      ]
+    },
+    {
+      "id": "cisco-ios.snmp.v1v2c-community",
+      "version": 1,
+      "check": "ios_v1v2c_community",
+      "sections": [],
+      "class": "fakt",
+      "severity": "medium",
+      "evidence_fields": [
+        "count"
+      ],
+      "title": "An SNMP v1/v2c community is configured.",
+      "remediation": "Remove legacy communities or migrate monitoring to authenticated, encrypted SNMPv3.",
+      "refs": [
+        "https://sec.cloudapps.cisco.com/security/center/resources/IOS_XE_hardening",
+        "https://www.cisco.com/c/en/us/td/docs/switches/lan/c9000/mgmt/management-configuration-guide/snmp-configuration.html"
+      ]
+    },
+    {
+      "id": "cisco-ios.snmp.v3-auth-priv",
+      "version": 1,
+      "check": "ios_v3_auth_priv",
+      "sections": [],
+      "class": "fakt",
+      "severity": "medium",
+      "evidence_fields": [
+        "count",
+        "state"
+      ],
+      "title": "An active SNMPv3 user lacks the required authentication and privacy.",
+      "remediation": "Use a v3 priv group with authentication and encryption on each active user.",
+      "refs": [
+        "https://sec.cloudapps.cisco.com/security/center/resources/IOS_XE_hardening",
+        "https://www.cisco.com/c/en/us/td/docs/switches/lan/c9000/mgmt/management-configuration-guide/snmp-configuration.html"
+      ]
+    },
+    {
+      "id": "cisco-ios.time.no-ntp-source",
+      "version": 1,
+      "check": "ios_no_ntp_source",
+      "sections": [],
+      "class": "fakt",
+      "severity": "medium",
+      "evidence_fields": [
+        "count"
+      ],
+      "title": "No external NTP server or peer is configured.",
+      "remediation": "Configure an external NTP server or peer appropriate for the management routing scope.",
+      "refs": [
+        "https://sec.cloudapps.cisco.com/security/center/resources/IOS_XE_hardening"
+      ]
+    },
+    {
+      "id": "cisco-ios.time.ntp-auth",
+      "version": 1,
+      "check": "ios_ntp_auth",
+      "sections": [],
+      "class": "usudek",
+      "severity": "medium",
+      "evidence_fields": [
+        "count",
+        "state"
+      ],
+      "title": "An external NTP source lacks the requested authentication binding.",
+      "remediation": "Enable NTP authentication and bind each source to a configured trusted key.",
+      "refs": [
+        "https://sec.cloudapps.cisco.com/security/center/resources/IOS_XE_hardening"
+      ]
+    },
+    {
+      "id": "cisco-ios.logging.no-syslog-target",
+      "version": 1,
+      "check": "ios_no_syslog_target",
+      "sections": [],
+      "class": "fakt",
+      "severity": "medium",
+      "evidence_fields": [
+        "count"
+      ],
+      "title": "No active remote syslog target is configured.",
+      "remediation": "Enable syslog and configure a remote collector.",
+      "refs": [
+        "https://sec.cloudapps.cisco.com/security/center/resources/IOS_XE_hardening"
+      ]
+    },
+    {
+      "id": "cisco-ios.logging.syslog-level",
+      "version": 1,
+      "check": "ios_syslog_level",
+      "sections": [],
+      "class": "usudek",
+      "severity": "medium",
+      "evidence_fields": [
+        "level"
+      ],
+      "title": "Remote syslog excludes messages at the requested severity.",
+      "remediation": "Set the remote logging threshold to include the requested severity.",
+      "refs": [
+        "https://sec.cloudapps.cisco.com/security/center/resources/IOS_XE_hardening"
+      ]
+    },
+    {
+      "id": "cisco-ios.services.edge-discovery",
+      "version": 1,
+      "check": "ios_edge_discovery",
+      "sections": [],
+      "class": "usudek",
+      "severity": "low",
+      "evidence_fields": [
+        "protocol"
+      ],
+      "title": "Discovery transmit is enabled on a declared restricted edge port.",
+      "remediation": "Disable CDP or LLDP transmit where the port policy prohibits discovery.",
+      "refs": [
+        "https://sec.cloudapps.cisco.com/security/center/resources/IOS_XE_hardening",
+        "https://www.cisco.com/c/en/us/td/docs/switches/lan/catalyst9300/software/release/17-14/command_reference/b_1714_9300_cr/layer_2_3_commands.html"
+      ]
+    },
+    {
+      "id": "cisco-ios.services.source-routing",
+      "version": 1,
+      "check": "ios_source_routing",
+      "sections": [],
+      "class": "fakt",
+      "severity": "medium",
+      "evidence_fields": [
+        "state"
+      ],
+      "title": "IP source routing is explicitly enabled.",
+      "remediation": "Disable IP source routing when it is unnecessary.",
+      "refs": [
+        "https://sec.cloudapps.cisco.com/security/center/resources/IOS_XE_hardening"
+      ]
+    },
+    {
+      "id": "cisco-ios.l2.bpdu-guard",
+      "version": 1,
+      "check": "ios_bpdu_guard",
+      "sections": [],
+      "class": "usudek",
+      "severity": "medium",
+      "evidence_fields": [
+        "state"
+      ],
+      "title": "A declared access port lacks effective BPDU guard.",
+      "remediation": "Enable port-level BPDU guard or the global PortFast guard on an effective PortFast port.",
+      "refs": [
+        "https://www.cisco.com/c/en/us/td/docs/switches/lan/catalyst9300/software/release/17-14/command_reference/b_1714_9300_cr/layer_2_3_commands.html"
+      ]
+    },
+    {
+      "id": "cisco-ios.l2.default-vlan",
+      "version": 1,
+      "check": "ios_default_vlan",
+      "sections": [],
+      "class": "usudek",
+      "severity": "medium",
+      "evidence_fields": [
+        "vlan"
+      ],
+      "title": "A declared active access port uses VLAN 1 against its policy.",
+      "remediation": "Assign an intended access VLAN to the port.",
+      "refs": [
+        "https://www.cisco.com/c/en/us/td/docs/switches/lan/catalyst9300/software/release/17-14/command_reference/b_1714_9300_cr/layer_2_3_commands.html",
+        "https://www.cisco.com/c/en/us/td/docs/switches/lan/catalyst9300/software/release/17-14/configuration_guide/vlan/b_1714_vlan_9300_cg/configuring_vlan_trunks.html"
+      ]
+    },
+    {
+      "id": "cisco-ios.l2.trunk-native",
+      "version": 1,
+      "check": "ios_trunk_native",
+      "sections": [],
+      "class": "usudek",
+      "severity": "medium",
+      "evidence_fields": [
+        "vlan",
+        "expected"
+      ],
+      "title": "A trunk port has a native VLAN different from its declared VLAN.",
+      "remediation": "Configure the intended native VLAN independently of the allowed VLAN list.",
+      "refs": [
+        "https://www.cisco.com/c/en/us/td/docs/switches/lan/catalyst9300/software/release/17-14/configuration_guide/vlan/b_1714_vlan_9300_cg/configuring_vlan_trunks.html"
+      ]
+    },
+    {
+      "id": "cisco-ios.l2.dhcp-snooping",
+      "version": 1,
+      "check": "ios_dhcp_snooping",
+      "sections": [],
+      "class": "usudek",
+      "severity": "medium",
+      "evidence_fields": [
+        "count",
+        "state"
+      ],
+      "title": "DHCP snooping coverage or trusted interfaces differ from the declared scope.",
+      "remediation": "Enable snooping for the intended VLANs and restrict trust to explicitly declared interfaces.",
+      "refs": [
+        "https://www.cisco.com/c/en/us/td/docs/switches/lan/catalyst9300/software/release/17-14/command_reference/b_1714_9300_cr/layer_2_3_commands.html"
+      ]
+    },
+    {
+      "id": "cisco-ios.l2.storm-control",
+      "version": 1,
+      "check": "ios_storm_control",
+      "sections": [],
+      "class": "usudek",
+      "severity": "medium",
+      "evidence_fields": [
+        "state"
+      ],
+      "title": "A declared edge port lacks a limiting broadcast threshold.",
+      "remediation": "Set a broadcast threshold in percent or packets per second.",
+      "refs": [
+        "https://www.cisco.com/c/en/us/td/docs/switches/lan/catalyst9300/software/release/17-14/command_reference/b_1714_9300_cr/layer_2_3_commands.html"
+      ]
+    },
+    {
+      "id": "cisco-ios.ports.unused-up",
+      "version": 1,
+      "check": "ios_unused_up",
+      "sections": [],
+      "class": "usudek",
+      "severity": "medium",
+      "evidence_fields": [
+        "state"
+      ],
+      "title": "A physical port declared unused is administratively enabled.",
+      "remediation": "Shut down the unused physical interface.",
+      "refs": [
+        "https://www.cisco.com/c/en/us/td/docs/switches/lan/catalyst9300/software/release/17-14/command_reference/b_1714_9300_cr/layer_2_3_commands.html"
+      ]
+    }
+  ]
+}

@@ -1,4 +1,0 @@
-router bgp 65126
-   neighbor 192.0.2.2    remote-as 65127
-   neighbor 192.0.2.2    route-map NETOPS-G126-M in
-   neighbor 192.0.2.2    route-map NETOPS-G126-M out

@@ -362,7 +362,7 @@ _VENDOR_INTERFACE_CANONICALIZERS = {
 }
 
 
-# The short and the full IOS name of one port are the same enrolled port (G53 r3): both sides are
+# The short and the full IOS name of one port are the same enrolled port (router ports r3): both sides are
 # canonicalized by the slot's own validator; other kinds keep the exact comparison.
 _CANONICAL_MEMBERSHIP_KINDS = frozenset({"cisco_ios_interface", "cisco_ios_physical_interface", "cisco_ios_switchport", "cisco_xe_switchport"})
 
@@ -625,7 +625,7 @@ _FORTINET_COMMANDS = frozenset({
     "diagnose sys sdwan intf-sla-log {interface}",
     "diagnose sys sdwan sla-log {health_check} {member}",
     "diagnose sys link-monitor status {monitor}",
-    # G14: name-scoped IPsec detail; key material is withheld after the read (sanitize.redact_fortios_ipsec_keys).
+    # ipsec status: name-scoped IPsec detail; key material is withheld after the read (sanitize.redact_fortios_ipsec_keys).
     "diagnose vpn ike gateway list name {tunnel}",
     "diagnose vpn tunnel list name {tunnel}",
     "diagnose sys sdwan member {member}",
@@ -673,7 +673,7 @@ _FORTINET_COMMANDS = frozenset({
 
     "get router info bgp summary",
     "get router info6 bgp summary",
-    # G11 (1.0.12): measured on FortiGate-60F 7.6.8 and FortiGate-80F 8.0.2 (read-only accounts).
+    # firewall routing (1.0.12): measured on FortiGate-60F 7.6.8 and FortiGate-80F 8.0.2 (read-only accounts).
     "get router info6 routing-table",
     "get router info routing-table database",
     "get router info6 routing-table database",
@@ -799,7 +799,7 @@ _NETWORK_LOG_COMMANDS = {
     "cisco_nxos": frozenset({"show logging last 200", "show logging last {count}", "show logging info"}),
     "arista_eos": frozenset({
         "show logging 200",
-        # G120: only typed slots (bounded minutes, calendar date/time, severity keyword) reach the device.
+        # eos health: only typed slots (bounded minutes, calendar date/time, severity keyword) reach the device.
         "show logging last {minutes} minutes threshold {severity}",
         "show logging time-range {begin_date} {begin_time} {end_date} {end_time} threshold {severity}",
     }),
@@ -1102,7 +1102,7 @@ def validate_query_inventory(
         return
     for value in inventory.get("interfaces", ()):
         if normalized == "fortinet" and value == "any" and "sniffer" in inventory.get("diagnostic_recipes", ()):
-            continue  # the FortiOS sniffer interface any, enrolled like an interface (G10 FP-06, task 471-r3)
+            continue  # the FortiOS sniffer interface any, enrolled like an interface (firewall resources FP-06, verification)
         for kind in interface_kinds:
             try:
                 _validate_slot(value, kind)
@@ -1197,7 +1197,7 @@ def _validate_query_command(platform: str, command: object) -> None:
         "traceroute vrf {vrf} ipv6 {address} source {source} numeric timeout 1 probe 1 ttl 1 5",
     }:
         return
-    # G91: exact NX-OS probes; no arbitrary CLI suffix or packet count.
+    # nxos probes: exact NX-OS probes; no arbitrary CLI suffix or packet count.
     if platform == "cisco_nxos" and inspected in {
         "ping {address} vrf {vrf} count 5",
         "ping {address} vrf {vrf} source {source} count 5",
@@ -1209,7 +1209,7 @@ def _validate_query_command(platform: str, command: object) -> None:
         "traceroute6 {address} source {source} vrf {vrf}",
     }:
         return
-    # Fixed Junos probes (G132): typed enrolled IPv4/instance slots, bounded count, hops and wait.
+    # Fixed Junos probes (junos routing): typed enrolled IPv4/instance slots, bounded count, hops and wait.
     if platform in _JUNOS_PLATFORMS and inspected in {
         "ping {address} count 5 source {source}",
         "ping {address} count 5 source {source} routing-instance {instance}",
@@ -1217,10 +1217,10 @@ def _validate_query_command(platform: str, command: object) -> None:
         "traceroute {address} no-resolve routing-instance {instance} ttl 30 wait 1",
     }:
         return
-    # G108 (R02): the Unleashed CLI ping is bounded by the device (three echo requests); one enrolled IPv4 slot.
+    # wireless path (R02): the Unleashed CLI ping is bounded by the device (three echo requests); one enrolled IPv4 slot.
     if platform == "ruckus_unleashed" and inspected == "ping {address}":
         return
-    # G110 (RP08): the one configuration display admitted anywhere. Its text never leaves the engine unfiltered:
+    # wireless network services (RP08): the one configuration display admitted anywhere. Its text never leaves the engine unfiltered:
     # `ruckus_config_allowlist` passes a fixed list of sections and redacts secret labels (tests/test_g110_ruckus.py).
     if platform == "ruckus_unleashed" and inspected == "show config":
         return
@@ -1497,6 +1497,20 @@ def render_read_sequence(
 
 def is_read_sequence(platform: str, query_name: str) -> bool:
     return isinstance(READ_QUERIES.get(normalize_platform(platform), {}).get(query_name), SequenceQuery)
+
+
+def overview_read_cost(platform: str, query: str, parameters: dict, read_inventory: Mapping) -> int:
+    """Validate the exact read against enrolled slots and count its catalogue commands."""
+    catalogue = READ_QUERIES[normalize_platform(platform)]
+    if query not in catalogue or any(
+        name not in catalogue[query].slots or catalogue[query].slots[name].inventory in (None, LITERAL)
+        for name in parameters
+    ):
+        raise ValueError("overview slots require enrolled inventory values")
+    if is_read_sequence(platform, query):
+        return len(render_read_sequence(platform, query, parameters, read_inventory)[1])
+    render_read_query(platform, query, parameters, read_inventory)
+    return 1
 
 
 def public_query_catalog() -> dict[str, dict[str, list[str]]]:

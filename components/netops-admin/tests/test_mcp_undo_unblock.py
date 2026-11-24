@@ -1,8 +1,8 @@
-"""1.0.12 G07 (FP-29, X-02): MCP admin_undo and admin_unblock bound to the approval of their previews.
+"""1.0.12 EXECUTION-ACCESS (FP-29, X-02): MCP admin_undo and admin_unblock bound to the approval of their previews.
 
 The device is FakeFortiOSNet: the real anonymised interface and route tables of the lab FortiGate-60F 7.6.8 build3744
-(fixtures/fortios_7_6_8_net, task 439) with the generic automation safeguard of FakeFortiOS. The test object is a
-temporary VLAN on `internal`, as in the live run (task-evidence/g07). The state unknown is produced the way the live
+(fixtures/fortios_7_6_8_net, verification) with the generic automation safeguard of FakeFortiOS. The test object is a
+temporary VLAN on `internal`, as in the live run (private measurement record). The state unknown is produced the way the live
 harness produces it: the connection is lost right after the change was confirmed and the safeguard was removed.
 """
 from __future__ import annotations
@@ -13,6 +13,7 @@ import json
 import re
 
 import pytest
+from approved_apply import approved_apply
 
 fastmcp = pytest.importorskip("fastmcp")
 
@@ -25,7 +26,7 @@ from netops_admin.blocking import unblock_digest  # noqa: E402
 from netops_admin.errors import Rejected  # noqa: E402
 
 VLAN = {"vdom": "root", "interface": "internal", "vlanid": 3502, "ip": "198.51.100.145/29", "allowaccess": "ping",
-        "alias": "netops 502", "description": "NetOps G07 test"}
+        "alias": "netops 502", "description": "NetOps EXECUTION-ACCESS test"}
 KEY = "n502-v"
 
 
@@ -53,7 +54,7 @@ def schemas():
 
 
 def enabled(rt):
-    """1.0.12 G07 r2 (decision of the administrator 2026-11-18): admin_undo, admin_unblock_preview and admin_unblock
+    """1.0.12 EXECUTION-ACCESS r2 (decision of the administrator 2026-11-18): admin_undo, admin_unblock_preview and admin_unblock
     are off unless the Admin configuration opts in with mcp_undo. (A build without the option has nothing to enable.)"""
     if any(field.name == "mcp_undo" for field in dataclasses.fields(rt.config)):
         rt.config = dataclasses.replace(rt.config, mcp_undo=True)
@@ -91,7 +92,14 @@ def after_digest(rt, side="after"):
     return unblock_digest("lab", blocked, record, side, record["plan"]["predicted"][side])
 
 
-def vlan(op="create", changes=None, request_id="req-g07-0001"):
+def approved_call(arguments):
+    """admin_apply with the plan_sha256 of admin_preview of the same request: every apply requires it."""
+    preview = call("admin_preview", arguments)
+    assert preview["result"] == "ready", preview
+    return call("admin_apply", dict(arguments, expected_plan_sha256=preview["plan_sha256"]))
+
+
+def vlan(op="create", changes=None, request_id="req-execution-access-0001"):
     return {"device": "lab", "table": IF, "op": op, "key": KEY,
             "changes": dict(VLAN) if changes is None and op == "create" else (changes or {}),
             "reason": "because %s" % SECRET, "user_request": "please, token %s" % SECRET, "request_id": request_id}
@@ -106,10 +114,10 @@ def removal(lines):
     return lines[:1] == ["config system automation-stitch"] and len(lines) > 1 and lines[1].startswith("delete")
 
 
-def unknown_after_confirmation(device, request_id="req-g07-0002"):
+def unknown_after_confirmation(device, request_id="req-execution-access-0002"):
     """The live harness: the management path is lost right after the safeguard was removed."""
     device.unreachable_after_apply = removal
-    answer = call("admin_apply", vlan(request_id=request_id))
+    answer = approved_call(vlan(request_id=request_id))
     device.unreachable_after_apply = None
     device.unreachable = False
     return answer
@@ -128,7 +136,7 @@ def test_the_bound_tools_require_the_hash_of_their_preview():
 
 def test_an_undo_without_its_hash_is_refused_by_the_schema(served):
     device, rt = served
-    first = call("admin_apply", vlan())
+    first = approved_call(vlan())
     blocks = len(device.applied_blocks)
     answer = call("admin_undo", {"change_id": first["change_id"], "reason": "x"})
     assert "tool_error" in answer and answer["is_error"]
@@ -140,7 +148,7 @@ def test_an_undo_without_its_hash_is_refused_by_the_schema(served):
 def test_undo_bound_to_the_approved_undo_preview_returns_the_vlan(served, tmp_path):
     device, rt = served
     baseline = interfaces(device)
-    first = call("admin_apply", vlan())
+    first = approved_call(vlan())
     assert first["result"] == "confirmed" and KEY in device.net[IF], first
     ahead = call("admin_undo_preview", {"change_id": first["change_id"], "reason": "return the test VLAN"})
     assert ahead["result"] == "ready" and ahead["op"] == "delete" and ahead["predicted"]["after"] is None
@@ -168,13 +176,13 @@ def test_undo_bound_to_the_approved_undo_preview_returns_the_vlan(served, tmp_pa
 
 def test_undo_with_another_plan_hash_is_refused_before_any_write(served):
     device, rt = served
-    first = call("admin_apply", vlan())
+    first = approved_call(vlan())
     ahead = call("admin_undo_preview", {"change_id": first["change_id"], "reason": "return"})
     blocks, records = len(device.applied_blocks), len(rt.store.records())
     answer = call("admin_undo", {"change_id": first["change_id"], "reason": "return",
                                  "expected_plan_sha256": "0" * 64})
     assert answer["result"] == "rejected" and answer["reason_codes"] == ["plan_changed"]
-    # 502-rv finding 1: the refusal names only the hash that was sent, never the current one
+    # Review finding 1: the refusal names only the hash that was sent, never the current one
     assert answer["reason_details"][0] == {"code": "plan_changed", "expected": "0" * 64}
     assert hashes(answer) == {"0" * 64}
     malformed = call("admin_undo", {"change_id": first["change_id"], "reason": "return",
@@ -197,7 +205,7 @@ def test_undo_with_another_plan_hash_is_refused_before_any_write(served):
 
 def test_undo_of_an_object_changed_after_the_preview_writes_nothing(served):
     device, rt = served
-    first = call("admin_apply", vlan(op="create"))
+    first = approved_call(vlan(op="create"))
     ahead = call("admin_undo_preview", {"change_id": first["change_id"], "reason": "return"})
     device.net[IF][KEY]["attrs"]["alias"] = "changed by hand"
     blocks = len(device.applied_blocks)
@@ -226,7 +234,7 @@ def test_unknown_then_unblock_after_reading_the_after_state(served, tmp_path):
     assert rt.store.blocked("lab")["change_id"] == change
     assert KEY in device.net[IF] and not device.stitches
     accounts = rt.store.baseline("lab")
-    refused = call("admin_preview", vlan(op="update", changes={"alias": "next"}, request_id="req-g07-0003"))
+    refused = call("admin_preview", vlan(op="update", changes={"alias": "next"}, request_id="req-execution-access-0003"))
     assert refused["result"] == "rejected" and refused["reason_codes"] == ["device_blocked"]
 
     blocks = len(device.applied_blocks)
@@ -260,7 +268,7 @@ def test_unknown_then_unblock_after_reading_the_after_state(served, tmp_path):
     assert call("admin_unblock_preview", {"device": "lab"}) == {"result": "not-blocked", "device": "lab"}
 
     # the return of the change is a new approved change, not a confirmation of the unknown one
-    remove = vlan(op="delete", request_id="req-g07-0004")
+    remove = vlan(op="delete", request_id="req-execution-access-0004")
     plan = call("admin_preview", remove)
     assert plan["result"] == "ready"
     gone = call("admin_apply", dict(remove, expected_plan_sha256=plan["plan_sha256"]))
@@ -268,7 +276,7 @@ def test_unknown_then_unblock_after_reading_the_after_state(served, tmp_path):
 
 
 def test_the_before_state_keeps_the_block_for_a_person(served):
-    # 502-rv finding 2: the state before is not lifted over MCP; a person checks it (admin recover, admin unblock)
+    # Review finding 2: the state before is not lifted over MCP; a person checks it (admin recover, admin unblock)
     device, rt = served
     baseline = interfaces(device)
     answer = unknown_after_confirmation(device)
@@ -294,7 +302,7 @@ def test_unblock_with_the_hash_of_another_state_is_refused(served):
     assert ahead["observed"] == "after"
     del device.net[IF][KEY]
     answer = call("admin_unblock", {"device": "lab", "reason": "x", "expected_unblock_sha256": ahead["unblock_sha256"]})
-    # the state before is refused as such (502-rv finding 2), whatever hash is sent
+    # the state before is refused as such (review finding 2), whatever hash is sent
     assert answer["result"] == "rejected" and answer["reason_codes"] == ["unblock_operator_only"]
     assert rt.store.blocked("lab") is not None
 
@@ -329,7 +337,7 @@ def test_a_left_safeguard_keeps_the_block_for_admin_recover(served):
     device, rt = served
     # the path is lost right after the change: the safeguard stays installed
     device.unreachable_after_apply = lambda lines: lines[:1] == ["config system interface"]
-    answer = call("admin_apply", vlan())
+    answer = approved_call(vlan())
     device.unreachable_after_apply = None
     device.unreachable = False
     assert answer["result"] == "unknown" and device.stitches
@@ -349,7 +357,7 @@ def test_other_blocks_stay_the_operator_command(served):
     assert answer["reason_codes"] == ["unblock_operator_only"] and rt.store.blocked("lab") is not None
     # a confirmed operation that blocks (not persisted) is not an unknown state either
     assert execute.unblock(rt, "lab", "operator") is True
-    first = call("admin_apply", vlan())
+    first = approved_call(vlan())
     rt.store.block("lab", first["change_id"], "not persisted")
     answer = call("admin_unblock_preview", {"device": "lab"})
     assert answer["reason_codes"] == ["unblock_operator_only"]
@@ -399,13 +407,13 @@ def test_the_unblock_digest_binds_block_operation_and_state():
         unblock_digest("lab", block, record, "neither", None)
 
 
-# --- 502-rv finding 1: a hash is valid only for the preview this server issued -------------------------------------
+# --- Review finding 1: a hash is valid only for the preview this server issued -------------------------------------
 
 def test_an_undo_hash_obtained_without_the_undo_preview_writes_nothing(served):
     device, rt = served
-    first = call("admin_apply", vlan())
+    first = approved_call(vlan())
     # the plan_sha256 of an ordinary preview of the same delete equals the plan of the undo (RESULT-502 open item 5)
-    plain = call("admin_preview", vlan(op="delete", request_id="req-g07-0009"))
+    plain = call("admin_preview", vlan(op="delete", request_id="req-execution-access-0009"))
     assert plain["result"] == "ready"
     blocks, records = len(device.applied_blocks), len(rt.store.records())
     answer = call("admin_undo", {"change_id": first["change_id"], "reason": "return",
@@ -416,7 +424,7 @@ def test_an_undo_hash_obtained_without_the_undo_preview_writes_nothing(served):
 
 def test_a_hash_from_an_undo_refusal_is_not_usable(served):
     device, rt = served
-    first = call("admin_apply", vlan())
+    first = approved_call(vlan())
     blocks = len(device.applied_blocks)
     refused = call("admin_undo", {"change_id": first["change_id"], "reason": "return",
                                   "expected_plan_sha256": "f" * 64})
@@ -432,12 +440,12 @@ def test_a_hash_from_an_undo_refusal_is_not_usable(served):
 
 def test_an_old_undo_hash_after_a_change_of_state_writes_nothing(served):
     device, rt = served
-    first = call("admin_apply", vlan())
+    first = approved_call(vlan())
     ahead = call("admin_undo_preview", {"change_id": first["change_id"], "reason": "return"})
     assert ahead["result"] == "ready"
     # the state changes and comes back: two more approved changes of the same object
     for number, alias in ((5, "changed"), (6, VLAN["alias"])):
-        change = vlan(op="update", changes={"alias": alias}, request_id="req-g07-000%d" % number)
+        change = vlan(op="update", changes={"alias": alias}, request_id="req-execution-access-000%d" % number)
         plan = call("admin_preview", change)
         assert call("admin_apply", dict(change, expected_plan_sha256=plan["plan_sha256"]))["result"] == "confirmed"
     blocks = len(device.applied_blocks)
@@ -450,7 +458,7 @@ def test_an_old_undo_hash_after_a_change_of_state_writes_nothing(served):
 
 def test_an_expired_undo_preview_writes_nothing(served, monkeypatch):
     device, rt = served
-    first = call("admin_apply", vlan())
+    first = approved_call(vlan())
     ahead = call("admin_undo_preview", {"change_id": first["change_id"], "reason": "return"})
     monkeypatch.setattr(execute, "PREVIEW_TICKET_SECONDS", -1, raising=False)
     blocks = len(device.applied_blocks)
@@ -485,16 +493,17 @@ def test_an_old_unblock_hash_after_a_change_of_state_lifts_nothing(served):
     assert rt.store.blocked("lab")["change_id"] == answer["change_id"]
 
 
-# --- 502-rv finding 2: revert-failed and schema transactions stay the operator command ---------------------------
+# --- Review finding 2: revert-failed and schema transactions stay the operator command ---------------------------
 
 def test_a_revert_failed_block_stays_the_operator_command(served, monkeypatch):
     from test_execute_notify_and_budget import after_check, blind_safeguard
 
     device, rt = served
     # the safeguard never fires and the postcheck finds a difference: after its expiry the change is still there
+    approved = dict(vlan(), expected_plan_sha256=call("admin_preview", vlan())["plan_sha256"])
     device.on_apply = blind_safeguard
     after_check(monkeypatch, 1, ["scripted postcheck difference"])
-    answer = call("admin_apply", vlan())
+    answer = call("admin_apply", approved)
     device.on_apply = None
     assert answer["result"] == "revert-failed", answer
     assert KEY in device.net[IF] and not device.stitches and not device.triggers and not device.actions
@@ -512,7 +521,7 @@ def test_a_schema_transaction_block_stays_the_operator_command(tmp_path, monkeyp
     from test_schema_execute import op as schema_op, request as schema_request, runtime as schema_bench
 
     value, fake = schema_bench(tmp_path, monkeypatch)
-    done = execute.apply(value, "lab", schema_request([schema_op()]))
+    done = approved_apply(value, "lab", schema_request([schema_op()]))
     assert done["result"] == "confirmed"
     change = done["change_id"]
 
@@ -539,7 +548,7 @@ def test_a_schema_transaction_block_stays_the_operator_command(tmp_path, monkeyp
 
 def test_the_bound_tools_are_off_without_the_opt_in(served_default):
     device, rt = served_default
-    first = call("admin_apply", vlan())
+    first = approved_call(vlan())
     ahead = call("admin_undo_preview", {"change_id": first["change_id"], "reason": "return"})
     assert ahead["result"] == "ready"
     blocks = len(device.applied_blocks)

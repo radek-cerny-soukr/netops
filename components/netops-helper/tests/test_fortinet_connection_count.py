@@ -115,7 +115,7 @@ def test_interface_list_uses_one_connection_for_telemetry(replay):
 def test_fortiadc_interface_list_with_live_read_only_prompt(replay):
     install, verify = replay
     command = "get system interface"
-    # Sanitized VM220 netops-read prompt captured in live acceptance 614.
+    # Sanitized fortiadc-kvm netops-read prompt captured in a live acceptance run.
     auth = install("fortiadc", {command: "== [ port1 ]\nname: port1\n"}, prompt="LLLLLLLL-LLL $ ")
     result = engine.ssh_read(auth, "fortiadc", "interface_list", {}, 0, 16000)
     assert result["ok"], result
@@ -191,7 +191,7 @@ def test_fortiadc_config_uses_terminal_framing_and_stream_redaction(replay):
     from netops_helper.sanitize import digest_text
 
     install, verify = replay
-    fixtures = Path(__file__).parent / "fixtures" / "fortiadc_g31"
+    fixtures = Path(__file__).parent / "fixtures" / "fortiadc_adc_health"
     captured = (fixtures / "profile.out").read_text().splitlines(keepends=True)
     _, _, first = captured[0].partition("# ")
     body = first + "".join(captured[1:-1])
@@ -291,7 +291,7 @@ def test_vdom_navigation_disconnect_does_not_read_in_unverified_context(replay):
 
 @pytest.mark.parametrize("recipe", ["disk_usage", "packet_capture"])
 def test_fortiadc_diagnostic_disconnect_before_identity_closes_session(replay, recipe):
-    from test_g32_adc import INVENTORY, VS
+    from test_adc_objects_adc import INVENTORY, VS
 
     install, verify = replay
     inventory = {**INVENTORY, "diagnostic_recipes": (recipe,)}

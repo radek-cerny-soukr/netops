@@ -5,6 +5,7 @@ from test_execute import make_runtime, request
 from fake_fortios import FakeFortiOS
 from fake_exos import FakeExos
 from test_execute_exos import make_runtime as exos_runtime, request as exos_request
+from approved_apply import approved_apply
 
 
 @pytest.mark.parametrize("updates", [
@@ -25,11 +26,11 @@ def test_notification_exception_is_durable_and_blocks_next_write(tmp_path):
     def broken(_record):
         raise RuntimeError("transport unavailable")
     runtime.notifier = broken
-    record = execute.apply(runtime, "lab", request())
+    record = approved_apply(runtime, "lab", request())
     assert record["result"] == "confirmed" and record["notification"] == "failed"
     from netops_admin.errors import Rejected
     with pytest.raises(Rejected, match="notification"):
-        execute.apply(runtime, "lab", request(request_id="after-failure", key="another"))
+        approved_apply(runtime, "lab", request(request_id="after-failure", key="another"))
 
 
 @pytest.mark.parametrize("save_fails", [False, True])
@@ -43,7 +44,7 @@ def test_recover_confirmation_must_save_the_restored_configuration(tmp_path, mon
         raise Crash()
     monkeypatch.setattr(execute, "_persist", interrupted)
     with pytest.raises(Crash):
-        execute.apply(runtime, "sw", exos_request())
+        approved_apply(runtime, "sw", exos_request())
     monkeypatch.setattr(execute, "_persist", original)
     calls = []
     def save(*args):
@@ -130,7 +131,7 @@ def test_upm_membership_must_restore_persistable_state_not_only_live_state(tmp_p
         if len(fake.applied_blocks) == 2:
             fake.check_unreadable = True
     target.on_apply = fail_after_change
-    record = execute.apply(runtime, name, request("vlan-membership", "10", {"untagged": "staging", "tagged": []}))
+    record = approved_apply(runtime, name, request("vlan-membership", "10", {"untagged": "staging", "tagged": []}))
     assert record["result"] == "revert-failed"
     assert target.memberships["10"]["untagged"] == "users"
     assert not engine.verify(record["plan"], target.snapshot().encode(), expect="before")["object_matches"]
@@ -145,6 +146,6 @@ def test_partial_native_move_still_attempts_every_inverse_command(tmp_path):
         else:
             fake.fail_at_line = None
     target.on_apply = partial
-    record = execute.apply(runtime, name, request("vlan-membership", "10", {"untagged": "staging", "tagged": ["guest", "users"]}))
+    record = approved_apply(runtime, name, request("vlan-membership", "10", {"untagged": "staging", "tagged": ["guest", "users"]}))
     assert record["result"] == "reverted"
     assert engine.verify(record["plan"], target.snapshot().encode(), expect="before")["result"] == "match"

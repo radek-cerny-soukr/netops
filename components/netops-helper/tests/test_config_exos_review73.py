@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Review 73 regressions for the unregistered EXOS consumer ``config_exos`` (task 109-06, part 76).
+"""Review regressions for the unregistered EXOS consumer ``config_exos`` (verification).
 
 73-N1 (P1): inside a quoted value a backslash escapes the very next real character, also an ordinary
 one such as ``b``/``t``/``c``; it must not swallow a later quote.  Otherwise an unknown multi-line
@@ -166,9 +166,9 @@ REVIEW73_LIMITS = dict(physical_line_bytes=65536, logical_record_bytes=65536, me
 
 
 @pytest.mark.parametrize("data,total", [
-    (b"enable ports 1\n" * 3000, 45000),                    # exact review 73 repro
+    (b"enable ports 1\n" * 3000, 45000),                    # exact review repro
     (b"enable ports 1\n" + b"\n" * 60000, 15 + 60000),      # many tiny lines in one feed
-], ids=["review73-3000-lines", "60000-empty-lines"])
+], ids=["review-3000-lines", "60000-empty-lines"])
 def test_n2_single_large_feed_peak_internal_memory_stays_within_budget(data, total):
     """Measures, with tracemalloc in this CPython, the peak of NEW Python allocations made while the
     consumer processes one ``feed`` call.  The caller-owned input ``data`` and the redactor are

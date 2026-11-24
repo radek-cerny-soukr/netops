@@ -28,5 +28,5 @@
   "volatile": [],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "Uses the Junos commit confirmed safeguard and scoped inverse (G132). Ordered term:prefix-list:accept or term:prefix-list:reject values. Use - for a catch-all. The inverse restores the configured evaluation order."
+  "rollback_evidence": "Live write and return on vJunos-switch 26.2R1.7 (2026-11-19): The OSPF interface or routing policy configuration was changed, read back and undone. Uses the Junos commit confirmed safeguard and scoped inverse (junos routing). Ordered term:prefix-list:accept or term:prefix-list:reject values. Use - for a catch-all. The inverse restores the configured evaluation order."
 }

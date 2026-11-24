@@ -1,6 +1,0 @@
-
-IPV4 ACL NETOPS-G103-V4
-	Total ACEs Configured: 2
-	Configured on interfaces:
-		Vlan3910 - ingress (Router ACL)
-	Active on interfaces:

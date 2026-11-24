@@ -1,4 +1,4 @@
-"""Review 115-N1: a long non-blank line of an ExtremeXOS `show mlag ports` capture is never silently dropped.
+"""Review finding N1: a long non-blank line of an ExtremeXOS `show mlag ports` capture is never silently dropped.
 
 Exactly four directly affected cases of `summarize_ports()` (real parser, no mocks):
 1. REAL empty table + one DERIVED 1025-character data line -> partial, `members` missing (count 0 is not complete);

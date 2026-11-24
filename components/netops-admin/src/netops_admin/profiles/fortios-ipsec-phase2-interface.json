@@ -89,5 +89,5 @@
   "volatile": [],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "The undo deletes the newly created Phase 2 selector only, after verifying that it still matches its confirmed configuration."
+  "rollback_evidence": "Live write and return on FortiOS 7.6.8 build3744 (2026-11-20): A Phase 2 selector was created or copied, read back and deleted by undo. The undo deletes the newly created Phase 2 selector only, after verifying that it still matches its confirmed configuration."
 }

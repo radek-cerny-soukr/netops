@@ -42,7 +42,7 @@ def config(profiles=None, admins=None, vdom='config system vdom\n  edit root\n  
             'config system admin\n  edit "admin"\n    set access-profile super_admin_prof\n'
             '    set password ENC ADMIN-FIXTURE\n  next\n' + admins + 'end\n' + vdom)
     if include_defaults:
-        # Top-level extent from the VM220 7.6.7 show full-configuration export fixture.
+        # Top-level extent from the fortiadc-kvm 7.6.7 show full-configuration export fixture.
         body += ('config system interface\nend\n'
                  'config security web-vulnerability-scanner task\nend\n'
                  'config security web-vulnerability-scanner integration\nend\n')
@@ -267,7 +267,7 @@ class FortiADCConfiguration(TestCase):
         self.assertEqual(metadata, {'product': 'FortiADC-KVM', 'version': '7.6.7', 'build': '0676'})
         self.assertEqual(f.verify_identity(STATUS.replace('\n', '\r\n'))[0], f.SUPPORTED)
         self.assertEqual(f.firmware_support(f.SUPPORTED)['status'], 'tested')
-        # G00 (2026-11-17): another version or build is read and reported as untested, not refused.
+        # STARTUP (2026-11-17): another version or build is read and reported as untested, not refused.
         for status, firmware in ((STATUS.replace('v7.6.7', 'v7.6.6'), ('FortiADC-KVM', '7.6.6', '0676')),
                                  (STATUS.replace('build0676', 'build0677'), ('FortiADC-KVM', '7.6.7', '0677'))):
             self.assertEqual(f.verify_identity(status)[0], firmware)

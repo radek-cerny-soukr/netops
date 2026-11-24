@@ -227,12 +227,12 @@ class RefusalLinearTime(unittest.TestCase):
     def test_hundred_thousand_spaces_finish_within_the_limit(self):
         for platform, head in HEADS:
             pattern = engine._CLI_REFUSALS[platform]
-            text = head + " " * 100_000 + "\rX\n"
+            text = head + " " * 400_000 + "\rX\n"
             with self.subTest(platform=platform, head=head):
                 start = time.perf_counter()
                 subprocess.run([sys.executable, "-I", "-c", SEARCH, pattern.pattern, str(int(pattern.flags))],
-                               input=text, text=True, check=True, timeout=5)
-                self.assertLess(time.perf_counter() - start, 5)
+                               input=text, text=True, check=True, timeout=60)  # hard stop only
+                self.assertLess(time.perf_counter() - start, 60)
 
     def test_new_expression_is_much_faster_than_the_old_one(self):
         for platform, head in HEADS[:1] + HEADS[3:]:

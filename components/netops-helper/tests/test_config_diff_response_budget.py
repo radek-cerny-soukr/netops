@@ -1,4 +1,4 @@
-"""Task 211: final diff redaction budget, using real 178 captures and fake SSH."""
+"""verification: final diff redaction budget, using real 178 captures and fake SSH."""
 
 import pytest
 

@@ -1,8 +1,8 @@
-"""Narrow ExtremeXOS wiring for the public ``config_read`` (task 81).
+"""Narrow ExtremeXOS wiring for the public ``config_read`` (verification).
 
 Only one documented option set is admitted: platform ``extreme_exos``, redaction ``full``,
 section ``all`` with ``include_all`` true, no defaults, running view.  The live identity (model, image)
-must be read conclusively; it is compared with the tested identities (G00, decision of 2026-11-17): another
+must be read conclusively; it is compared with the tested identities (startup, decision of 2026-11-17): another
 model or image is read too and reported as ``firmware_support`` ``untested`` with a warning, never refused
 for its version.  The accepted consumer :class:`config_exos.StreamRedactor` decides which lines are kept
 on every version (unknown lines stay hidden); this module only checks request options and identity and
@@ -14,7 +14,7 @@ Evidence for the tested identities (real captures, anonymized):
   ``ExtremeXOS version 33.7.1.6 33.7.1.6-patch1-11`` (it does not name the model);
 * ``tests/fixtures/real/exos/x440g2-12p-10g4_33.7.1.6/switch.txt`` -- ``show switch``:
   ``System Type: X440G2-12p-10G4`` with primary image 33.7.1.6 patch1-11 booted;
-* ``tests/fixtures/real/exos/g41-20261118/`` -- real-derived reads from both models.
+* ``tests/fixtures/real/exos/switch config-20261118/`` -- real-derived reads from both models.
 
 The model is never derived from a part number or serial number.  No other model or image is listed as
 tested without captured evidence.
@@ -48,7 +48,7 @@ VISIBILITY = ('account-rights-not-verified',)
 
 _CONTROL = re.compile('[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f  �]')
 # The release token is absent on an image without a patch (measured on EXOS-VM 33.6.1.14:
-# ``Image : ExtremeXOS version 33.6.1.14 by release-manager``, task 441); such a build is ''.
+# ``Image : ExtremeXOS version 33.6.1.14 by release-manager``, verification); such a build is ''.
 _IMAGE = re.compile(r'Image[ \t]*:[ \t]*ExtremeXOS version ([0-9]+(?:\.[0-9]+){3})[ \t]+'
                     r'(?:([0-9]+(?:\.[0-9]+){3}-patch[0-9]+-[0-9]+)[ \t]+)?by[ \t]+\S.*')
 # The line after the booted ``Primary ver``/``Secondary ver`` line: its patch, or (no patch) the next

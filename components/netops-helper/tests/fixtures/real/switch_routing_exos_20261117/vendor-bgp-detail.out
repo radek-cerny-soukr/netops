@@ -1,0 +1,9 @@
+Peer Description    :
+EBGP Peer           : 192.0.2.2      AS                  : 38
+Enabled             : Yes               OperStatus          : Up
+Weight              : 1                 Shutdown-Priority   : 1024
+ConnectRetry        : 120               MinAsOrig           : 30
+HoldTimeCfg         : 180               KeepaliveCfg        : 60
+Source Interface    : Not configured    RRClient            : No
+EBGP-Multihop       : No                Remove Private AS   : No
+BFD                 : Off               BFD Status          : Not Required

@@ -271,7 +271,7 @@ def test_registry_resolves_every_vendor_composite_to_its_narrative() -> None:
 
 def test_cisco_management_rows_match_exact_commands_and_existing_sources() -> None:
     text = _read(SOURCE_DIR / "cisco.md").split(
-        "### Management diagnostics (G56/G74/G95)\n", 1,
+        "### Management diagnostics (ROUTER-MANAGEMENT/XE-MANAGEMENT/NXOS-MANAGEMENT)\n", 1,
     )[1].split("For `cisco_nxos`", 1)[0]
     rows = re.findall(
         r"^\| `(cisco_[^`]+)` \| `([^`]+)` \| `([^`]+)` \| (.+) \|$",

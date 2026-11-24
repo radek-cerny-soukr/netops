@@ -6,6 +6,7 @@ from fake_fortios import FakeFortiOS
 from test_execute import make_runtime, request
 from netops_admin import execute, cli, mcp_server
 from netops_admin.errors import Rejected
+from approved_apply import approved_apply
 
 
 @pytest.mark.parametrize('case,code,message', [
@@ -23,7 +24,7 @@ def test_actual_refusals(tmp_path, case, code, message, method):
     elif case == 'notification':
         # a real finished operation whose notification failed stays in the journal as undelivered
         runtime.notifier = lambda record: 'failed'
-        change = execute.apply(runtime, 'lab', request(key='first', request_id='req-first-123'))['change_id']
+        change = approved_apply(runtime, 'lab', request(key='first', request_id='req-first-123'))['change_id']
         assert runtime.store.operation(change)['notification'] == 'failed'
     elif case == 'running':
         # a real unfinished operation record in the journal
@@ -31,7 +32,7 @@ def test_actual_refusals(tmp_path, case, code, message, method):
                             'status': 'running', 'created_at_epoch': 1.0})
         assert [record['change_id'] for record in runtime.store.running('lab')] == ['a' * 32]
     else:
-        execute.apply(runtime, 'lab', request())
+        approved_apply(runtime, 'lab', request())
     message = message % {'change': change}
     req = request(key='different') if case == 'reused' else request(key='second', request_id='req-second-123')
     if method == 'preview':
@@ -40,7 +41,7 @@ def test_actual_refusals(tmp_path, case, code, message, method):
         assert result['reason_codes'] == [code]
     else:
         with pytest.raises(Rejected) as caught:
-            execute.apply(runtime, 'lab', req)
+            approved_apply(runtime, 'lab', req)
         assert caught.value.reasons == [message]
         assert caught.value.reason_codes == [code]
         result = mcp_server.rejected(caught.value)
@@ -62,7 +63,7 @@ def test_actual_budget_refusals(tmp_path, budget, limit, message, method):
         reasons, codes, details = result['reasons'], result['reason_codes'], result['reason_details']
     else:
         with pytest.raises(Rejected) as caught:
-            execute.apply(runtime, 'lab', request())
+            approved_apply(runtime, 'lab', request())
         reasons, codes, details = caught.value.reasons, caught.value.reason_codes, caught.value.reason_details
     assert reasons == [message]
     assert codes == ['budget_exhausted']
@@ -78,7 +79,9 @@ def test_cli_apply_preserves_refusal(tmp_path, monkeypatch, capsys):
     from conftest import request_bytes
     path = tmp_path / 'request.json'
     path.write_bytes(request_bytes())
-    assert cli.main(['apply', '--config', 'unused', '--device', 'lab', '--request', str(path)]) == cli.EXIT_REJECTED
+    # the blocked device refuses before any plan exists, so the well-formed plan hash is never compared
+    assert cli.main(['apply', '--config', 'unused', '--device', 'lab', '--request', str(path),
+                     '--expect-plan-sha256', '0' * 64]) == cli.EXIT_REJECTED
     result = json.loads(capsys.readouterr().out)
     assert result['reason_codes'] == ['device_blocked']
     assert result['reasons'] == ['the device is blocked (investigate, operation none); a person must investigate and unblock it']
@@ -88,7 +91,7 @@ def test_enrollment_and_undo_codes(tmp_path):
     from netops_admin import enrollment
     device = FakeFortiOS()
     runtime = make_runtime(tmp_path, device)
-    record = execute.apply(runtime, 'lab', request())
+    record = approved_apply(runtime, 'lab', request())
     execute.undo(runtime, record['change_id'], 'restore')
     with pytest.raises(Rejected) as caught:
         execute.undo(runtime, record['change_id'], 'different reason')
@@ -108,7 +111,7 @@ def test_unreadable_refusal_count_code(tmp_path):
     from netops_admin.state import REJECTIONS_FILE
     (runtime.store.root / REJECTIONS_FILE).write_text('invalid')
     with pytest.raises(Rejected) as caught:
-        execute.apply(runtime, 'lab', request())
+        approved_apply(runtime, 'lab', request())
     assert caught.value.reason_codes == ['state_unreadable']
     assert caught.value.reasons == ['the count of refused requests (%s) cannot be read; a person must check it' % REJECTIONS_FILE]
 

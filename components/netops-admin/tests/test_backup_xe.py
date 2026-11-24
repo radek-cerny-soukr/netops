@@ -11,11 +11,11 @@ import pytest
 from netops_admin import backup_xe, cli
 from netops_core import ssh
 
-FIXTURES = Path(__file__).resolve().parents[2] / 'netops-helper/tests/fixtures/real/cisco_xe/g76'
+FIXTURES = Path(__file__).resolve().parents[2] / 'netops-helper/tests/fixtures/real/cisco_xe/xe-config'
 PIN = 'SHA256:AEDEktUNmcPvCUTzy+fdyqWAbjUm+gT5GdG985wWBuc'
 
 
-@pytest.fixture(params=['d-iolxe', 'd-iolxe-l2'])
+@pytest.fixture(params=['iol-xe-router', 'iol-xe-switch'])
 def lab(request, monkeypatch, tmp_path, capsys):
     directory = tmp_path / 'private'
     directory.mkdir(mode=0o700)
@@ -91,7 +91,7 @@ def test_invalid_capture_creates_no_archive(lab, broken, reason):
     replies['show running-config'] = {
         'end': data.rsplit(b'end', 1)[0],
         'size': re.sub(rb'(?<=Current configuration : )\d+', b'9216', data),
-        'refused': (FIXTURES / 'd-iolxe-refused.out').read_bytes(),
+        'refused': (FIXTURES / 'iol-xe-router-refused.out').read_bytes(),
     }[broken]
     _, plan = invoke(args)
     rc, result = invoke([*args, '--confirm', plan['plan_sha256']])

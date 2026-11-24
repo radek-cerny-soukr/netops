@@ -64,5 +64,5 @@
     ]
   },
   "inverse_identity_changes": {},
-  "rollback_evidence": "G46 X20. Directly connected IPv4 unicast peer in VR-Default. A route-policy names a policy already available on the switch. Disable or enable the selected peer and manage its own inbound and outbound attachments. The remote AS is set at creation. See the G46 measurements on ExtremeXOS 33.6.1.14 (task netops-20261119-611)."
+  "rollback_evidence": "Live write and return on ExtremeXOS 33.6.1.14 (2026-11-19): The IPv4 peer, its state and its policy attachments were changed and undone. switch dynamic routing X20. Directly connected IPv4 unicast peer in VR-Default. A route-policy names a policy already available on the switch. Disable or enable the selected peer and manage its own inbound and outbound attachments. The remote AS is set at creation. See the switch dynamic routing measurements on ExtremeXOS 33.6.1.14."
 }

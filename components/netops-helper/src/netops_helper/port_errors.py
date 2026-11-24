@@ -372,7 +372,7 @@ def nxos_details(text):
 
 
 def parse(profile, text, command=None):
-    # Whole `show interfaces` or the bounded `show interfaces <if>` (G53); not `... counters errors`.
+    # Whole `show interfaces` or the bounded `show interfaces <if>` (router ports); not `... counters errors`.
     if profile in ('cisco_ios', 'cisco_xe') and command and re.fullmatch(r'show interfaces(?: \S+)?', command):
         return ios_details(text, xe=profile == 'cisco_xe' and command != 'show interfaces')
     if profile == 'cisco_nxos' and command and re.fullmatch(r'show interface Ethernet[0-9/]+', command):
@@ -476,7 +476,7 @@ def read(auth, interface, query_read):
                 primary, parameters = 'interface_errors', bounded['interface_errors']
                 fallback_query = 'interface_details'
     if profile == 'cisco_ios' and interface is not None:
-        # G53 (IOS only, verified on IOSvL2): an enrolled port with a slot query enabled is read only with its per-port
+        # router ports (IOS only, verified on IOSvL2): an enrolled port with a slot query enabled is read only with its per-port
         # queries (`show interfaces <if> counters errors`, then `show interfaces <if>`), exactly the set the proxy
         # authorizes for it (proxy.py, bounded_queries); a missing one is skipped, never replaced by a whole-switch read.
         # Without any usable per-port query the whole tables stay the source.

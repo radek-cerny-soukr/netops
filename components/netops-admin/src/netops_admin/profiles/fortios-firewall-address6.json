@@ -1,0 +1,84 @@
+{
+  "platform": "fortios",
+  "table": "firewall address6",
+  "versions": [
+    "7.6.8 build3744"
+  ],
+  "ops": [
+    "create",
+    "update",
+    "delete"
+  ],
+  "key_pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,78}$",
+  "protected_keys": [
+    "all",
+    "none"
+  ],
+  "attributes": {
+    "type": {
+      "type": "text",
+      "required_on_create": false,
+      "update": false,
+      "unset": false,
+      "referenced_update": true,
+      "default": "ipprefix",
+      "max_length": 8,
+      "pattern": "^(?:ipprefix|iprange|fqdn)$"
+    },
+    "ip6": {
+      "type": "ipv6-network",
+      "required_on_create": false,
+      "update": true,
+      "unset": false,
+      "referenced_update": true,
+      "default": "::/0"
+    },
+    "start-ip": {
+      "type": "ipv6-address",
+      "required_on_create": false,
+      "update": true,
+      "unset": false,
+      "referenced_update": true,
+      "default": "::"
+    },
+    "end-ip": {
+      "type": "ipv6-address",
+      "required_on_create": false,
+      "update": true,
+      "unset": false,
+      "referenced_update": true,
+      "default": "::"
+    },
+    "fqdn": {
+      "type": "text",
+      "required_on_create": false,
+      "update": true,
+      "unset": false,
+      "referenced_update": true,
+      "max_length": 255,
+      "pattern": "^(?:\\*\\.)?[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*\\.?$"
+    },
+    "comment": {
+      "type": "text",
+      "required_on_create": false,
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "max_length": 255
+    }
+  },
+  "fixed": {},
+  "volatile": [
+    "uuid"
+  ],
+  "reserved_values": {},
+  "inverse_identity_changes": {
+    "delete": [
+      "uuid"
+    ]
+  },
+  "rollback_evidence": "Measured on FortiGate-60F v7.6.8,build3744 on 2026-11-23 with the full admin orchestration and the cli-script safeguard: create of an IPv6 prefix (2001:db8:a3::/64 with a comment) and of an IPv6 range (type iprange, start-ip and end-ip), update of the prefix while a disabled IPv6 policy used the object through an address group, and the undo of each (update returned to the earlier prefix, create returned by delete) ended confirmed, and the check account showed the predicted object each time. Refused before any write: apply without the approved preview hash (fortios_object_preview_required) and the delete of the object while an address group held it (fortios_object_referenced). show and show full-configuration of firewall address6 equalled the output before the run. show omits type ipprefix and ip6 ::/0; a range shows set type iprange. type fqdn and the delete request itself (outside an undo) are covered by the simulated device only. A recreated object receives a new uuid. FortiOS 8.0.1 and later: refused before any write (safeguard_no_rest_inverse), verified by preview on FortiOS 8.0.2 build0251.",
+  "exact_versions": true,
+  "provisional": true,
+  "measured": true
+}

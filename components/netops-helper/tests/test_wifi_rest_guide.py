@@ -20,7 +20,7 @@ def test_the_endpoint_table_is_the_code_allowlist():
 
 def test_release_notes_and_changelog_include_all_wifi_rounds():
     root = GUIDE.parents[1]
-    changelog = (root / 'CHANGELOG.md').read_text()
+    changelog = (root / 'docs/changelog-archive.md').read_text()
     assert changelog.index('## 1.0.7') < changelog.index('Wi-Fi triage reads station-filtered')
     notes = (root / 'release/notes-1.0.7.md').read_text()
     for text in (changelog, notes):

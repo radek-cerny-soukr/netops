@@ -1,0 +1,6 @@
+
+IPV6 ACL NETOPS-NXOS-ACCESS-CONTROL-V6
+	Total ACEs Configured: 2
+	Configured on interfaces:
+		Vlan3910 - egress (Router ACL)
+	Active on interfaces:

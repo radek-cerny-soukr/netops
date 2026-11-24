@@ -1,0 +1,9 @@
+#
+# Module vlan configuration.
+#
+create vlan "netops-ospf"
+enable ipforwarding ipv6 vlan netops-ospf
+configure vlan netops-ospf tag 3946
+configure vlan netops-ospf ipaddress 198.51.100.1 255.255.255.0
+enable ipforwarding vlan netops-ospf
+configure vlan netops-ospf ipaddress eui64 fe80::/64

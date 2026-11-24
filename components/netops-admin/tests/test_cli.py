@@ -112,10 +112,12 @@ def test_recover_exits_with_the_blocked_code_when_a_settled_operation_blocked_th
 
 
 def test_failed_save_on_the_switch_exits_with_the_blocked_code(monkeypatch, tmp_path, capsys):
+    from approved_apply import preview_hash
     from fake_exos import FakeExos
     from test_execute_exos import make_runtime
 
     from netops_admin import cli, config
+    from netops_admin.request import parse_request
 
     device = FakeExos()
     device.refuse_save = True
@@ -124,7 +126,8 @@ def test_failed_save_on_the_switch_exits_with_the_blocked_code(monkeypatch, tmp_
     monkeypatch.setattr(cli, "build_runtime", lambda _config: runtime)
     request = tmp_path / "request.json"
     request.write_bytes(request_bytes(table="vlan", key="guest", changes={"tag": 3999, "description": "guest wifi"}))
+    approved = preview_hash(runtime, "sw", parse_request(request.read_bytes()))
     code, document = run(capsys, "apply", "--config", str(tmp_path / "admin.json"), "--device", "sw",
-                         "--request", str(request))
+                         "--request", str(request), "--expect-plan-sha256", approved)
     assert (code, document["result"], document["reason"]) == (EXIT_CONFIRMED_BLOCKED, "confirmed", "not persisted")
     assert runtime.store.blocked("sw")["reason"] == "not persisted"

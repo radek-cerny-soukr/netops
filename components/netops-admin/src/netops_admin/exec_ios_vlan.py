@@ -1,4 +1,4 @@
-"""IOS (switch image, G60) and IOS XE (G78) VLAN database lifecycle with compensating return, because vlan.dat is outside config rollback.
+"""IOS (switch image, ios switchports) and IOS XE (xe switchports) VLAN database lifecycle with compensating return, because vlan.dat is outside config rollback.
 
 Admin readback or failure returns the inverse in the same run; loss of process/path needs recover.
 Only unused VLANs are changed. No new timer or scheduler is installed on the device.

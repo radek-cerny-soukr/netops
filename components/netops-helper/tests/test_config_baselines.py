@@ -1,4 +1,4 @@
-"""G02 durable approvals through the public Helper bridge.
+"""PLATFORM-BASELINE durable approvals through the public Helper bridge.
 
 Success scenarios reuse the explicitly SYNTHETIC configurations of the pre-existing
 public config_diff tests; they do not constitute U-H evidence of successful live capture.
@@ -16,7 +16,7 @@ from netops_helper.auth import TargetAuth
 from test_config_diff_ios_family import env, _call, _read_arguments, _family_section, SPECS, _inventory, _register_late_secret
 from test_config_cisco_ios_public import _page
 
-REAL = Path(__file__).parent / 'fixtures' / 'real' / 'g02_20261117'
+REAL = Path(__file__).parent / 'fixtures' / 'real' / 'platform_baseline_20261117'
 
 
 @pytest.fixture(autouse=True)

@@ -1,8 +1,0 @@
-VLAN "netops-g48":
-    DHCP Address Range   : 192.0.2.30->192.0.2.49
-    Netlogin Lease Timer : Not configured (Default = 10 seconds)
-    DHCP Lease Timer     : 3600 seconds
-    Default Gateway      : 192.0.2.1
-    Primary DNS Server   : 192.0.2.2
-    Secondary DNS Server : 192.0.2.3
-    Ports DHCP Enabled   : 10

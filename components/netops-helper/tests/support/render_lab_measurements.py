@@ -42,33 +42,33 @@ NOT_CONFIGURED = re.compile(r'% BGP (?:not active|inactive)|IPv6 routing not ena
 
 
 
-NXOS_G92_CAPTURES = {
-    "stp_detail": "2255-stp-detail",
-    "stp_interface_detail": "2255-stp-port",
-    "stp_mst": "2255-stp-mst",
-    "port_channel_database": "2261-lag-database",
-    "lacp_interface": "2261-lacp-port-compact",
-    "port_channel_load_balance": "2261-lag-load",
-    "vpc_member_consistency": "2261-vpc-member",
-    "vpc_interface_consistency": "2261-vpc-interface-compact",
-    "lldp_neighbor_interface": "2255-lldp-mgmt-compact",
-    "cdp_neighbor_interface": "2261-cdp-port",
+NXOS_NXOS_PORTS_CAPTURES = {
+    "stp_detail": "single-stp-detail",
+    "stp_interface_detail": "single-stp-port",
+    "stp_mst": "single-stp-mst",
+    "port_channel_database": "peer-a-lag-database",
+    "lacp_interface": "peer-a-lacp-port-compact",
+    "port_channel_load_balance": "peer-a-lag-load",
+    "vpc_member_consistency": "peer-a-vpc-member",
+    "vpc_interface_consistency": "peer-a-vpc-interface-compact",
+    "lldp_neighbor_interface": "single-lldp-mgmt-compact",
+    "cdp_neighbor_interface": "peer-a-cdp-port",
 }
 
 def cisco_operational_capture(image: str, query: str) -> tuple[str, bool] | None:
     if query == "vrf_cef_lookup":
         capture = {
-            "iosv_15.9.3M12": REAL / "cisco_ios/g59/d-iosv/vrf_cef",
-            "iolxe_17.18.2": REAL / "cisco_xe/g77/d-iolxe/vrf_cef",
+            "iosv_15.9.3M12": REAL / "cisco_ios/router-path/iosv/vrf_cef",
+            "iolxe_17.18.2": REAL / "cisco_xe/xe-forwarding-path/iol-xe-router/vrf_cef",
         }.get(image)
         if capture is not None:
             return capture.read_text(), False
     node = {"iosv_15.9.3M12": "iosv", "iolxe_17.18.2": "iolxe"}.get(image)
     if node is None:
         return None
-    captures = REAL / "cisco_ios" / "g57" / node
+    captures = REAL / "cisco_ios" / "router-diagnostics" / node
     if node == "iolxe" and query == "qos_queues":
-        captures = REAL / "cisco_ios_xe" / "g75" / "lab"
+        captures = REAL / "cisco_ios_xe" / "xe-diagnostics" / "lab"
     read_only = captures / f"ro_{query}.out"
     if not read_only.is_file():
         return None
@@ -78,7 +78,7 @@ def cisco_operational_capture(image: str, query: str) -> tuple[str, bool] | None
     return text, admin_answered
 
 
-XE_G72_CAPTURES = {
+XE_XE_HEALTH_CAPTURES = {
     "log_history": "log_messages",
     "hsrp_detail": "hsrp_detail",
     "vrrp_detail": "vrrp_detail",
@@ -86,7 +86,7 @@ XE_G72_CAPTURES = {
     "object_tracking": "object_tracking",
 }
 
-IOS_XE_G73_ROUTER_CAPTURES = {
+IOS_XE_XE_SECURITY_ROUTER_CAPTURES = {
     "arp_lookup": "router-arp_global",
     "arp_lookup_vrf": "router-arp_vrf",
     "arp_table_vrf": "router-arp_vrf_table",
@@ -102,30 +102,30 @@ IOS_XE_G73_ROUTER_CAPTURES = {
 
 def cell(directory: Path, name: str, index: dict) -> str:
     entry = index.get(name)
-    groups = {"ceos_4.36.1F": ("g117_ceos_4.36.1F", "g118_ceos_4.36.1F", "g119_ceos_4.36.1F",
-                                       "g120_ceos_4.36.1F"),
-              "vjunosswitch_26.2R1.7": ("g132_vjunosswitch_26.2R1.7", "g133_vjunosswitch_26.2R1.7",
-                                      "g135_vjunosswitch_26.2R1.7")}.get(directory.name)
+    groups = {"ceos_4.36.1F": ("eos_routing_ceos_4.36.1F", "eos_ports_ceos_4.36.1F", "eos_management_ceos_4.36.1F",
+                                       "eos_health_ceos_4.36.1F"),
+              "vjunosswitch_26.2R1.7": ("junos_routing_vjunosswitch_26.2R1.7", "junos_switching_vjunosswitch_26.2R1.7",
+                                      "junos_security_vjunosswitch_26.2R1.7")}.get(directory.name)
     if entry is None and groups:
         # Recent groups keep both accounts in separate fixture directories.
         for group in groups:
             capture = directory.with_name(group)
             measured = json.loads((capture / "index.json").read_text())
             entry = measured.get(name + "_ro")
-            if entry is None and group.startswith("g133_"):
+            if entry is None and group.startswith("junos_switching_"):
                 entry = measured.get(name + "_admin")
             if entry is not None:
                 text = entry["text"] if "text" in entry else (capture / entry["file"]).read_text()
                 admin = name + "_admin" in measured and measured[name + "_admin"]["rc"] == 0
                 if "error: unknown command" in text and admin:
-                    # G132 probes: the Junos read-only class lacks the network permission; admin answers.
+                    # JUNOS-ROUTING probes: the Junos read-only class lacks the network permission; admin answers.
                     return "refused to the read-only account, answered to admin"
                 break
         else:
             return "-"
-    elif entry is None and directory.name == "nexus9300v_9.3.12" and name in NXOS_G92_CAPTURES:
-        capture = directory.with_name("g92_nexus9300v_9.3.12")
-        key = NXOS_G92_CAPTURES[name]
+    elif entry is None and directory.name == "nexus9300v_9.3.12" and name in NXOS_NXOS_PORTS_CAPTURES:
+        capture = directory.with_name("nxos_ports_nexus9300v_9.3.12")
+        key = NXOS_NXOS_PORTS_CAPTURES[name]
         for filename in ("index.json", "index-extra.json"):
             entry = json.loads((capture / filename).read_text())["captures"].get(key)
             if entry is not None:
@@ -133,7 +133,7 @@ def cell(directory: Path, name: str, index: dict) -> str:
         text = (capture / (key + ".out")).read_text()
         admin = False
     elif entry is None and directory.name == "nexus9300v_9.3.12":
-        capture = directory.with_name("g97") / "lab"
+        capture = directory.with_name("nxos-overlay") / "lab"
         entry = json.loads((capture / "index.json").read_text()).get(name)
         if entry is None:
             return "-"
@@ -142,22 +142,22 @@ def cell(directory: Path, name: str, index: dict) -> str:
     elif entry is None and (operational := cisco_operational_capture(directory.name, name)) is not None:
         text, admin = operational
         entry = {"rc": 0}
-    elif entry is None and directory.name == "iolxe_17.18.2" and name in XE_G72_CAPTURES:
-        capture = directory.with_name("iolxe_17.18.2_g72")
-        source = XE_G72_CAPTURES[name]
-        text = (capture / f"d-iolxe-ro-{source}.out").read_text()
-        admin = (capture / f"d-iolxe-admin-{source}.out").is_file()
+    elif entry is None and directory.name == "iolxe_17.18.2" and name in XE_XE_HEALTH_CAPTURES:
+        capture = directory.with_name("iolxe_17.18.2_xe_health")
+        source = XE_XE_HEALTH_CAPTURES[name]
+        text = (capture / f"iol-xe-router-ro-{source}.out").read_text()
+        admin = (capture / f"iol-xe-router-admin-{source}.out").is_file()
         entry = {"rc": 0}
     elif entry is None and directory.name == "iolxe_17.18.2":
-        for group in ("iolxe_17.18.2_g69", "iolxe_17.18.2_g70"):
+        for group in ("iolxe_17.18.2_xe_routing", "iolxe_17.18.2_xe_probes"):
             capture = directory.with_name(group) / (name + ".out")
             if capture.is_file():
                 break
         else:
-            filename = IOS_XE_G73_ROUTER_CAPTURES.get(name)
+            filename = IOS_XE_XE_SECURITY_ROUTER_CAPTURES.get(name)
             if filename is None:
                 return "-"
-            capture = directory.with_name("iolxe_17.18.2_g73") / (filename + ".out")
+            capture = directory.with_name("iolxe_17.18.2_xe_security") / (filename + ".out")
         read_only_capture = capture.with_name("ro_" + capture.name)
         admin = read_only_capture.is_file()
         text = (read_only_capture if admin else capture).read_text()

@@ -1,0 +1,5 @@
+config system dns-database
+    edit "netops-dhcp-dns.test"
+        set domain "netops-dhcp-dns.test"
+    next
+end

@@ -35,21 +35,30 @@ CONTENT = TypeAdapter(list[ContentBlock])
 
 # The long Helper triage tools report progress. A client that sent a progressToken then gets the call as
 # a server-sent event stream: audited notifications/progress events, then the audited result.
-PROGRESS_TOOLS = frozenset({"triage_health", "triage_routing", "triage_vpn", "triage_slb"})
+PROGRESS_TOOLS = frozenset({"triage_health", "triage_routing", "triage_vpn", "triage_slb", "network_overview"})
 MAX_PROGRESS_EVENTS = 64
 PROGRESS_SINK = contextvars.ContextVar("netops_progress_sink", default=None)
 
-def progress_request(scope, body):
-    """(request id, progress token) of a tools/call of a triage tool that asked for progress, else None."""
+def _tool_request(scope, body):
     if scope.get("method") != "POST" or scope.get("path") != "/mcp":
         return None
     try:
         message = json.loads(body, object_pairs_hook=strict_pairs, parse_constant=invalid_constant)
-    except Exception:
+    except (ValueError, RecursionError):
         return None
     params = message.get("params") if isinstance(message, dict) else None
-    if not isinstance(params, dict) or message.get("method") != "tools/call" or not isinstance(params.get("name"), str) or params["name"] not in PROGRESS_TOOLS:
+    if (isinstance(params, dict) and message.get("method") == "tools/call"
+            and isinstance(params.get("name"), str)):
+        return message
+    return None
+
+
+def progress_request(scope, body, *, request=None):
+    """Return the request ID and token of a Helper call that asked for progress."""
+    message = _tool_request(scope, body) if request is None else request
+    if message is None or message["params"]["name"] not in PROGRESS_TOOLS:
         return None
+    params = message["params"]
     meta = params.get("_meta")
     token = meta.get("progressToken") if isinstance(meta, dict) else None
     identifier = message.get("id")
@@ -210,6 +219,35 @@ def validate_buffered_response(events):
     for index, event in enumerate(events[1:], 1):
         if event["type"] != "http.response.body" or bool(event.get("more_body", False)) != (index < len(events) - 1):
             raise ValueError("Invalid buffered response completion")
+
+
+@asynccontextmanager
+async def _watch_overview_disconnect(enabled, receive):
+    if not enabled:
+        yield receive
+        return
+    owner = asyncio.current_task()
+    gone = asyncio.Event()
+
+    async def watch():
+        while (await receive())["type"] != "http.disconnect":
+            await asyncio.sleep(0.01)
+        gone.set()
+        owner.cancel()
+
+    async def monitored_receive():
+        await gone.wait()
+        return {"type": "http.disconnect"}
+
+    watcher = asyncio.create_task(watch())
+    try:
+        yield monitored_receive
+    except asyncio.CancelledError:
+        if gone.is_set():
+            raise _ClientDisconnected("Client disconnected during overview") from None
+        raise
+    finally:
+        await reap(watcher)
 
 
 async def send_audited_response(events, receive, send, *, complete=True):
@@ -518,8 +556,11 @@ class AuditBoundary:
                 if not delivered:
                     delivered = True
                     return {"type": "http.request", "body": bytes(body), "more_body": False}
-                return await receive()
-            asked = progress_request(scope, body)
+                return await dispatch_receive()
+            request = _tool_request(scope, body)
+            asked = progress_request(scope, body, request=request)
+            overview_call = request is not None and request["params"]["name"] == "network_overview"
+            dispatch_receive = receive
             streamed = False
             async def refuse_streamed(message):
                 # The 200 and the event stream are already on the wire: the outcome is the last event.
@@ -543,34 +584,35 @@ class AuditBoundary:
                     events.append({"type": "http.response.start", "status": 200, "headers": STREAM_HEADERS})
                 events.append({"type": "http.response.body", "body": server_event(notification), "more_body": True})
                 async with asyncio.timeout(RESPONSE_SEND_SECONDS):
-                    await send_audited_response(events, receive, send, complete=False)
+                    await send_audited_response(events, dispatch_receive, send, complete=False)
             try:
                 dispatched = True
-                if asked is None:
-                    await self.app(scope, replay_receive, buffered_send)
-                else:
-                    reports = asyncio.Queue()
-                    reporting = PROGRESS_SINK.set(reports.put)
-                    try:
-                        task = asyncio.create_task(self.app(scope, replay_receive, buffered_send))
-                    finally:
-                        PROGRESS_SINK.reset(reporting)
-                    sent = 0
-                    getter = None
-                    try:
-                        while not (task.done() and reports.empty()):
-                            getter = asyncio.ensure_future(reports.get())
-                            await asyncio.wait((getter, task), return_when=asyncio.FIRST_COMPLETED)
-                            if not getter.done():
-                                getter.cancel()
-                                await asyncio.wait((getter,))
-                            if not getter.cancelled():
-                                sent += 1
-                                await relay(getter.result(), sent)
-                            getter = None
-                        task.result()
-                    finally:
-                        await reap(task, getter)
+                async with _watch_overview_disconnect(overview_call, receive) as dispatch_receive:
+                    if asked is None:
+                        await self.app(scope, replay_receive, buffered_send)
+                    else:
+                        reports = asyncio.Queue()
+                        reporting = PROGRESS_SINK.set(reports.put)
+                        try:
+                            task = asyncio.create_task(self.app(scope, replay_receive, buffered_send))
+                        finally:
+                            PROGRESS_SINK.reset(reporting)
+                        sent = 0
+                        getter = None
+                        try:
+                            while not (task.done() and reports.empty()):
+                                getter = asyncio.ensure_future(reports.get())
+                                await asyncio.wait((getter, task), return_when=asyncio.FIRST_COMPLETED)
+                                if not getter.done():
+                                    getter.cancel()
+                                    await asyncio.wait((getter,))
+                                if not getter.cancelled():
+                                    sent += 1
+                                    await relay(getter.result(), sent)
+                                getter = None
+                            task.result()
+                        finally:
+                            await reap(task, getter)
                 validate_buffered_response(emitted)
             except (OSError, AuditUnavailable):
                 # Delivery failures already have a transport outcome. Reap the
@@ -613,7 +655,7 @@ class AuditBoundary:
                 response_started = True
                 await send_audited_response(delivery, receive, send)
         except (asyncio.CancelledError, OSError) as exc:
-            if isinstance(exc, OSError) and not response_started:
+            if isinstance(exc, OSError) and not isinstance(exc, _ClientDisconnected) and not response_started:
                 await JSONResponse({"error": "audit_unavailable", "automatic_retry": False, "operation_may_have_completed": dispatched}, 503)(scope, receive, send)
                 return
             try:

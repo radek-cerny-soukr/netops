@@ -1,0 +1,15 @@
+config firewall policy
+    edit 240024
+        set status disable
+        set name "NETOPS-FIREWALL-COMMIT-POLICY"
+        set uuid 00000000-0000-4000-8000-0000000000a3
+        set srcintf "netops-ipsec"
+        set dstintf "ipsec-status-lo"
+        set action accept
+        set srcaddr "all"
+        set dstaddr "NETOPS-FIREWALL-COMMIT-GROUP"
+        set schedule "always"
+        set service "ALL_TCP"
+        set logtraffic all
+    next
+end

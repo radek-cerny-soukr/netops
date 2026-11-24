@@ -1223,7 +1223,7 @@ def test_phase1_server_and_engine_expose_no_generic_body_reads() -> None:
         "triage_vpn",
         "wifi_triage",
         "wifi_clients", "wifi_aps_live", "wifi_rogue",
-        "triage_flow", "fortiswitch_overview", "firewall_policy_hits",
+        "triage_flow", "fortiswitch_overview", "firewall_policy_hits", "network_overview",
     }
 
     server_engine_imports = {

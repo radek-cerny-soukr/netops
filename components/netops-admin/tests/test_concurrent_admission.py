@@ -17,6 +17,7 @@ from netops_admin import enrollment, execute, state
 from netops_admin.config import DEFAULT_LIMITS, Config, Device
 from netops_admin.errors import Rejected
 from netops_admin.request import parse_request
+from approved_apply import approved_apply
 
 FORK = multiprocessing.get_context("fork")
 WAIT_SECONDS = 60
@@ -57,7 +58,7 @@ def client(config, name, fields, barrier, results):
 
     execute._prepared = held
     try:
-        record = execute.apply(runtime, name, parse_request(request_bytes(**fields)))
+        record = approved_apply(runtime, name, parse_request(request_bytes(**fields)))
     except Rejected as exc:
         results.put((name, type(exc).__name__, list(exc.reasons)))
     except BaseException as exc:
@@ -106,19 +107,19 @@ def test_one_request_id_on_two_devices_at_once_starts_one_operation(tmp_path):
     assert (known["device"], known["change_id"]) == (winner, change_id)
     assert [record["change_id"] for record in store.records()] == [change_id]
     runtime = execute.Runtime(config, lambda _device: FakeFortiOS())
-    again = execute.apply(runtime, winner, parse_request(request_bytes(**shared[winner])))
+    again = approved_apply(runtime, winner, parse_request(request_bytes(**shared[winner])))
     assert again["change_id"] == change_id and again["result"] == "confirmed"
 
 
 def _new_change(tmp_path, monkeypatch):
     device = FakeFortiOS()
     runtime = make_runtime(tmp_path, device)
-    return runtime, device, lambda: execute.apply(runtime, "lab", request())
+    return runtime, device, lambda: approved_apply(runtime, "lab", request())
 
 
 def _new_transaction(tmp_path, monkeypatch):
     runtime, device = schema_runtime(tmp_path, monkeypatch)
-    return runtime, device, lambda: execute.apply(runtime, "lab", schema_request([op(changes={"comment": "final"})]))
+    return runtime, device, lambda: approved_apply(runtime, "lab", schema_request([op(changes={"comment": "final"})]))
 
 
 def _new_undo(tmp_path, monkeypatch):
@@ -159,14 +160,14 @@ def test_the_admission_lock_is_free_while_the_device_is_changed(tmp_path, monkey
             free.append(False)
 
     device.on_apply = probe
-    assert execute.apply(runtime, "lab", request())["result"] == "confirmed"
+    assert approved_apply(runtime, "lab", request())["result"] == "confirmed"
     assert free and all(free)
 
 
 def test_an_identical_request_admitted_meanwhile_returns_its_operation(tmp_path, monkeypatch):
     device = FakeFortiOS()
     runtime = make_runtime(tmp_path, device)
-    first = execute.apply(runtime, "lab", request())
+    first = approved_apply(runtime, "lab", request())
     checked = execute._prepared
 
     def admitted_meanwhile(*args, **kwargs):
@@ -176,6 +177,6 @@ def test_an_identical_request_admitted_meanwhile_returns_its_operation(tmp_path,
 
     monkeypatch.setattr(execute, "_prepared", admitted_meanwhile)
     blocks = len(device.applied_blocks)
-    again = execute.apply(runtime, "lab", request(key="second-host", request_id="req-0002-example"))
+    again = approved_apply(runtime, "lab", request(key="second-host", request_id="req-0002-example"))
     assert again["change_id"] == first["change_id"]
     assert len(device.applied_blocks) == blocks and len(runtime.store.records()) == 1

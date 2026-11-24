@@ -1,7 +1,7 @@
-"""Task 128: the public config_read path for the Cisco IOS profile.
+"""verification: the public config_read path for the Cisco IOS profile.
 
 ``cisco_ios`` / IOSv ``15.9(3)M12`` ``fc1`` / ``VIOS-ADVENTERPRISEK9-M`` is the tested identity
-(``config_cisco_ios_adapter``); since G00 another identity is read too, with ``firmware_support`` and a warning.  The positive reads run through the real root
+(``config_cisco_ios_adapter``); since STARTUP another identity is read too, with ``firmware_support`` and a warning.  The positive reads run through the real root
 ``netops.worker.HelperBridge.call`` -> ``Proxy.request`` -> FastMCP ``server.config_read``
 (``_paged_auth``) -> ``TargetAuth.decode`` -> ``engine.config_read`` -> ``read_from_device`` ->
 ``_exec_read`` -> the real ``config_cisco_ios.StreamRedactor`` / ``configuration.store`` / page ->
@@ -305,7 +305,7 @@ def test_fresh_public_read_pages_and_continues_without_more_ssh(env):
     assert first['include_defaults'] is False
     assert first['redaction_profile'] == adapter.PROFILE
     assert first['firmware'] == {'model': 'IOSv', 'version': '15.9(3)M12', 'build': 'fc1'}
-    # The tested identity (G00): the reply is as before, without firmware_support or warnings.
+    # The tested identity (STARTUP): the reply is as before, without firmware_support or warnings.
     assert 'firmware_support' not in first and 'warnings' not in first
     assert first['capture_complete'] is True and first['configuration_complete'] is False
     assert first['identity_scope_verified'] is False and first['config_scope'] == 'device-account-visible'
@@ -441,7 +441,7 @@ def test_engine_refuses_options_access_and_platform_before_ssh(env):
         _read(replace(auth, ssh_platform='fortinet'))
     with pytest.raises(ValueError, match='not enabled'):
         _read(replace(auth, read_inventory={**auth.read_inventory, 'config_access': ()}))
-    # Task 157: config_diff is open for cisco_ios, but only with compare (next to read) in config_access.
+    # verification: config_diff is open for cisco_ios, but only with compare (next to read) in config_access.
     with pytest.raises(ValueError, match='not enabled'):
         engine.config_diff(auth, 'cisco_ios', 'cfg_' + '0' * 32, 'cfg_' + '1' * 32)
     compare = replace(auth, read_inventory={**auth.read_inventory, 'config_access': ('read', 'compare')})
@@ -461,7 +461,7 @@ def test_engine_refuses_options_access_and_platform_before_ssh(env):
      '15.9(3)M11 fc1 (VIOS-ADVENTERPRISEK9-M)'),
 ], ids=['real-iosvl2', 'derived-other-release'])
 def test_untested_identity_is_read_with_a_warning_through_the_public_chain(env, version, firmware, shown):
-    """G00: an untested identity is read through worker, proxy and engine; same redaction, plus a warning."""
+    """STARTUP: an untested identity is read through worker, proxy and engine; same redaction, plus a warning."""
     wire = _rewire(env, Wire(version=version))
     first = _page(_call(env, 'config_read', _b(limit=200)))
     assert wire.commands() == ['show version', 'show running-config']
@@ -560,7 +560,7 @@ def test_cached_snapshot_keeps_profile_and_platform_binding(env):
         configuration._SNAPSHOTS[identity] = replace(stored, profile=profile)
         with pytest.raises(ValueError, match='invalid configuration profile|capture options mismatch'):
             _read(auth, snapshot_id=identity)
-    # G00: a stored untested record pages with its warning; a record of another shape is refused.
+    # STARTUP: a stored untested record pages with its warning; a record of another shape is refused.
     configuration._SNAPSHOTS[identity] = replace(stored, firmware=('IOSv', '15.9(3)M11', 'fc1', adapter.IMAGE_FAMILY))
     untested = _read(auth, snapshot_id=identity)
     assert untested['firmware_support']['status'] == 'untested' and untested['warnings'][0]['code'] == 'firmware_untested'
@@ -586,10 +586,10 @@ def test_cached_snapshot_keeps_profile_and_platform_binding(env):
             configuration._snapshot_profile(profile, platform)
 
 
-G58 = REAL / 'g58'
-G58_RUNNING = 'show running-config'
-G58_STARTUP = 'show startup-config'
-G58_DIFF = 'show archive config differences nvram:startup-config system:running-config'
+ROUTER_CONFIG = REAL / 'router-config'
+ROUTER_CONFIG_RUNNING = 'show running-config'
+ROUTER_CONFIG_STARTUP = 'show startup-config'
+ROUTER_CONFIG_DIFF = 'show archive config differences nvram:startup-config system:running-config'
 
 
 class G58Wire(Wire):
@@ -598,9 +598,9 @@ class G58Wire(Wire):
     def __init__(self, device):
         super().__init__()
         self.answers = {
-            command: (G58 / f'{device}-{label}.out').read_bytes()
-            for command, label in (('show version', 'version'), (G58_RUNNING, 'running'),
-                                   (G58_STARTUP, 'startup'), (G58_DIFF, 'native'))
+            command: (ROUTER_CONFIG / f'{device}-{label}.out').read_bytes()
+            for command, label in (('show version', 'version'), (ROUTER_CONFIG_RUNNING, 'running'),
+                                   (ROUTER_CONFIG_STARTUP, 'startup'), (ROUTER_CONFIG_DIFF, 'native'))
         }
 
     def __call__(self, host, port, login, credential, key, command, *, stdout_consumer=None, **options):
@@ -616,13 +616,13 @@ class G58Wire(Wire):
         return core_ssh.Result(rc=0, stdout=output, said='', started_at='t0', finished_at='t1')
 
 
-def _g58_diff(env, **options):
+def _router_config_diff(env, **options):
     return _call(env, 'config_diff', {'target': 'router-b', 'platform': 'cisco_ios',
                                      'base_snapshot': 'startup', 'other_snapshot': 'running', **options})
 
 
 @pytest.mark.parametrize('device,release', [('iosv', '15.9(3)M12'), ('iosvl2', '15.2(20200924:215240)')])
-def test_g58_public_running_and_startup_read(env, device, release):
+def test_router_config_public_running_and_startup_read(env, device, release):
     _inventory(env['helper'], b_access=('read', 'compare'))
     wire = _rewire(env, G58Wire(device))
     running = _page(_call(env, 'config_read', _b()))
@@ -630,21 +630,21 @@ def test_g58_public_running_and_startup_read(env, device, release):
     assert 'hostname host01\n' in running['untrusted_device_output']
     assert running['capture_complete'] and not running['configuration_complete']
     assert ('firmware_support' in running) == (device == 'iosvl2')
-    diff = _page(_g58_diff(env))
+    diff = _page(_router_config_diff(env))
     assert diff['identical'] and diff['unsaved_changes'] is False
     assert diff['comparison_status'] == 'verified' and not diff['hidden_lines_compared']
     assert ('firmware_support' in diff) == (device == 'iosvl2')
     assert diff['base_capture']['comparison_view'] == 'startup'
     assert diff['other_capture']['comparison_view'] == 'running'
-    assert wire.commands() == ['show version', G58_RUNNING, 'show version', G58_STARTUP,
-                               'show version', G58_RUNNING, G58_DIFF]
+    assert wire.commands() == ['show version', ROUTER_CONFIG_RUNNING, 'show version', ROUTER_CONFIG_STARTUP,
+                               'show version', ROUTER_CONFIG_RUNNING, ROUTER_CONFIG_DIFF]
     startup = _page(_call(env, 'config_read', _b(snapshot_id=diff['base_snapshot'])))
     assert startup['view'] == 'startup' and 'hostname host01\n' in startup['untrusted_device_output']
-    assert startup['command'] == G58_STARTUP
+    assert startup['command'] == ROUTER_CONFIG_STARTUP
     assert len(wire.calls) == 7
 
 
-def test_g58_catalyst_identity_remains_readable_with_warning(env):
+def test_router_config_catalyst_identity_remains_readable_with_warning(env):
     wire = _rewire(env, G58Wire('iosvl2'))
     wire.answers['show version'] = (REAL.parent.parent / 'identity/cisco_ios.txt').read_bytes()
     running = _page(_call(env, 'config_read', _b()))
@@ -656,49 +656,49 @@ def test_g58_catalyst_identity_remains_readable_with_warning(env):
     ('config_read', ('config_platform_not_supported', 'identity-unverifiable')),
     ('config_diff', ('configuration-capture-failed',)),
 ], ids=['config_read', 'config_diff'])
-def test_g58_classic_ios_refuses_older_ios_xe_identity(env, tool, errors):
+def test_router_config_classic_ios_refuses_older_ios_xe_identity(env, tool, errors):
     _inventory(env['helper'], b_access=('read', 'compare'))
     wire = _rewire(env, G58Wire('iosv'))
     wire.answers['show version'] = (REAL.parent.parent / 'identity/cisco_xe_isr4331.txt').read_bytes()
-    result = _call(env, tool, _b()) if tool == 'config_read' else _g58_diff(env)
+    result = _call(env, tool, _b()) if tool == 'config_read' else _router_config_diff(env)
     assert wire.commands() == ['show version']
     assert all(error in str(result) for error in errors)
     assert 'untrusted_device_output' not in str(result) and not configuration._SNAPSHOTS
 
 
 @pytest.mark.parametrize('case', ['denied', 'truncated', 'no-compare', 'live-offset'])
-def test_g58_requires_two_complete_reads_and_proxy_authorization(env, case):
+def test_router_config_requires_two_complete_reads_and_proxy_authorization(env, case):
     if case != 'no-compare':
         _inventory(env['helper'], b_access=('read', 'compare'))
     wire = _rewire(env, G58Wire('iosvl2'))
     if case == 'denied':
-        wire.answers[G58_STARTUP] = (G58 / 'iosvl2-refused.out').read_bytes().replace(
+        wire.answers[ROUTER_CONFIG_STARTUP] = (ROUTER_CONFIG / 'iosvl2-refused.out').read_bytes().replace(
             b'show running-config', b'show startup-config')
     elif case == 'truncated':
-        running = wire.answers[G58_RUNNING]
-        wire.answers[G58_RUNNING] = running[:running.rindex(b'\nend')]
-    result = _g58_diff(env, offset=int(case == 'live-offset'))
+        running = wire.answers[ROUTER_CONFIG_RUNNING]
+        wire.answers[ROUTER_CONFIG_RUNNING] = running[:running.rindex(b'\nend')]
+    result = _router_config_diff(env, offset=int(case == 'live-offset'))
     error = {'denied': 'device-refused', 'truncated': 'stream-incomplete', 'no-compare': 'config_access',
              'live-offset': 'offset'}[case]
     assert error in str(result)
     assert 'untrusted_device_output' not in str(result)
-    assert not configuration._SNAPSHOTS and G58_DIFF not in wire.commands()
+    assert not configuration._SNAPSHOTS and ROUTER_CONFIG_DIFF not in wire.commands()
     if case in ('no-compare', 'live-offset'):
         assert wire.calls == []
 
 
 @pytest.mark.parametrize('native', ['changed', 'unverified', 'inconsistent'])
-def test_g58_opaque_native_diff_and_redacted_pagination(env, native):
+def test_router_config_opaque_native_diff_and_redacted_pagination(env, native):
     _inventory(env['helper'], b_access=('read', 'compare'))
     wire = _rewire(env, G58Wire('iosv'))
-    wire.answers[G58_RUNNING] = wire.answers[G58_RUNNING].replace(b'hostname host01', b'hostname host02')
+    wire.answers[ROUTER_CONFIG_RUNNING] = wire.answers[ROUTER_CONFIG_RUNNING].replace(b'hostname host01', b'hostname host02')
     header = b'!Contextual Config Diffs:\n'
     if native == 'changed':
-        wire.answers[G58_DIFF] = header + b' +username spare secret SECRET-ENABLE-SENTINEL\n'
+        wire.answers[ROUTER_CONFIG_DIFF] = header + b' +username spare secret SECRET-ENABLE-SENTINEL\n'
     elif native == 'unverified':
         # Derived cutoff with just the measured header.
-        wire.answers[G58_DIFF] = header
-    result = _g58_diff(env, limit=32)
+        wire.answers[ROUTER_CONFIG_DIFF] = header
+    result = _router_config_diff(env, limit=32)
     data = _page(result)
     _assert_clean(result)
     assert data['unsaved_changes'] is (True if native == 'changed' else None)
@@ -707,13 +707,13 @@ def test_g58_opaque_native_diff_and_redacted_pagination(env, native):
     args = {key: data[key] for key in ('base_snapshot', 'other_snapshot')}
     text = data['untrusted_device_output']
     while data['next_offset'] is not None:
-        data = _page(_g58_diff(env, **args, offset=data['next_offset'], limit=32))
+        data = _page(_router_config_diff(env, **args, offset=data['next_offset'], limit=32))
         text += data['untrusted_device_output']
     assert '-hostname host01' in text and '+hostname host02' in text
     assert len(wire.calls) == 5
 
 
-def test_g58_proxy_list_exposes_a_valid_configuration_diff_counter_schema(env):
+def test_router_config_proxy_list_exposes_a_valid_configuration_diff_counter_schema(env):
     from mcp.types import ListToolsResult
 
     proxy = env['bridge'].proxy
@@ -733,8 +733,8 @@ def test_g58_proxy_list_exposes_a_valid_configuration_diff_counter_schema(env):
     assert 'auth_context' not in properties and 'redaction_context' not in properties
 
 
-@pytest.mark.parametrize("stage", [G58_STARTUP, G58_DIFF])
-def test_g58_transport_failure_preserves_only_complete_redacted_snapshots(env, monkeypatch, stage):
+@pytest.mark.parametrize("stage", [ROUTER_CONFIG_STARTUP, ROUTER_CONFIG_DIFF])
+def test_router_config_transport_failure_preserves_only_complete_redacted_snapshots(env, monkeypatch, stage):
     _inventory(env["helper"], b_access=("read", "compare"))
     wire = _rewire(env, G58Wire("iosv"))
     attempted = []
@@ -747,12 +747,12 @@ def test_g58_transport_failure_preserves_only_complete_redacted_snapshots(env, m
         return wire(*args, **kwargs)
 
     monkeypatch.setattr(engine.core_ssh, "run_command", read)
-    result = _g58_diff(env)
+    result = _router_config_diff(env)
     assert not result["isError"]
     data = result["structuredContent"]
     assert attempted[-1] == stage and attempted[0] == "show version"
     assert "fixture private detail" not in str(result)
-    if stage == G58_STARTUP:
+    if stage == ROUTER_CONFIG_STARTUP:
         assert not data["ok"] and data["error_code"] == "timeout"
         assert "untrusted_device_output" not in data and not configuration._SNAPSHOTS
     else:

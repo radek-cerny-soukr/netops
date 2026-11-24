@@ -19,6 +19,7 @@ from netops_admin.errors import Rejected
 from netops_admin.profiles import find_profile
 from netops_admin.request import parse_request
 from netops_admin.state import Store
+from approved_apply import approved_apply
 
 HEADER = "#config-version=FGT60F-7.6.7-FW-build3704-250101:opmode=0:vdom=0:user=netops\n"
 ONE_OBJECT = '    edit "web-01"\n        set subnet 192.0.2.1 255.255.255.255\n        set comment "a"\n    next\n'
@@ -134,9 +135,9 @@ def test_an_object_whose_comment_holds_the_marker_is_updated_and_created(tmp_pat
     device = FakeFortiOS()
     device.addresses["spare-host"]["comment"] = "ticket: " + NOT_FOUND
     runtime = make_runtime(tmp_path, device)
-    record = execute.apply(runtime, "lab", request(op="update", key="spare-host", changes={"comment": "plain"}))
+    record = approved_apply(runtime, "lab", request(op="update", key="spare-host", changes={"comment": "plain"}))
     assert record["result"] == "confirmed", record.get("reason")
-    record = execute.apply(runtime, "lab", request(request_id="req-marker-create",
+    record = approved_apply(runtime, "lab", request(request_id="req-marker-create",
                                                    changes={"subnet": "192.0.2.30/32", "comment": "x " + NOT_FOUND}))
     assert record["result"] == "confirmed", record.get("reason")
     assert device.addresses["new-host"]["comment"] == "x " + NOT_FOUND
@@ -265,12 +266,12 @@ def test_the_account_check_covers_the_permissions_of_the_access_profile(tmp_path
 def test_a_profile_permission_changed_between_operations_refuses_and_blocks(tmp_path):
     device = ProfiledFortiOS()
     runtime = make_runtime(tmp_path, device)
-    assert execute.apply(runtime, "lab", request())["result"] == "confirmed"
-    assert execute.apply(runtime, "lab", request(request_id="req-same-profile", key="other-host"))["result"] == "confirmed"
+    assert approved_apply(runtime, "lab", request())["result"] == "confirmed"
+    assert approved_apply(runtime, "lab", request(request_id="req-same-profile", key="other-host"))["result"] == "confirmed"
     blocks = len(device.applied_blocks)
     device.rights = "read-write"
     with pytest.raises(Rejected) as caught:
-        execute.apply(runtime, "lab", request(request_id="req-after-profile", key="third-host"))
+        approved_apply(runtime, "lab", request(request_id="req-after-profile", key="third-host"))
     assert "administrator accounts changed" in caught.value.reasons[0], caught.value.reasons
     assert len(device.applied_blocks) == blocks
     assert runtime.store.blocked("lab") is not None
@@ -285,7 +286,7 @@ def test_a_profile_permission_changed_during_the_change_is_reverted_and_blocks(t
 
     device.on_apply = escalate
     runtime = make_runtime(tmp_path, device)
-    record = execute.apply(runtime, "lab", request())
+    record = approved_apply(runtime, "lab", request())
     assert record["result"] == "reverted"
     assert record["reason"] == "administrator table"
     assert runtime.store.blocked("lab") is not None

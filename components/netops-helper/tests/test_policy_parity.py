@@ -988,7 +988,7 @@ class PolicyParityTests(unittest.TestCase):
             ALIAS,
             encode_envelope(device, policy),
         )
-        # G53 r3: the short name of the enrolled IOS port is the same port on both paths.
+        # ROUTER-PORTS r3: the short name of the enrolled IOS port is the same port on both paths.
         proxy_module.Proxy._authorize_tool(
             "ssh_read",
             {
@@ -1217,3 +1217,23 @@ class PolicyParityTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_overview_catalog_composition_keeps_public_names_and_linux_identity():
+    from netops_helper.query_catalog import READ_QUERIES, compose
+    from netops_helper.query_catalog.model import NO_SLOTS, Query
+
+    example = Query("uptime", NO_SLOTS, "Synthetic declaration for composition")
+    catalog = compose({"linux": {"example": example}})
+    assert tuple(catalog) == tuple(READ_QUERIES)
+    assert catalog["linux"]["version"] is READ_QUERIES["linux"]["kernel"]
+    assert "version" not in catalog["linux"]
+    assert catalog["linux"]["example"] is example
+    assert "example" not in READ_QUERIES["linux"]
+    for name in ("kernel", "version"):
+        try:
+            compose({"linux": {name: example}})
+        except ValueError as refusal:
+            assert "duplicate" in str(refusal)
+        else:
+            raise AssertionError(f"{name} must remain reserved")

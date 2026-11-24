@@ -218,7 +218,7 @@ QUERIES: dict[str, Query] = {
         NO_SLOTS,
         "Show disk inventory and health information.",
     ),
-    # G13 (1.0.12): measured with a read-only account on FortiGate-80F 8.0.2 build0251 (fixture g13_20261117).
+    # sensors crashlog (1.0.12): measured with a read-only account on FortiGate-80F 8.0.2 build0251 (fixture g13_20261117).
     "hardware_sensors": Query(
         "execute sensor detail",
         NO_SLOTS,
@@ -271,7 +271,7 @@ QUERIES: dict[str, Query] = {
         "Show the IPv4 routing table.",
         high_volume=True,
     ),
-    # G11 (1.0.12): measured with read-only accounts on FortiGate-60F 7.6.8 build3744 and FortiGate-80F 8.0.2
+    # firewall routing (1.0.12): measured with read-only accounts on FortiGate-60F 7.6.8 build3744 and FortiGate-80F 8.0.2
     # build0251 (fixtures real/fortinet/g11_20261118).
     "ipv6_routing_table": Query(
         "get router info6 routing-table",
@@ -500,7 +500,7 @@ QUERIES: dict[str, Query] = {
         "List DHCP leases on one enrolled interface, retaining IP/MAC/hostname association; a lease does not prove current client connectivity.",
         high_volume=True,
     ),
-    # 1.0.12 G20 (FP-12): every lease of every DHCP server interface at once; ssh_read adds a normalized `dhcp_leases`
+    # 1.0.12 dhcp dns (FP-12): every lease of every DHCP server interface at once; ssh_read adds a normalized `dhcp_leases`
     # object. Measured with a read-only account on FortiGate-60F 7.6.8 build3744 (tests/fixtures/real/fortinet/
     # fortigate60f_7.6.8_g20).
     "dhcp_leases_all": Query(
@@ -522,7 +522,7 @@ QUERIES: dict[str, Query] = {
         NO_SLOTS,
         "Show aggregate IPsec subsystem status.",
     ),
-    # G14 (FP-09): name-scoped detail of one enrolled phase-1 tunnel. Both commands print key material even to
+    # ipsec status (FP-09): name-scoped detail of one enrolled phase-1 tunnel. Both commands print key material even to
     # a read-only account; the Helper withholds it right after the read (sanitize.redact_fortios_ipsec_keys).
     "ike_gateway_detail": Query(
         "diagnose vpn ike gateway list name {tunnel}",

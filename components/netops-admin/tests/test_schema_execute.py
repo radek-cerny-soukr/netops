@@ -10,6 +10,7 @@ from netops_core import fortios
 from netops_admin import execute, schema_runtime, exec_schema_fortios, enrollment
 from netops_admin.config import Config, DEFAULT_LIMITS
 from netops_admin.errors import Rejected
+from approved_apply import approved_apply, preview_hash
 
 class Lab(FakeFortiOS):
     def __init__(self,lib):
@@ -75,12 +76,12 @@ def runtime(tmp_path,monkeypatch):
 def test_generic_batch_apply_and_undo_use_journal_safeguards_and_weighted_budget(tmp_path,monkeypatch):
     value,fake=runtime(tmp_path,monkeypatch)
     req=request([op(changes={"comment":"intermediate"}),op(changes={"comment":"final"})])
-    result=execute.apply(value,"lab",req)
+    result=approved_apply(value,"lab",req)
     assert result["result"]=="confirmed" and result["budget_changes"]==2
     assert fake.addresses["source"]["comment"]=="final"
     assert not fake.actions and not fake.triggers and not fake.stitches
     count=len(fake.applied_blocks)
-    assert execute.apply(value,"lab",req)["change_id"]==result["change_id"]
+    assert approved_apply(value,"lab",req)["change_id"]==result["change_id"]
     assert len(fake.applied_blocks)==count
     undone=execute.undo(value,result["change_id"],"operator undo")
     assert undone["result"]=="confirmed" and undone["budget_changes"]==2
@@ -93,7 +94,7 @@ def test_generic_partial_batch_failure_returns_all_steps_in_reverse_order(tmp_pa
         if len(device.applied_blocks)==2:device.fail_at_line=14
         else:device.fail_at_line=None
     fake.on_apply=fail_second_change
-    result=execute.apply(value,"lab",request([op(changes={"comment":"first"}),op(changes={"subnet":"192.0.2.32/27"})]))
+    result=approved_apply(value,"lab",request([op(changes={"comment":"first"}),op(changes={"subnet":"192.0.2.32/27"})]))
     assert result["result"]=="reverted"
     assert fake.addresses["source"]["comment"]=="source text"
     assert fake.addresses["source"]["subnet"]=="192.0.2.0 255.255.255.0"
@@ -101,11 +102,13 @@ def test_generic_partial_batch_failure_returns_all_steps_in_reverse_order(tmp_pa
 def test_missing_independent_read_before_mutation_refuses_transaction(tmp_path,monkeypatch):
     value,fake=runtime(tmp_path,monkeypatch)
     fake.check_unreadable=True
-    with pytest.raises(Rejected):execute.apply(value,"lab",request([op()]))
+    with pytest.raises(Rejected):approved_apply(value,"lab",request([op()]))
     assert fake.applied_blocks==[]
 
 def test_missing_independent_read_after_mutation_fires_safeguard(tmp_path,monkeypatch):
     value,fake=runtime(tmp_path,monkeypatch)
+    # the approved preview reads the object with the check account too; take its hash before arming the fault
+    approved=preview_hash(value,"lab",request([op()]))
     calls=0
     observed=fake.observe
     def check(plan):
@@ -114,12 +117,14 @@ def test_missing_independent_read_after_mutation_fires_safeguard(tmp_path,monkey
         if calls>=2:raise RuntimeError("check unavailable")
         return observed(plan)
     fake.observe=check
-    result=execute.apply(value,"lab",request([op()]))
+    result=execute.apply(value,"lab",request([op()]),expected_plan_sha256=approved)
     assert result["result"]=="reverted" and result["reason"]=="check identity unavailable"
     assert fake.addresses["source"]["comment"]=="source text"
 
 def test_postchange_audit_failure_returns_configuration(tmp_path,monkeypatch):
     value,fake=runtime(tmp_path,monkeypatch)
+    # the approved preview runs the predicted audit too; take its hash before arming the fault
+    approved=preview_hash(value,"lab",request([op()]))
     calls=0
     def audit(*_):
         nonlocal calls
@@ -127,7 +132,7 @@ def test_postchange_audit_failure_returns_configuration(tmp_path,monkeypatch):
         if calls==2:raise RuntimeError("audit unavailable")
         return [],{"fixture":True}
     monkeypatch.setattr(schema_runtime,"after_audit",audit)
-    result=execute.apply(value,"lab",request([op()]))
+    result=execute.apply(value,"lab",request([op()]),expected_plan_sha256=approved)
     assert result["result"]=="reverted" and result["reason"]=="audit unavailable"
     assert fake.addresses["source"]["comment"]=="source text"
 
@@ -136,7 +141,7 @@ def test_interrupted_generic_operation_recovers_through_same_journal(tmp_path,mo
     def interrupt(device,lines):
         if len(device.applied_blocks)==2:raise KeyboardInterrupt()
     fake.on_apply=interrupt
-    with pytest.raises(KeyboardInterrupt):execute.apply(value,"lab",request([op()]))
+    with pytest.raises(KeyboardInterrupt):approved_apply(value,"lab",request([op()]))
     assert value.store.running("lab")
     fake.on_apply=None
     settled=execute.recover(value,"lab")
@@ -149,7 +154,7 @@ def test_foreign_change_during_confirmation_is_not_reported_as_success(tmp_path,
     def foreign_after_remove(device,lines):
         if len(device.applied_blocks)==3:device.foreign=True
     fake.on_apply=foreign_after_remove
-    result=execute.apply(value,"lab",request([op()]))
+    result=approved_apply(value,"lab",request([op()]))
     assert result["result"]=="unknown" and value.store.blocked("lab")
 
 
@@ -177,7 +182,7 @@ def test_generic_transaction_consumes_budget_for_each_step_before_any_write(tmp_
     value,fake=runtime(tmp_path,monkeypatch)
     value.config.limits["changes_per_device_per_hour"]=1
     with pytest.raises(Rejected,match="budget"):
-        execute.apply(value,"lab",request([op(changes={"comment":"first"}),op(changes={"comment":"final"})]))
+        approved_apply(value,"lab",request([op(changes={"comment":"first"}),op(changes={"comment":"final"})]))
     assert fake.applied_blocks==[]
 
 
@@ -216,7 +221,7 @@ def test_generic_undo_matches_final_objects_in_reverse_operation_order(tmp_path,
             fake.addresses[name]={"subnet":"192.0.2.64 255.255.255.192","comment":name+" original","uuid":fake._uuid()}
     before=copy.deepcopy(fake.addresses)
     req=request([op(owners=[name],changes={"comment":"step "+str(index)}) for index,name in enumerate(owners)])
-    result=execute.apply(value,"lab",req)
+    result=approved_apply(value,"lab",req)
     assert result["result"]=="confirmed"
     undone=execute.undo(value,result["change_id"],"operator undo")
     assert undone["result"]=="confirmed"
@@ -227,7 +232,7 @@ def test_generic_undo_matches_final_objects_in_reverse_operation_order(tmp_path,
 def test_generic_undo_still_refuses_changed_target_before_any_write(tmp_path,monkeypatch):
     value,fake=runtime(tmp_path,monkeypatch)
     fake.addresses["other"]={"subnet":"192.0.2.64 255.255.255.192","comment":"other original","uuid":fake._uuid()}
-    result=execute.apply(value,"lab",request([op(changes={"comment":"first"}),op(owners=["other"],changes={"comment":"second"})]))
+    result=approved_apply(value,"lab",request([op(changes={"comment":"first"}),op(owners=["other"],changes={"comment":"second"})]))
     assert result["result"]=="confirmed"
     fake.addresses["other"]["comment"]="outside change"
     writes=len(fake.applied_blocks)

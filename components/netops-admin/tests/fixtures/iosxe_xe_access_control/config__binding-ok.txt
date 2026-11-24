@@ -1,0 +1,2 @@
+ip access-group NETOPS-XE-ACCESS-CONTROL-V4 in
+host01(config-if)#

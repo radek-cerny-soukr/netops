@@ -1,0 +1,8 @@
+host01        $ config firewall address
+    edit "netops-firewall-addresses-mask"
+        set uuid 00000000-0000-4000-8000-000000000007
+        set subnet 192.0.2.80 255.255.255.255
+    next
+end
+
+host01        $

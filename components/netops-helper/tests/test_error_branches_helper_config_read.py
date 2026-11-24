@@ -163,7 +163,7 @@ def test_full_identity_read_that_the_transport_loses_names_the_stage(wire) -> No
 
 
 def test_full_read_of_untested_firmware_returns_data_with_a_warning(wire) -> None:
-    # G00 (2026-11-17): an untested build is read with the nearest field policy and a warning, not refused.
+    # STARTUP (2026-11-17): an untested build is read with the nearest field policy and a warning, not refused.
     status = STATUS.replace("v7.6.8,build3744", "v7.4.1,build2463")
     _device(wire, {"get system status": [0, status], "show": [0, CONFIG]})
     result = _full(_fortios())
@@ -307,7 +307,7 @@ def test_adc_capture_checks_final_transport_frame(wire, monkeypatch, closing_pro
     from contextlib import contextmanager
     from pathlib import Path
 
-    sample = Path(__file__).parent / "fixtures/fortiadc_g31/profile.out"
+    sample = Path(__file__).parent / "fixtures/fortiadc_adc_health/profile.out"
     lines = sample.read_text().splitlines(keepends=True)
     data = lines[0].partition("# ")[2].encode() + "".join(lines[1:-1]).encode()
     opening_prompt = b"fixture-fortinet # "

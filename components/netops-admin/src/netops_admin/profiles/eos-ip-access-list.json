@@ -21,5 +21,5 @@
   "volatile": [],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "G127 on cEOSLab 4.36.1F uses the EOS timed safeguard and scoped ACL JSON readback. The key is ipv4:<name> or ipv6:<name>. Rules are comma-separated, explicitly sequenced permit or deny entries for IP, TCP, UDP or ICMP of the selected family. Addresses are any, host addresses or CIDR prefixes. TCP and UDP also accept one destination eq port."
+  "rollback_evidence": "Live write and return on cEOSLab 4.36.1F (2026-11-19): Ethernet ingress ACL creation or attachment was checked, undone and the traffic restored. eos access control on cEOS 4.36.1F uses the EOS timed safeguard and scoped ACL JSON readback. The key is ipv4:<name> or ipv6:<name>. Rules are comma-separated, explicitly sequenced permit or deny entries for IP, TCP, UDP or ICMP of the selected family. Addresses are any, host addresses or CIDR prefixes. TCP and UDP also accept one destination eq port."
 }

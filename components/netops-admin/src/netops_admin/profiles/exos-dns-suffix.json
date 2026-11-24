@@ -1,9 +1,9 @@
 {
   "platform": "exos",
   "table": "dns-suffix",
+  "measured": true,
   "versions": [
-    "33.6.1.14",
-    "33.7.1.6"
+    "33.6.1.14"
   ],
   "ops": [
     "create",
@@ -17,5 +17,5 @@
   "volatile": [],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "Static domain suffix. Undo preserves the suffix order. Readback uses the check account. Changes are applied to running configuration."
+  "rollback_evidence": "Measured on ExtremeXOS VM 33.6.1.14. Admin added a static DNS suffix and the check account confirmed it with show dns-client. Undo removed the suffix and restored the original running configuration SHA-256."
 }

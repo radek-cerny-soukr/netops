@@ -1,6 +1,6 @@
-# Fixtures úkolu netops-20261118-490 (NX-OS 9.3(12), GNS3 d-nxos)
+# Fixtures verification (NX-OS 9.3(12), GNS3 Nexus 9300v, NX-OS 9.3(12))
 
-Zařízení: GNS3 D-lab `d-nxos` (DNAT port 2255), Nexus 9000v (C9300v), NX-OS 9.3(12);
+Zařízení: GNS3 emulated environment `Nexus 9300v, NX-OS 9.3(12)`, Nexus 9000v (C9300v), NX-OS 9.3(12);
 host key pin RSA `SHA256:WKyD7HfKyfDdf2Sl8h7C7uJAFWfHDgAPxaBYWfXiz7E`. Zachyceno 2026-11-18 07:3x UTC
 samostatným SSH exec (paramiko, RejectPolicy), každý příkaz ve vlastním kanálu, bez změny stránkování.
 
@@ -13,17 +13,17 @@ samostatným SSH exec (paramiko, RejectPolicy), každý příkaz ve vlastním ka
 | `snmp_statistics_admin.out` | `show snmp` | netops-admin | tabulka komunit prázdná (na zařízení není nakonfigurovaná žádná komunita) |
 | `snmp_statistics_ro.out` | `show snmp` | netops-ro | místo tabulky hláška role `User does not have permission to view community strings.` |
 | `snmp_community.out` | `show snmp community` | netops-admin | jen hlavička a podtržení (RO: `% Permission denied for the role`) |
-| `snmp_statistics_populated.out` | `show snmp` | netops-admin | úkol 490-r2, 2026-11-18 08:45 UTC, během dočasné testovací komunity: místo tabulky řádky `Community name:` / `Community groupname:` / `Context mapped:` |
+| `snmp_statistics_populated.out` | `show snmp` | netops-admin | verification, 2026-11-18 08:45 UTC, během dočasné testovací komunity: místo tabulky řádky `Community name:` / `Community groupname:` / `Context mapped:` |
 | `snmp_community_populated.out` | `show snmp community` | netops-admin | totéž, samostatný příkaz |
 
-Anonymizace: `tests/support/anonymize_fixture.py --user netops-ro --user netops-admin` na PC-Radek, jeden běh přes všech
+Anonymizace: `tests/support/anonymize_fixture.py --user netops-ro --user netops-admin` mimo repozitář, jeden běh přes všech
 pět souborů; mapa uložena jen mimo repozitář. Změny: BGP router-id → `192.0.2.5`; IPv6 soused
 `2001:db8:4590::1234:5678` → `2001:db8:1::10` (nástroj přečísluje i dokumentační IPv6; zalomení řádku zůstalo tak,
 jak ho vytiskl přístroj pro 24znakovou adresu); jména SNMP uživatelů → `user01`/`user02`. Jinak beze změny.
-SHA256 neanonymizovaných surových výstupů: `task-evidence/nx-490/rawcap.sha256`.
+SHA256 neanonymizovaných surových výstupů jsou v soukromém záznamu měření.
 
-`*_populated.out` (úkol 490-r3) jsou bajtové kopie anonymizovaných živých záchytů
-`task-evidence/nx-490/r2/fixtures/` (původ a hashe: tamní `PROVENANCE.md`, `live.json`); jediná změna je
+`*_populated.out` (verification) jsou bajtové kopie anonymizovaných živých záchytů
+ze soukromého záznamu měření (tam jsou i původ a hashe); jediná změna je
 syntetická hodnota komunity `nx490r2-fixtureXXXXXXXX` nahrazená kanárkem `nx490-populated-canary1` stejné délky.
 Skutečná dočasná hodnota z labu v repozitáři není.
 

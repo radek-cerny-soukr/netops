@@ -7,7 +7,7 @@ import pytest
 from netops_auditor import checks_fortios
 from netops_auditor import cli
 from netops_auditor import query
-from netops_auditor.engine import CATALOG_DIR, load_catalog, run
+from netops_auditor.engine import registered_checks, CATALOG_DIR, load_catalog, run
 from netops_auditor.l1_fortios import parse
 from netops_auditor.store import Store
 
@@ -24,9 +24,7 @@ TENANT = "tenant-gate"
 DEVICE = "fw-gate.example.invalid"
 NOW = datetime(2026, 9, 12, 12, 0, 0, tzinfo=timezone.utc)
 
-RULES = tuple(r for r in load_catalog(PLATFORM) if ".management." not in r.id)
-RULE_IDS = tuple(rule.id for rule in RULES)
-GATE_IDS = frozenset(rule.id for rule in RULES if rule.scope_gate)
+ALL_RULES = load_catalog(PLATFORM)
 
 MARKERS = tuple("CANARY-SECRET-%02d" % number for number in range(1, 21))
 
@@ -177,6 +175,11 @@ VOLATILE_FIRST = "T0FWMhZKQmxXcmFuZG9tQTAxLUVYQU1QTEUwMQ=="
 VOLATILE_SECOND = "T0FWMhZKQmxXcmFuZG9tQjAyLUVYQU1QTEUwMg=="
 
 
+RULES = tuple(rule for rule in ALL_RULES if rule.id in DEFECTS or rule.scope_gate)
+RULE_IDS = tuple(rule.id for rule in RULES)
+GATE_IDS = frozenset(rule.id for rule in RULES if rule.scope_gate)
+
+
 def text_of(path):
     return path.read_text(encoding="utf-8")
 
@@ -263,7 +266,7 @@ def test_gate_no_fixture_folder_without_a_rule():
 
 
 def test_gate_every_rule_names_an_implemented_check():
-    assert all(hasattr(checks_fortios, rule.check) for rule in RULES)
+    assert all(rule.check in registered_checks() for rule in ALL_RULES)
 
 
 @pytest.mark.parametrize("rule_id", RULE_IDS)
@@ -281,7 +284,7 @@ def test_gate_the_negative_fixture_silences_the_rule(rule_id):
 
 
 def test_gate_the_clean_fixture_yields_no_finding():
-    assert audit(text_of(CLEAN)) == ()
+    assert run(parse(text_of(CLEAN)), TENANT, DEVICE, ALL_RULES) == ()
 
 
 @pytest.mark.parametrize("rule_id", RULE_IDS)

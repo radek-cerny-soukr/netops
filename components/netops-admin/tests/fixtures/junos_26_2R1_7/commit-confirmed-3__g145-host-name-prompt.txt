@@ -1,7 +1,0 @@
-commit confirmed 3 comment "g145-measure" 
-commit confirmed will be automatically rolled back in 3 minutes unless confirmed
-commit complete
-
-# commit confirmed will be rolled back in 3 minutes
-[edit]
-netops-admin@host02# 

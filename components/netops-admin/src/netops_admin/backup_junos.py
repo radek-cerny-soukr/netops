@@ -1,11 +1,11 @@
-"""Private, encrypted Junos configuration backups and their controlled restore (G136, J43).
+"""Private, encrypted Junos configuration backups and their controlled restore (junos config, J43).
 
-Measured on vJunos-switch 26.2R1.7 (d-vjunos, task 553):
+Measured on vJunos-switch 26.2R1.7 (vJunos-switch, verification):
 
 * ``show configuration | no-more`` over SSH exec returns the whole committed configuration in the hierarchical
   format (first line ``## Last commit: <time> by <user>``, then ``version <release>;``), secrets included for a
   super-user account (``encrypted-password "..."; ## SECRET-DATA``).  A read-only class gets
-  ``<section> { /* ACCESS-DENIED */ };`` with exit status 0.  An error is printed on stdout (``error: ...``) with
+  ``<section> { /* ACCESS-DENIED */ };`` with exit status 0.  An error is printed on stdout (``error:...``) with
   exit status 0.  That text is what ``load override`` accepts, so it is the backup.
 * ``show system configuration rescue | no-more`` exports the previous rescue if present. It is sealed in a
   separate retention series before ``request system configuration rescue save`` stores the committed configuration;

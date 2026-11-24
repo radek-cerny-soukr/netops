@@ -1,0 +1,25 @@
+
+
+
+GigabitEthernet0/2 is up, line protocol is up
+  IPv6 is enabled, link-local address is fe80::13              
+  No Virtual link-local address(es):
+  Description: XE-ROUTING VRF blue link to host02  Eth0/2
+  Global unicast address(es):
+    2001:db8:1::1, subnet is 2001:db8:1::0/64 
+  Joined group address(es):
+    FF02::1
+    FF02::2
+    FF02::1:FF00:1
+    FF02::1:FF00:13
+  MTU is 1500 bytes
+  VPN Routing/Forwarding "blue"
+  ICMP error messages limited to one every 100 milliseconds
+  ICMP redirects are enabled
+  ICMP unreachables are sent
+  Input features: Access List
+  Inbound access list NETOPS-IOS-ACCESS-CONTROL-V6
+  ND DAD is enabled, number of DAD attempts: 1
+  ND reachable time is 30000 milliseconds (using 30000)
+  ND RAs are suppressed (all)
+  Hosts use stateless autoconfig for addresses.

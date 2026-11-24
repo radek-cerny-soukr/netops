@@ -1,0 +1,11 @@
+
+Warning: License key missing; requires 'BGP' license
+
+Group Type: External    AS: 64513                  Local AS: 64500
+  Name: measurement-bgp Index: 0                   Flags: <>
+  Options: <GracefulShutdownRcv>
+  Holdtime: 90 Preference: 0
+  Graceful Shutdown Receiver local-preference: 0
+  Total peers: 1        Established: 0
+  192.0.2.57
+

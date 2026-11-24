@@ -1,9 +1,0 @@
-host01        $ config firewall addrgrp
-    edit "netops-g21-child"
-        set member "netops-g21-mac"
-        set comment "G21 child"
-        set uuid 00000000-0000-4000-8000-000000000001
-    next
-end
-
-host01        $

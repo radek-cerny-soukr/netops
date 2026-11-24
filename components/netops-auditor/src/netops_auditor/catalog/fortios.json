@@ -808,6 +808,109 @@
         "CIS FortiGate 7.4.x Benchmark v1.0.1: 4.5.2 Ensure applications are restricted to their default ports"
       ],
       "known_false_positives": "Applications that legitimately run on non-standard ports need the enforcement off for that list."
-    }
+    },
+  {
+    "id": "fortios.mgmt.ssh-v1",
+    "version": 1,
+    "check": "ssh_v1",
+    "sections": [],
+    "class": "fakt",
+    "severity": "high",
+    "evidence_fields": [
+      "ssh_version"
+    ],
+    "title": "An administratively active interface accepts SSH while SSH v1 compatibility is enabled.",
+    "remediation": "Set admin-ssh-v1 to disable under config system global.",
+    "refs": [
+      "FortiOS 8.0.0 CLI Reference: config system global"
+    ],
+    "known_false_positives": "An upstream access filter may restrict who can reach the interface."
+  },
+  {
+    "id": "fortios.aaa.external-login",
+    "version": 1,
+    "check": "external_login",
+    "sections": [],
+    "class": "usudek",
+    "severity": "medium",
+    "evidence_fields": [
+      "issue"
+    ],
+    "title": "The requested external administrator login lacks a remote account or a usable RADIUS or TACACS+ reference.",
+    "remediation": "Enable remote authentication for the intended administrator and connect its user group to a configured RADIUS or TACACS+ server.",
+    "refs": [
+      "FortiOS 8.0.0 CLI Reference: config system admin"
+    ],
+    "known_false_positives": "Applies only when external_aaa_required is set. This check does not test server reachability or cover LDAP."
+  },
+  {
+    "id": "fortios.snmp.v3-auth-priv",
+    "version": 1,
+    "check": "snmp_v3_auth_priv",
+    "sections": [],
+    "class": "fakt",
+    "severity": "medium",
+    "evidence_fields": [
+      "security_level"
+    ],
+    "title": "An enabled SNMPv3 user is configured without authentication or privacy.",
+    "remediation": "Use auth-priv for active SNMPv3 users and configure authentication and privacy protocols.",
+    "refs": [
+      "FortiOS 8.0.0 CLI Reference: config system snmp user"
+    ],
+    "known_false_positives": "An intentionally restricted monitoring network may accept a weaker SNMPv3 configuration."
+  },
+  {
+    "id": "fortios.time.ntp-auth",
+    "version": 1,
+    "check": "ntp_auth",
+    "sections": [],
+    "class": "fakt",
+    "severity": "medium",
+    "evidence_fields": [
+      "issue"
+    ],
+    "title": "A configured custom NTP server lacks the authentication required by audit policy.",
+    "remediation": "Enable authentication and provision the agreed key for the custom NTP server.",
+    "refs": [
+      "FortiOS 8.0.0 CLI Reference: config system ntp"
+    ],
+    "known_false_positives": "Applies to active custom sources only when ntp_auth_required is set."
+  },
+  {
+    "id": "fortios.logging.syslog-level",
+    "version": 1,
+    "check": "syslog_level",
+    "sections": [],
+    "class": "fakt",
+    "severity": "medium",
+    "evidence_fields": [
+      "severity",
+      "required"
+    ],
+    "title": "An active remote syslog destination filters out messages at the configured policy threshold.",
+    "remediation": "Set severity to the requested level or a more inclusive threshold for the active destination.",
+    "refs": [
+      "FortiOS 8.0.0 CLI Reference: config log syslogd filter"
+    ],
+    "known_false_positives": "Applies only when syslog_severity is supplied. Event categories and free-style predicates are separate filters."
+  },
+  {
+    "id": "fortios.ports.unused-up",
+    "version": 1,
+    "check": "unused_up",
+    "sections": [],
+    "class": "fakt",
+    "severity": "medium",
+    "evidence_fields": [
+      "status"
+    ],
+    "title": "A physical port declared unused is administratively up.",
+    "remediation": "Set the port status to down after confirming its declared role.",
+    "refs": [
+      "FortiOS 8.0.0 CLI Reference: config system interface"
+    ],
+    "known_false_positives": "Applies only to physical interfaces with an explicit unused role in audit intent."
+  }
   ]
 }

@@ -1,6 +1,7 @@
 {
   "platform": "fortios",
   "table": "poe-cycle",
+  "measured": false,
   "versions": [
     "7.6.8 build3744"
   ],
@@ -48,6 +49,6 @@
       "required_on_create": false
     }
   },
-  "rollback_evidence": "FortiLink resets power on one PoE port without a persistent change. Admin checks the interruption and return of power, retains the PoE-enable safeguard until verification, and offers no undo for the power interruption.",
+  "rollback_evidence": "Live verification pending: The FortiSwitch without PoE refused the live cycle before any write. FortiLink resets power on one PoE port without a persistent change. Admin checks the interruption and return of power, retains the PoE-enable safeguard until verification, and offers no undo for the power interruption.",
   "action": "poe-cycle"
 }

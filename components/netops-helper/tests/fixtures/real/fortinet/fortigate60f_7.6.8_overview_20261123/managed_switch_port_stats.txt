@@ -1,0 +1,136 @@
+Vdom: root
+
+S108ENTQ00000001:
+Port(port1) is HW Admin up, SW Admin up, line protocol is up
+Interface Type is Serial Gigabit Media Independent Interface(SGMII/SerDes)
+Address is 00:00:5E:00:53:01, None loopback
+MTU 10000 bytes, Encapsulation IEEE 802.3/Ethernet-II
+full-duplex, 1000 Mb/s, link type is auto
+input  : 68315818448 bytes, 70693059 packets, 0 errors, 4672 drops, 0 oversizes
+         70480326 unicasts, 140435 multicasts, 72298 broadcasts, 0 unknowns
+output : 46257949357 bytes, 48030936 packets, 0 errors, 0 drops, 0 oversizes
+         46419803 unicasts, 737772 multicasts, 873361 broadcasts
+0 fragments, 0 undersizes, 0 collisions, 0 jabbers
+
+
+Port(port2) is HW Admin up, SW Admin up, line protocol is down
+Interface Type is Serial Gigabit Media Independent Interface(SGMII/SerDes)
+Address is 00:00:5E:00:53:02, None loopback
+MTU 10000 bytes, Encapsulation IEEE 802.3/Ethernet-II
+half-duplex, 0 Mb/s, link type is auto
+input  : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes
+         0 unicasts, 0 multicasts, 0 broadcasts, 0 unknowns
+output : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes
+         0 unicasts, 0 multicasts, 0 broadcasts
+0 fragments, 0 undersizes, 0 collisions, 0 jabbers
+
+
+Port(port3) is HW Admin up, SW Admin up, line protocol is down
+Interface Type is Serial Gigabit Media Independent Interface(SGMII/SerDes)
+Address is 00:00:5E:00:53:03, None loopback
+MTU 10000 bytes, Encapsulation IEEE 802.3/Ethernet-II
+half-duplex, 0 Mb/s, link type is auto
+input  : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes
+         0 unicasts, 0 multicasts, 0 broadcasts, 0 unknowns
+output : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes
+         0 unicasts, 0 multicasts, 0 broadcasts
+0 fragments, 0 undersizes, 0 collisions, 0 jabbers
+
+
+Port(port4) is HW Admin up, SW Admin up, line protocol is up
+Interface Type is Serial Gigabit Media Independent Interface(SGMII/SerDes)
+Address is 00:00:5E:00:53:04, None loopback
+MTU 10000 bytes, Encapsulation IEEE 802.3/Ethernet-II
+full-duplex, 1000 Mb/s, link type is auto
+input  : 44855003163 bytes, 44957687 packets, 0 errors, 755 drops, 0 oversizes
+         43993148 unicasts, 92027 multicasts, 872512 broadcasts, 0 unknowns
+output : 67764233928 bytes, 69130974 packets, 0 errors, 0 drops, 0 oversizes
+         68080461 unicasts, 983074 multicasts, 67439 broadcasts
+0 fragments, 0 undersizes, 0 collisions, 0 jabbers
+
+
+Port(port5) is HW Admin up, SW Admin up, line protocol is down
+Interface Type is Serial Gigabit Media Independent Interface(SGMII/SerDes)
+Address is 00:00:5E:00:53:05, None loopback
+MTU 10000 bytes, Encapsulation IEEE 802.3/Ethernet-II
+half-duplex, 0 Mb/s, link type is auto
+input  : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes
+         0 unicasts, 0 multicasts, 0 broadcasts, 0 unknowns
+output : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes
+         0 unicasts, 0 multicasts, 0 broadcasts
+0 fragments, 0 undersizes, 0 collisions, 0 jabbers
+
+
+Port(port6) is HW Admin down, SW Admin down, line protocol is down
+Interface Type is Serial Gigabit Media Independent Interface(SGMII/SerDes)
+Address is 00:00:5E:00:53:06, None loopback
+MTU 10000 bytes, Encapsulation IEEE 802.3/Ethernet-II
+half-duplex, 0 Mb/s, link type is auto
+input  : 1867 bytes, 11 packets, 0 errors, 1 drops, 0 oversizes
+         0 unicasts, 0 multicasts, 11 broadcasts, 0 unknowns
+output : 7121 bytes, 21 packets, 0 errors, 0 drops, 0 oversizes
+         3 unicasts, 11 multicasts, 7 broadcasts
+0 fragments, 0 undersizes, 0 collisions, 0 jabbers
+
+
+Port(port7) is HW Admin up, SW Admin up, line protocol is down
+Interface Type is Serial Gigabit Media Independent Interface(SGMII/SerDes)
+Address is 00:00:5E:00:53:07, None loopback
+MTU 10000 bytes, Encapsulation IEEE 802.3/Ethernet-II
+half-duplex, 0 Mb/s, link type is auto
+input  : 70498 bytes, 1099 packets, 0 errors, 13 drops, 0 oversizes
+         0 unicasts, 13 multicasts, 1086 broadcasts, 0 unknowns
+output : 251527 bytes, 808 packets, 0 errors, 0 drops, 0 oversizes
+         0 unicasts, 671 multicasts, 137 broadcasts
+0 fragments, 0 undersizes, 0 collisions, 0 jabbers
+
+
+Port(port8) is HW Admin up, SW Admin up, line protocol is down
+Interface Type is Serial Gigabit Media Independent Interface(SGMII/SerDes)
+Address is 00:00:5E:00:53:08, None loopback
+MTU 10000 bytes, Encapsulation IEEE 802.3/Ethernet-II
+half-duplex, 0 Mb/s, link type is auto
+input  : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes
+         0 unicasts, 0 multicasts, 0 broadcasts, 0 unknowns
+output : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes
+         0 unicasts, 0 multicasts, 0 broadcasts
+0 fragments, 0 undersizes, 0 collisions, 0 jabbers
+
+
+Port(port9) is HW Admin up, SW Admin up, line protocol is down
+Interface Type is Serial Gigabit Media Independent Interface(SGMII/SerDes)
+Address is 00:00:5E:00:53:09, 
+MTU 10000 bytes, Encapsulation IEEE 802.3/Ethernet-II
+full-duplex, 1000 Mb/s, link type is manual
+input  : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes
+         0 unicasts, 0 multicasts, 0 broadcasts, 0 unknowns
+output : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes
+         0 unicasts, 0 multicasts, 0 broadcasts
+0 fragments, 0 undersizes, 0 collisions, 0 jabbers
+
+
+Port(port10) is HW Admin up, SW Admin up, line protocol is down
+Interface Type is Serial Gigabit Media Independent Interface(SGMII/SerDes)
+Address is 00:00:5E:00:53:0A, 
+MTU 10000 bytes, Encapsulation IEEE 802.3/Ethernet-II
+full-duplex, 1000 Mb/s, link type is manual
+input  : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes
+         0 unicasts, 0 multicasts, 0 broadcasts, 0 unknowns
+output : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes
+         0 unicasts, 0 multicasts, 0 broadcasts
+0 fragments, 0 undersizes, 0 collisions, 0 jabbers
+
+
+Port(internal) is HW Admin up, SW Admin up, line protocol is up
+Interface Type is Serial Gigabit Media Independent Interface(SGMII/SerDes)
+Address is 00:00:5E:00:53:0B, 
+MTU 10000 bytes, Encapsulation IEEE 802.3/Ethernet-II
+full-duplex, 1000 Mb/s, link type is auto
+input  : 1799662827 bytes, 4519733 packets, 0 errors, 400707 drops, 0 oversizes
+         2427188 unicasts, 1691523 multicasts, 401022 broadcasts, 0 unknowns
+output : 467435175 bytes, 2602701 packets, 0 errors, 0 drops, 0 oversizes
+         2399830 unicasts, 201995 multicasts, 876 broadcasts
+0 fragments, 0 undersizes, 0 collisions, 0 jabbers
+
+
+

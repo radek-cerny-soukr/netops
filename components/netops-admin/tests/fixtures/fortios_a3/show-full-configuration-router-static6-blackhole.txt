@@ -1,0 +1,14 @@
+config router static6
+    edit 63
+        set status disable
+        set dst 2001:db8:a3::/48
+        set distance 10
+        set weight 0
+        set priority 1024
+        set comment "netops A3 test"
+        set blackhole enable
+        set link-monitor-exempt disable
+        set vrf 0
+        set tag 0
+    next
+end

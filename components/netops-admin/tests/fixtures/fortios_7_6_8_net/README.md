@@ -1,4 +1,4 @@
-# FortiGate-60F 7.6.8 build3744: system interface and router static (1.0.12 G19, task 439)
+# FortiGate-60F 7.6.8 build3744: system interface and router static (1.0.12 firewall routing admin, verification)
 
 Real output of the lab FortiGate-60F (FortiOS v7.6.8,build3744), read 2026-11-17 over SSH (account `ai-login`).
 
@@ -17,12 +17,12 @@ Real output of the lab FortiGate-60F (FortiOS v7.6.8,build3744), read 2026-11-17
   - `show-router-static-439__created.txt`, `__disabled.txt`, `__dynamic-gateway.txt` (device wan2), `__not-found.txt`.
 
 Every test object was removed; `show system interface` and `show router static` after the measurement equal the output before
-(evidence `task-evidence/g19/60f-cli/` on the task branch).
+(evidence in a private measurement record).
 
-## Task netops-20261121-749 (public source gate of 1.0.12)
+## verification (public source gate of 1.0.12)
 
 The tests first used test networks outside the documentation ranges for the VLAN and route they create, because the
 anonymised baseline fills 198.51.100.0/24 (dmz), 203.0.113.0/24 (the other interfaces) and 192.0.2.0/24 (route 21).
 The anonymised mask of `dmz` is now 255.255.255.128 (its real subnet was not kept by the anonymiser anyway), and the
-tests use the free half 198.51.100.128/25: VLAN 198.51.100.137/29 (gateway .138), route destination
-198.51.100.192/26 (gateway update .194), the VLAN of `test_mcp_undo_unblock.py` 198.51.100.145/29.
+tests use the free half 198.51.100.128/25: VLAN 198.51.100.137/29 (gateway.138), route destination
+198.51.100.192/26 (gateway update.194), the VLAN of `test_mcp_undo_unblock.py` 198.51.100.145/29.

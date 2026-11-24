@@ -248,7 +248,7 @@ def test_ap_or_vap_absent_from_the_listings_is_reported():
 
 
 def test_identity_other_than_the_tested_model_runs_with_a_warning():
-    # G00 (2026-11-17): another model or build is triaged, not refused.
+    # STARTUP (2026-11-17): another model or build is triaged, not refused.
     for status in ("Version: FortiGate-60F v7.6.8,build3744,260115 (GA.M)\n",
                    "Version: FortiGate-80F v8.0.2,build0252,260928 (GA.F)\n"):
         result, _ = run(outputs(system_status=status))

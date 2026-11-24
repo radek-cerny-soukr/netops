@@ -1,0 +1,12 @@
+
+
+
+Building configuration...
+
+Current configuration : 109 bytes
+!
+interface Loopback900
+ description netops-ios-static-routing test
+ vrf forwarding blue
+ no ip address
+end

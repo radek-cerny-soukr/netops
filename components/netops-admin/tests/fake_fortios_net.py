@@ -1,8 +1,8 @@
-"""Simulated FortiGate-60F 7.6.8 build3744 with system interface and router static (1.0.12 G19, task 439).
+"""Simulated FortiGate-60F 7.6.8 build3744 with system interface and router static (1.0.12 FIREWALL-ROUTING-ADMIN, verification).
 
 The interface and route tables start from the anonymised `show system interface` and `show router static` of the lab
-FortiGate-60F (fixtures/fortios_7_6_8_net). Only the measured behaviour of that build is simulated (task 439,
-task-evidence/g19/60f-cli): a new VLAN gets `device-identification enable` and the next `snmp-index`; without an
+FortiGate-60F (fixtures/fortios_7_6_8_net). Only the measured behaviour of that build is simulated (verification,
+private measurement record): a new VLAN gets `device-identification enable` and the next `snmp-index`; without an
 explicit role it inherits the role of its parent, and role lan with an address creates the firewall address
 "<name> address" (type interface-subnet); `role undefined`, `status up`, `distance 10`, `status enable` and
 `dynamic-gateway disable` are defaults that show omits; quoted option values are accepted; deleting an interface still

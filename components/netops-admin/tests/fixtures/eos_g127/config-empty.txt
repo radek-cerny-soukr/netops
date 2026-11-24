@@ -1,2 +1,0 @@
-ipv6 access-list netops-g127-empty6
-ip access-list netops-g127-empty4

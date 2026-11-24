@@ -10,6 +10,7 @@ import re
 
 from .engine import EVALUATED, NOT_EVALUATED, UNSUPPORTED, check
 from .inputs import InputError, read_regular
+from .platforms import PLATFORMS
 
 RULES = {
     "fortios": {
@@ -124,7 +125,7 @@ def validate_policy(data, platform):
     return json.loads(json.dumps(data))
 
 
-def load_policy(path, platform):
+def _read_policy(path):
     try:
         data = read_regular(path, MAX_POLICY_BYTES)
     except InputError as error:
@@ -139,7 +140,84 @@ def load_policy(path, platform):
         document = json.loads(data.decode("utf-8"), object_pairs_hook=unique)
     except RecursionError:
         raise PolicyError("policy nesting is too deep") from None
-    return validate_policy(document, platform)
+    return document
+
+
+def load_policy(path, platform):
+    return validate_policy(_read_policy(path), platform)
+
+
+INTENT_FLAGS = frozenset({"external_aaa_required", "ntp_auth_required"})
+PORT_FLAGS = frozenset({"discovery_allowed", "storm_control_required", "default_vlan_allowed"})
+INTENT_FIELDS = INTENT_FLAGS | {"syslog_severity", "management_prefixes", "trusted_dhcp_ports",
+                               "dhcp_snooping_vlans", "account_lockout_required", "ports"}
+SYSLOG_LEVELS = ("emergency", "alert", "critical", "error", "warning", "notice", "info", "debug")
+INTENT_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:/-]{0,127}")
+
+
+def _vlan(value):
+    return type(value) is int and 1 <= value <= 4094
+
+
+def _intent_list(value, valid, field):
+    _require(isinstance(value, list) and len(value) <= 4096 and all(map(valid, value)),
+             "invalid audit_intent " + field)
+    _require(len(set(value)) == len(value), "duplicate audit_intent " + field)
+
+
+def _intent_name(value):
+    return isinstance(value, str) and INTENT_NAME.fullmatch(value) is not None
+
+
+def _prefix(value):
+    if not isinstance(value, str) or "/" not in value:
+        return False
+    try:
+        ipaddress.ip_network(value, strict=True)
+    except ValueError:
+        return False
+    return True
+
+
+def validate_intent(intent, platform):
+    _require(isinstance(intent, dict) and set(intent) <= INTENT_FIELDS, "invalid audit_intent fields")
+    for field in INTENT_FLAGS & intent.keys():
+        _require(type(intent[field]) is bool, "audit_intent " + field + " must be boolean")
+    if "syslog_severity" in intent:
+        _require(intent["syslog_severity"] in SYSLOG_LEVELS, "invalid audit_intent syslog_severity")
+    for field, valid in (("management_prefixes", _prefix), ("trusted_dhcp_ports", _intent_name),
+                         ("dhcp_snooping_vlans", _vlan), ("account_lockout_required", _intent_name)):
+        if field in intent:
+            _intent_list(intent[field], valid, field)
+    _require("account_lockout_required" not in intent or platform == "exos",
+             "audit_intent account_lockout_required applies to EXOS")
+    ports = intent.get("ports", {})
+    _require(isinstance(ports, dict) and len(ports) <= 4096, "invalid audit_intent ports")
+    for name, settings in ports.items():
+        _require(_intent_name(name) and isinstance(settings, dict)
+                 and settings.keys() <= PORT_FLAGS | {"role", "native_vlan"}
+                 and settings.get("role") in ("edge", "trunk", "unused"), "invalid audit_intent port")
+        if "native_vlan" in settings:
+            _require(_vlan(settings["native_vlan"]), "invalid audit_intent native_vlan")
+        for flag in PORT_FLAGS & settings.keys():
+            _require(type(settings[flag]) is bool, "audit_intent " + flag + " must be boolean")
+    return intent
+
+
+def load_audit_policy(path, platform):
+    document = _read_policy(path)
+    _require(isinstance(document, dict), "policy must be an object")
+    if "audit_intent" not in document:
+        return validate_policy(document, platform), {}
+    intent = validate_intent(document.pop("audit_intent"), platform)
+    _require(platform in PLATFORMS, "unsupported policy platform")
+    if not document or document.keys() == {"version", "platform"}:
+        if document:
+            _require(type(document["version"]) is int and document["version"] == 1, "policy version must be 1")
+            _require(document["platform"] == platform, "policy platform mismatch")
+        policy = validate_policy(document, platform) if document and platform in RULES else None
+        return policy, intent
+    return validate_policy(document, platform), intent
 
 
 def policy_digest(policy):

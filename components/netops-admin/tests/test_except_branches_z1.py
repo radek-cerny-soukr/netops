@@ -13,13 +13,14 @@ from test_execute import audit_lines, make_runtime, request, steps
 from netops_admin import enrollment, execute
 from netops_admin.access import DeviceAccess
 from netops_admin.errors import StateUnreadable
+from approved_apply import approved_apply
 
 
 def test_delivery_refresh_propagates_an_unreadable_journal(tmp_path):
     status = tmp_path / "export.json"
     status.write_text(json.dumps({"updated_at": time.time(), "pending": 1}))
     runtime = make_runtime(tmp_path, FakeFortiOS(), export_status=str(status))
-    record = execute.apply(runtime, "lab", request())
+    record = approved_apply(runtime, "lab", request())
     assert record["audit_delivery"] == "pending"
     status.write_text(json.dumps({"updated_at": record["finished_at_epoch"] + 1, "pending": 0}))
     journal = runtime.store.operations / (record["change_id"] + ".json")
@@ -61,7 +62,7 @@ def test_recovery_keeps_unverified_safeguard_when_credentials_are_missing(tmp_pa
     device = FakeFortiOS()
     device.unreachable_after_apply = lambda _lines: True
     runtime = make_runtime(tmp_path, device)
-    record = execute.apply(runtime, "lab", request())
+    record = approved_apply(runtime, "lab", request())
     assert (record["result"], record["reason"]) == ("unknown", "safeguard not verified")
     assert device.stitches and "change_start" not in steps(record)
     before = len(device.applied_blocks)

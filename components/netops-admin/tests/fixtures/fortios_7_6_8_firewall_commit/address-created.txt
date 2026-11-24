@@ -1,0 +1,7 @@
+config firewall address
+    edit "NETOPS-FIREWALL-COMMIT-HOST"
+        set uuid 00000000-0000-4000-8000-0000000000a1
+        set comment "FIREWALL-COMMIT host"
+        set subnet 192.0.2.124 255.255.255.255
+    next
+end

@@ -27,7 +27,7 @@ VERSION_GATE = PREFIX + "scope.unsupported-version"
 VDOM_GATE = PREFIX + "scope.vdom-unsupported"
 UNTESTED = PREFIX + "scope.untested-version"
 ALL_RULES = {TRUSTED, PLAIN, TLS, FACTORY, NOHC, SINGLE}
-# Rules that a scope gate turns unsupported: the content rules and the untested-version notice (G00).
+# Rules that a scope gate turns unsupported: the content rules and the untested-version notice (STARTUP).
 GATED = ALL_RULES | {UNTESTED}
 
 GOOD = (
@@ -157,7 +157,7 @@ def test_contradictory_or_unknown_metadata_is_refused(bad):
     {"platform": "FortiADC-KVM", "version": "8.0.0", "build": "0100"},
 ])
 def test_another_fortiadc_identity_is_evaluated_with_an_untested_notice(identity):
-    """G00 (U1, U2): no scope gate; the rules are evaluated as on the tested identity, plus one info notice."""
+    """STARTUP (U1, U2): no scope gate; the rules are evaluated as on the tested identity, plus one info notice."""
     findings, states = audit(GOOD, identity=identity)
     assert [item.rule_id for item in findings] == [UNTESTED]
     finding = findings[0]
@@ -481,7 +481,7 @@ def test_cli_accepts_the_metadata_document_written_by_the_helper(capsys, tmp_pat
 
 
 def test_cli_helper_metadata_of_another_build_reports_an_untested_notice(capsys, tmp_path):
-    """G00: the same exit and coverage as on the tested build; the report carries the untested notice."""
+    """STARTUP: the same exit and coverage as on the tested build; the report carries the untested notice."""
     code, report, _ = cli_run(capsys, tmp_path, GOOD, helper_meta(build="0700"))
     assert code == cli.EXIT_OK
     assert [item["rule_id"] for item in report["findings"]] == [UNTESTED]
@@ -517,7 +517,7 @@ def test_cli_process_coverage(tmp_path, output, scenario):
     args = [sys.executable, '-B', '-m', 'netops_auditor.cli', 'run', '--platform', 'fortiadc',
             '--tenant', 't', '--device', 'd', '--config', str(config), '--snapshot-meta', str(metadata), '--' + output]
     result = subprocess.run(args, capture_output=True, text=True, env=os.environ.copy())
-    # G00: an untested version (scenario 'version') is evaluated like the tested one, only an info notice is added.
+    # STARTUP: an untested version (scenario 'version') is evaluated like the tested one, only an info notice is added.
     assert result.returncode == (0 if scenario in ('inherent', 'user', 'version') else 3), result.stderr
     report = json.loads(result.stdout)
     if output == 'sarif':

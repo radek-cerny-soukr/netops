@@ -22,11 +22,12 @@ DEVICE_FIELDS = frozenset((
     "check_address", "audit_policy", "schema", "opt_in", "wlans", "host_key",
     "fortiadc_https_port", "fortiadc_https_sha256",
 ))
-# system interface and router static (1.0.12 G19) change the network path: opt-in and protected system interface
+# system interface and router static (1.0.12 firewall routing admin) change the network path: opt-in and protected system interface
 IPSEC_TABLES = ("vpn ipsec phase2-interface", "ipsec-tunnel")
 NAT_TABLES = ("firewall vip", "firewall ippool")
-PATH_TABLES = ("firewall policy", "system interface", "router static", *IPSEC_TABLES, *NAT_TABLES)
-OPT_IN_TABLES = (*PATH_TABLES, "firewall service custom")
+# 1.0.13 A1-R: router static6 is on the management path like router static; system dns changes name resolution
+PATH_TABLES = ("firewall policy", "system interface", "router static", *IPSEC_TABLES, *NAT_TABLES, "router static6")
+OPT_IN_TABLES = (*PATH_TABLES, "firewall service custom", "system dns")
 ADMIN_PLATFORMS = ("fortios", "exos", "eos", "ios", "iosxe", "fortiadc", "nxos", "junos", "ruckus")
 # platforms whose device entry must list the expected local accounts (the snapshot shows them)
 ACCOUNT_LIST_PLATFORMS = ("exos", "eos", "ios", "iosxe", "nxos", "junos")
@@ -73,7 +74,7 @@ class Device:
     audit_policy: dict | None = None
     schema: dict | None = None
     opt_in: tuple = ()
-    # Ruckus Unleashed: the WLANs Admin may write; every other WLAN is refused (1.0.12 G111)
+    # Ruckus Unleashed: the WLANs Admin may write; every other WLAN is refused (1.0.12 wireless wlans)
     wlans: tuple = ()
     host_key: str | None = None
     fortiadc_https_port: int = 443
@@ -97,7 +98,7 @@ class Config:
     limits: dict
     devices: dict
     export_status_require_audit_file: bool = False
-    # 1.0.12 G07 r2, decision of the administrator 2026-11-18: the MCP tools admin_undo, admin_unblock_preview and
+    # 1.0.12 execution access r2, decision of the administrator 2026-11-18: the MCP tools admin_undo, admin_unblock_preview and
     # admin_unblock are off unless the configuration opts in; the operator commands do not depend on it
     mcp_undo: bool = False
 

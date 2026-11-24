@@ -1,0 +1,40 @@
+Ori Destination                                   Mtr  Flags         Duration
+    Gateway                                       Interface
+ d  2001:db8:45::/64                              1    -------um---- 0d:0h:0m:22s 
+    2001:db8:45::1                                switch-ip-multicast
+ s  2001:db8:4545::/64                            1    -G---S-um---- 0d:0h:0m:17s 
+    2001:db8:45::fe                               switch-ip-multicast
+ s  2001:db8:4546::/64                            1    -G---S-um---- 0d:0h:0m:17s 
+    2001:db8:45::fd                               switch-ip-multicast
+ d  fe80::%switch-ip-multicast/64                                1    -------um---- 0d:0h:1m:4s 
+    fe80::10                                      switch-ip-multicast
+
+Origin(Ori):(b) BlackHole, (be) EBGP, (bg) BGP, (bi) IBGP, (bo) BOOTP,
+            (ct) CBT, (d) Direct, (df) DownIF, (dv) DVMRP, (e1) ISISL1Ext,
+            (e2) ISISL2Ext, (h) Hardcoded, (i) ICMP, (i1) ISISL1 (i2) ISISL2,
+            (is) ISIS, (mb) MBGP, (mbe) MBGPExt, (mbi) MBGPInter, (ma) MPLSIntra,
+            (mr) MPLSInter, (mo) MOSPF (o) OSPFv3, (o1) OSPFv3Ext1, (o2) OSPFv3Ext2,
+            (oa) OSPFv3Intra, (oe) OSPFv3AsExt, (or) OSPFv3Inter, (pd) PIM-DM, (ps) PIM-SM,
+            (r) RIPng, (ra) RtAdvrt, (s) Static, (sv) SLB_VIP, (hm) Host-mobility, 
+            (au) Auto-peering, (un) UnKnown,
+            (*) Preferred unicast route (@) Preferred multicast route,
+            (#) Preferred unicast and multicast route.
+
+Flags:  (b) BFD protection requested, (B) BlackHole, (c) Compressed,
+        (D) Dynamic, (f) Provided to FIB, (G) Gateway, (H) Host Route,
+        (I) ICMP ping protection requested, (l) Calculated LDP LSP,
+        (L) Matching LDP LSP, (m) Multicast, (p) BFD protection active,
+        (P) LPM-routing, (R) Modified, (s) Static LSP, (S) Static,
+        (t) Calculated RSVP-TE LSP, (T) Matching RSVP-TE LSP, (u) Unicast,
+        (U) Up, (3) L3VPN Route.
+
+Mask distribution:
+     4 routes at length  64
+
+Route Origin distribution:
+     2 routes from Direct               2 routes from Static    
+
+
+Total number of routes = 4
+Total number of compressed routes = 0
+

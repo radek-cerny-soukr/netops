@@ -1,4 +1,4 @@
-# FortiGate-60F 7.6.8 build 3744 in multi-VDOM mode (measurement task 172, 2026-11-14)
+# FortiGate-60F 7.6.8 build 3744 in multi-VDOM mode (measurement verification, 2026-11-14)
 
 Interactive SSH transcripts of the lab FortiGate-60F while it was temporarily in `vdom-mode multi-vdom`
 with the VDOMs `root` (index 0) and `nops172-vd1` (index 3). The file name is the capture number of the
@@ -25,9 +25,9 @@ Preparation from the measurement evidence (`evidence-1.0.9/109-11/mereni-172/60f
 
 VDOM names, VDOM indexes, the tunnel name `netops-172-p1`, counters and the model and build are real.
 
-## `context-197.json` (task 202)
+## `context-197.json` (verification)
 
-Excerpts of the CLI evidence of the multi-VDOM live check (task 197, `ref/60f-cli/33–35`, FortiGate-60F 7.6.8 build
+Excerpts of the CLI evidence of the multi-VDOM live check (verification, `ref/60f-cli/33–35`, FortiGate-60F 7.6.8 build
 3744, 2026-11-14), same transcript format; carriage returns removed, the `get system status` steps (serial) and the
 `config system accprofile` steps of 34 left out, nothing else changed:
 
@@ -38,19 +38,19 @@ Excerpts of the CLI evidence of the multi-VDOM live check (task 197, `ref/60f-cl
 - `197-35-diag-root`: the global diag profile with `cli-config` (prompt `$`): `edit root` prints `current vf=root:0`,
   `diagnose sys session stat` answers there and `get system performance status` is refused with `-61`.
 
-## `status-197.json` (task 212)
+## `status-197.json` (verification)
 
 `197-21-A-noctx-status-one-vdom`: `get system status` of a super_admin right after `set vdom-mode multi-vdom`, before
-any other VDOM was created (task 197 `ref/scenare-197-vdom/60f-cli/21-status-multivdom.out`, FortiGate-60F 7.6.8
+any other VDOM was created (verification `ref/scenare-197-vdom/60f-cli/21-status-multivdom.out`, FortiGate-60F 7.6.8
 build 3744, 2026-11-14): `Virtual domain configuration: multiple`, `Current virtual domain: root`,
 `Virtual domains status: 1 in NAT mode, 0 in TP mode`. The capture had no command echo; the transcript adds the
 `get system status` prompt line and the closing prompt as in `511-A-noctx-status`. Carriage returns removed; the
 serial and the host name replaced by the values the anonymiser gave the same 60F in `transcripts.json`
 (`SSS00SSS0001SSSS`, `host01`); the status holds no address or MAC. Nothing else changed.
 
-## `vdom-admin-197.json` (task 206)
+## `vdom-admin-197.json` (verification)
 
-The per-VDOM administrator of the multi-VDOM live check (task 197, `ref/scenare-197-vdom/60f-cli/44-vd1acct-exec-run2.out`,
+The per-VDOM administrator of the multi-VDOM live check (verification, `ref/scenare-197-vdom/60f-cli/44-vd1acct-exec-run2.out`,
 FortiGate-60F 7.6.8 build 3744, 2026-11-14): account `netops-197-ro-vd1` with `set vdom "nops172-vd1"` and a VDOM
 profile with `cli-get`/`cli-show`/`cli-diagnose`/`cli-config` enabled, logged in through `nv1971`, an interface of
 `nops172-vd1`. Each capture was one SSH exec call; it is written here in the same transcript format (one `[login]`
@@ -65,7 +65,7 @@ per call, the exec answers after the prompt `FortiGate-60F $ ` of each command):
 - `197-44-vd1acct-physical`: `get system interface physical` lists the physical ports of every VDOM, with the
   addresses of `root` ports.
 
-Preparation: the answers were cut from the exec captures (no carriage returns in them), anonymised on PC-Radek with
+Preparation: the answers were cut from the exec captures (no carriage returns in them), anonymised  with
 `tests/support/anonymize_fixture.py --check --serial <serial>` (serial, host name, IPv4 to RFC 5737; the mapping was not
 stored), and the gap the anonymiser widened after a shortened IPv4 address was set back to one space. VDOM, interface
 and description names, SNMP indexes and the model and build are real.

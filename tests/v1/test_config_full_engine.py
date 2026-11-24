@@ -486,7 +486,7 @@ class FullConfigurationEngine(TestCase):
                 self.read()
         self.assertEqual(len(c._SNAPSHOTS),0)
         auth=replace(enrolled(),ssh_platform='fortiadc')
-        # G00 (2026-11-17): an untested FortiADC build is no failure category; another product still is.
+        # STARTUP (2026-11-17): an untested FortiADC build is no failure category; another product still is.
         with mock.patch.object(engine,'read_from_device',side_effect=self.wire(status=ADC_STATUS.replace('FortiADC-KVM v','FortiGate-VM64 v'))):
             with self.assertRaises(ValueError) as error:
                 engine.config_read(auth,'fortiadc','all',True,redaction='full')

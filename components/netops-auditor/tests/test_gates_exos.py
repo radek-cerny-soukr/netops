@@ -7,7 +7,7 @@ import pytest
 from netops_auditor import checks_exos
 from netops_auditor import cli
 from netops_auditor import query
-from netops_auditor.engine import load_catalog, run
+from netops_auditor.engine import registered_checks, load_catalog, run
 from netops_auditor.l1_exos import parse
 from netops_auditor.store import Store
 
@@ -24,8 +24,7 @@ TENANT = "tenant-gate"
 DEVICE = "sw-gate.example.invalid"
 NOW = datetime(2026, 9, 17, 12, 0, 0, tzinfo=timezone.utc)
 
-RULES = tuple(r for r in load_catalog(PLATFORM) if ".management." not in r.id)
-RULE_IDS = tuple(rule.id for rule in RULES)
+ALL_RULES = load_catalog(PLATFORM)
 
 MARKERS = tuple("CANARY-SECRET-EXOS-%02d" % number for number in range(1, 12))
 
@@ -75,6 +74,10 @@ disable telnet
 
 VOLATILE_FIRST = "JDEkRVhBTVBMRTAxJGV4YW1wbGVoYXNoQTAx"
 VOLATILE_SECOND = "JDEkRVhBTVBMRTAyJGV4YW1wbGVoYXNoQjAy"
+
+
+RULES = tuple(rule for rule in ALL_RULES if rule.id in DEFECTS)
+RULE_IDS = tuple(rule.id for rule in RULES)
 
 
 def text_of(path):
@@ -154,7 +157,7 @@ def test_gate_every_rule_carries_a_positive_and_a_negative_fixture(rule_id):
 
 
 def test_gate_every_rule_names_an_implemented_check():
-    assert all(hasattr(checks_exos, rule.check) for rule in RULES)
+    assert all(rule.check in registered_checks() for rule in ALL_RULES)
 
 
 @pytest.mark.parametrize("rule_id", RULE_IDS)
@@ -170,7 +173,7 @@ def test_gate_the_negative_fixture_silences_the_rule(rule_id):
 
 
 def test_gate_the_clean_fixture_yields_no_finding():
-    assert audit(text_of(CLEAN)) == ()
+    assert run(parse(text_of(CLEAN)), TENANT, DEVICE, ALL_RULES) == ()
 
 
 @pytest.mark.parametrize("rule_id", RULE_IDS)

@@ -1,0 +1,18 @@
+config router static6
+    edit 1
+        set status enable
+        set dst ::/0
+        set gateway 2001:db8:1::1
+        set device "wan1"
+        set distance 10
+        set weight 0
+        set priority 1024
+        set comment "IPv6 default route"
+        set blackhole disable
+        set dynamic-gateway disable
+        set dstaddr ''
+        set link-monitor-exempt disable
+        set bfd disable
+        set tag 0
+    next
+end

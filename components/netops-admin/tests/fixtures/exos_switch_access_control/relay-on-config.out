@@ -1,0 +1,14 @@
+# Module vlan configuration.
+create vlan "netops-switch-access-control"
+# Module vlan configuration.
+configure vlan netops-switch-access-control tag 3940
+# Module vlan configuration.
+configure vlan netops-switch-access-control add ports 10 tagged
+# Module vlan configuration.
+configure vlan netops-switch-access-control ipaddress 192.0.2.1    255.255.255.0
+# Module vlan configuration.
+enable ipforwarding vlan netops-switch-access-control
+# Module netTools configuration.
+enable bootprelay ipv4 vlan netops-switch-access-control
+# Module netTools configuration.
+configure bootprelay vlan netops-switch-access-control add 192.0.2.254

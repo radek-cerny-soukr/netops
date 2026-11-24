@@ -1,0 +1,61 @@
+#
+# Module vlan configuration.
+#
+configure vlan default delete ports all
+configure vr VR-Default delete ports 1-12
+create qosprofile "QP2"
+create qosprofile "QP3"
+create qosprofile "QP4"
+create qosprofile "QP5"
+create qosprofile "QP6"
+create qosprofile "QP7"
+create vlan "DUO-DATA"
+configure vlan DUO-DATA tag 304
+create vlan "DUO-ISC"
+configure vlan DUO-ISC tag 4090
+create vlan "DUO-KA"
+configure vlan DUO-KA tag 4091
+create vlan "D10"
+configure vlan D10 tag 10
+create vlan "D20"
+configure vlan D20 tag 20
+create vlan "switch-ip-multicast"
+configure vlan switch-ip-multicast description "switch-ip-routing test" 
+configure vlan switch-ip-multicast tag 3945
+enable sharing 5 grouping 5 lacp
+configure vlan DUO-DATA add ports 3 tagged  
+configure vlan DUO-DATA add ports 5 untagged  
+configure vlan DUO-ISC add ports 3 tagged  
+configure vlan DUO-KA add ports 4 untagged  
+configure vlan D10 add ports 1 tagged  
+configure vlan D10 add ports 2 untagged  
+configure vlan D20 add ports 1 tagged  
+configure vlan Default add ports 6-12 untagged  
+configure vlan DUO-ISC ipaddress 192.0.2.193 255.255.255.252
+configure vlan DUO-KA ipaddress 192.0.2.197 255.255.255.252
+configure vlan D10 ipaddress 192.0.2.132 255.255.255.224
+configure vlan D20 ipaddress 192.0.2.164 255.255.255.224
+configure vlan switch-ip-multicast ipaddress 198.51.100.1 255.255.255.0
+enable ipforwarding vlan switch-ip-multicast
+configure vlan Mgmt ipaddress 192.0.2.54 255.255.255.128
+configure vlan switch-ip-multicast ipaddress eui64 fe80::/64
+configure vlan switch-ip-multicast ipaddress 2001:db8:45::1/64
+configure qosscheduler strict-priority ports 1 
+configure qosscheduler strict-priority ports 2 
+configure qosscheduler strict-priority ports 3 
+configure qosscheduler strict-priority ports 4 
+configure qosscheduler strict-priority ports 5 
+configure qosscheduler strict-priority ports 6 
+configure qosscheduler strict-priority ports 7 
+configure qosscheduler strict-priority ports 8 
+configure qosscheduler strict-priority ports 9 
+configure qosscheduler strict-priority ports 10 
+configure qosscheduler strict-priority ports 11 
+configure qosscheduler strict-priority ports 12 
+#
+# Module rtmgr configuration.
+#
+configure iproute add default 192.0.2.1 vr VR-Mgmt
+#
+# Module vrrp configuration.
+#

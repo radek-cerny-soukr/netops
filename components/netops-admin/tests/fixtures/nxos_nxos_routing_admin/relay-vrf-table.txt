@@ -1,0 +1,3 @@
+ Interface        Relay Address     VRF Name
+ -------------    -------------     --------
+ Vlan3900          192.0.2.249      nxos-routing-admin

@@ -1,4 +1,4 @@
-"""Arista EOS execution adapter (measured on cEOSLab 4.36.1F, ref/c7-mereni).
+"""Arista EOS execution adapter (measured on cEOS 4.36.1F, private measurement record).
 
 Safeguard first, as execute.py needs it: an empty configuration session with a commit timer is committed before the
 change; its checkpoint holds the configuration before the change. The change itself runs line by line through
@@ -11,7 +11,7 @@ the unconfirmed state, so persist runs only after the confirmation.
 
 Routing profiles stage the change itself in the timed configuration session.
 
-The write account must log in with privilege 15 (aaa authorization exec default local and username ... privilege
+The write account must log in with privilege 15 (aaa authorization exec default local and username... privilege
 15): Admin reads the running configuration with one ssh exec command and never sends enable or an enable secret.
 """
 from __future__ import annotations
@@ -46,7 +46,7 @@ FIRING_OBSERVED = True
 
 
 def prompt_spec(hostname: str) -> PromptSpec:
-    # measured prompts: "d-ceos>", "d-ceos#", "d-ceos(config-if-Et10)#", "d-ceos(config-s-netops-c7-)#"
+    # measured prompts: "Arista cEOS 4.36.1F>", "Arista cEOS 4.36.1F#", "Arista cEOS 4.36.1F(config-if-Et10)#", "Arista cEOS 4.36.1F(config-s-netops-c7-)#"
     return PromptSpec(anchor=("\n%s" % hostname).encode("ascii"), ends=(b"#", b">"), continuation=None,
                       error=eos.cli_error)
 
@@ -135,7 +135,7 @@ def vlan_answer(access, vlan: str) -> str:
 
 
 def _vlan_plan_prechecks(access, plan) -> list:
-    """G122 (E05/E19): the VLAN database of the switch agrees with the snapshot; a deleted VLAN carries no traffic."""
+    """eos switchport admin (E05/E19): the VLAN database of the switch agrees with the snapshot; a deleted VLAN carries no traffic."""
     key, op = plan["key"], plan["op"]
     exists = eos.vlan_exists(vlan_answer(access, key), key)
     if exists != (op != "create"):
@@ -391,7 +391,7 @@ def plan_prechecks(access, device, plan, snapshot_text="", undo=False, pending_v
 
 
 def poe_answer(access, key: str) -> dict:
-    """G123 (E06/E07): show poe interface N of the write account (Privileged EXEC in the Arista EOS manual); a switch
+    """eos port maintenance (E06/E07): show poe interface N of the write account (Privileged EXEC in the Arista EOS manual); a switch
     without PoE hardware answers "% Unavailable command (not supported on this hardware platform)" (measured)."""
     try:
         status, text = access.query_status("show poe interface %s" % key)
@@ -407,7 +407,7 @@ def poe_answer(access, key: str) -> dict:
 
 
 def _capability_prechecks(access, plan, before, after) -> None:
-    """G123 (E06/E07/E23): a new speed must be listed in show interfaces N hardware, a new MTU must not exceed the
+    """eos port maintenance (E06/E07/E23): a new speed must be listed in show interfaces N hardware, a new MTU must not exceed the
     Ethernet MTU of the port, a PoE change needs a port with PoE whose state is readable; all before any write."""
     key = plan["key"]
     if plan["table"] == eos.POE_TABLE or after.get("poe") != before.get("poe"):
@@ -438,7 +438,7 @@ def _capability_prechecks(access, plan, before, after) -> None:
 
 
 def link_state(access, key: str) -> str:
-    """G123 (E08): the Status column of show interfaces N status of the check account."""
+    """eos port maintenance (E08): the Status column of show interfaces N status of the check account."""
     return eos.link_state(access.check_query("show interfaces %s status" % key), key)
 
 
@@ -640,7 +640,7 @@ def observe(access, plan, *, before=False):
     return state
 
 
-# ---- 1.0.12 G131 (EP14): ordered profile batches under one commit timer ----
+# ---- 1.0.12 eos port ownership (EP14): ordered profile batches under one commit timer ----
 # One configuration session holds one commit timer for the whole batch (install_safeguard). The steps are written one
 # by one and read back after each write; a failing step returns the written ones in reverse order, and the timer
 # returns the whole configuration when that is not proven. Routing and BGP profiles stage their change in the session
@@ -713,7 +713,7 @@ def foreign_sessions(access, device) -> int:
     return eos.users(access.query(QUERY_USERS))[1]
 
 
-# G124. These profiles use the existing EOS session safeguard and a scoped second readback.
+# eos static routing. These profiles use the existing EOS session safeguard and a scoped second readback.
 def _l3_unreadable(what):
     return Rejected(["the EOS %s is incomplete or unrecognised" % what],
                     reason_codes=["eos_l3_readback_unreadable"])
@@ -1893,7 +1893,7 @@ def _dhcp_plan_prechecks(access, device, plan, snapshot_text):
     return []
 
 
-# ---- 1.0.12 G130: targeted clear of counters, MAC, ARP/ND entries and BGP refresh (eos_clear) ----
+# ---- 1.0.12 eos targeted clear: targeted clear of counters, MAC, ARP/ND entries and BGP refresh (eos_clear) ----
 
 def clear_device_prechecks(access, device, snapshot_text) -> str:
     """What a clear needs from the switch: the write account logs in with privilege 15 (the clear runs in exec mode)

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""ExtremeXOS ``show configuration`` stream consumer (task 109-06, part 70).
+"""ExtremeXOS ``show configuration`` stream consumer (verification-06, part 70).
 
 Real input: the two existing PRE-REDACTED golden captures of EXOS 33.7.1.6-patch1-11 under
 components/netops-admin/tests/golden/exos (account/sshd2 lines were already removed there, so they

@@ -1,0 +1,10 @@
+host01         # config system certificate local
+  edit "host02"
+    unset vdom
+    set acme-status not_set
+    set password ENC ADC-HEALTH-FIXTURE-ONLY-PASSWORD
+    set private-key-file fixture-key.pem
+    set is-hsm no
+  next
+end
+host01         #

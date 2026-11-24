@@ -8,6 +8,7 @@ from fake_fortiadc import CHECK_ACCOUNT_REFUSAL, FakeFortiADC
 
 from types import SimpleNamespace
 
+from approved_member import TARGET, approved_member
 from netops_admin import access, cli, fortiadc
 from netops_admin.errors import Rejected
 
@@ -30,7 +31,7 @@ def test_last_healthy_enabled_member_cannot_be_disabled():
     device = FakeFortiADC()
     only_member_one_is_healthy(device)
     with pytest.raises(Rejected) as caught:
-        fortiadc.run(device, "pool-a", "1", "disable")
+        approved_member(fortiadc.run, device, "pool-a", "1", "disable")
     refused_untouched(device, caught)
     assert "without a healthy enabled member" in caught.value.reasons[0]
     assert device.pools["pool-a"][1]["status"] == "enable"
@@ -38,8 +39,14 @@ def test_last_healthy_enabled_member_cannot_be_disabled():
 
 def test_a_change_that_keeps_a_healthy_enabled_member_is_written_with_health_read_by_the_write_account():
     device = FakeFortiADC()
-    result = fortiadc.run(device, "pool-a", "1", "disable")
+    previewed = fortiadc.run(device, "pool-a", "1", "disable", target=TARGET, preview=True)
+    assert [command for command in device.queries if "vs_stat" in command] == [
+        "diagnose server-load-balance vs_stat vdom root vs vs-a"]
+    device.queries.clear()
+    result = fortiadc.run(device, "pool-a", "1", "disable", target=TARGET,
+                          expected_plan_sha256=previewed["plan_sha256"])
     assert result["result"] == "confirmed"
+    # the write checks the health again itself: the preview's reads approve nothing about the health at write time
     assert [command for command in device.queries if "vs_stat" in command] == [
         "diagnose server-load-balance vs_stat vdom root vs vs-a"]
     assert device.check_queries == []
@@ -50,7 +57,7 @@ def test_measured_vs_stat_of_767_0676_with_two_healthy_members_allows_disabling_
     device.pools["pool-a"] = {1: {"real-server": "RS_A", "status": "enable", "pool_member_weight": "1"},
                               2: {"real-server": "RS_B", "status": "enable", "pool_member_weight": "1"}}
     device.vs_stat_text = MEASURED_VS_STAT
-    assert fortiadc.run(device, "pool-a", "2", "disable")["result"] == "confirmed"
+    assert approved_member(fortiadc.run, device, "pool-a", "2", "disable")["result"] == "confirmed"
     assert device.pools["pool-a"][2]["status"] == "disable"
 
 
@@ -60,7 +67,7 @@ def test_measured_vs_stat_of_767_0676_refuses_disabling_the_last_enabled_member(
                               2: {"real-server": "RS_B", "status": "enable", "pool_member_weight": "1"}}
     device.vs_stat_text = MEASURED_VS_STAT
     with pytest.raises(Rejected) as caught:
-        fortiadc.run(device, "pool-a", "2", "disable")
+        approved_member(fortiadc.run, device, "pool-a", "2", "disable")
     refused_untouched(device, caught)
     assert "without a healthy enabled member" in caught.value.reasons[0]
 
@@ -79,7 +86,7 @@ def test_unreadable_or_refused_vs_stat_refuses_the_change(text):
     device = FakeFortiADC()
     device.vs_stat_text = text
     with pytest.raises(Rejected) as caught:
-        fortiadc.run(device, "pool-a", "1", "disable")
+        approved_member(fortiadc.run, device, "pool-a", "1", "disable")
     refused_untouched(device, caught)
     assert "health of the pool members cannot be read" in caught.value.reasons[0]
 
@@ -88,7 +95,7 @@ def test_failing_vs_stat_query_refuses_the_change():
     device = FakeFortiADC()
     device.vs_stat_error = True
     with pytest.raises(Rejected) as caught:
-        fortiadc.run(device, "pool-a", "1", "disable")
+        approved_member(fortiadc.run, device, "pool-a", "1", "disable")
     refused_untouched(device, caught)
 
 
@@ -96,7 +103,7 @@ def test_health_does_not_need_a_check_account():
     device = FakeFortiADC()
     bare = type("Bare", (), {"query": device.query, "diagnose_query": device.diagnose_query,
                              "apply": device.apply})()
-    assert fortiadc.run(bare, "pool-a", "1", "disable")["result"] == "confirmed"
+    assert approved_member(fortiadc.run, bare, "pool-a", "1", "disable")["result"] == "confirmed"
 
 
 def test_down_members_do_not_count_as_healthy():
@@ -105,7 +112,7 @@ def test_down_members_do_not_count_as_healthy():
     device.pools["pool-a"][2]["status"] = "enable"
     device.health["vs-a"][2] = "DOWN"
     with pytest.raises(Rejected) as caught:
-        fortiadc.run(device, "pool-a", "1", "disable")
+        approved_member(fortiadc.run, device, "pool-a", "1", "disable")
     refused_untouched(device, caught)
 
 
@@ -113,7 +120,7 @@ def test_maintain_member_is_not_a_healthy_enabled_member():
     device = FakeFortiADC()
     only_member_one_is_healthy(device)
     with pytest.raises(Rejected):
-        fortiadc.run(device, "pool-a", "1", "maintain")
+        approved_member(fortiadc.run, device, "pool-a", "1", "maintain")
     assert device.applied_blocks == []
 
 
@@ -122,7 +129,7 @@ def test_member_missing_from_vs_stat_is_not_healthy():
     only_member_one_is_healthy(device)
     device.health["vs-a"] = {1: "UP", 2: "UP"}
     with pytest.raises(Rejected):
-        fortiadc.run(device, "pool-a", "1", "disable")
+        approved_member(fortiadc.run, device, "pool-a", "1", "disable")
 
 
 def test_every_virtual_server_using_the_pool_is_evaluated():
@@ -130,7 +137,7 @@ def test_every_virtual_server_using_the_pool_is_evaluated():
     device.virtual_servers["vs-c"] = {"load-balance-pool": "pool-a"}
     device.health["vs-c"] = {1: "UP", 2: "DOWN", 3: "DOWN", 4: "DOWN"}
     with pytest.raises(Rejected) as caught:
-        fortiadc.run(device, "pool-a", "1", "disable")
+        approved_member(fortiadc.run, device, "pool-a", "1", "disable")
     refused_untouched(device, caught)
     assert "vs-c" in caught.value.reasons[0]
     assert sorted(command for command in device.queries if "vs_stat" in command) == [
@@ -139,7 +146,7 @@ def test_every_virtual_server_using_the_pool_is_evaluated():
 
 def test_virtual_servers_of_other_pools_are_not_read():
     device = FakeFortiADC()
-    fortiadc.run(device, "pool-a", "1", "disable")
+    approved_member(fortiadc.run, device, "pool-a", "1", "disable")
     assert fortiadc.vs_stat_command("vs-b") not in device.queries
 
 
@@ -150,7 +157,7 @@ def test_pool_selection_that_cannot_be_evaluated_refuses_the_change(attributes):
     device.virtual_servers["vs-x"] = attributes
     device.health["vs-x"] = {1: "UP"}
     with pytest.raises(Rejected) as caught:
-        fortiadc.run(device, "pool-a", "1", "disable")
+        approved_member(fortiadc.run, device, "pool-a", "1", "disable")
     refused_untouched(device, caught)
 
 
@@ -158,7 +165,7 @@ def test_pool_used_by_no_virtual_server_refuses_the_change():
     device = FakeFortiADC()
     device.virtual_servers.pop("vs-a")
     with pytest.raises(Rejected) as caught:
-        fortiadc.run(device, "pool-a", "1", "disable")
+        approved_member(fortiadc.run, device, "pool-a", "1", "disable")
     refused_untouched(device, caught)
 
 
@@ -173,7 +180,7 @@ def test_unreadable_virtual_server_listing_refuses_the_change():
 
     device.query = query
     with pytest.raises(Rejected):
-        fortiadc.run(device, "pool-a", "1", "disable")
+        approved_member(fortiadc.run, device, "pool-a", "1", "disable")
     assert device.applied_blocks == []
 
 
@@ -181,14 +188,14 @@ def test_enabling_a_member_is_checked_too():
     device = FakeFortiADC()
     device.vs_stat_text = REFUSED
     with pytest.raises(Rejected):
-        fortiadc.run(device, "pool-a", "2", "enable")
+        approved_member(fortiadc.run, device, "pool-a", "2", "enable")
     assert device.applied_blocks == []
 
 
 def test_unchanged_state_needs_no_health_read():
     device = FakeFortiADC()
     device.vs_stat_text = REFUSED
-    assert fortiadc.run(device, "pool-a", "1", "enable")["result"] == "unchanged"
+    assert approved_member(fortiadc.run, device, "pool-a", "1", "enable")["result"] == "unchanged"
     assert not any("vs_stat" in command for command in device.queries)
 
 
@@ -196,13 +203,13 @@ def test_health_source_is_one_replaceable_function(monkeypatch):
     device = FakeFortiADC()
     device.vs_stat_text = REFUSED
     monkeypatch.setattr(fortiadc, "read_health", lambda access, vs: {1: True, 4: True})
-    assert fortiadc.run(device, "pool-a", "1", "disable")["result"] == "confirmed"
+    assert approved_member(fortiadc.run, device, "pool-a", "1", "disable")["result"] == "confirmed"
     assert not any("vs_stat" in command for command in device.queries)
 
 
 def test_result_carries_no_vs_stat_output():
     device = FakeFortiADC()
-    assert "hc_state" not in json.dumps(fortiadc.run(device, "pool-a", "1", "disable"))
+    assert "hc_state" not in json.dumps(approved_member(fortiadc.run, device, "pool-a", "1", "disable"))
 
 
 def test_cli_reports_the_refusal_with_a_reason_and_writes_nothing(monkeypatch, capsys):

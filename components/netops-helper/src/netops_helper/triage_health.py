@@ -7,7 +7,7 @@ from .query_catalog.arista import LOG_WINDOW_QUERIES as EOS_LOG_WINDOW_QUERIES
 from .query_catalog.extreme import LOG_SEVERITIES as EXOS_LOG_SEVERITIES
 from .sanitize import EXOS_LOG_EMPTY, EXOS_LOG_ENTRY, EXOS_LOG_TOTAL
 
-# Tested identities of triage_health and triage_vpn (G00, decision of 2026-11-17): not a gate. On another model or
+# Tested identities of triage_health and triage_vpn (startup, decision of 2026-11-17): not a gate. On another model or
 # build the triage runs with firmware_support "untested" and a warning; a reply of an unknown shape is reported as
 # unparsed or missing (verdict incomplete), as on a tested identity.
 IDENTITIES = frozenset({
@@ -151,7 +151,7 @@ def multi_vdom(found):
 def ports_of_vdom(ports, answer, vdom):
     """The physical ports of one VDOM and the count of the others, owners from `show system interface`.
 
-    Measured (task 172): `get system interface physical` lists the ports of every VDOM in any VDOM context.
+    Measured (verification): `get system interface physical` lists the ports of every VDOM in any VDOM context.
     The engine reads `show system interface` (set vdom) in the same context and passes `interface_vdoms`;
     without it, or for a port it does not name, None (the ports are not assigned to the VDOM).
     """
@@ -599,7 +599,7 @@ def run(read, clock):
     for area, query in STEPS[1:]:
         if query == "ha_checksum":
             if ha_reason is not None:
-                # The refused ha_status's reason, with its error_code and error when it has them (review 206-rv).
+                # The refused ha_status's reason, with its error_code and error when it has them (review).
                 missing.append({**ha_reason, "step": query})
                 continue
             if (parsed["ha_status"]["mode"] or "").lower() == "standalone":
@@ -698,7 +698,7 @@ def run(read, clock):
     }
 
 
-# --- G13 (1.0.12): hardware sensors and crash log of a FortiGate (ssh_read objects, not triage steps) ---------
+# --- sensors crashlog (1.0.12): hardware sensors and crash log of a FortiGate (ssh_read objects, not triage steps) ---------
 # Measured with a read-only account on FortiGate-80F 8.0.2 build0251, 2026-11-17 (fixture g13_20261117). They are
 # not steps of run(): a new step would need a new query grant on every enrolled target and change the read count.
 SENSORS_QUERY = "hardware_sensors"
@@ -706,7 +706,7 @@ CRASH_LOG_QUERY = "crash_log"
 _SENSOR_HEAD = re.compile(r"[ \t]*\[HW monitor sensors\][ \t]*")
 _SENSOR_LINE = re.compile(r"[ \t]*(\d+)[ \t]+(\S.*?)[ \t]*\.{2,}[ \t]+(\S.*?)[ \t]*")
 _SENSOR_READING = re.compile(r"(-?\d+(?:\.\d+)?)[ \t]+([A-Za-z%]+)")
-# Linear form (task 538): the label ends on a non-blank character and the value starts and ends on a character that
+# Linear form (verification): the label ends on a non-blank character and the value starts and ends on a character that
 # is not space/tab, so no neighbouring unbounded quantifiers share characters (was lazy label + lazy value).
 _SENSOR_DETAIL = re.compile(r"[ \t]+([A-Za-z](?:[A-Za-z /-]*[A-Za-z/-])?)[ \t]*:[ \t]*((?:[^ \t\n](?:[^\n]*[^ \t\n])?)?)[ \t]*")
 
@@ -826,8 +826,8 @@ def crash_log(text, start, end):
             "time_note": "Times are the FortiGate wall clock without a time zone, in the order the log stores them."}
 
 
-# --- G120 (1.0.12, EP09/EP10): EOS log history and health summaries of ssh_read (not triage steps) -----------
-# Measured on cEOS 4.36.1F (GNS3 netops-d-lab, 2026-11-18, fixture g120_ceos_4.36.1F). Like G13 these are structured
+# --- eos health (1.0.12, EP09/EP10): EOS log history and health summaries of ssh_read (not triage steps) -----------
+# Measured on cEOS 4.36.1F (GNS3 netops-emulated environment, 2026-11-18, fixture g120_ceos_4.36.1F). Like sensors crashlog these are structured
 # views of single catalogue reads; the raw redacted output stays in untrusted_device_output.
 EOS_SEVERITIES = ("emergencies", "alerts", "critical", "errors", "warnings", "notifications", "informational",
                   "debugging")
@@ -1844,7 +1844,7 @@ def eos_environment(text):
 
 
 def eos_health_payload(query, text, capture_state, start=0, end=0, parameters=None, line_limit=None, unreadable=0):
-    """The structured G120 object of one EOS ssh_read; only a complete capture is summarized as measured."""
+    """The structured eos health object of one EOS ssh_read; only a complete capture is summarized as measured."""
     if query in EOS_LOG_WINDOW_QUERIES:
         dropped = line_limit["total_lines"] - line_limit["returned_lines"] if line_limit else 0
         summary = eos_log_summary(text, start, end, parameters, dropped_lines=dropped, unreadable=unreadable)

@@ -33,5 +33,5 @@
   "volatile": [],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "ExtremeXOS 33.7.1.6-patch1-11 and EXOS 33.6.1.14 are separate firmware scopes. Tagged VLAN membership operations require the profile-specific read-back and rollback evidence for the exact firmware and privilege role. Software-image behavior does not establish hardware rollback guarantees. Treat missing or ambiguous clock or configuration-state evidence as unknown and keep write operations blocked."
+  "rollback_evidence": "Live write and return on ExtremeXOS 33.7.1.6 / 33.6.1.14 (2026-11-19): VLAN and port membership changes were observed, then undone. ExtremeXOS 33.7.1.6-patch1-11 and EXOS 33.6.1.14 are separate firmware scopes. Tagged VLAN membership operations require the profile-specific read-back and rollback evidence for the exact firmware and privilege role. Software-image behavior does not establish hardware rollback guarantees. Treat missing or ambiguous clock or configuration-state evidence as unknown and keep write operations blocked."
 }

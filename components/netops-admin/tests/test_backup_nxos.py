@@ -1,4 +1,4 @@
-"""Operator backup against a measured G98 NX-OS SSH replay and real private files."""
+"""Operator backup against a measured NXOS-CONFIG NX-OS SSH replay and real private files."""
 import hashlib
 import json
 from pathlib import Path
@@ -10,14 +10,14 @@ from netops_admin import backup_nxos, cli
 from netops_core import hostkey, ssh
 
 REAL = Path(__file__).resolve().parents[2] / 'netops-helper/tests/fixtures/real/cisco_nxos'
-RUNNING = (REAL / 'g98_9.3.12/b04-nx-a-running.out').read_bytes()
+RUNNING = (REAL / 'nxos_config_9.3.12/nexus-peer-a-running.out').read_bytes()
 VERSION = (REAL / 'nexus9300v_9.3.12/version.txt').read_bytes()
 PIN = 'SHA256:' + 'A' * 43
 COMMAND = 'show running-config'
 COUNT = COMMAND + ' | count'
 # Derived replay: preserve measured line framing, replacing opaque lines with comments and
 # two inert fields. The canary stands for an unredacted value only inside the private archive.
-CANARY = b'g98-fixture-private-credential'
+CANARY = b'nxos-config-fixture-private-credential'
 MARKER = b'<UNVERIFIED:cisco-nxos-opaque-line>'
 CONFIG = (RUNNING.replace(MARKER, b'version 9.3(12) Bios:version', 1)
           .replace(MARKER, b'username fixture password 5 ' + CANARY + b' role network-admin', 1)
@@ -27,7 +27,7 @@ CONFIG = (RUNNING.replace(MARKER, b'version 9.3(12) Bios:version', 1)
 @pytest.fixture
 def wire(monkeypatch):
     replies = {'show version': (0, VERSION), COMMAND: (0, CONFIG),
-               COUNT: (0, (REAL / 'g98_9.3.12/b04-nx-a-count-running.out').read_bytes())}
+               COUNT: (0, (REAL / 'nxos_config_9.3.12/nexus-peer-a-count-running.out').read_bytes())}
     events = []
 
     def pin(host, port, fingerprint, timeout):
@@ -121,7 +121,7 @@ def test_refused_or_incomplete_capture_leaves_previous_backup(wire, operator, mo
     previous = directory / first['artifact']
     original = previous.read_bytes()
     bad_config = {
-        'refused': (30, (REAL / 'g98_9.3.12/d-nxos-startup-refused.out').read_bytes()),
+        'refused': (30, (REAL / 'nxos_config_9.3.12/nexus9300v-startup-refused.out').read_bytes()),
         'line-truncated': (0, b'\n'.join(CONFIG.split(b'\n')[:80]) + b'\n'),
         'pager': (0, CONFIG.replace(b'! redacted lab statement', b'--More--', 1)),
         'missing-frame': (0, CONFIG.replace(b'!Command:', b'!Unrecognized:', 1)),

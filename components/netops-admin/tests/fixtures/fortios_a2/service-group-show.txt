@@ -1,0 +1,18 @@
+config firewall service group
+    edit "Email Access"
+        set uuid 00000000-0000-4000-8000-000000000001
+        set member "DNS" "IMAP" "IMAPS" "POP3" "POP3S" "SMTP" "SMTPS"
+    next
+    edit "Web Access"
+        set uuid 00000000-0000-4000-8000-000000000002
+        set member "DNS" "HTTP" "HTTPS"
+    next
+    edit "Windows AD"
+        set uuid 00000000-0000-4000-8000-000000000003
+        set member "DCE-RPC" "DNS" "KERBEROS" "LDAP" "LDAP_UDP" "SAMBA" "SMB"
+    next
+    edit "Exchange Server"
+        set uuid 00000000-0000-4000-8000-000000000004
+        set member "DCE-RPC" "DNS" "HTTPS"
+    next
+end

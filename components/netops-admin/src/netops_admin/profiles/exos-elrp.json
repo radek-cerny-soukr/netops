@@ -35,5 +35,5 @@
   "reserved_values": {},
   "inverse_identity_changes": {},
   "table_scoped_key": true,
-  "rollback_evidence": "One periodic log-only ELRP session per VLAN. Undo restores the port list and interval. Global ELRP state is preserved."
+  "rollback_evidence": "Live write and return on ExtremeXOS 33.6.1.14 / 33.7.1.6 (2026-11-19): The ELRP session, port link settings, LAG or STP configuration was changed, read back and undone. One periodic log-only ELRP session per VLAN. Undo restores the port list and interval. Global ELRP state is preserved."
 }

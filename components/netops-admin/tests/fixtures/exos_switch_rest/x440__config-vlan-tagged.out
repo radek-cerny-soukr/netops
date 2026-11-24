@@ -1,0 +1,31 @@
+#
+# Module vlan configuration.
+#
+configure vlan default delete ports all
+configure vr VR-Default delete ports 1-16
+configure vr VR-Default add ports 1-16
+create vlan "switch-rest-management"
+configure vlan switch-rest-management description "switch-rest test" 
+configure vlan switch-rest-management tag 3943
+create vlan "GUEST"
+configure vlan GUEST tag 30
+create vlan "IoT"
+configure vlan IoT tag 20
+create vlan "KAMERY"
+configure vlan KAMERY tag 40
+create vlan "LAB"
+configure vlan LAB tag 50
+create vlan "VLAN100"
+configure vlan VLAN100 tag 100
+configure ports 1 display-string port-desc-01
+configure ports 13 auto off speed 10000 duplex full 
+configure ports 14 auto off speed 10000 duplex full 
+configure ports 15 auto off speed 10000 duplex full 
+configure ports 16 auto off speed 10000 duplex full 
+configure vlan Default add ports 1-16 untagged  
+configure vlan switch-rest-management add ports 10 tagged  
+configure vlan GUEST add ports 1 tagged  
+configure vlan IoT add ports 1 tagged  
+configure vlan KAMERY add ports 1 tagged  
+configure vlan LAB add ports 1 tagged  
+configure vlan VLAN100 add ports 1 tagged  

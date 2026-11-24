@@ -1,0 +1,22 @@
+config system global
+    set hostname "fw-example"
+end
+config system admin
+    edit "audit-reader"
+        set accprofile "profile-example"
+    next
+end
+config system api-user
+end
+config system accprofile
+    edit "profile-example"
+    next
+end
+config system automation-action
+    edit "netops-sg-example"
+    next
+end
+config system automation-trigger
+end
+config system automation-stitch
+end

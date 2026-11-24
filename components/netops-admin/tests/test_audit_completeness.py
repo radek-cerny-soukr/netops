@@ -13,6 +13,7 @@ from test_execute_exos import request as exos_request
 
 from netops_admin import execute
 from netops_admin.errors import Rejected
+from approved_apply import approved_apply
 
 UPM = "#\n# Module upm configuration."
 ALL_PORTS = ('create vlan "v10"', "configure vlan v10 tag 100", "configure vlan v10 add ports all tagged")
@@ -73,7 +74,7 @@ def test_unresolvable_port_list_refuses_a_port_change_without_a_traceback(tmp_pa
     answer = execute.preview(runtime, "sw", exos_request(**fields))
     assert answer["result"] == "rejected" and answer["reasons"] == ["VLAN membership cannot be evaluated from this snapshot"]
     with pytest.raises(Rejected) as caught:
-        execute.apply(runtime, "sw", exos_request(**fields))
+        approved_apply(runtime, "sw", exos_request(**fields))
     assert caught.value.reasons == ["VLAN membership cannot be evaluated from this snapshot"]
     assert device.applied_blocks == []
 
@@ -81,7 +82,7 @@ def test_unresolvable_port_list_refuses_a_port_change_without_a_traceback(tmp_pa
 @pytest.mark.parametrize("lines", [ALL_PORTS, SLOT_RANGE, NO_MODE])
 def test_unresolvable_port_list_leaves_only_an_advisory_rule_unevaluated_for_a_vlan_change(tmp_path, lines):
     device = ShapedExos(lines)
-    record = execute.apply(make_exos_runtime(tmp_path, device), "sw",
+    record = approved_apply(make_exos_runtime(tmp_path, device), "sw",
                            exos_request(op="update", key="spare", changes={"description": "parked"}))
     assert record["result"] == "confirmed", (record["result"], record.get("reason"), steps(record)[-3:])
     assert device.vlans["spare"]["description"] == "parked"
@@ -91,7 +92,7 @@ def test_unresolvable_port_list_leaves_only_an_advisory_rule_unevaluated_for_a_v
 def test_unterminated_upm_profile_before_the_change_refuses_as_an_incomplete_evaluation(tmp_path):
     device = ShapedExos(tail="create upm profile foreign\nenable cli-config-logging\n")
     with pytest.raises(Rejected) as caught:
-        execute.apply(make_exos_runtime(tmp_path, device), "sw", exos_request())
+        approved_apply(make_exos_runtime(tmp_path, device), "sw", exos_request())
     assert "evaluation is not complete" in caught.value.reasons[0], caught.value.reasons
     assert "unterminated-upm-profile" in caught.value.reasons[0]
     assert device.applied_blocks == []
@@ -101,7 +102,7 @@ def test_unterminated_upm_profile_after_the_change_stops_the_confirmation(tmp_pa
     device = ShapedExos()
     device.on_apply = at_change(lambda fake: setattr(fake, "open_profile", True))
     runtime = make_exos_runtime(tmp_path, device)
-    record = execute.apply(runtime, "sw", exos_request())
+    record = approved_apply(runtime, "sw", exos_request())
     assert runtime.store.blocked("sw") is None
     assert "postcheck_passed" in steps(record)
     assert record["result"] == "reverted" and record["reason"] == "audit incomplete", (record["result"], record["reason"])
@@ -114,7 +115,7 @@ def test_unterminated_upm_profile_after_the_change_stops_the_confirmation(tmp_pa
 def test_wrapped_or_truncated_fortios_dump_after_the_change_stops_the_confirmation(tmp_path, shape):
     device = ShapedFortiOS()
     device.on_apply = at_change(lambda fake: setattr(fake, "shape", shape))
-    record = execute.apply(make_runtime(tmp_path, device), "lab", request())
+    record = approved_apply(make_runtime(tmp_path, device), "lab", request())
     assert record["result"] != "confirmed"
     assert "postcheck_failed" in steps(record)
     assert "new-host" not in device.addresses
@@ -155,7 +156,7 @@ def test_port_list_all_is_expanded_from_the_router_ports_of_the_snapshot(tmp_pat
     runtime = membership_runtime(tmp_path, device)
     preview = execute.preview(runtime, "sw", exos_request(**fields))
     assert preview["result"] != "rejected", preview
-    record = execute.apply(runtime, "sw", exos_request(**fields))
+    record = approved_apply(runtime, "sw", exos_request(**fields))
     assert (record["result"], record["reason"]) == ("confirmed", None), steps(record)[-3:]
     assert record["audit_coverage"]["port-native"] == "evaluated"
     if fields["table"] == "vlan-membership":
@@ -171,7 +172,7 @@ def test_port_list_all_is_expanded_from_the_router_ports_of_the_snapshot(tmp_pat
 
 def test_cross_slot_range_with_the_router_ports_is_evaluated_for_a_vlan_change(tmp_path):
     device = ShapedExos(SLOT_RANGE + ("configure vr VR-Default add ports 1:1-1:4,2:1-2:4",))
-    record = execute.apply(make_exos_runtime(tmp_path, device), "sw",
+    record = approved_apply(make_exos_runtime(tmp_path, device), "sw",
                            exos_request(op="update", key="spare", changes={"description": "parked"}))
     assert record["result"] == "confirmed", (record["result"], record.get("reason"), steps(record)[-3:])
     assert record["audit_coverage"]["port-native"] == "evaluated"

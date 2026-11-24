@@ -1,4 +1,0 @@
-
-
-
-% IPv6 routing table netops-g80 does not exist

@@ -1,8 +1,8 @@
-"""Arista EOS targeted clear (1.0.12 G130): the counters of one Ethernet port, one dynamic MAC address, one ARP or IPv6
+"""Arista EOS targeted clear (1.0.12 eos targeted clear): the counters of one Ethernet port, one dynamic MAC address, one ARP or IPv6
 neighbor entry and one BGP soft refresh of one neighbor.
 
-Syntax verified on cEOSLab 4.36.1F by the interactive help of the device (`?`, nothing was executed for the help;
-task-evidence/g130/raw/help-probe-d-ceos.txt) and then by one clear of every kind on a lab object:
+Syntax verified on cEOS 4.36.1F by the interactive help of the device (`?`, nothing was executed for the help;
+private measurement record) and then by one clear of every kind on a lab object:
 
 * `clear counters <interface>` (the optional keyword `session` clears only the view of one CLI session and is never
   rendered);

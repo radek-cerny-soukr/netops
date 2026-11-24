@@ -28,6 +28,6 @@
   "volatile": [],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "The operation disables a previously enabled data port, observes it disabled, pauses and enables it. The persistent UPM inverse enables the same port after interruption. The check account reads its admin state before, during and after the operation.",
+  "rollback_evidence": "Live write and return on ExtremeXOS 33.7.1.6 / 33.6.1.14 (2026-11-18): The port was disabled and re-enabled, and the check account verified the original configuration. The operation disables a previously enabled data port, observes it disabled, pauses and enables it. The persistent UPM inverse enables the same port after interruption. The check account reads its admin state before, during and after the operation.",
   "action": "port-bounce"
 }

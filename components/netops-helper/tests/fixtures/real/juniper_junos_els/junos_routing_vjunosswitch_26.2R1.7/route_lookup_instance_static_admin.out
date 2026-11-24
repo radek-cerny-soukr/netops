@@ -1,0 +1,15 @@
+
+junos-routing.inet.0: 2 destinations, 2 routes (2 active, 0 holddown, 0 hidden)
+203.0.113.0/24 (1 entry, 1 announced)
+        *Static Preference: 5
+                Next hop type: Discard, Next hop index: 0
+                Address: 0x9502210
+                Next-hop reference count: 2
+                Kernel Table Id: 0
+                State: <Active Int Ext>
+                Age: 4:56 
+                Validation State: unverified 
+                Task: RT
+                Announcement bits (1): 1-KRT 
+                AS path: I 
+                Thread: junos-main 

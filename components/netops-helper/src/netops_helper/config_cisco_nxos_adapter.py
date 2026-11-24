@@ -1,14 +1,14 @@
-"""Cisco NX-OS identity/profile adapter for the public ``config_read`` (task 153).
+"""Cisco NX-OS identity/profile adapter for the public ``config_read`` (verification).
 
 Same shape as the Cisco IOS XE and Arista EOS adapters.  The tested combination is Nexus 9000v
 ``cisco Nexus9000 C9300v Chassis`` with ``NXOS: version 9.3(12)``
 (``tests/fixtures/real/cisco_nxos/nexus9300v_9.3.12/version.txt``).  Another model or release is read too
-and reported as ``firmware_support`` ``untested`` with a warning (G00, decision of 2026-11-17).  The identity is read only from
+and reported as ``firmware_support`` ``untested`` with a warning (startup, decision of 2026-11-17).  The identity is read only from
 three lines of ``show version``, each of which must occur exactly once: the software header ``Cisco
 Nexus Operating System (NX-OS) Software``, the release line (``NXOS: version`` or legacy ``system: version``)
 and the hardware line ``cisco <model> Chassis``; never from the image file name, serial numbers, package names
 or host names.  The running configuration goes through the indentation-based
-``config_indented.NxosStreamRedactor`` (task 147: two-space indentation allowlist, every other line one
+``config_indented.NxosStreamRedactor`` (verification: two-space indentation allowlist, every other line one
 ``NXOS_MARKER``, the ``!Command: show running-config`` frame required).  NX-OS prints no ``end``, so
 completeness is never claimed.  A tested identity does not verify account rights, the full-config
 format or complete redaction.
@@ -30,7 +30,7 @@ STARTUP_COMMAND = 'show startup-config'
 DIFF_COMMAND = 'show running-config diff'
 LIVE_DIFF = ('startup', 'running')
 IDENTITY_COMMANDS = ('show version',)
-# The identity config_read was tested on (G00: a list of tested identities, not a gate).
+# The identity config_read was tested on (startup: a list of tested identities, not a gate).
 TESTED = ('Nexus9000 C9300v', '9.3(12)')
 TESTED_NAME = 'Cisco NX-OS'
 

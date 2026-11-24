@@ -1,0 +1,18 @@
+config firewall local-in-policy6
+    edit 63
+        set uuid 00000000-0000-4000-8000-a30000000012
+        set intf "host01"
+        set srcaddr "netops-a3r2-outer"
+        set srcaddr-negate disable
+        set dstaddr "all"
+        set internet-service6-src disable
+        set dstaddr-negate disable
+        set action accept
+        set service "ALL_ICMP6"
+        set service-negate disable
+        set schedule "always"
+        set status disable
+        set virtual-patch disable
+        set comments ''
+    next
+end

@@ -1,0 +1,7 @@
+set firewall family inet filter NETOPS-JUNOS-FIREWALL-FILTERS-IN term t-deny from source-address 198.51.100.0/24
+set firewall family inet filter NETOPS-JUNOS-FIREWALL-FILTERS-IN term t-deny then discard
+set firewall family inet filter NETOPS-JUNOS-FIREWALL-FILTERS-IN term t-src from source-address 192.0.2.0/24
+set firewall family inet filter NETOPS-JUNOS-FIREWALL-FILTERS-IN term t-src then count c-src
+set firewall family inet filter NETOPS-JUNOS-FIREWALL-FILTERS-IN term t-src then accept
+set firewall family inet filter NETOPS-JUNOS-FIREWALL-FILTERS-IN term t-rest then count c-rest
+set firewall family inet filter NETOPS-JUNOS-FIREWALL-FILTERS-IN term t-rest then accept

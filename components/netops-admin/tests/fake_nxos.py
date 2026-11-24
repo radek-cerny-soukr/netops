@@ -1,7 +1,6 @@
 """Simulated Cisco Nexus 9000v with NX-OS 9.3(12) for netops-admin tests.
 
-Every answer is built from an anonymised output measured on the lab node (fixtures/nxos_9_3_12, tasks
-netops-provoz-20261116-314 and 317): the running configuration starts from the real baseline; the lines of the
+Every answer is built from an anonymised output measured on the lab node (fixtures/nxos_9_3_12, two measurements): the running configuration starts from the real baseline; the lines of the
 changed interface, the scheduler job and schedule blocks, checkpoints, rollback, configure replace, the bootflash
 file and copy running-config startup-config follow the measured behaviour (variant 3 of the timed return:
 the checkpoint holds the job and the schedule; minute granularity of `time start +M`; the job rolls back ~3 s after
@@ -28,6 +27,9 @@ JOB_START_SECONDS = 3
 JOB_RUN_SECONDS = 6
 SCHEDULE_BUSY_SECONDS = 120
 HEADER = ("!Command:", "!Running configuration last done at:", "!Time:")
+# Nexus 9000v 9.3(12) without any configuration change since its reload prints this line instead of the
+# "!Running configuration last done at:" line until the first configuration line (lab single node, 2026-11-22)
+RESTART_HEADER = "!No configuration change since last restart"
 
 
 def fixture(name: str) -> str:
@@ -54,6 +56,7 @@ class FakeNxos:
             self.body.pop()
         self.jobs, self.schedules = {}, {}
         self.saved = self._config()
+        self.since_restart = False
         self.now = START
         self.uptime = 0.0
         self.scheduler_enabled = True
@@ -127,8 +130,8 @@ class FakeNxos:
         body = list(self.body)
         if self.scheduler_enabled is False:
             body = [line for line in body if line != "feature scheduler"]
-        lines = ["", "!Command: show running-config", "!Running configuration last done at: %s" % stamp(self.now),
-                 "!Time: %s" % stamp(self.now), ""] + body + [""] + self.scheduler_lines()
+        changed = RESTART_HEADER if self.since_restart else "!Running configuration last done at: %s" % stamp(self.now)
+        lines = ["", "!Command: show running-config", changed, "!Time: %s" % stamp(self.now), ""] + body + [""] + self.scheduler_lines()
         return "\n".join(lines) + "\n"
 
     snapshot = running
@@ -140,7 +143,7 @@ class FakeNxos:
     def with_interactive_reader(self, spec, callback):
         def read(command):
             if command == "show sockets connection tcp foreign 192.0.2.36":
-                path = FIXTURES.parent / "nxos_g102" / "ssh-sockets-management.txt"
+                path = FIXTURES.parent / "nxos_nxos_routing_admin" / "ssh-sockets-management.txt"
                 return path.read_text().replace("198.51.100.60", "192.0.2.36")
             return self.query(command)
 
@@ -263,6 +266,7 @@ class FakeNxos:
         if words == ["end"]:
             mode[0] = "exec"
             return ""
+        self.since_restart = False
         if current.startswith("job:"):
             name = current.split(":", 1)[1]
             if words == ["exit"]:
@@ -464,7 +468,7 @@ class FakeNxos:
             total = 1 + len(self.lldp_extra)
             return text.replace("Total entries displayed: 1", rows + "Total entries displayed: %d" % total)
         if command == "show cdp neighbors":
-            return (FIXTURES.parent / "nxos_g100" / "d-nxos__cdp.txt").read_text(encoding="utf-8")
+            return (FIXTURES.parent / "nxos_nxos_switchport_admin" / "nexus9300v__cdp.txt").read_text(encoding="utf-8")
         match = re.fullmatch(r"show mac address-table interface (\S+)", command)
         if match:
             count = self.learned_macs.get(match.group(1), 0)

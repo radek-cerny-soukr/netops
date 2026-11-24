@@ -1,0 +1,13 @@
+Logical Interface flags (DL - disable learning, AD - packet action drop,
+                         LH - MAC limit hit, DN - interface down,
+                         MMAS - Mac-move action shutdown,  AS - Autostate-exclude enabled,
+                         SCTL - shutdown by Storm-control, SL - Secure Learning,
+                         MI - MAC+IP limit hit, LP - Loop Protect Down,
+                         MLAS - Mac limit action shutdown, CISO - Shutdown due to core isolation,
+                         EMS - Shutdown due to evpn maintenance, MP - Mac pinning)
+
+Routing         Logical         Vlan                   TAG   MAC    MAC+IP STP         Logical          Tagging
+Instance        interface       members                      limit  limit  state       interface flags
+default-switch  ge-0/0/2.0                                   524287 8192               DN               tagged,untagged
+default-switch                  junos-vlan-admin-data              3901  65535  1024   Discarding                   untagged 
+default-switch                  junos-vlan-admin-voice             3902  65535  1024   Discarding                   tagged   

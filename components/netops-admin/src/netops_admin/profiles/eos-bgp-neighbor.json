@@ -1,6 +1,7 @@
 {
   "platform": "eos",
   "table": "bgp-neighbor",
+  "measured": true,
   "versions": ["4.36.1F"],
   "exact_versions": true,
   "ops": ["create", "update", "delete"],
@@ -40,5 +41,5 @@
   "volatile": [],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "A timed EOS configuration session and independent show ip bgp neighbors JSON verify direct IPv4 eBGP in the default VRF. Existing neighbors require endpoint_impact naming the AS:ADDRESS key."
+  "rollback_evidence": "Live write and return on cEOSLab 4.36.1F (2026-11-23): A directly connected eBGP neighbor with only remote-as was created under an existing BGP process and, in a second run, together with a new BGP process; the check identity read it from show ip bgp neighbors JSON and undo removed the neighbor or the process Admin had created. A timed EOS configuration session and independent show ip bgp neighbors JSON verify direct IPv4 eBGP in the default VRF; missing route-map fields mean no route map. Existing neighbors require endpoint_impact naming the AS:ADDRESS key."
 }

@@ -1,0 +1,9 @@
+
+
+
+Extended IP access list NETOPS-XE-ACCESS-CONTROL-V4B
+    10 permit ip host 203.0.113.129 any
+    20 permit ip any any (18 matches)
+    30 deny ip 203.0.113.128 0.0.0.63 any
+    40 permit ip 203.0.113.128 0.0.0.31 203.0.113.160 0.0.0.15
+    50 permit ip 203.0.113.176 0.0.0.254 any

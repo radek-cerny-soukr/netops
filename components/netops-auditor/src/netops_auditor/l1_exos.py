@@ -41,6 +41,7 @@ class Configuration:
     active: tuple = ()
     upm_bodies: tuple = ()
     unterminated_upm: bool = False
+    last_module: str = NO_MODULE
 
     def serialize(self) -> str:
         return "".join(self.raw)
@@ -124,4 +125,5 @@ def parse(text: str) -> Configuration:
         active=tuple(command for command in commands if not command.upm_profile),
         upm_bodies=tuple(bodies),
         unterminated_upm=bool(profile),
+        last_module=module,
     )

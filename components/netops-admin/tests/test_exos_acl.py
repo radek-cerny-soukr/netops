@@ -12,12 +12,12 @@ from fake_exos import FakeExos
 from netops_admin import exos_acl
 from netops_admin.config import DEFAULT_LIMITS
 from netops_core import sftp
-from test_exos_g42 import args, preview_apply, setup, undo
+from test_exos_switch_vlan_admin import args, preview_apply, setup, undo
 from test_mcp_server import call
 
-ROOT = Path(__file__).parent / "fixtures/exos/g47"
-NAME = "netops-g47-capture"
-VLAN = "netops-g47"
+ROOT = Path(__file__).parent / "fixtures/exos/switch-ospf"
+NAME = "netops-switch-ospf-capture"
+VLAN = "netops-switch-ospf"
 POLICY = (ROOT / (NAME + ".pol")).read_text()
 
 
@@ -122,12 +122,12 @@ class Lab(FakeExos):
 
 
 def file_request(op, changes=None, **fields):
-    return args(exos_acl.POLICY, changes or {}, key=NAME, op=op, request_id=f"g47-file-{op}", **fields)
+    return args(exos_acl.POLICY, changes or {}, key=NAME, op=op, request_id=f"switch-ospf-file-{op}", **fields)
 
 
 def attachment(op="create", **fields):
     return args(exos_acl.BINDING, {"policy": NAME} if op == "create" else {}, key=f"vlan:{VLAN}",
-                op=op, request_id=f"g47-vlan-{op}", **fields)
+                op=op, request_id=f"switch-ospf-vlan-{op}", **fields)
 
 
 def runtime_for(monkeypatch, path, fixture="vm", **options):
@@ -243,12 +243,12 @@ def test_bad_file_rejects_and_new_firmware_warns(monkeypatch, tmp_path):
 
 def test_port_acl_table_from_x440():
     assert exos_acl.active_bindings(capture("x440-port-table", "x440")) == {
-        "port:10": ("netops-g47-live", 1, 0),
+        "port:10": ("netops-switch-ospf-live", 1, 0),
     }
 
 
 @pytest.mark.parametrize("request_fields", [file_request("create", {exos_acl.CONTENT: POLICY}), attachment()])
-def test_g47_apply_requires_preview_hash(monkeypatch, tmp_path, request_fields):
+def test_switch_ospf_apply_requires_preview_hash(monkeypatch, tmp_path, request_fields):
     device, _ = runtime_for(monkeypatch, tmp_path)
     snapshot = device.snapshot()
     denied = call("admin_apply", request_fields)

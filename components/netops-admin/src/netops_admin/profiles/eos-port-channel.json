@@ -28,5 +28,5 @@
   "volatile": [],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "G125: a Port-Channel is a separate object, including when it has no members. Only a memberless channel with no other settings can be deleted by this profile. The EOS session timer and scoped readback apply."
+  "rollback_evidence": "Live write and return on cEOSLab 4.36.1F (2026-11-19): Channel and member mode changes were read back and undone. eos mlag admin: a Port-Channel is a separate object, including when it has no members. Only a memberless channel with no other settings can be deleted by this profile. The EOS session timer and scoped readback apply."
 }

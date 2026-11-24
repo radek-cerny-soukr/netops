@@ -2,11 +2,13 @@ import argparse
 import ast
 import hashlib
 import importlib.util
+import io
 import json
 from pathlib import Path
 import re
 import subprocess
 import sys
+import tokenize
 import tomllib
 
 def legacy(root):
@@ -35,19 +37,29 @@ def pinned_vendored_schema(relative, text):
 
 ESCAPE_SEQUENCE = re.compile(r"\\(?:x([0-9A-Fa-f]{2})|u([0-9A-Fa-f]{4})|U([0-9A-Fa-f]{8}))")
 
-# Administrator decision of 2026-11-22: keep lab identifiers out of public documentation.
-# General shapes stay readable rules; each is reported only by its type, never by pattern or line content.
+# Report matching shapes by type and location without echoing line contents.
 LAB_IDENTIFIER_PATTERNS = (
     ("vm number", re.compile(r"\bVM[ _-]?[0-9]{3}\b", re.IGNORECASE)),
     # a host name such as rpi<N>-<role>; the model abbreviation RPi5 on its own stays allowed
     ("host name", re.compile(r"\brpi[0-9]+-[a-z]", re.IGNORECASE)),
     ("internal address", re.compile(r"(?<![\d.])192\.168\.")),
     ("internal address", re.compile(r"(?<![\d.])10\.255\.")),
-    ("serial number", re.compile(r"\bFGT[0-9A-Z]{10,}\b", re.IGNORECASE)),
-    ("task reference", re.compile(r"netops-20[0-9]{6}-")),
+    ("serial number", re.compile(r"\bFGT(?!EXAMPLE[0-9]{7}\b)[0-9A-Z]{10,}\b", re.IGNORECASE)),
+    ("task reference", re.compile(r"\bnetops-(?:provoz-)?20[0-9]{6}-", re.IGNORECASE)),
     ("task reference", re.compile(r"\bnetops-t[0-9]+\b", re.IGNORECASE)),
     ("task reference", re.compile(r"\btask[ _-]?#?[0-9]{2,}\b", re.IGNORECASE)),
+    # Short task references in prose, filenames and Python identifiers: two or three digits, then -rv, -r<N>
+    # or r<N>, optionally followed by rv (also after `_`); a Junos build string `builder_junos_<NNN>_r<N>` is not one.
+    ("task reference", re.compile(
+        r"(?<![a-z0-9])(?<![0-9]\.)(?<!builder_junos_)[0-9]{2,3}[-_]?r(?:v|[0-9]+(?:[-_]?rv)?)(?![a-z0-9])",
+        re.IGNORECASE,
+    )),
     ("evidence path", re.compile(r"task-evidence/", re.IGNORECASE)),
+    ("device alias", re.compile(
+        r"(?<![a-z0-9])(?:d-(?:vjunos|nxos|iosvl2|iosv|iolxe|ceos|exos|fortiadc|fortios|fgt)"
+        r"(?:-[a-z0-9]+)*|b04-[a-z0-9][a-z0-9-]*|esxi-lab[a-z0-9-]*|fgt-801)(?![a-z0-9])",
+        re.IGNORECASE,
+    )),
 )
 
 # Names of the maintainer's lab (hosts, devices, domain, test kit, temporary accounts and profiles) are kept
@@ -73,10 +85,23 @@ LAB_IDENTIFIER_FINGERPRINTS = {
     "79390ec03b017d01508f21ba70022b3b54c6a7a06a8858ba070c13e8268bf744": "account name",
     "d0dd14c00677d357b3827220be2041f39dd5cdad44252bb89b01b7368393184d": "account name",
     "28041b42f958646fcf60b0164a42953fd5bf7d740d202c20bf0c12af1ec60806": "account name",
+    "b2443a6c7d4b05e8c4776aab9dc2c9f75ff765bc8a710e7284260d5a9ac892d9": "lab name",
+    "4d194064386b83dd6b9e41e2efc4fea7adbce819dd51b8d07c3e7101a7ba8be4": "lab name",
 }
 
 LAB_TOKEN = re.compile(r"[\w.-]+")
 LAB_TOKEN_SEPARATOR = re.compile(r"([.-])")
+LAB_ESCAPED_WHITESPACE = re.compile(r"\\[nrt]")
+LAB_GROUP = re.compile(r"\bg[0-9]{2,3}(?:r[0-9]+|[a-z])?\b", re.IGNORECASE)
+LAB_FIXTURE_GROUP = re.compile(r"(?<![a-z0-9])g[0-9]{2,3}(?:r[0-9]+|[a-z])?(?![a-z0-9])", re.IGNORECASE)
+
+# Worker records are tracked on task branches. The product branch carries neither
+# these records nor the inputs used to produce them.
+LAB_SCAN_EXEMPT = frozenset({
+    "TASK.md", "RESULT.md", "ref/src/release-check.sh",
+    "release/check_source.py", "release/tests/test_source_gate.py",
+})
+LAB_WORKER_REFERENCE = "b9e8351a690a20841eb671364c3788d2c9715ede9d4735a43e58e1872fa89c09"
 
 def lab_token_candidates(line):
     """Lowercase words of a line (letters, digits, `_`, `-`, `.`) and every run of their `-`/`.` separated parts."""
@@ -88,33 +113,47 @@ def lab_token_candidates(line):
                 if candidate:
                     yield candidate
 
-def lab_identifier_types(line):
+def lab_identifier_types(line, group_pattern=LAB_GROUP):
     types = [kind for kind, pattern in LAB_IDENTIFIER_PATTERNS if pattern.search(line)]
+    if group_pattern.search(line):
+        types.append("group reference")
     types += [LAB_IDENTIFIER_FINGERPRINTS.get(hashlib.sha256(candidate.encode("utf-8")).hexdigest())
               for candidate in lab_token_candidates(line)]
     return [kind for kind in dict.fromkeys(types) if kind]
 
 def lab_identifier_errors(relative, text):
-    if relative in {"TASK.md", "RESULT.md"} or relative.startswith("ref/"):
+    if relative in LAB_SCAN_EXEMPT or (
+        relative.startswith("ref/")
+        and hashlib.sha256(relative.encode(errors="surrogateescape")).hexdigest() == LAB_WORKER_REFERENCE
+    ):
         return []
     path = Path(relative)
-    directories = path.parts[:-1]
-    component_dirs = directories[2:] if directories[:1] == ("components",) else ()
-    if (directories[:1] == ("tests",) or directories[:2] == ("release", "tests")
-            or component_dirs[:1] == ("tests",)):
-        return []
-    suffix = path.suffix.lower()
-    is_docs = directories[:1] == ("docs",) or component_dirs[:1] == ("docs",)
-    if suffix != ".md" and (suffix != ".json" or not is_docs):
-        return []
-    errors = []
-    for number, line in enumerate(text.splitlines(), 1):
+    group_pattern = LAB_FIXTURE_GROUP if "fixtures" in path.parts else LAB_GROUP
+    # Evidence logs are checked below. The worker's evidence directory itself
+    # conveys the task ID as part of the required log location.
+    checked_path = "/".join(path.parts[2:]) if path.parts[:1] == ("task-evidence",) else relative
+    path_group = LAB_FIXTURE_GROUP if "tests" in path.parts else LAB_GROUP
+    errors = [f"{relative}:0: lab identifier ({kind})" for kind in lab_identifier_types(checked_path, path_group)]
+    python_names = {}
+    if path.suffix.lower() == ".py":
+        try:
+            for token in tokenize.generate_tokens(io.StringIO(text).readline):
+                if token.type == tokenize.NAME and LAB_GROUP.fullmatch(token.string):
+                    python_names.setdefault(token.start[0], []).append((token.start[1], token.end[1]))
+        except (tokenize.TokenError, SyntaxError):
+            pass  # still scan every line of partial or malformed Python
+    for number, line in enumerate(text.split("\n"), 1):
+        for start, end in python_names.get(number, ()):
+            # Internal Python bindings are code. Group annotations are text.
+            line = line[:start] + " " * (end - start) + line[end:]
         variants = [line]
         try:
             variants.append(decode_text_escapes(line))
         except ValueError:
             pass  # privacy_text already reports the unusable escape for this file
-        types = dict.fromkeys(kind for variant in variants for kind in lab_identifier_types(variant))
+        variants.extend(LAB_ESCAPED_WHITESPACE.sub(" ", variant) for variant in tuple(variants))
+        types = dict.fromkeys(kind for variant in dict.fromkeys(variants)
+                              for kind in lab_identifier_types(variant, group_pattern))
         errors += [f"{relative}:{number}: lab identifier ({kind})" for kind in types]
     return errors
 
@@ -227,8 +266,9 @@ def tested_client_results(clients, version):
 def client_acceptance_errors(clients, version, notes_exist):
     results = tested_client_results(clients, version)
     tested = results is not None
-    deferred = ("**NetOps " + version + ":** the client acceptance (Codex CLI and Claude Code) runs once on the signed release candidate image; "
-                "its results are in the [release notes](release/notes-" + version + ".md#acceptance).")
+    deferred = ("**NetOps " + version + ":** client acceptance with Codex CLI and Claude Code is pending. "
+                "It runs on the release candidate image before the maintainer signs the release checksum list. "
+                "The results will be published in the [release notes](release/notes-" + version + ".md#acceptance).")
     pending = deferred in clients.splitlines()
     if tested and pending:
         return ["README claims and defers client results of " + version + ": Tested MCP clients has both a result table and the pending-acceptance line"]
@@ -272,22 +312,26 @@ def workflow_branch_errors(texts, version):
 def check(root, release=False):
     rules = legacy(root)
     proc = subprocess.run(["git", "-C", str(root), "ls-files", "-z"], capture_output=True, check=True)
-    names = proc.stdout.decode().rstrip(chr(0)).split(chr(0))
+    names = proc.stdout.decode(errors="surrogateescape").split(chr(0))[:-1]
     errors = []
     for relative in names:
         path = root / relative
         if path.is_symlink() or not path.is_file():
             errors.append("tracked path is not a single regular file: " + relative)
             continue
-        if path.suffix.lower() not in rules.TEXT_SUFFIXES | {".ps1", ".psm1", ".example"}:
-            continue
+        privacy_checked = path.suffix.lower() in rules.TEXT_SUFFIXES | {".ps1", ".psm1", ".example"}
         try:
             raw = path.read_bytes()
+            # Unknown extensions and binaries can still contain readable identifiers.
+            # Keep the existing UTF-8 requirement for files covered by the privacy rules.
+            text = raw.decode("utf-8", errors="replace")
+            errors.extend(lab_identifier_errors(relative, text))
+            if not privacy_checked:
+                continue
             text = raw.decode("utf-8")
             if chr(0) in text:
                 errors.append("NUL in text: " + relative)
             errors.extend(privacy_text(rules, relative, text))
-            errors.extend(lab_identifier_errors(relative, text))
         except (OSError, UnicodeError):
             errors.append("unreadable tracked text: " + relative)
     project = tomllib.loads((root / "pyproject.toml").read_text())["project"]

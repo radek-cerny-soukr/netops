@@ -1,0 +1,191 @@
+## Last commit: 2026-11-19 01:51:03 UTC by user01
+version 26.2R1.7;
+system {
+    host-name host02;
+    root-authentication {
+        encrypted-password "$9$SENTINELSALT$SECRET-HASH-SENTINEL"; ## SECRET-DATA
+    }
+    login {
+        user user01 {
+            uid 2000;
+            class super-user;
+            authentication {
+                encrypted-password "$9$SENTINELSALT$SECRET-HASH-SENTINEL"; ## SECRET-DATA
+            }
+        }
+        user user02 {
+            uid 2001;
+            class read-only;
+            authentication {
+                encrypted-password "$9$SENTINELSALT$SECRET-HASH-SENTINEL"; ## SECRET-DATA
+            }
+        }
+    }
+    services {
+        ssh;
+    }
+    arp {
+        aging-timer 5;
+    }
+    syslog {
+        file interactive-commands {
+            interactive-commands any;
+        }
+        file messages {
+            any notice;
+            authorization info;
+        }
+    }
+    processes {
+        dhcp-service {
+            traceoptions {
+                file dhcp_logfile size 10m;
+                level all;
+                flag packet;
+            }
+        }
+    }
+}
+interfaces {
+    ge-0/0/0 {
+        unit 0 {
+            family ethernet-switching {
+                interface-mode trunk;
+                vlan {
+                    members [ D10 D20 ];
+                }
+            }
+        }
+    }
+    ge-0/0/1 {
+        unit 0 {
+            family ethernet-switching {
+                interface-mode access;
+                vlan {
+                    members D20;
+                }
+            }
+        }
+    }
+    ge-0/0/2 {
+        unit 0 {
+            family ethernet-switching {
+                interface-mode access;
+                vlan {
+                    members default;
+                }
+            }
+        }
+    }
+    ge-0/0/3 {
+        unit 0 {
+            family inet {
+                filter {
+                    input junos-security-test;
+                }
+            }
+        }
+    }
+    fxp0 {
+        unit 0 {
+            family inet {
+                address 192.0.2.56/24;
+            }
+            family inet6 {
+                dhcpv6-client {
+                    client-type stateful;
+                    client-ia-type ia-na;
+                    client-identifier duid-type duid-ll;
+                    vendor-id Juniper:ex9214:SS0SS0SS00S1;
+                }
+            }
+        }
+    }
+    irb {
+        unit 10 {
+            family inet {
+                address 198.51.100.6/24;
+            }
+        }
+        unit 20 {
+            family inet {
+                address 203.0.113.6/24;
+            }
+        }
+    }
+    lo0 {
+        unit 0 {
+            family inet {
+                address 203.0.113.254/32;
+            }
+        }
+    }
+}
+multi-chassis {
+    mc-lag {
+        consistency-check;
+    }
+}
+firewall {
+    family inet {
+        filter junos-security-test {
+            term t1 {
+                from {
+                    protocol icmp;
+                }
+                then {
+                    policer junos-security-pol;
+                    count junos-security-cnt;
+                    accept;
+                }
+            }
+            term rest {
+                then accept;
+            }
+        }
+    }
+    policer junos-security-pol {
+        if-exceeding {
+            bandwidth-limit 1m;
+            burst-size-limit 15k;
+        }
+        then discard;
+    }
+}
+routing-options {
+    router-id 203.0.113.254;
+    static {
+        route 0.0.0.0/0 next-hop 192.0.2.1;
+    }
+}
+protocols {
+    router-advertisement {
+        interface fxp0.0 {
+            managed-configuration;
+        }
+    }
+    ospf {
+        area 0.0.0.0 {
+            interface irb.10;
+            interface lo0.0 {
+                passive;
+            }
+        }
+    }
+    lldp {
+        interface all;
+    }
+    lldp-med {
+        interface all;
+    }
+}
+vlans {
+    D10 {
+        vlan-id 10;
+        l3-interface irb.10;
+    }
+    D20 {
+        vlan-id 20;
+        l3-interface irb.20;
+    }
+}

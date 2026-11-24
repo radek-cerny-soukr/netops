@@ -1,0 +1,10 @@
+config firewall address6
+    edit "all"
+        set uuid 00000000-0000-4000-8000-00005e005301
+        set type ipprefix
+        set ip6 ::/0
+        set color 0
+        set comment ''
+        set fabric-object disable
+    next
+end

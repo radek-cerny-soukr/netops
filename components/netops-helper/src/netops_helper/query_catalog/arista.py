@@ -108,7 +108,7 @@ QUERIES: dict[str, Query] = {
     "bfd_peers_vrf": Query('show bfd peers vrf {vrf}', {"vrf": Slot("vrfs", "vrf")}, 'Show BFD state in one enrolled VRF; empty output means no matching protocol objects were reported.', high_volume=True, empty_allowed=True),
     "ipv6_rib": Query('show rib route ipv6', NO_SLOTS, 'Show all IPv6 RIB routes, including routes outside the FIB.', high_volume=True),
     "ipv6_rib_vrf": Query('show rib route ipv6 vrf {vrf}', {"vrf": Slot("vrfs", "vrf")}, 'Show all IPv6 RIB routes in one enrolled VRF.', high_volume=True),
-    # G118: port rates, device-side MAC filters, PoE, STP detail, QoS and IGMP snooping.
+    # eos ports: port rates, device-side MAC filters, PoE, STP detail, QoS and IGMP snooping.
     "interfaces_counters_rates": Query("show interfaces counters rates", NO_SLOTS, "Show input and output rates of every interface over the load interval.", high_volume=True),
     "interface_counters_rates": Query("show interfaces {interface} counters rates", _interface_slot("eos_interface"), "Show input and output rates of one enrolled interface over the load interval."),
     "mac_table_interface": Query("show mac address-table interface {interface}", _interface_slot("eos_switchport_interface"), "Show MAC address table entries learned on one enrolled interface, filtered on the switch.", high_volume=True),
@@ -124,7 +124,7 @@ QUERIES: dict[str, Query] = {
     "igmp_snooping_groups": Query("show ip igmp snooping groups", NO_SLOTS, "Show IGMP snooping group membership per VLAN with member ports.", high_volume=True),
     "igmp_snooping_mrouter": Query("show ip igmp snooping mrouter", NO_SLOTS, "Show multicast router ports learned by IGMP snooping per VLAN."),
     "igmp_snooping_counters": Query("show ip igmp snooping counters", NO_SLOTS, "Show IGMP message counters per port.", high_volume=True),
-    # G119: ACL, DHCP and management diagnostics.
+    # eos management: ACL, DHCP and management diagnostics.
     "ipv4_access_lists_summary": Query("show ip access-lists summary", NO_SLOTS, "Show IPv4 ACL rule totals and configured and active interface bindings; empty output means no IPv4 ACL is listed.", high_volume=True, empty_allowed=True),
     "ipv6_access_lists_summary": Query("show ipv6 access-lists summary", NO_SLOTS, "Show IPv6 ACL rule totals and configured and active interface bindings; empty output means no IPv6 ACL is listed.", high_volume=True, empty_allowed=True),
     "ipv4_access_lists_interface": Query("show ip access-lists interface {interface}", _interface_slot("eos_interface"), "Show IPv4 ACLs and counters on one enrolled interface; empty output means no IPv4 ACL is reported on the interface.", high_volume=True, empty_allowed=True),
@@ -150,7 +150,7 @@ QUERIES: dict[str, Query] = {
     "dot1x_clients": Query("show dot1x hosts interface {interface} detail", _interface_slot("eos_physical_interface"), "Show supplicant state, fallback, and VLAN on one enrolled physical interface; empty output means no supplicants are reported.", high_volume=True, empty_allowed=True),
     "dhcp_server": Query("show dhcp server", NO_SLOTS, "Show built-in IPv4 and IPv6 DHCP server and pool state.", high_volume=True, empty_allowed=False),
     "dhcp_server_leases": Query("show dhcp server leases", NO_SLOTS, "Show leases from the built-in DHCP server; empty output means no leases are reported.", high_volume=True, empty_allowed=True),
-    # G120 (EP09): log history by time window and severity, filtered on the switch (verified with `?` on cEOS 4.36.1F).
+    # eos health (EP09): log history by time window and severity, filtered on the switch (verified with `?` on cEOS 4.36.1F).
     "log_messages_last": Query(
         "show logging last {minutes} minutes threshold {severity}",
         {"minutes": Slot(None, "eos_log_minutes"), "severity": Slot(None, "log_severity"),

@@ -1,0 +1,2 @@
+ipv6 access-list netops-eos-access-control-empty6
+ip access-list netops-eos-access-control-empty4

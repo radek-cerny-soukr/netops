@@ -137,7 +137,7 @@ def test_documentation_review_contracts_and_whitespace():
     assert 'fixed TCP 443' not in quick and 'allow egress 443' not in quick
     assert 'fortios_rest_port' in quick and 'fortios_rest_port' in helper
     assert 'reachable\n`admin-sport` 443' not in helper
-    for text in (tools, (root / 'CHANGELOG.md').read_text(), (root / 'release/notes-1.0.7.md').read_text()):
+    for text in (tools, (root / 'docs/changelog-archive.md').read_text(), (root / 'release/notes-1.0.7.md').read_text()):
         assert 'only for TCP 443' not in text
         assert 'fortios_rest_port' in text and 'port=8443' in text
         assert '15-read' in text
@@ -149,9 +149,9 @@ def test_documentation_review_contracts_and_whitespace():
     assert 'verify `fortios_rest_port` equals the effective `admin-sport`' in guide
     dns = guide.split('openssl s_client -connect fg.example.net:443')[0].rsplit('```sh', 1)[1]
     assert 'Replace 443 with admin-sport' in dns
-    readme = (root / 'README.md').read_text()
-    assert 'newest client events' not in readme
-    assert 'identity_trust: client_supplied' in readme
+    overview = helper.split('## Helper capability overview', 1)[1]
+    assert 'newest client events' not in overview
+    assert 'identity_trust: client_supplied' in overview
     common = (root / 'components/netops-helper/src/netops_helper/wifi_common.py').read_text()
     assert common.endswith('\n') and not common.endswith('\n\n')
     rest = (root / 'components/netops-helper/src/netops_helper/wifi_rest.py').read_text()

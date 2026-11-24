@@ -1,0 +1,23 @@
+##
+## '0' was expanded from interface-range 'junos-vlan-admin-rng'
+##
+unit 0 {
+    ##
+    ## 'ethernet-switching' was expanded from interface-range 'junos-vlan-admin-rng'
+    ##
+    family ethernet-switching {
+        ##
+        ## 'access' was expanded from interface-range 'junos-vlan-admin-rng'
+        ##
+        interface-mode access;
+        ##
+        ## 'vlan' was expanded from interface-range 'junos-vlan-admin-rng'
+        ##
+        vlan {
+            ##
+            ## 'junos-vlan-admin-voice' was expanded from interface-range 'junos-vlan-admin-rng'
+            ##
+            members junos-vlan-admin-voice;
+        }
+    }
+}

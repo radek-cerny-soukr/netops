@@ -1,0 +1,54 @@
+FortiGate-60F $ 
+name: netops-ipsec
+version: 2
+interface: PVE-MGMT 30
+addr: 192.0.2.1:4500 -> 192.0.2.20:4500
+tun_id: 192.0.2.20/::192.0.2.20
+remote_location: 0.0.0.0
+network-id: 0
+transport: UDP
+created: 298s ago
+peer-id: 192.0.2.20
+peer-id-auth: no
+pending-queue: 0
+PPK: no
+IKE SA: created 2/2  established 2/2  time 10/1520/3030 ms
+IPsec SA: created 2/2  established 2/2  time 0/1515/3030 ms
+
+  id/spi: 8 967da30f22553170/540882a725c0ce23
+  direction: responder
+  status: established 298-298s ago = 10ms
+  proposal: aes256-sha256
+  child: no
+  SK_ei: a429222b3699633c-a5999c2521e488a7-c1b9d052bfb2ca8d-1f5d19450ea743be
+  SK_er: 41f3122b52083bca-b1610e98eda64f2a-03d5ccf8ffd1acce-7bea4e50cc3cc2d5
+  SK_ai: ce5cc9b531803577-7de55426b8f814c2-961bb6947f79ec0e-ac356a1456c80723
+  SK_ar: 3730e68c57e27420-e6498b5b4f5f3953-09a00e0ad238cacd-4dcce0e94f1fd733
+  PPK: no
+  message-id sent/recv: 0/11
+  QKD: no
+  PQC-KEM (IKE): no
+  PQC-KEM (all IPsec): no
+  lifetime/rekey: 86400/85831
+  DPD sent/recv: 00000000/00000000
+  peer-id: 192.0.2.20
+
+  id/spi: 7 6e5fbf3db046d38f/d5639d3530949bb8
+  direction: initiator
+  status: established 298-295s ago = 3030ms
+  proposal: aes256-sha256
+  child: no
+  SK_ei: b9fef27d5227a548-3ff482c7d713131a-e52a396875349d52-33e4baa2e0ab5860
+  SK_er: 9884c8c6281a2b80-41613a4635c13efa-baa7a14695deb56c-244ac03e0eccb94c
+  SK_ai: 4815d6a59daaa07e-8f24703579490c74-ad1114d727e14443-49cfdcd383023d75
+  SK_ar: 081a1d530eda1da4-4714fbacf9fbec1a-effd652677de136c-82c72da8edc2f722
+  PPK: no
+  message-id sent/recv: 2/9
+  QKD: no
+  PQC-KEM (IKE): no
+  PQC-KEM (all IPsec): no
+  lifetime/rekey: 86400/85804
+  DPD sent/recv: 00000000/00000000
+  peer-id: 192.0.2.20
+
+FortiGate-60F $ 

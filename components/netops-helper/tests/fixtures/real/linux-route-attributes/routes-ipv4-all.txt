@@ -1,0 +1,9 @@
+203.0.113.0/24 via 192.0.2.1 dev dummy0 table 100 proto static mtu 1450
+default nhid 41 via 192.0.2.1 dev dummy0 proto static metric 100 mtu 1400 advmss 1360
+192.0.2.0/24 dev dummy0 proto kernel scope link src 192.0.2.2
+198.51.100.0/24 via 192.0.2.3 dev dummy0 proto static onlink
+local 192.0.2.2 dev dummy0 table local proto kernel scope host src 192.0.2.2
+broadcast 192.0.2.255 dev dummy0 table local proto kernel scope link src 192.0.2.2
+fe80::10/64 dev dummy0 proto kernel metric 256 pref medium
+local fe80::11                  dev dummy0 table local proto kernel metric 0 pref medium
+multicast ff00::/8 dev dummy0 table local proto kernel metric 256 pref medium

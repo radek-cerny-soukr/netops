@@ -1,4 +1,4 @@
-"""fortios_diagnostics is tested on FortiGate-80F 8.0.2 build 0251; a neighbouring build runs with a warning (G00)."""
+"""fortios_diagnostics is tested on FortiGate-80F 8.0.2 build 0251; a neighbouring build runs with a warning (STARTUP)."""
 
 from __future__ import annotations
 

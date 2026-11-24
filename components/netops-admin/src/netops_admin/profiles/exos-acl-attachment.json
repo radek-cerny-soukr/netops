@@ -21,5 +21,5 @@
   "volatile": [],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "Compare the exact ingress attachment in the ACL module and the independent operational ACL table. Undo removes the attachment or reattaches the same unchanged policy."
+  "rollback_evidence": "Live write and return on ExtremeXOS 33.6.1.14 / 33.7.1.6 (2026-11-19): An ACL policy file or attachment was changed, independently read back and undone. Compare the exact ingress attachment in the ACL module and the independent operational ACL table. Undo removes the attachment or reattaches the same unchanged policy."
 }

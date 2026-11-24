@@ -4,7 +4,6 @@ import hashlib
 import json
 from pathlib import Path
 import pickle
-import sys
 import time
 from types import SimpleNamespace
 
@@ -12,15 +11,16 @@ import pytest
 
 from fake_fortiadc_admin import FakeADC, measured
 from fake_fortios import FakeFortiOS
-from fortinet_ssh_fixture import BLOB, PUBLIC_KEY, Counter
+from fortinet_ssh_fixture import BLOB, PUBLIC_KEY, Counter, install_clients
 from test_execute import make_runtime as fortios_runtime, request as fortios_request
 from test_fortiadc_admin_runtime import Stub, make_runtime as adc_runtime, request as adc_request
 from netops_admin import access, enrollment, execute, exec_fortiadc, exec_fortios, fortiadc_plan, fortios, readiness
 from netops_core import hostkey
+from approved_apply import approved_apply, preview_hash
 
 
 @pytest.fixture(params=["fortios", "fortiadc"])
-def wired(request, monkeypatch, tmp_path):
+def wired(request, monkeypatch, tmp_path, tmp_path_factory):
     platform = request.param
     if platform == "fortios":
         fake, name, change = FakeFortiOS(), "lab", fortios_request
@@ -56,14 +56,7 @@ def wired(request, monkeypatch, tmp_path):
 
     if platform == "fortios":
         runtime.sleep = advance
-    search_path = [str(Path(__file__).parent)] + [p for p in sys.path if p.startswith("/repo/")]
-    for client in ("ssh", "ssh-keyscan"):
-        path = tmp_path / client
-        path.write_text(f"#!{sys.executable}\n"
-                        f"import sys\nsys.path[:0] = {search_path!r}\n"
-                        f"from fortinet_ssh_fixture import main\nmain({str(tmp_path)!r})\n")
-        path.chmod(0o700)
-    monkeypatch.setenv("PATH", str(tmp_path))
+    install_clients(tmp_path, monkeypatch, tmp_path_factory.getbasetemp() / "fortinet-ssh-pycache")
     return runtime, name, change, probe, tmp_path
 
 
@@ -106,7 +99,7 @@ def test_confirmed_apply_and_undo_reuse_accounts(wired):
 @pytest.mark.parametrize("wired", ["fortiadc"], indirect=True)
 def test_preview_with_live_read_only_prompt(wired):
     runtime, name, change, _, path = wired
-    # Sanitized VM220 netops-read prompt captured in live acceptance 614.
+    # Sanitized fortiadc-kvm netops-read prompt captured in a live acceptance run.
     (path / "check-prompt").write_text("LLLLLLLL-LLL $ ")
     result = execute.preview(runtime, name, change())
     assert result["result"] == "ready", result
@@ -145,7 +138,7 @@ def test_recover_reuses_one_session_per_record(wired, monkeypatch):
     with monkeypatch.context() as patch:
         patch.setattr(adapter, "observe", interrupt_after_write)
         with pytest.raises(Interrupted):
-            execute.apply(runtime, name, change())
+            approved_apply(runtime, name, change())
     count(wired, "interrupted apply", enforce=False)
     settled, = execute.recover(runtime, name)
     assert settled["result"] == "reverted", settled["steps"]
@@ -166,8 +159,10 @@ def test_missing_host_key_is_refused_before_ssh(wired):
 @pytest.mark.parametrize("lose_inverse_reply", [False, True])
 def test_disconnected_write_is_not_replayed(wired, lose_inverse_reply):
     runtime, name, change, _, path = wired
+    approved = preview_hash(runtime, name, change())
+    count(wired, "preview")
     (path / "disconnect-after-write").touch()
-    result = execute.apply(runtime, name, change())
+    result = execute.apply(runtime, name, change(), expected_plan_sha256=approved)
     assert result["result"] == "unknown"
     assert {"step": "change_failed", "detail": "AccessError after 8 lines"} in [
         {field: step[field] for field in ("step", "detail")} for step in result["steps"]
@@ -221,7 +216,7 @@ def test_interrupted_apply_recovers_when_the_compensation_read_disconnects(wired
     with monkeypatch.context() as patch:
         patch.setattr(execute, "_step", interrupt_after_write)
         with pytest.raises(Interrupted):
-            execute.apply(runtime, name, change(key=f"{pool}:2"))
+            approved_apply(runtime, name, change(key=f"{pool}:2"))
     running, = runtime.store.running(name)
     disabled = pickle.loads(state.read_bytes())
     assert len(disabled.applied_blocks) == 1 and disabled.pools[pool][2]["status"] == "disable"
@@ -266,7 +261,7 @@ def test_fortios_ipsec_cli_refusal_keeps_the_session_and_reports_the_marker(wire
     spec = exec_fortios.prompt_spec("fw-lab")
     with handle.operation():
         with pytest.raises(access.AccessError, match="Unknown action 0") as caught:
-            handle.apply(['execute vpn ipsec tunnel down "netops-g14" "netops-g14" 1'], spec)
+            handle.apply(['execute vpn ipsec tunnel down "netops-ipsec" "netops-ipsec" 1'], spec)
         assert caught.value.accepted_lines == 0
         assert "config system global" in handle.snapshot()
     assert count(wired, "IPsec CLI refusal", maximum=1) == (1, 0)
@@ -275,8 +270,10 @@ def test_fortios_ipsec_cli_refusal_keeps_the_session_and_reports_the_marker(wire
 @pytest.mark.parametrize("wired", ["fortiadc"], indirect=True)
 def test_completed_refusal_can_be_compensated_on_the_same_pty(wired):
     runtime, name, change, _, path = wired
+    approved = preview_hash(runtime, name, change())
+    count(wired, "preview")
     (path / "refuse-after-write").touch()
-    result = execute.apply(runtime, name, change())
+    result = execute.apply(runtime, name, change(), expected_plan_sha256=approved)
     assert result["result"] == "reverted" and result["reason"] == "change failed", result["steps"]
     current = pickle.loads((path / "device").read_bytes())
     assert len(current.applied_blocks) == 2

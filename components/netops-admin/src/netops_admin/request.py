@@ -6,9 +6,9 @@ import json
 import re
 from dataclasses import dataclass
 
-from netops_admin.errors import Rejected
+from netops_admin.errors import Rejected, shown
 from netops_admin.jsontext import loads
-from netops_admin.profiles import OPS
+from netops_admin.profiles import LIST_TYPES, OPS
 from netops_auditor import l1_fortios
 
 REQUEST_OPS = (*OPS, "clear", "save")
@@ -28,7 +28,7 @@ ATTRIBUTE_NAME = re.compile(r"^[a-z][a-z0-9-]{0,63}$")
 TEXT_VALUE = re.compile(r'^[\x20-\x21\x23-\x5b\x5d-\x7e]*$')
 QUOTED_TEXT_VALUE = re.compile(r'^[\x20-\x7e]*$')
 QUOTED_TEXT_PLATFORMS = ("fortios",)
-# 1.0.12 G122 (EP19): EOS stores a port description literally with any printable character, diacritics included
+# 1.0.12 eos switchport admin (EP19): EOS stores a port description literally with any printable character, diacritics included
 # (measured on cEOS 4.36.1F); '?' opens the CLI help and is refused like control characters and outer spaces
 UNICODE_TEXT = {("eos", "description")}
 MAC_ADDRESS = r"(?:[0-9a-f]{2}:){5}[0-9a-f]{2}"
@@ -72,6 +72,53 @@ class ProfileBatch(Request):
     def fingerprint(self) -> str:
         body = [step.fingerprint() for step in self.changes]
         return hashlib.sha256(json.dumps(body, separators=(",", ":")).encode("ascii")).hexdigest()
+
+
+def inverse_profile_changes(op, before, after):
+    if op == "create":
+        return "delete", {}
+    if op == "delete":
+        return "create", dict(before)
+    return "update", {name: before.get(name) for name in sorted(set(before) | set(after))
+                      if before.get(name) != after.get(name)}
+
+
+def profile_undo_request(profile, op, key, changes, *, before, device, impact, change_id, reason):
+    from netops_admin import fortios_tables
+
+    if op == "update":
+        for name, values in (profile.value_requires or {}).items():
+            value = changes.get(name)
+            if value is None and name in changes:
+                value = profile.attributes[name].default
+            for other in values.get(value, ()):
+                changes.setdefault(other, before.get(other))
+    policy = (profile.platform, profile.table) == ("fortios", "firewall policy")
+    registered = profile.platform == "fortios" and fortios_tables.hooks(profile.table) is not None
+    if op == "create" and registered and fortios_tables.hooks(profile.table).restore is not None:
+        # 1.0.13 A3-r2: the recreation of a deleted object names the measured defaults its create needs
+        changes = fortios_tables.hooks(profile.table).restore(profile, dict(changes))
+    for name, value in changes.items():
+        if op == "move" and policy and name in ("before", "after"):
+            continue
+        attribute = profile.attributes.get(name)
+        if attribute is None or not (value is None or isinstance(value, str)):
+            raise Rejected(["the plan of the operation holds attribute %s outside the profile" % shown(name)])
+        if value is None and registered and fortios_tables.explicit_default(attribute):
+            # The undo planner restores the measured default explicitly.
+            continue
+        if value is None and not attribute.unset and attribute.undo_to_default:
+            value = attribute.default
+        if attribute.type in LIST_TYPES and (value is not None or not policy):
+            value = list_items(attribute, value or "", profile.platform)
+        changes[name] = value
+    body = {
+        "device": device, "table": profile.table, "op": op, "key": key, "changes": changes,
+        "reason": reason, "user_request": "undo of operation %s" % change_id,
+        "request_id": "undo-%s" % change_id,
+        **({"endpoint_impact": impact} if impact is not None else {}),
+    }
+    return parse_request(json.dumps(body).encode("utf-8"))
 
 
 def _text(value, label, limit):
@@ -174,18 +221,18 @@ def canonical_value(attribute, value, platform: str) -> str:
             raise Rejected(["voice-vlan must lie in 1..4094"])
         value = str(value)
     if platform in ("ios", "iosxe") and name in ("next-hop", "ipv4-address", "ipv6-address"):
-        # 1.0.12 G80 (IOS XE) and G62 (IOS): addresses of a static route and an L3 interface in their canonical form
+        # 1.0.12 xe static routing (IOS XE) and ios static routing (IOS): addresses of a static route and an L3 interface in their canonical form
         from netops_admin.ios import canonical_address
         return canonical_address(name, value)
     if platform == "nxos" and name in ("next-hop", "ipv4-address", "ipv6-address"):
         from netops_admin.nxos import canonical_address
         return canonical_address(name, value)
     if platform == "exos" and name in ("gateway", "virtual-ip", "ipv6-address"):
-        # 1.0.12 G45: a route gateway, a VRRP virtual address and a VLAN IPv6 address in their canonical form
+        # 1.0.12 switch ip routing: a route gateway, a VRRP virtual address and a VLAN IPv6 address in their canonical form
         from netops_admin.exos import canonical_address as exos_address
         return exos_address(name, value)
     if platform == "junos" and name in ("name-servers", "ntp-source-address"):
-        # 1.0.12 G145: addresses in the form Junos shows them; name-servers is an ordered list
+        # 1.0.12 junos port ownership: addresses in the form Junos shows them; name-servers is an ordered list
         from netops_admin.junos import canonical_address, canonical_addresses
         return canonical_addresses(value) if name == "name-servers" else canonical_address(value)
     if platform in ("ios", "iosxe", "eos", "nxos") and name == "allowed-vlans":
@@ -256,8 +303,26 @@ def canonical_value(attribute, value, platform: str) -> str:
         return str(value)
     if not isinstance(value, str):
         raise Rejected(["attribute %s must be a string" % name])
+    if attribute.type == "ipv6-address":
+        # 1.0.13 A1-R: a unicast IPv6 address in the compressed form FortiOS shows
+        try:
+            address = ipaddress.IPv6Address(value.strip())
+            if address.is_unspecified or address.is_multicast or address.ipv4_mapped is not None:
+                raise ValueError(value)
+        except ValueError:
+            raise Rejected(["attribute %s must be a unicast IPv6 address" % name]) from None
+        return address.compressed
+    if attribute.type == "ipv6-network":
+        # 1.0.13 A1-R: an IPv6 prefix without host bits, compressed (2001:db8::/48)
+        try:
+            network = ipaddress.IPv6Network(value.strip(), strict=True)
+            if "/" not in value:
+                raise ValueError(value)
+        except ValueError:
+            raise Rejected(["attribute %s must be an IPv6 prefix without host bits" % name]) from None
+        return network.compressed
     if attribute.type == "ipv4-interface":
-        # 1.0.12 G19: "a.b.c.d/len" or "a.b.c.d m.m.m.m"; a usable host address of a /8../30 subnet
+        # 1.0.12 firewall routing admin: "a.b.c.d/len" or "a.b.c.d m.m.m.m"; a usable host address of a /8../30 subnet
         parts = value.strip().split()
         try:
             if len(parts) == 1 and "/" in parts[0]:
@@ -294,7 +359,7 @@ def canonical_value(attribute, value, platform: str) -> str:
             raise Rejected(["attribute %s may hold printable characters only, without '?' and without leading or "
                             "trailing spaces" % name])
     elif attribute.type == "text" and platform == "junos" and name == "description":
-        # 1.0.12 G137 JP17: Junos stores a quoted description as UTF-8 text, diacritics included (measured)
+        # 1.0.12 junos vlan admin JP17: Junos stores a quoted description as UTF-8 text, diacritics included (measured)
         from netops_admin.junos import text_value
         text_value(value)
     elif attribute.type == "text" and platform in QUOTED_TEXT_PLATFORMS:

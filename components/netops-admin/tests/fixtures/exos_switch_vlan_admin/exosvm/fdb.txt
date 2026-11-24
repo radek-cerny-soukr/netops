@@ -1,0 +1,22 @@
+MAC                                      VLAN Name( Tag)  Age  Flags          Port / Virtual Port List
+------------------------------------------------------------------------------------------------------
+00:00:5e:00:53:01                              D10(0010) 0080  d m            2
+00:00:5e:00:53:02                         DUO-DATA(0304) 0160  d m        S   5
+00:00:5e:00:53:03                              D10(0010) 0254  d m            1
+00:00:5e:00:53:04                          DUO-ISC(4090) 0000  s m        S   3
+00:00:5e:00:53:04                           DUO-KA(4091) 0182  d m            4
+00:00:5e:00:53:05                              D10(0010) 0167  d m            1
+00:00:5e:00:53:05                              D20(0020) 0175  d m            1
+00:00:5e:00:53:06                              D10(0010) 0180  d m            1
+00:00:5e:00:53:07                              D10(0010) 0070  d m            1
+00:00:5e:00:53:08                              D10(0010) 0267  d m            1
+
+Flags : d - Dynamic, s - Static, p - Permanent, n - NetLogin, m - MAC, i - IP,
+        x - IPX, l - lockdown MAC, L - lockdown-timeout MAC, M- Mirror, B - Egress Blackhole,
+        b - Ingress Blackhole, v - MAC-Based VLAN, P - Private VLAN, T - VLAN translation,
+        D - drop packet, h - Hardware Aging (Age=0), o - IEEE 802.1ah Backbone MAC,
+        S - Software Controlled Deletion, r - MSRP,
+        X - VXLAN, E - EVPN
+
+Total: 10 Static: 1  Perm: 0  Dyn: 9  Dropped: 0  Locked: 0  Locked with Timeout: 0
+FDB Aging time: 300

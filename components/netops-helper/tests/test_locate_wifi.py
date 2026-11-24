@@ -601,7 +601,7 @@ class TestProxyWifiLocate:
 
 
 class TestLocateWifiReview50:
-    """Review50 N1/N2 regressions. Same public path as TestProxyWifiLocate (reused by
+    """Review N1/N2 regressions. Same public path as TestProxyWifiLocate (reused by
     composition, not inheritance): real Proxy.request -> endpoint_worker.decode ->
     engine._locate_endpoint_run over the derived replay transports above. The changes
     below (an HTTP status on the third GET, AP identities in the managed_ap document)

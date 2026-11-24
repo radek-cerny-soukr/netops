@@ -1,5 +1,0 @@
---- primary.cfg  [anonymized timestamp]
-
-+++ Running Configuration  [anonymized timestamp]
-@@ -27,0 +28 @@
-+create vlan "g41-probe-534"

@@ -1,5 +1,5 @@
-"""Curated Ruckus Unleashed diagnostic queries (phase 1 on Ruckus Unleashed 200.13; G107 client, radio, AP and WLAN
-reads, G108 bounded ping from the master AP and G110 ACL, AAA, DHCP relay and static route reads, measured on R610 on
+"""Curated Ruckus Unleashed diagnostic queries (phase 1 on Ruckus Unleashed 200.13; wireless inventory client, radio, AP and WLAN
+reads, wireless path bounded ping from the master AP and wireless network services ACL, AAA, DHCP relay and static route reads, measured on R610 on
 Ruckus Unleashed 200.15.6.212.27)."""
 
 from __future__ import annotations
@@ -7,7 +7,7 @@ from __future__ import annotations
 from .model import LITERAL, NO_SLOTS, Query, Slot
 
 
-# G107: object reads take a lower-case MAC literal or an AP device name / WLAN name that is enrolled in the
+# wireless inventory: object reads take a lower-case MAC literal or an AP device name / WLAN name that is enrolled in the
 # target inventory or was listed by this target in `access_points` / `wlans` (never a free string).
 CLIENT_MAC = {"mac": Slot(LITERAL, "wifi_mac_literal")}
 AP_MAC = {"ap_mac": Slot(LITERAL, "wifi_mac_literal")}
@@ -102,7 +102,7 @@ QUERIES: dict[str, Query] = {
         {"wlan": Slot("wlan_names", "ruckus_wlan_name")},
         "Show one WLAN service selected by a name that is enrolled or was listed by wlans.",
     ),
-    # G108 (R02): the Unleashed CLI ping has no count or time option; measured on Ruckus Unleashed 200.15.6.212.27
+    # wireless path (R02): the Unleashed CLI ping has no count or time option; measured on Ruckus Unleashed 200.15.6.212.27
     # it always sends three echo requests and ends after about 12 s when nothing answers. Only an enrolled IPv4
     # literal is rendered (no host name, so no DNS lookup, and no `-s` packet size).
     "ping": Query(
@@ -111,7 +111,7 @@ QUERIES: dict[str, Query] = {
         "Send the three ICMP echo requests of the Unleashed CLI from the master AP management plane to one "
         "enrolled IPv4 address; it says nothing about a client's data path.",
     ),
-    # G110 (R10-R13): `show ... all` lists of configured objects. On an unconfigured object type the device prints only
+    # wireless network services (R10-R13): `show... all` lists of configured objects. On an unconfigured object type the device prints only
     # the section heading (or nothing for `show l3acl all`), so an empty result is "nothing configured". The bare
     # `show l3acl` is not a command (the device answers "unrecognized or incomplete"); only the `all` form is used.
     "l2_acls": Query(

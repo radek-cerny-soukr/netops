@@ -1,6 +1,6 @@
 # FortiGate-local RO captures, 2026-11-10
 
-FortiGate 80F, FortiOS 8.0.2 build0251, HA primary; SSH account `netops-test-ro`.
+FortiGate 80F, FortiOS 8.0.2 build0251, HA primary; SSH account `fixture-reader`.
 One exec read per command, strict existing ED25519 pin. No configuration or console changes.
 
 - `physical.txt`: `get system interface physical`, eleven physical ports; link and negotiated speed/duplex.

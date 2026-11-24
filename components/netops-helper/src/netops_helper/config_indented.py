@@ -98,9 +98,9 @@ _TOKEN_SPLIT = re.compile(r'[ \t",=:]+')
 # $2b$/$2x$/$2y$ (bcrypt), $5$ (SHA-256), $6$ (SHA-512), $7$ (scrypt), $8$/$9$ (Cisco type 8/9),
 # $y$/$gy$ (yescrypt), $sha1$, $md5$, $argon2*$; and the Cisco type 7 form '7 <seed><hex pairs>':
 # a decimal seed 00-15 followed by an even number (at least 2: a one-character password is one
-# encrypted byte, '7 0005', review 219-rv) of hex digits.  The value is bounded by
+# encrypted byte, '7 0005', review) of hex digits.  The value is bounded by
 # anything that is not a word character on the left and anything that is not a hex digit on the right,
-# so trailing punctuation (',', ';', ')', '.', ...) still matches (review 147-r2rv); a plain number such
+# so trailing punctuation (',', ';', ')', '.', ...) still matches; a plain number such
 # as '7 2026' (seed 20) is not a type 7 value; '7 1500' has the type 7 shape and is hidden (security
 # first).
 _CRYPT_HASH = re.compile(r'\$(?:1|2[abxy]?|5|6|7|8|9|y|gy|sha1|md5|argon2(?:i|d|id))[$,]', re.I)

@@ -52,7 +52,7 @@ def run(values, tunnel="T1", refused=()):
         if query in refused:
             return {"ok": False, "reason": refused[query] if isinstance(refused, dict) else "device_cli_error"}
         if query not in values:
-            # G14: the optional detail queries are not enrolled in these cases.
+            # IPSEC-STATUS: the optional detail queries are not enrolled in these cases.
             return {"ok": False, "reason": "not_enrolled"}
         text = values[query]
         return {"ok": True, "text": text, "content_sha256": hashlib.sha256(text.encode()).hexdigest()}
@@ -214,7 +214,7 @@ def test_a_refused_step_is_incomplete_never_clean(step):
     result, calls = run(outputs(), refused=(step,))
     assert result["verdict"] == "incomplete"
     assert {"step": step, "reason": "device_cli_error"} in result["missing"]
-    # G14: without the summary the tunnel is unknown, so its detail is not read
+    # IPSEC-STATUS: without the summary the tunnel is unknown, so its detail is not read
     assert step not in result["checked"] and len(calls) == (4 if step == "ipsec_summary" else 6)
 
 
@@ -252,7 +252,7 @@ def test_empty_routing_or_ike_output_is_empty_not_clean():
 ])
 def test_untested_identity_runs_every_read_with_a_warning(status):
     result, calls = run(outputs(system_status=status))
-    # Without a verified VDOM scope the summary is no evidence, so the tunnel detail (G14) is not read either.
+    # Without a verified VDOM scope the summary is no evidence, so the tunnel detail (IPSEC-STATUS) is not read either.
     assert calls == ["system_status", "ipsec_summary", "routing_table", "ike_errors"]
     assert result["ok"] is True
     assert result["firmware_support"]["status"] == "untested"
@@ -323,7 +323,7 @@ def test_engine_reads_each_query_once_never_with_the_tunnel_name_and_audits(audi
     assert result["verdict"] == "no_fault_in_checked_data"
     assert sent == list(COMMANDS)
     records = [json.loads(line) for line in audit_log.read_text().splitlines()]
-    # G14: the two detail queries are not enrolled here; their refused reads are audited too (2 x 2 events)
+    # IPSEC-STATUS: the two detail queries are not enrolled here; their refused reads are audited too (2 x 2 events)
     assert [r["event"] for r in records].count("triage_vpn_read") == 12
     assert records[0]["event"] == "triage_vpn" and records[-1]["event"] == "triage_vpn"
     assert {r.get("query") for r in records if r["event"] == "triage_vpn_read"} == {
@@ -397,5 +397,5 @@ def test_proxy_accepts_target_and_tunnel_only_and_charges_the_whole_plan(monkeyp
     proxy.rate_history["fg"] = deque([90.0] * 24)
     proxy._consume_rate_limit("fg", limit, proxy_module.TRIAGE_VPN_READS)
     assert len(proxy.rate_history["fg"]) == 30
-    # G14: four summary reads plus the two optional detail reads of the named tunnel
+    # IPSEC-STATUS: four summary reads plus the two optional detail reads of the named tunnel
     assert proxy_module.TRIAGE_VPN_READS == t.PLANNED_READS == 6

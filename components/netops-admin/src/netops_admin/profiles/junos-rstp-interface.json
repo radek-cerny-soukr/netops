@@ -45,5 +45,5 @@
   "volatile": [],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "Junos commit confirmed, exact configuration verification and operational spanning-tree interface readback."
+  "rollback_evidence": "Live write and return on vJunos-switch 26.2R1.7 (2026-11-19): The LAG membership or RSTP settings were changed, read back and undone. Junos commit confirmed, exact configuration verification and operational spanning-tree interface readback."
 }

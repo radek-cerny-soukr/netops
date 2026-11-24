@@ -75,5 +75,5 @@
   "volatile": [],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "G124 on cEOSLab 4.36.1F. EOS configuration session timer and verified running-config readback apply. Create or delete a standalone SVI for an existing VLAN, or update an existing Ethernet port. The routed port switchport mode is verified separately. A mode change requires a default access port or a standalone routed port. For a connected physical port the request must name endpoint_impact."
+  "rollback_evidence": "Live write and return on cEOSLab 4.36.1F (2026-11-18–19): The static routes, L3 interfaces or VRF forwarding changes were read back and undone. eos static routing on cEOS 4.36.1F. EOS configuration session timer and verified running-config readback apply. Create or delete a standalone SVI for an existing VLAN, or update an existing Ethernet port. The routed port switchport mode is verified separately. A mode change requires a default access port or a standalone routed port. For a connected physical port the request must name endpoint_impact."
 }

@@ -1,2 +1,0 @@
-sftp> ls -ln netops-g47-capture.pol
--rwxr-xr-x    ? 1001     1001          132 Nov 19 18:15 netops-g47-capture.pol

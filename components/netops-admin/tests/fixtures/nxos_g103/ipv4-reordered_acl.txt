@@ -1,3 +1,0 @@
-
-IP access list NETOPS-G103-V4
-	20 permit ip any any

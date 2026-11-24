@@ -1,4 +1,0 @@
-[edit forwarding-options dhcp-relay group NETOPS-G144-RG active-server-group]
-  'NETOPS-G144-SG'
-    Referenced group must be defined under [edit forwarding-options dhcp-relay server-group]
-error: configuration check-out failed: (statements constraint check failed)

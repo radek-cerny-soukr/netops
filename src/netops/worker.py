@@ -12,7 +12,7 @@ from .bootstrap import role_environment
 from .state import AUDITOR_DEFAULTS, admin_devices, auditor_settings
 from .redaction import redact
 
-PROGRESS_TOOLS = frozenset({"triage_health", "triage_routing", "triage_vpn", "triage_slb"})
+PROGRESS_TOOLS = frozenset({"triage_health", "triage_routing", "triage_vpn", "triage_slb", "network_overview"})
 
 def progress_line(done, total, text):
     return json.dumps({"progress": {"progress": done, "total": total, "message": text}}, separators=(",", ":")).encode() + b"\n"
@@ -161,6 +161,8 @@ class HelperBridge:
             for private in PRIVATE_ARGUMENTS:
                 schema.get("properties", {}).pop(private, None)
             schema["required"] = [item for item in schema.get("required", []) if item not in PRIVATE_ARGUMENTS]
+            if descriptor["name"] == "network_overview":
+                schema["additionalProperties"] = False
         descriptors.append(self.proxy._target_scope_tool())
         return descriptors
 
@@ -172,7 +174,15 @@ class HelperBridge:
         request = {"jsonrpc": "2.0", "id": request_id, "method": "tools/call", "params": {"name": name, "arguments": arguments}}
         self.proxy.emitted = None
         page = None
-        forwarded = self.proxy.request(json.dumps(request).encode())
+        encoded_request = json.dumps(request).encode()
+        if name == "network_overview":
+            try:
+                forwarded = await _owned_thread(self.proxy.request, encoded_request)
+            except asyncio.CancelledError:
+                self.proxy._clear_pending(request_id)
+                raise
+        else:
+            forwarded = self.proxy.request(encoded_request)
         if forwarded is None:
             response = self.proxy.emitted or {"error": {"message": "Request refused"}}
         else:
@@ -187,6 +197,9 @@ class HelperBridge:
                     page = {**metadata, "untrusted_device_output": structured["untrusted_device_output"]}
                 payload = {"content": [item.model_dump(by_alias=True, exclude_none=True) for item in result.content], "structuredContent": result.structured_content, "isError": result.is_error, "_meta": result.meta or {}}
                 response = {"jsonrpc": "2.0", "id": request_id, "result": payload}
+            except asyncio.CancelledError:
+                self.proxy._clear_pending(request_id)
+                raise
             except Exception as error:
                 refusal = _pagination_refusal(error)
                 failure = _configuration_refusal(error) if name == "config_read" else None
@@ -225,6 +238,21 @@ def _admin_configuration_refusal(module):
     except module.ConfigurationError:
         return {"content": [{"type": "text", "text": "admin_not_configured: Stop NetOps, run docker compose run --rm -T netops configure admin with the documented config/vault input, then start NetOps."}], "isError": True}
     return None
+
+async def _overview_ipc(reader, bridge, server, arguments, sink):
+    operation = asyncio.create_task(bridge.call(server, "network_overview", arguments, sink))
+    disconnect = asyncio.create_task(reader.read(1))
+    try:
+        await asyncio.wait((disconnect, operation), return_when=asyncio.FIRST_COMPLETED)
+        if disconnect.done():
+            return None
+        return operation.result()
+    finally:
+        for task in (disconnect, operation):
+            if not task.done():
+                task.cancel()
+        await asyncio.gather(disconnect, operation, return_exceptions=True)
+
 
 async def run(role):
     if os.geteuid() != UIDS[role] or os.getegid() != UIDS[role]:
@@ -279,7 +307,12 @@ async def run(role):
                             async def sink(done, total, text):
                                 writer.write(progress_line(done, total, text))
                                 await writer.drain()
-                        result = await bridge.call(module.mcp, name, arguments, sink)
+                        if name == "network_overview":
+                            result = await _overview_ipc(reader, bridge, module.mcp, arguments, sink)
+                            if result is None:
+                                return
+                        else:
+                            result = await bridge.call(module.mcp, name, arguments, sink)
                     else:
                         result = _admin_configuration_refusal(module) if role == "admin" else None
                         if result is None:

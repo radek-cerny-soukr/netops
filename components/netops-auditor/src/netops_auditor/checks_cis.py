@@ -3,6 +3,7 @@ from __future__ import annotations
 import ipaddress
 
 from .engine import EVALUATED, NOT_EVALUATED, check, section_missing
+from .fortios_audit import live_admin_gap
 
 _GLOBAL = "system global"
 _PASSWORD_POLICY = "system password-policy"
@@ -45,17 +46,19 @@ _KINDS = (
 )
 
 
-def _cis(name):
+def _cis(name, *, admin_visibility=False):
     def register(inner):
-        def status(tree, policy=None):
+        def status(tree, context=None):
+            if admin_visibility and live_admin_gap(tree, context):
+                return NOT_EVALUATED, _ADMIN_VISIBILITY_UNPROVEN
             state, reason, _ = inner(tree)
             return state, reason
 
-        def generate(tree):
+        def generate(tree, context=None):
             yield from inner(tree)[2]
 
         generate.__name__ = name
-        check(name, status=status)(generate)
+        check(name, status=status, audit_context=admin_visibility)(generate)
         return generate
 
     return register
@@ -162,7 +165,7 @@ def _restricted(account, kind):
     return restricting
 
 
-@_cis("admin_no_trusthost")
+@_cis("admin_no_trusthost", admin_visibility=True)
 def admin_no_trusthost(tree):
     if tree.section(_GLOBAL) is None:
         return _failed(_GLOBAL_MISSING)

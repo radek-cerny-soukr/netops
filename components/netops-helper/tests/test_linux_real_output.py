@@ -13,6 +13,7 @@ from support.replay_capture import load
 SCENARIO = load(Path(__file__).parent / 'fixtures/real/scenarios/linux_ubuntu_24.04.5.json')
 CAPTURES = SCENARIO['captures']
 IDENTITY = SCENARIO['environment']['version']['stdout']
+ROUTE_ATTRIBUTES = Path(__file__).parent / 'fixtures/real/linux-route-attributes'
 
 
 def target(query, interfaces=('lo', 'eno1', 'docker0')):
@@ -179,6 +180,34 @@ def test_linux_route_lookup_and_ipv6_neighbor_filter_use_existing_table_commands
     address = neighbors['expected']['records'][-1]['ip']
     result = read_capture(neighbors, ip=address)
     assert len(result['records']) == 1 and result['records'][0]['ip'] == address
+
+
+@pytest.mark.parametrize('extra', ['', ' future-attribute 7 future-flag'])
+def test_route_attributes_preserve_records_through_real_engine(monkeypatch, extra):
+    default, *remaining = (ROUTE_ATTRIBUTES / 'routes-ipv4.txt').read_text().splitlines()
+    capture = {'query': 'routes', 'command': 'ip route show', 'table': 'route', 'rc': 0,
+               'stdout': '\n'.join([default + extra, *remaining]) + '\n'}
+    calls = fake_transport(monkeypatch, capture)
+    result = read_capture(capture)
+
+    assert calls == ['uname -a', 'ip route show']
+    assert result['status'] == 'ok'
+    assert result['unparsed'] == []
+    assert result['coverage']['unparsed_lines'] == 0
+    assert [(row['prefix'], row['next_hop'], row['interface'], row['protocol'])
+            for row in result['records']] == [
+        ('0.0.0.0/0', '192.0.2.1', 'dummy0', 'static'),
+        ('192.0.2.0/24', None, 'dummy0', 'kernel'),
+        ('198.51.100.0/24', '192.0.2.3', 'dummy0', 'static'),
+    ]
+
+
+def test_route_attributes_in_non_main_table():
+    route = (ROUTE_ATTRIBUTES / 'routes-ipv4-all.txt').read_text().splitlines()[0]
+    result = tables.parse('linux', 'route', 'routes', route)
+    assert result['status'] == 'ok'
+    assert result['records'] == [tables.record('route', prefix='203.0.113.0/24',
+                                               next_hop='192.0.2.1', interface='dummy0', protocol='static')]
 
 
 def test_linux_address_filter_retains_missing_field_coverage(monkeypatch):

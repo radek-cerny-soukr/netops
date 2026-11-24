@@ -1,0 +1,4 @@
+proxyid_num=1 child_num=0 refcnt=5 ilast=2310 olast=2310 ad=/0
+proxyid=netops-ipsec proto=0 sa=2 ref=4 serial=1 auto-negotiate
+  SA:  ref=3 options=18227 type=00 soft=0 mtu=1438 expire=42930/0B replaywin=2048
+  SA:  ref=3 options=18227 type=00 soft=0 mtu=1438 expire=42930/0B replaywin=2048

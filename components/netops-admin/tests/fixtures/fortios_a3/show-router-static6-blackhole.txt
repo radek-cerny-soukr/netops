@@ -1,0 +1,9 @@
+config router static6
+    edit 63
+        set status disable
+        set dst 2001:db8:a3::/48
+        set comment "netops A3 test"
+        set blackhole enable
+        set vrf 0
+    next
+end

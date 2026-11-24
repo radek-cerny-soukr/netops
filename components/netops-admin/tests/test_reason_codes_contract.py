@@ -7,6 +7,7 @@ from test_issue5_admin import delivery_bench
 
 from netops_admin import execute
 from netops_admin.errors import Rejected, BudgetExhausted, StateUnreadable
+from approved_apply import approved_apply
 
 
 class ReasonCodesTest(unittest.TestCase):
@@ -65,14 +66,22 @@ def test_plan_changed_carries_its_code_and_both_hashes(tmp_path):
     assert caught.value.reason_details[0]['expected'] == expected
 
 
-def test_schema_transaction_has_no_plan_binding():
+def test_schema_transaction_is_bound_to_its_preview_like_every_apply():
+    from types import SimpleNamespace
     from netops_admin.schema_request import Transaction
 
     transaction = Transaction('lab', [], 'reason', 'request', 'req-code-0002')
+    assert execute._expected_plan(transaction, 'a' * 64) == 'a' * 64
     with pytest.raises(Rejected) as caught:
-        execute._expected_plan(transaction, 'a' * 64)
-    assert 'only for profile requests' in caught.value.reasons[0]
-    assert execute._expected_plan(transaction, None) is None
+        execute._expected_plan(transaction, 'A' * 64)
+    assert '64 lowercase hexadecimal' in caught.value.reasons[0]
+    device = SimpleNamespace(platform='fortios', name='lab')
+    with pytest.raises(Rejected) as caught:
+        execute._plan_required(device, transaction, None)
+    assert caught.value.reason_codes == ['plan_changed']
+    assert 'schema transaction' in caught.value.reasons[0]
+    execute._plan_required(device, transaction, 'a' * 64)
+    execute._plan_required(device, transaction, None, undo=True)
 
 
 def test_undo_preview_after_an_undo_is_undo_already_done(tmp_path):
@@ -81,7 +90,7 @@ def test_undo_preview_after_an_undo_is_undo_already_done(tmp_path):
 
     device = FakeFortiOS()
     runtime = make_runtime(tmp_path, device)
-    first = execute.apply(runtime, 'lab', request(op='update', key='spare-host', changes={'comment': 'mine'}))
+    first = approved_apply(runtime, 'lab', request(op='update', key='spare-host', changes={'comment': 'mine'}))
     assert execute.undo(runtime, first['change_id'], 'investigated')['result'] == 'confirmed'
     for reason in ('investigated', 'another reason'):
         with pytest.raises(Rejected) as caught:
@@ -120,7 +129,7 @@ def test_port_and_poe_refusals_carry_named_codes():
 
 
 def test_the_version_gate_codes_are_gone_and_t1_has_its_technical_code():
-    # G00-1: no refusal names an untested firmware; the technical limit T1 has its own code
+    # STARTUP-1: no refusal names an untested firmware; the technical limit T1 has its own code
     codes = _source_codes()
     assert "port_action_not_measured" not in codes
     assert "safeguard_no_rest_inverse" in codes

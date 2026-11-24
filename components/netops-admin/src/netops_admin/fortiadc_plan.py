@@ -185,7 +185,7 @@ class Snapshot:
             return
         name = PROFILE_NAMES.get(words[1], words[1])
         if name == "pool-member-cookie" and " ".join(words[2:]) == default_cookie(stack[3][1]):
-            # the device gives a member without a cookie the cookie rsN (measured 7.6.7 build0676, task 306):
+            # the device gives a member without a cookie the cookie rsN (measured 7.6.7 build0676, verification):
             # it is the default of member N, like a default value that show leaves out
             return
         if name in entry.attributes:

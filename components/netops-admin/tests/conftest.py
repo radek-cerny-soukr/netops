@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import time
+from functools import wraps
 from pathlib import Path
 
 import pytest
@@ -30,6 +32,34 @@ def fortios_snapshot() -> bytes:
 @pytest.fixture
 def exos_snapshot() -> bytes:
     return (FIXTURES / "exos_33_7_1.conf").read_bytes()
+
+
+@pytest.fixture
+def watch_export_status(monkeypatch):
+    """Keep the simulated export status fresh before each operation on a wired device."""
+    from netops_admin import execute
+
+    exports = {}
+
+    def with_fresh_export(operation):
+        @wraps(operation)
+        def run(runtime, *args, **kwargs):
+            export = exports.get(runtime.config.export_status_file)
+            if export is not None:
+                status = json.loads(export.read_text())
+                status["updated_at"] = time.time()
+                export.write_text(json.dumps(status))
+            return operation(runtime, *args, **kwargs)
+
+        return run
+
+    for name in ("preview", "apply", "preview_undo", "undo", "recover"):
+        monkeypatch.setattr(execute, name, with_fresh_export(getattr(execute, name)))
+
+    def watch(export):
+        exports[str(export)] = export
+
+    return watch
 
 
 import importlib.util as _sandbox_import  # noqa: E402

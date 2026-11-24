@@ -1,6 +1,7 @@
 {
   "platform": "junos",
   "table": "bgp-neighbor",
+  "measured": true,
   "versions": [
     "26.2R1.7"
   ],
@@ -46,5 +47,5 @@
   "volatile": [],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "Uses the Junos commit confirmed safeguard and scoped inverse (G132). The key is group@address. The neighbor owns its optional peer AS and ordered policy overrides."
+  "rollback_evidence": "Measured on vJunos-switch 26.2R1.7 without a BGP license and with a local AS configured: a neighbor was created with its group in one batch, and a second neighbor with its own peer AS was created on that group, read back by the check account in the neighbor display (group, routing instance and state Idle) and undone; each undo restored the configuration (SHA-256 before and after matched). The key is group@address. The neighbor owns its optional peer AS and ordered policy overrides."
 }

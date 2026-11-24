@@ -1,0 +1,3 @@
+
+> show ip access-lists netops-eos-access-control-v4 | json
+% Invalid input (privileged mode required) at line 1

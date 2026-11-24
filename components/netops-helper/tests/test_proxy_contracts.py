@@ -2453,7 +2453,7 @@ def test_direct_proxy_appends_source_path(tmp_path: Path) -> None:
     section["egress"]["allow_icmp"] = True
     _write(inventory, _inventory(_device(section, "cisco_ios")))
     _write(runner, _runner(module.hostkey.fingerprint_of(RUNNER_HOST_KEY)))
-    output = (ROOT / "tests/fixtures/real/cisco_ios/iosv_15.9.3M12_g52/ping.out").read_text()
+    output = (ROOT / "tests/fixtures/real/cisco_ios/iosv_15.9.3M12_router_probes/ping.out").read_text()
     binaries = _fake_tools(tmp_path, response_text=json.dumps({"untrusted_device_output": output}))
 
     # Expose the archived package without putting the Helper source root on sys.path.
@@ -2945,7 +2945,7 @@ def main(base: Path | None = None) -> int:
     assert module.DEFAULT_RATE_REQUESTS == 30
     expected_control = {"helper_status", "read_query_catalog", "target_scope"}
     expected_device = {
-        "switch_read", "locate_endpoint", "vpc_compare", "triage_port", "triage_nxos_path",
+        "network_overview", "switch_read", "locate_endpoint", "vpc_compare", "triage_port", "triage_nxos_path",
         "dns_probe", "tcp_probe", "icmp_probe", "tls_probe", "ssh_read",
         "snmp_get", "sftp_stat", "ftp_list", "schema_read", "fortios_diagnostics",
         "config_read", "config_diff", "triage_slb", "triage_health", "triage_routing", "triage_vpn", "wifi_triage", "wifi_clients", "wifi_aps_live", "wifi_rogue", "triage_flow",
@@ -2958,11 +2958,11 @@ def main(base: Path | None = None) -> int:
         expected_control | expected_device
     ) - {"target_scope"}
     assert module.SSH_TOOLS == {
-        "switch_read", "locate_endpoint", "vpc_compare", "triage_port", "triage_nxos_path",
+        "network_overview", "switch_read", "locate_endpoint", "vpc_compare", "triage_port", "triage_nxos_path",
         "ssh_read", "sftp_stat", "schema_read", "fortios_diagnostics", "config_read", "config_diff",
         "triage_slb", "triage_health", "triage_routing", "triage_vpn", "wifi_triage", "triage_flow",
     }
-    assert len(module.TOOL_ARGUMENT_SCHEMAS) == 31
+    assert len(module.TOOL_ARGUMENT_SCHEMAS) == 32
     assert module.SSH_TRANSPORT_FAILURE_MESSAGE == (
         "The remote MCP SSH transport failed."
     )
@@ -3143,10 +3143,10 @@ def test_nxos_vpc_compare_with_small_rate_limit(tmp_path, monkeypatch, limit):
     _write(inventory, _inventory(_device(section, platform), peer))
     fixtures = ROOT / "tests/fixtures"
     identity = (fixtures / "identity/cisco_nxos.txt").read_text()
-    captures = fixtures / "real/cisco_nxos/g92_nexus9300v_9.3.12"
+    captures = fixtures / "real/cisco_nxos/nxos_ports_nexus9300v_9.3.12"
     calls = []
     sources = {"show vpc brief": "vpc-brief", "show vpc consistency-parameters vpc 128": "vpc-member"}
-    prefixes = {"device-a": "2261", "device-b": "2262"}
+    prefixes = {"device-a": "peer-a", "device-b": "peer-b"}
 
     def read(auth, profile, command):
         assert profile == platform

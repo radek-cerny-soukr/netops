@@ -12,12 +12,12 @@ from netops_core import tested
 from netops_core.target_lock import target_lock, TargetBusy, TargetLockError
 
 from netops_admin import (
-    audit, audit_gate, engine, enrollment, eos_bgp, eos_dhcp, eos_l2, eos_routing, eos_save, eos_services,
+    audit, audit_gate, engine, enrollment, eos_l2, eos_save, eos_services,
     exec_eos, exec_exos, exec_exos_acl, exec_fortiadc, exec_fortios, exec_ios, exos_save, exos_services,
     exec_junos, exec_nxos, exec_ruckus, exec_schema_fortios, fortiadc, fortiadc_certificate_import,
     fortios, ios, ios_save, junos_clear, prediction, schema_runtime,
 )
-from netops_admin import eos_clear, fortios_lease, nxos_clear
+from netops_admin import eos_clear, fortios_lease, fortios_tables, nxos_clear
 from netops_admin.schema_request import Transaction
 from netops_admin.blocking import (BLOCKING_REASONS, BLOCKING_RESULTS, MCP_UNBLOCK_RESULTS, MCP_UNBLOCK_SIDE, blocks,
                                    unblock_digest)
@@ -25,8 +25,8 @@ from netops_admin.access import AccessError, operation
 from netops_admin.config import SAFEGUARD_MAX_SECONDS
 from netops_admin.errors import (SNAPSHOT_FIRMWARE_MISMATCH, BudgetExhausted, Rejected, SnapshotRejected,
                                  StateUnreadable, shown)
-from netops_admin.profiles import LIST_TYPES, find_profile, load_profiles
-from netops_admin.request import BATCH, ProfileBatch, list_items, parse_request
+from netops_admin.profiles import find_profile, load_profiles
+from netops_admin.request import BATCH, ProfileBatch, inverse_profile_changes, parse_request, profile_undo_request
 from netops_admin.state import Store
 
 EXPIRY_GRACE_SECONDS = 20
@@ -49,7 +49,7 @@ PLAN_CHANGED = ("the fresh plan differs from the previewed plan (another device 
                 " changed since the preview); run a new preview and approve its plan_sha256")
 NO_UNDO = "a PoE cycle returns the configuration to its state before the operation; it has no undo"
 NO_UNDO_BOUNCE = "a port bounce returns the configuration to its state before the operation; it has no undo"
-# operations that end on the configuration before them (1.0.12 G123: the EOS port bounce too)
+# operations that end on the configuration before them (1.0.12 eos port maintenance: the EOS port bounce too)
 CYCLE_KINDS = ("poe-cycle", "port-bounce")
 CLEAR_KIND = "exos-clear"
 CLEAR_KINDS = {"exos": CLEAR_KIND, "fortiadc": "fortiadc-clear", "junos": junos_clear.KIND, "nxos": nxos_clear.KIND,
@@ -61,7 +61,7 @@ IRREVERSIBLE_KINDS = (*CLEAR_KINDS.values(), fortios.IPSEC_RECOVERY_KIND, *SAVE_
 UNBLOCK_CHANGED = ("the block, its operation or the state read on the device differs from the approved"
                    " admin_unblock_preview; run a new preview and approve its unblock_sha256")
 MAX_UNBLOCK_REASON = 500
-# 1.0.12 G07 r2 (502-rv finding 1): the hash of an MCP undo or unblock is accepted only for the last preview of that
+# 1.0.12 execution access r2 (review finding 1): the hash of an MCP undo or unblock is accepted only for the last preview of that
 # kind this server issued for the device, once, within this time and while the journal of the device is unchanged
 PREVIEW_TICKET_SECONDS = 600
 PREVIEW_NOT_ISSUED = ("the hash is not the one of the last admin_%s_preview this server issued for the device, or"
@@ -148,7 +148,7 @@ def _spec(record):
     adapter = _adapter(record["plan"]["platform"], schema_runtime.is_plan(record["plan"]), record["plan"]["table"])
     others = getattr(adapter, "plan_hostnames", None)
     if others is not None:
-        # 1.0.12 G145: a Junos host-name change shows the new name in the prompt right after its commit
+        # 1.0.12 junos port ownership: a Junos host-name change shows the new name in the prompt right after its commit
         return adapter.prompt_spec(record["hostname"], others(record["plan"], record["hostname"]))
     return adapter.prompt_spec(record["hostname"])
 
@@ -865,9 +865,6 @@ def _check_accounts(runtime, adapter, access, device, text, *, preview=False):
 def _expected_plan(request, expected_plan_sha256):
     if expected_plan_sha256 is None:
         return None
-    if isinstance(request, Transaction):
-        raise Rejected(["expected_plan_sha256 is supported only for profile requests: the plan_sha256 of a schema"
-                        " transaction depends on the snapshot and the request_id, so a preview never matches it"])
     if not isinstance(expected_plan_sha256, str) or not PLAN_SHA256.fullmatch(expected_plan_sha256):
         raise Rejected(["expected_plan_sha256 must be 64 lowercase hexadecimal characters"])
     return expected_plan_sha256
@@ -967,7 +964,7 @@ def _action(device, request, action) -> None:
         return
     if getattr(request, "op", None) == "clear":
         if device.platform == "fortios" and request.table == fortios_lease.TABLE:
-            # 1.0.12 G20 FG-37: a lease release moves a client off its address: the request names the address
+            # 1.0.12 dhcp dns FG-37: a lease release moves a client off its address: the request names the address
             if request.endpoint_impact is None:
                 raise Rejected(["releasing a DHCP lease affects its client; endpoint_impact naming the request key is"
                                 " required"], reason_codes=["endpoint_impact_required"])
@@ -1001,7 +998,7 @@ def _action(device, request, action) -> None:
                            reason_codes=["action_unsupported"])
         return
     if owner == action and device.platform in ios.PLATFORMS and action is not None:
-        # 1.0.12 G61: the IOS cycles take the one change admin-state=disabled
+        # 1.0.12 ios port maintenance: the IOS cycles take the one change admin-state=disabled
         if request.op != "update" or request.changes != {"admin-state": "disabled"}:
             raise Rejected(["IOS cycles require update with admin-state=disabled"], reason_codes=["action_unsupported"])
         return
@@ -1082,7 +1079,7 @@ def preview(runtime, device_name: str, request) -> dict:
 
 def _preview(runtime, device_name: str, request, expected_before=ANY_STATE, undo=False, action=None,
              undo_plan=None, ticket=None):
-    # ticket (kind, subject): the preview is issued for the bound MCP action (1.0.12 G07 r2); every such preview first
+    # ticket (kind, subject): the preview is issued for the bound MCP action (1.0.12 execution access r2); every such preview first
     # withdraws the earlier one of the device, and only a ready preview is issued
     device = _target(runtime, device_name, request)
     _action(device, request, action)
@@ -1141,7 +1138,7 @@ def _preview(runtime, device_name: str, request, expected_before=ANY_STATE, undo
         "safeguard_seconds": None if irreversible else device.safeguard_seconds,
         **({"return_mechanism": CLEAR_RETURN} if irreversible else
            {"return_mechanism": adapter.RETURN_MECHANISM} if _compensating(adapter) else {}),
-        # 1.0.12 G34 r2: the FortiADC virtual servers whose service the change stops (maintain or disable)
+        # 1.0.12 adc pool members r2: the FortiADC virtual servers whose service the change stops (maintain or disable)
         **({"service_outage": list(plan["service_outage"])} if "service_outage" in plan else {}),
     }, bool(missing)
 
@@ -1176,7 +1173,7 @@ def _prepared(runtime, device, adapter, request, expected_before, enrolling, sta
         (g66 and not saving) or (batch and any(step.table in ios.ios_services.TABLES for step in request.changes)))
     guard = getattr(adapter, "request_prechecks", None)
     if guard is not None and not transaction:
-        # 1.0.12 G111: a request the platform refuses by its target alone (Ruckus: a WLAN Admin may not write) is
+        # 1.0.12 wireless wlans: a request the platform refuses by its target alone (Ruckus: a WLAN Admin may not write) is
         # refused before the device is contacted
         guard(device, request)
     if not transaction and request.op == "clear":
@@ -1368,6 +1365,16 @@ def _prepared(runtime, device, adapter, request, expected_before, enrolling, sta
     sized = ([step for step in plan["batch_steps"]] if batch and plan["platform"] == "fortios" else [plan])
     if any(len(step[field]) > config.limits["plan_commands"] for step in sized for field in ("commands", "inverse")):
         raise Rejected(["the plan holds more than %d commands" % config.limits["plan_commands"]])
+    if undo_plan and engine.tracks_registered_fortios_uuid(undo_plan):
+        uuid = fortios.object_uuid(expected_before.get("uuid"))
+        if uuid is None:
+            raise Rejected(["the original operation has no verified object identity"])
+        snapshot = fortios.load(before_text, plan["firmware"])
+        entry = (snapshot.entries(plan["table"]) or {}).get(plan["key"])
+        if entry is None or fortios.object_uuid(entry.value("uuid")) != uuid:
+            raise Rejected(["the object identity differs from the original creation"],
+                           reason_codes=["undo_identity_mismatch"])
+        expected_before = undo_plan["predicted"]["after"]
     if expected_before is not ANY_STATE:
         observed = plan["predicted"]["before"]
         if undo_plan and plan["platform"] == "fortios" and plan["table"] == fortios.SWITCH_PORT:
@@ -1378,7 +1385,7 @@ def _prepared(runtime, device, adapter, request, expected_before, enrolling, sta
         if undo_plan and plan["platform"] == "exos" and plan["table"] == "ports" and "state_schema" not in undo_plan:
             observed = {name: value for name, value in observed.items() if name != "description-string"}
         if undo_plan and plan["platform"] == "junos" and plan["table"] == "interface" and "state_schema" not in undo_plan:
-            # Before G138, link parameters were outside the object state and stayed untouched by an undo.
+            # Before junos port maintenance, link parameters were outside the object state and stayed untouched by an undo.
             link = set(engine.junos.LINK_PARAMETERS)
             if all(link.isdisjoint(state or {}) for state in undo_plan["predicted"].values()):
                 observed = {name: value for name, value in observed.items() if name not in link}
@@ -1403,7 +1410,7 @@ def _prepared(runtime, device, adapter, request, expected_before, enrolling, sta
         "exos_acl_file_sha256", "fortiadc_ha_role"}.intersection(plan):
         plan["plan_sha256"] = engine.plan_digest(plan)
     if expected_plan is not None and ticket is not None:
-        # 1.0.12 G07 r2: MCP undo - the hash must be the one of the issued undo preview (used up here), and the
+        # 1.0.12 execution access r2: MCP undo - the hash must be the one of the issued undo preview (used up here), and the
         # refusal never names the current plan_sha256, which the action would accept
         _redeem_preview(runtime, device.name, ticket[0], ticket[1], expected_plan, "plan_changed")
         if plan["plan_sha256"] != expected_plan:
@@ -1472,6 +1479,36 @@ def _prepared(runtime, device, adapter, request, expected_before, enrolling, sta
     return access, before_text, accounts, hostname, plan, audit_before, policy, coverage
 
 
+# a save keeps the reason code it had before every apply required the approved preview
+SAVE_PREVIEW_REQUIRED = {"eos": "eos_save_preview_required", "nxos": "nxos_save_preview_required",
+                         "ios": "ios_save_preview_required", "iosxe": "ios_save_preview_required",
+                         "exos": "exos_save_preview_required"}
+
+
+def _plan_required(device, request, expected_plan, *, undo=False, enrolling=False) -> None:
+    """Every apply (profile request, batch, port action or schema Transaction) needs the approved preview's plan_sha256.
+
+    A schema Transaction is planned from the same request (request_id included), snapshot and schema binding in
+    preview and apply, so its preview's plan_sha256 is the one apply computes while nothing changed.
+    Only undo (it replays a recorded operation) and the operator enrollment self-test are exempt.
+    The check runs before the request journal and before any device connection."""
+    if expected_plan is not None or undo or enrolling:
+        return
+    if request.op == "save":
+        reason = SAVE_PREVIEW_REQUIRED.get(device.platform, "plan_changed")
+    elif device.platform == "fortios" and request.table == fortios.PHASE2_TABLE:
+        reason = "fortios_ipsec_preview_required"
+    elif (device.platform == "fortios" and not isinstance(request, (Transaction, ProfileBatch))
+          and fortios_tables.hooks(request.table) is not None):
+        # 1.0.13 A1-R: every table of the FortiOS registry keeps the preview code of its registration
+        reason = fortios_tables.hooks(request.table).preview_code
+    else:
+        reason = "plan_changed"
+    what = ("a profile batch" if isinstance(request, ProfileBatch) else "a schema transaction"
+            if isinstance(request, Transaction) else "the %s %s change" % (device.platform, request.table))
+    raise Rejected(["%s requires the approved preview's plan_sha256" % what], reason_codes=[reason])
+
+
 def _apply(runtime, device_name: str, request, expected_before, enrolling=False, undo=False, expected_plan=None,
            action=None, undo_plan=None, ticket=None) -> dict:
     device = _target(runtime, device_name, request)
@@ -1482,94 +1519,10 @@ def _apply(runtime, device_name: str, request, expected_before, enrolling=False,
     fingerprint = request.fingerprint()
     with runtime.store.lock(device.name), _target_lock(device), ExitStack() as stack:
         batch = isinstance(request, ProfileBatch)
-        if batch and expected_plan is None:
-            raise Rejected(["a profile batch requires the approved preview's plan_sha256"],
-                           reason_codes=["plan_changed"])
-        if device.platform == "ruckus" and not (undo or enrolling) and expected_plan is None:
-            raise Rejected(["Ruckus apply requires the approved preview's plan_sha256"], reason_codes=["plan_changed"])
-        if (device.platform == "nxos" and not undo and not isinstance(request, Transaction)
-                and request.table in engine.nxos.ACL_TABLES and expected_plan is None):
-            raise Rejected(["the NX-OS ACL change requires the approved preview's plan_sha256"],
-                           reason_codes=["plan_changed"])
-        if (device.platform in ios.PLATFORMS and not undo and expected_plan is None
-                and not isinstance(request, Transaction)
-                and request.table in (*ios.PORT_ACTION_TABLES, *ios.ios_acl.TABLES, *ios.DHCP_TABLES)):
-            raise Rejected(["the IOS change requires the approved preview's plan_sha256"],
-                           reason_codes=["plan_changed"])
-        if (device.platform == "fortios" and not isinstance(request, Transaction)
-                and request.table in fortios.SWITCH_PORT_TABLES and expected_plan is None and not undo):
-            raise Rejected(["a FortiSwitch port change requires the approved preview's plan_sha256"],
-                           reason_codes=["plan_changed"])
+        _plan_required(device, request, expected_plan, undo=undo, enrolling=enrolling)
         known = _known(runtime, device, request, action)
         if known is not None:
             return known
-        if (device.platform in ios.PLATFORMS and not undo and expected_plan is None
-                and not isinstance(request, Transaction) and request.table in ios.PORT_ACTION_TABLES):
-            raise Rejected(["the IOS operation requires the approved preview's plan_sha256"],
-                           reason_codes=["plan_changed"])
-        if (device.platform == "eos" and not undo and expected_plan is None and not isinstance(request, Transaction)
-                and (request.table in eos_dhcp.TABLES | eos_routing.TABLES | eos_services.TABLES | {eos_bgp.TABLE}
-                     or request.op == "save")):
-            raise Rejected(["the EOS change requires the approved preview's plan_sha256"],
-                           reason_codes=["eos_save_preview_required" if request.op == "save" else "plan_changed"])
-        if (device.platform == "nxos" and not undo and expected_plan is None and not isinstance(request, Transaction)
-                and (request.op == "save" or request.table in (*engine.nxos.SERVICE_TABLES, *engine.nxos.LINK_TABLES))):
-            raise Rejected(["the NX-OS change requires the approved preview's plan_sha256"],
-                           reason_codes=["nxos_save_preview_required" if request.op == "save" else "plan_changed"])
-        if (device.platform in ios.PLATFORMS and not undo and expected_plan is None
-                and not isinstance(request, Transaction)):
-            if request.op == "save":
-                raise Rejected(["IOS save requires the approved preview's plan_sha256"],
-                               reason_codes=["ios_save_preview_required"])
-            if request.table in ios.ios_services.TABLES or (
-                    device.platform == "iosxe" and request.table in ios.ios_acl.TABLES):
-                raise Rejected(["the IOS configuration change requires the approved preview's plan_sha256"],
-                               reason_codes=["plan_changed"])
-        if (device.platform == "fortios" and not undo and expected_plan is None
-                and getattr(request, "table", None) == fortios.PHASE2_TABLE):
-            raise Rejected(["Phase 2 changes require the approved preview's plan_sha256"],
-                           reason_codes=["fortios_ipsec_preview_required"])
-        if device.platform == "exos" and not undo and expected_plan is None:
-            if not isinstance(request, Transaction) and request.table in engine.exos_acl.TABLES:
-                raise Rejected(["ExtremeXOS ACL changes require the approved preview's plan_sha256"],
-                               reason_codes=["plan_changed"])
-            if not isinstance(request, Transaction) and request.table in exos_services.TABLES:
-                raise Rejected(["ExtremeXOS management services require the approved preview's plan_sha256"],
-                               reason_codes=["plan_changed"])
-            if not isinstance(request, Transaction) and request.table in (*engine.exos_g44.TABLES, *engine.exos.DHCP_TABLES):
-                raise Rejected(["ExtremeXOS link or DHCP configuration requires the approved preview's plan_sha256"],
-                               reason_codes=["plan_changed"])
-            if not isinstance(request, Transaction) and request.table in engine.exos.exos_g46.TABLES:
-                raise Rejected(["ExtremeXOS routing configuration requires the approved preview's plan_sha256"],
-                               reason_codes=["plan_changed"])
-            if getattr(request, "endpoint_impact", None) is not None:
-                raise Rejected(["ExtremeXOS endpoint impact requires the approved preview's plan_sha256"],
-                               reason_codes=["plan_changed"])
-        if (device.platform == "fortios" and not undo and not isinstance(request, Transaction)
-                and request.table in fortios.NESTED and expected_plan is None):
-            # 1.0.12 G20 (checklist 20a): a DHCP reservation or DNS entry is applied only from an approved preview
-            raise Rejected(["a FortiOS DHCP reservation or DNS entry requires the approved preview's plan_sha256"],
-                           reason_codes=["plan_changed"])
-        if (device.platform == "junos" and not undo and request.table == engine.junos.ROUTE_TABLE
-                and getattr(request, "endpoint_impact", None) is not None and expected_plan is None):
-            raise Rejected(["Junos default route impact requires the approved preview's plan_sha256"],
-                           reason_codes=["plan_changed"])
-        if (device.platform == "junos" and not undo and not isinstance(request, Transaction)
-                and request.table in engine.junos_g140.TABLES
-                and expected_plan is None):
-            raise Rejected(["Junos LAG and RSTP configuration requires the approved preview's plan_sha256"],
-                           reason_codes=["plan_changed"])
-        if (device.platform == "junos" and not undo and not isinstance(request, Transaction)
-                and request.table in engine.junos.srx.TABLES + engine.junos.fltr.TABLES + engine.junos.dhcp.TABLES
-                and expected_plan is None):
-            raise Rejected(["Junos firewall, SRX and DHCP configuration requires the approved preview's plan_sha256"],
-                           reason_codes=["plan_changed"])
-        if ((device.platform == "nxos" or (device.platform == "junos"
-                                          and not isinstance(request, Transaction)
-                                          and request.table in engine.junos.routing.BGP_TABLES))
-                and not undo and getattr(request, "endpoint_impact", None) is not None and expected_plan is None):
-            raise Rejected(["endpoint impact requires the approved preview's plan_sha256"],
-                           reason_codes=["plan_changed"])
         access, before_text, accounts, hostname, plan, audit_before, policy, coverage = _prepared(
             runtime, device, adapter, request, expected_before, enrolling, stack, undo=undo, expected_plan=expected_plan,
             undo_plan=undo_plan, ticket=ticket, action=action)
@@ -1600,6 +1553,23 @@ def _apply(runtime, device_name: str, request, expected_before, enrolling=False,
             record["batch_results"] = [
                 dict(index=index, table=step["table"], op=step["op"], key=step["key"], result="not-run")
                 for index, step in enumerate(plan["batch_steps"], 1)]
+        attribute_changes = request.changes if not isinstance(request, Transaction) else {}
+        if "policy_order" in plan:
+            attribute_changes, _position = fortios.policy_position(plan["op"], attribute_changes)
+        if plan["platform"] == "fortios" and plan["table"] == fortios.PHASE2_TABLE:
+            attribute_changes = {name: value for name, value in attribute_changes.items() if name != "copy-from"}
+        if isinstance(request, Transaction):
+            audit_changes = {"operation_count": len(request.operations),
+                             "attribute_count": sum(len(x["changes"]) for x in request.operations)}
+        elif batch:
+            audit_changes = {"operation_count": len(request.changes),
+                             "attribute_count": sum(len(x.changes) for x in request.changes)}
+        elif irreversible:
+            audit_changes = {}
+        else:
+            restore_defaults = engine.default_restorations(profile, attribute_changes, op=plan["op"], undo=undo)
+            canonical = engine.canonical_changes(profile, attribute_changes, restore_defaults)
+            audit_changes = audit.summarized_changes(profile, canonical)
         with runtime.store.admission():
             known = _known(runtime, device, request, action)
             if known is not None:
@@ -1608,22 +1578,13 @@ def _apply(runtime, device_name: str, request, expected_before, enrolling=False,
             runtime.store.save(record)
             runtime.store.save_baseline(device.name, accounts)
             runtime.store.remember_request(request.request_id, change_id, fingerprint, device.name)
-        attribute_changes = request.changes if not isinstance(request, Transaction) else {}
-        if "policy_order" in plan:
-            attribute_changes, _position = fortios.policy_position(plan["op"], attribute_changes)
-        if plan["platform"] == "fortios" and plan["table"] == fortios.PHASE2_TABLE:
-            attribute_changes = {name: value for name, value in attribute_changes.items() if name != "copy-from"}
         runtime.audit.event(
             "start", change_id=change_id, request_id=request.request_id, device=device.name,
             platform=plan["platform"], firmware=plan["firmware"], table=plan["table"], op=plan["op"],
             key=plan["key"], request_sha256=fingerprint, plan_sha256=plan["plan_sha256"],
             snapshot_sha256=plan["snapshot_sha256"], reason_characters=plan["reason_characters"],
             user_request_characters=plan["user_request_characters"],
-            changes=({"operation_count": len(request.operations), "attribute_count": sum(len(x["changes"]) for x in request.operations)}
-                     if isinstance(request, Transaction) else
-                     {"operation_count": len(request.changes), "attribute_count": sum(len(x.changes) for x in request.changes)}
-                     if batch else {} if irreversible else
-                     audit.summarized_changes(profile, engine.canonical_changes(profile, attribute_changes))),
+            changes=audit_changes,
             commands=len(plan["commands"]), inverse_commands=len(plan["inverse"]),
             safeguard=None if irreversible else adapter.safeguard_label(change_id),
             **({"firmware_tested": tested.is_tested(plan["firmware_support"])} if "firmware_support" in plan else {}),
@@ -1912,13 +1873,13 @@ def _execute_clear(runtime, access, record, request) -> dict:
                        verified_clear_config=plan["platform"] == "iosxe")
     relearned = 0 if adc else sum(1 for entry in record["readback"].get("entries", ()) if entry.get("relearned"))
     if relearned:
-        # 501-rv finding 1: live traffic learned the target again after the clear; this is not a mismatch
+        # Review finding 1: live traffic learned the target again after the clear; this is not a mismatch
         _step(runtime, record, "relearned", "%d entries learned again after the clear" % relearned)
     _step(runtime, record, "postcheck_passed")
     return _finish(runtime, record, "confirmed")
 
 
-def _postcheck_observed(runtime, adapter, access, plan, device, due):
+def _postcheck_observed(runtime, adapter, access, plan, device, due, *, created_uuid=None):
     if adapter is exec_fortios and plan["table"] == fortios.SWITCH_PORT:
         before, after = (plan["predicted"][side].get("status", "up") for side in ("before", "after"))
         if before != after:
@@ -1926,6 +1887,9 @@ def _postcheck_observed(runtime, adapter, access, plan, device, due):
                                            min(due - device.confirm_margin_seconds, runtime.monotonic() + 10))
     if adapter is not exec_eos or plan["table"] != eos_services.NTP:
         observed = adapter.observe(access, plan, **({"operational": True} if adapter is exec_junos else {}))
+        if (engine.tracks_registered_fortios_uuid(plan)
+                and fortios.object_uuid((observed or {}).get("uuid")) != created_uuid):
+            raise Rejected(["the two accounts read different identities for the created object"])
         return engine.observed_state(plan, observed)
     deadline = min(runtime.monotonic() + 30, due - device.confirm_margin_seconds)
     expected = engine.check_view(plan, plan["predicted"]["after"])
@@ -2150,18 +2114,18 @@ def _execute(runtime, adapter, access, record, plan, device, undo=False) -> dict
     if record.get("kind") == "port-bounce" and device.platform == "nxos":
         return exec_nxos.run_bounce(runtime, adapter, access, record, plan, device, due)
     if record.get("kind") in CYCLE_KINDS and device.platform == "eos":
-        # 1.0.12 G123 (E07/E08): PoE cycle and port bounce of an EOS port
+        # 1.0.12 eos port maintenance (E07/E08): PoE cycle and port bounce of an EOS port
         from netops_admin import eos_cycle
         return eos_cycle.run(runtime, adapter, access, record, plan, device, due)
     if record.get("kind") in CYCLE_KINDS and device.platform == "junos":
-        # 1.0.12 G138 (J10/J11): PoE cycle and port bounce of a Junos port
+        # 1.0.12 junos port maintenance (J10/J11): PoE cycle and port bounce of a Junos port
         from netops_admin import junos_cycle
         return junos_cycle.run(runtime, adapter, access, record, plan, device, due, requested)
     if record.get("kind") in CYCLE_KINDS and device.platform == "exos":
         from netops_admin import exos_poe
         return exos_poe.run(runtime, adapter, access, record, plan, device, due)
     if record.get("kind") in CYCLE_KINDS and device.platform in ios.PLATFORMS:
-        # 1.0.12 G61 (IOS-C021, IOS-M024): port bounce and PoE cycle of an IOS or IOS XE port
+        # 1.0.12 ios port maintenance (IOS-C021, IOS-M024): port bounce and PoE cycle of an IOS or IOS XE port
         from netops_admin import ios_cycle
         return ios_cycle.run(runtime, adapter, access, record, plan, device, due)
     if adapter is exec_fortios and plan["table"] == fortios.SWITCH_PORT:
@@ -2265,12 +2229,13 @@ def _execute(runtime, adapter, access, record, plan, device, undo=False) -> dict
           % (audit_gate.rule_count(device.platform), audit_gate.finding_count(record["audit_before"]),
              audit_gate.unevaluated_note(record["audit_before"])))
     check_plans = [plan["batch_steps"][-1]] if "batch_steps" in plan else [plan]
+    created_uuid = verdict.get("fortios_object_uuid")
     try:
         if atomic_batch:
             snapshot = engine.junos.load(after_text, plan["firmware"])
             check_plans = [adapter.batch_step_for_read(step, snapshot, "after") for step in plan["batch_steps"]]
         for index, check_plan in enumerate(check_plans, 1):
-            seen = _postcheck_observed(runtime, adapter, access, check_plan, device, due)
+            seen = _postcheck_observed(runtime, adapter, access, check_plan, device, due, created_uuid=created_uuid)
             expected = engine.check_view(check_plan, check_plan["predicted"]["after"])
             new_identity = verdict.get("warnings", [])
             if new_identity:
@@ -2282,7 +2247,12 @@ def _execute(runtime, adapter, access, record, plan, device, undo=False) -> dict
                 record["batch_results"][index - 1]["result"] = "verified"
                 _step(runtime, record, "batch_step_verified", str(index))
     except Exception as exc:
-        _step(runtime, record, "check_identity_failed", type(exc).__name__)
+        detail = type(exc).__name__
+        if (isinstance(exc, Rejected) and exc.reason_codes and device.platform == "fortios"
+                and fortios_tables.hooks(plan.get("table")) is not None):
+            # 1.0.13 A1-R r2: the readback of a registered table names its refusal code (fortios_service_readback_unreadable)
+            detail += " (%s)" % ", ".join(exc.reason_codes)
+        _step(runtime, record, "check_identity_failed", detail)
         return _settle_after_expiry(runtime, access, record, plan, "check identity unavailable", due)
     _step(runtime, record, "check_identity_passed")
     if record.get("kind") == "enrollment":
@@ -2303,12 +2273,15 @@ def _execute(runtime, adapter, access, record, plan, device, undo=False) -> dict
     except Exception as exc:
         _step(runtime, record, "final_check_failed", type(exc).__name__)
         return _settle_after_expiry(runtime, access, record, plan, "final check unavailable", due)
-    if final["result"] != "match" or final.get("warnings", []) != new_identity:
+    if (final["result"] != "match" or final.get("warnings", []) != new_identity
+            or final.get("fortios_object_uuid") != created_uuid):
         _step(runtime, record, "final_check_failed", "%d differences" % len(final["differences"]))
         record["final_check_differences"] = final["differences"]
         fired = ("safeguard fired during confirmation" if _returned(plan, last, access=access, record=record)
                  else "foreign change")
         return _settle_after_expiry(runtime, access, record, plan, fired, due)
+    if created_uuid is not None:
+        record["fortios_object_uuid"] = created_uuid
     _step(runtime, record, "confirm_start")
     if not adapter.remove_safeguard(access, record, spec):
         _step(runtime, record, "confirm_unverified")
@@ -2319,7 +2292,8 @@ def _execute(runtime, adapter, access, record, plan, device, undo=False) -> dict
     except Exception as exc:
         _step(runtime, record, "removal_check_failed", type(exc).__name__)
         return _finish(runtime, record, "unknown", "final check unavailable")
-    if removed["result"] != "match" or removed.get("warnings", []) != new_identity:
+    if (removed["result"] != "match" or removed.get("warnings", []) != new_identity
+            or removed.get("fortios_object_uuid") != created_uuid):
         _step(runtime, record, "removal_check_failed", "%d differences" % len(removed["differences"]))
         if _returned(plan, text, access=access, record=record):
             return _finish(runtime, record, "reverted", "safeguard fired during confirmation")
@@ -2457,7 +2431,10 @@ def undo_request(record, reason: str):
                     {"table": step.table, "op": step.op, "key": step.key, "changes": step.changes,
                      **({"endpoint_impact": step.endpoint_impact} if step.endpoint_impact else {})} for step in changes]}
         return parse_request(json.dumps(body).encode("utf-8")), ANY_STATE
-    return _profile_undo(record, plan, reason)
+    request, expected = _profile_undo(record, plan, reason)
+    if engine.tracks_registered_fortios_uuid(plan):
+        expected = {**expected, "uuid": record.get("fortios_object_uuid")}
+    return request, expected
 
 
 def _profile_undo(record, plan, reason):
@@ -2473,27 +2450,22 @@ def _profile_undo(record, plan, reason):
         raise Rejected(["the original plan does not record whether default VLAN membership was explicit"])
     g43 = engine.exos.plan_kind(before, after) if plan["platform"] == "exos" else None
     if g43 == "rename":
-        # 1.0.12 G43: the undo of a rename renames the VLAN back, so it is addressed by the new name
+        # 1.0.12 switch rest: the undo of a rename renames the VLAN back, so it is addressed by the new name
         key = after["name"]
     if plan["op"] == "create" and g43 == "ports":
-        # 1.0.12 G43: a VLAN created with its ports is deleted by a request that names those ports
+        # 1.0.12 switch rest: a VLAN created with its ports is deleted by a request that names those ports
         op, changes = "delete", {name: after[name] for name in engine.exos.PORT_ATTRIBUTES if name in after}
-    elif plan["op"] == "create":
-        op, changes = "delete", {}
     elif plan["op"] == "move":
         position = fortios.position_at(plan["policy_order"]["before"], key)
         op, changes = "move", dict([position])
-    elif plan["op"] == "delete":
-        op, changes = "create", dict(before)
-        if plan["platform"] == "ruckus" and plan["table"] == engine.ruckus.TABLE:
+    else:
+        op, changes = inverse_profile_changes(plan["op"], before, after)
+    if plan["platform"] == "ruckus":
+        if op == "create" and plan["table"] == engine.ruckus.TABLE:
             engine.ruckus.restoration_security(before)
             for name in engine.ruckus.SECURITY_FIELDS:
                 changes.pop(name)
-    else:
-        op = "update"
-        changes = {name: before.get(name) for name in sorted(set(before) | set(after))
-                   if before.get(name) != after.get(name)}
-        if plan["platform"] == "ruckus":
+        if op == "update":
             if engine.ruckus.passphrase_only(plan):
                 raise Rejected(["the previous WLAN passphrase cannot be restored after a passphrase-only change"],
                                reason_codes=["undo_not_applicable"])
@@ -2512,36 +2484,15 @@ def _profile_undo(record, plan, reason):
     if op == "create" and profile.table == fortios.POLICY_TABLE:
         fortios.require_policy_uuid(changes.get("uuid"))
         changes = fortios.policy_restore_attributes(profile, changes)
-    if op == "update":
-        for name, values in (profile.value_requires or {}).items():
-            value = changes.get(name)
-            if value is None and name in changes:
-                value = profile.attributes[name].default
-            for other in values.get(value, ()):
-                changes.setdefault(other, before.get(other))
-    for name in changes:
-        if op == "move" and profile.table == fortios.POLICY_TABLE and name in ("before", "after"):
-            continue
-        attribute = profile.attributes.get(name)
-        if attribute is None or not (changes[name] is None or isinstance(changes[name], str)):
-            raise Rejected(["the plan of the operation holds attribute %s outside the profile" % shown(name)])
-        if changes[name] is None and not attribute.unset and attribute.undo_to_default:
-            changes[name] = attribute.default
-        if attribute.type in LIST_TYPES and (changes[name] is not None or profile.table != fortios.POLICY_TABLE):
-            changes[name] = list_items(attribute, changes[name] or "", profile.platform)
-    body = {
-        "device": record["device"], "table": plan["table"], "op": op, "key": key, "changes": changes,
-        "reason": reason, "user_request": "undo of operation %s" % record["change_id"],
-        "request_id": "undo-%s" % record["change_id"],
-        **({"endpoint_impact": impact} if impact is not None else {}),
-    }
-    return parse_request(json.dumps(body).encode("utf-8")), after
+    request = profile_undo_request(profile, op, key, changes, before=before, device=record["device"], impact=impact,
+                                   change_id=record["change_id"], reason=reason)
+    return request, after
 
 
 def undo(runtime, change_id: str, reason: str, expected_plan_sha256=None) -> dict:
-    # expected_plan_sha256 (1.0.12 G07, MCP admin_undo) binds the undo to the plan_sha256 of the approved
+    # expected_plan_sha256 (1.0.12 execution access, MCP admin_undo) binds the undo to the plan_sha256 of the approved
     # admin_undo_preview: a fresh undo plan that differs is refused with plan_changed before any write.
-    # G07 r2: the hash is accepted only as the one of the last undo preview issued for this change, once, fresh and
+    # execution access r2: the hash is accepted only as the one of the last undo preview issued for this change, once, fresh and
     # for the unchanged journal of the device; the operator command admin undo passes no hash and needs none
     original = runtime.store.operation(change_id)
     stored = (_stored_plan(runtime, original)
@@ -2568,7 +2519,7 @@ def preview_undo(runtime, change_id: str, reason: str, issue=False) -> dict:
     """Every check of undo without a change: nothing is written to the device, the journal or a notification.
 
     issue (MCP admin_undo_preview with mcp_undo enabled): a ready preview is recorded as the one whose plan_sha256
-    admin_undo accepts (1.0.12 G07 r2)."""
+    admin_undo accepts (1.0.12 execution access r2)."""
     original = runtime.store.operation(change_id)
     try:
         stored = (_stored_plan(runtime, original)
@@ -2688,6 +2639,8 @@ def recover(runtime, device_name: str) -> list:
                     text = _snapshot(access, adapter, plan["table"]).encode("utf-8")
                     after = engine.verify(plan, text, expect="after")
                     is_after = after["result"] == "match"
+                    if is_after and "fortios_object_uuid" in record:
+                        is_after = after.get("fortios_object_uuid") == record["fortios_object_uuid"]
                     if adapter is exec_fortios:
                         is_before = _returned(plan, text, access=access, record=record)
                     else:
@@ -2865,11 +2818,11 @@ def unblock(runtime, device_name: str, reason: str) -> bool:
 
 
 def _unblock_check(runtime, device):
-    """1.0.12 G07: read the actual device for MCP admin_unblock; returns the block, its operation, the side and digest.
+    """1.0.12 execution access: read the actual device for MCP admin_unblock; returns the block, its operation, the side and digest.
 
     Only the block of an unknown operation of a profile plan qualifies, and only when the write account reads the
     device exactly on the after side of its plan, the check account reads the same object state, no safeguard is
-    left and the administrator accounts equal the baseline. Nothing is written. 1.0.12 G07 r2 (502-rv finding 2):
+    left and the administrator accounts equal the baseline. Nothing is written. 1.0.12 execution access r2 (review finding 2):
     a revert-failed operation, a schema transaction and the state before stay the operator commands."""
     blocked = runtime.store.blocked(device.name)
     if blocked is None:
@@ -2972,7 +2925,7 @@ def preview_unblock(runtime, device_name: str, issue=False) -> dict:
     """Every check of admin_unblock without a change: the device is read, nothing is written or journaled.
 
     issue (MCP admin_unblock_preview with mcp_undo enabled): the earlier preview of the device is withdrawn and a ready
-    one is recorded as the one whose unblock_sha256 admin_unblock accepts (1.0.12 G07 r2)."""
+    one is recorded as the one whose unblock_sha256 admin_unblock accepts (1.0.12 execution access r2)."""
     try:
         device = _unblock_device(runtime, device_name)
         with runtime.store.lock(device.name), _target_lock(device):
@@ -2992,7 +2945,7 @@ def preview_unblock(runtime, device_name: str, issue=False) -> dict:
 
 
 def unblock_observed(runtime, device_name: str, reason: str, expected_unblock_sha256) -> dict:
-    """1.0.12 G07, MCP admin_unblock: lift the block approved by its admin_unblock_preview after reading the device again.
+    """1.0.12 execution access, MCP admin_unblock: lift the block approved by its admin_unblock_preview after reading the device again.
 
     Unlike the operator command admin unblock it keeps the account baseline and undelivered notifications, and lifts
     only the block of an unknown or revert-failed operation; the operation result is not changed."""
@@ -3008,7 +2961,7 @@ def unblock_observed(runtime, device_name: str, reason: str, expected_unblock_sh
             if checked is None:
                 return {"result": "not-blocked", "device": device.name}
             blocked, record, side, state, digest = checked
-            # 1.0.12 G07 r2 (502-rv finding 1): only the hash of the issued preview, once; the refusal never names
+            # 1.0.12 execution access r2 (review finding 1): only the hash of the issued preview, once; the refusal never names
             # the current digest, which the action would accept
             _redeem_preview(runtime, device.name, "unblock", record["change_id"], expected_unblock_sha256,
                             "unblock_changed")

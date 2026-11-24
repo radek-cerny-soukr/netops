@@ -1,0 +1,10 @@
+config firewall addrgrp6
+    edit "netops-a3-grp"
+        set uuid 00000000-0000-4000-8000-a30000000003
+        set color 0
+        set comment ''
+        set member "netops-a3-net"
+        set exclude disable
+        set fabric-object disable
+    next
+end

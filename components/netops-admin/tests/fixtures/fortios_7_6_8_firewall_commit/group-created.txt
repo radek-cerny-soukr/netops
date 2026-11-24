@@ -1,0 +1,7 @@
+config firewall addrgrp
+    edit "NETOPS-FIREWALL-COMMIT-GROUP"
+        set member "NETOPS-FIREWALL-COMMIT-HOST"
+        set comment "FIREWALL-COMMIT group"
+        set uuid 00000000-0000-4000-8000-0000000000a2
+    next
+end

@@ -2,8 +2,8 @@
 
 One adapter serves both platforms (``ios`` for IOS 15.x, ``iosxe`` for IOS XE 17.x); their differences are data
 of the device answers, not separate code. Measured on IOSv 15.9(3)M12 (router), IOSvL2 15.2(20200924:215240)
-(switch), IOL XE 17.18.2 (router) and IOL-L2 XE 17.18.2 (switch) in the GNS3 lab (task netops-provoz-20261116-310,
-ref/mereni-c4c5): ``show running-config`` over SSH exec answers "Building configuration...", "Current configuration :
+(switch), IOL XE 17.18.2 (router) and IOL-L2 XE 17.18.2 (switch) in the virtual topology (verification,
+private measurement record): ``show running-config`` over SSH exec answers "Building configuration...", "Current configuration :
 N bytes", the top-level statements with their lines indented by one space, and "end". The running configuration
 names only the release train ("version 15.9", "version 17.18"); the full firmware is the configured one, which the
 prechecks compare with the live ``show version``. IOS creates a missing VLAN when a port is put into it (a VLAN of the
@@ -43,7 +43,7 @@ DEFAULT_VLAN = "1"
 # VLANs 1002-1005 are the reserved FDDI/Token Ring VLANs (act/unsup in show vlan brief); no Ethernet access VLAN
 RESERVED_VLANS = frozenset(("1002", "1003", "1004", "1005"))
 CONTROL = re.compile(r"[\x00-\x1f\x7f]")
-# 1.0.12 G61: the port bounce owns the shutdown line, the PoE tables the line "power inline auto|never|static [max N]"
+# 1.0.12 ios port maintenance: the port bounce owns the shutdown line, the PoE tables the line "power inline auto|never|static [max N]"
 # (IOS keeps one such line; "power inline port priority", "police" and the other power inline lines stay outside)
 BOUNCE_TABLE = "port-bounce"
 POE_TABLE = "inline-power"
@@ -548,7 +548,7 @@ def prechecks(snapshot, profile, op: str, key: str, after, *, before=None) -> li
         if any(LAG.match(line) for line in lines):
             raise Rejected(["port %s is a member of a port-channel; the change is refused" % key],
                            reason_codes=["port_lag_member"])
-        # G78/G60: trunk membership changes are planned (runtime prechecks require endpoint_impact); the state of a
+        # xe switchports/ios switchports: trunk membership changes are planned (runtime prechecks require endpoint_impact); the state of a
         # trunk/uplink port on IOS stays refused (IOS-C001 is about occupied client access ports).
         if (snapshot.platform not in PLATFORMS or (snapshot.platform == "ios" and profile.table == "interface")) \
                 and any(TRUNK.match(line) for line in lines):
@@ -715,12 +715,12 @@ def batch_snapshot(text, firmware, *, platform="ios"):
                       *sorted(vlan_notes), *acl_notes, "end", ""])
 
 
-# ---- answers of the device (measured fixtures, ref/mereni-c4c5/fixtures) ----
+# ---- answers of the device (measured fixtures, private measurement record) ----
 
 def cli_error(text: str):
     """A refused line of the interactive session: an IOS error starts with "% " (with a space), for example
     "% Invalid input detected at '^' marker." and the warning "% Access VLAN does not exist. Creating vlan N", which
-    IOS performs anyway; "Command Rejected : Et0/1 is already part of channel-group 41, ..." (measured G81, capital
+    IOS performs anyway; "Command Rejected : Et0/1 is already part of channel-group 41,..." (measured xe etherchannel, capital
     R) refuses an EtherChannel line. "%No Rollback Confirmed Change pending" (no space) is information. A second revert timer
     is refused with "%Rollback Confirmed Change is already activated on a config"."""
     for line in text.replace("\r", "").split("\n")[1:]:
@@ -960,7 +960,7 @@ def learned_macs(text: str, key: str, *, require_complete=False) -> int:
 
 
 def vlan_macs(text: str, vid: str) -> int:
-    """Unicast MAC addresses of the VLAN in show mac address-table vlan N (1.0.12 G62: an SVI in use)."""
+    """Unicast MAC addresses of the VLAN in show mac address-table vlan N (1.0.12 ios static routing: an SVI in use)."""
     if "Mac Address Table" not in text or not re.search(r"Vlan\s+Mac Address\s+Type\s+Ports", text):
         raise unreadable("MAC address table")
     return sum(1 for vlan, _port in MAC_ROW.findall(text) if vlan == vid)
@@ -1071,7 +1071,7 @@ def archive_outcome(events: list, archive_name: str, user: str):
             return None
     return None
 
-# G78: the database is a separate CLI source; normal-range VLANs are absent from show running-config.
+# xe switchports: the database is a separate CLI source; normal-range VLANs are absent from show running-config.
 VLAN_DATABASE = "! netops-vlan-database"
 
 def vlan_numbers(value):
@@ -1157,7 +1157,7 @@ def switchport_membership(text, key, *, allow_unassigned=False):
     return fields
 
 
-# ---- 1.0.12 G61: link state and PoE state of one port (show interfaces N status, show power inline N) ----
+# ---- 1.0.12 ios port maintenance: link state and PoE state of one port (show interfaces N status, show power inline N) ----
 PORT_STATUS = ("connected", "notconnect", "disabled", "err-disabled", "inactive", "monitoring", "suspended", "faulty",
                "routed", "sfp-config-mismatch", "xcvr-invalid")
 
@@ -1203,14 +1203,14 @@ def poe_row(text: str, key: str):
     return None
 
 
-# ---- 1.0.12 G80: static routes (XE-M026) and L3 interfaces (XE-M027) of IOS XE ----
-# 1.0.12 G62 (IOS-M025, IOS-M026): the same tables on IOS, measured on IOSv 15.9(3)M12 (router, d-iosv) and IOSvL2
-# 15.2(20200924:215240) (switch, d-iosvl2), task netops-20261118-517, task-evidence/g62. The lines and answers are
+# ---- 1.0.12 xe static routing: static routes (XE-M026) and L3 interfaces (XE-M027) of IOS XE ----
+# 1.0.12 ios static routing (IOS-M025, IOS-M026): the same tables on IOS, measured on IOSv 15.9(3)M12 (router, Cisco IOSv 15.9(3)M12) and IOSvL2
+# 15.2(20200924:215240) (switch, Cisco IOSvL2 15.2), verification, private measurement record The lines and answers are
 # those of IOS XE with three measured differences: the router image has no SVI while the switch image has one (a new
 # "interface Vlan<vid>" starts with "shutdown", so an enabled SVI is created with "no shutdown"); the legend of show
 # ip static route reads "Codes in []: "; a second subinterface of a port with the same VID is refused with
 # "%Configuration of multiple subinterfaces ..." (no space after %) and still created empty.
-# Measured on IOL XE 17.18.2 (router, GNS3 d-iolxe, task netops-20261117-454, task-evidence/g80): "ip route [vrf V]
+# Measured on IOL XE 17.18.2 (router, GNS3 Cisco IOL XE 17.18.2, verification, private measurement record): "ip route [vrf V]
 # NET MASK HOP [DISTANCE]" and "ipv6 route [vrf V] PREFIX HOP [DISTANCE]"; entering the same route with another
 # distance replaces it, another next hop adds a second route, "no ip route ... HOP" removes that route only. The
 # running configuration writes IPv6 addresses in capitals (2001:DB8:80::1/64); Admin compares them in the canonical
@@ -1228,7 +1228,7 @@ STATE_TABLES = (ROUTE_TABLE, L3_TABLE, *DHCP_TABLES)
 BATCH_TABLES = frozenset(("interface", "vlan", "vlan-membership", "inline-power", "etherchannel-member",
                           *STATE_TABLES, *ios_acl.TABLES, *ios_services.TABLES))
 VRF_NAME = re.compile(r"[A-Za-z][A-Za-z0-9_-]{0,31}")
-# 1.0.12 G62: an SVI (interface Vlan<vid>) is a key of the IOS profile only (the IOS XE profile key_pattern refuses it)
+# 1.0.12 ios static routing: an SVI (interface Vlan<vid>) is a key of the IOS profile only (the IOS XE profile key_pattern refuses it)
 SVI = re.compile(r"^Vlan([0-9]{1,4})$")
 L3_KEY = re.compile(r"^(?:Loopback[0-9]{1,10}|Vlan[0-9]{1,4}|%s\.[0-9]{1,10})$" % ETHERNET.pattern[1:-1])
 SUBINTERFACE = re.compile(r"^(%s)\.[0-9]{1,10}$" % ETHERNET.pattern[1:-1])
@@ -1386,7 +1386,7 @@ def _l3_line(entry, line: str, block) -> None:
     elif line == "shutdown":
         _once(entry, "admin-state", "disabled", block)
     elif line in ("no ip address", "no shutdown"):
-        # "no shutdown" is never shown by IOS; it appears only in the predicted snapshot of an SVI create (G62)
+        # "no shutdown" is never shown by IOS; it appears only in the predicted snapshot of an SVI create (ios static routing)
         return
     elif words[:2] == ["ip", "address"] and len(words) == 4:
         _once(entry, "ipv4-address", canonical_address("ipv4-address", "%s %s" % (words[2], words[3])), block)
@@ -1498,7 +1498,7 @@ def l3_prechecks(snapshot, op: str, key: str, after) -> list:
     if parent is None and "encapsulation" in after:
         raise Rejected(["encapsulation applies to a subinterface only"])
     if parent is not None and op == "create":
-        # measured G62 (IOSv 15.9): IOS refuses a second subinterface of the port with the same VID
+        # measured ios static routing (IOSv 15.9): IOS refuses a second subinterface of the port with the same VID
         # ("%Configuration of multiple subinterfaces ... is not permitted") and still creates the empty subinterface
         encapsulation = ["encapsulation", "dot1Q", after["encapsulation"]]
         for name in snapshot.interfaces:
@@ -1508,7 +1508,7 @@ def l3_prechecks(snapshot, op: str, key: str, after) -> list:
                                 % (after["encapsulation"], name)])
     vrf = after.get("vrf")
     # the VRF needs the address families of the configured addresses (an IPv6-only interface lives in a VRF with
-    # only address-family ipv6, measured 454-r2); without an address it needs at least one family
+    # only address-family ipv6, measured); without an address it needs at least one family
     families = {family for family, name in ((4, "ipv4-address"), (6, "ipv6-address")) if name in after}
     _vrf_check(snapshot, vrf, families)
     if vrf is not None and not families and not vrf_families(snapshot, vrf):
@@ -1550,7 +1550,7 @@ def render_state(table: str, key: str, before, after) -> list:
         if "encapsulation" in after:
             body.append("encapsulation dot1Q %s" % after["encapsulation"])
         if SVI.match(key) and after.get("admin-state") != "disabled":
-            # measured G62 (IOSvL2 15.2): a new SVI starts with shutdown; the default state is enabled
+            # measured ios static routing (IOSvL2 15.2): a new SVI starts with shutdown; the default state is enabled
             body.append("no shutdown")
     for name in L3_ORDER:
         if after.get(name) == was.get(name):
@@ -1603,7 +1603,7 @@ def state_snapshot_after(text: str, plan) -> str:
     return "\n".join(result).rstrip() + "\nend\n"
 
 
-# ---- answers of the check account (privilege 1) about G80 objects ----
+# ---- answers of the check account (privilege 1) about xe static routing objects ----
 
 def _check_refused(text: str, command: str):
     if refused(text):
@@ -1617,7 +1617,7 @@ def static_route_state(text: str, key: str):
     if network.version == 4:
         if not any(line.startswith("Static local RIB for %s" % (vrf or "default")) for line in lines):
             # measured: a table without static routes answers only the code legend, without the RIB line; the
-            # legend names the bracket codes "Codes in (): " on IOS XE 17.18 and "Codes in []: " on IOS 15 (G62)
+            # legend names the bracket codes "Codes in (): " on IOS XE 17.18 and "Codes in []: " on IOS 15 (ios static routing)
             if any(line.startswith(("Codes in (): ", "Codes in []: ")) for line in lines) and not any(
                     re.match(r"^\S+\s+\S+/[0-9]+\s+\[", line) for line in lines):
                 return None
@@ -1680,7 +1680,7 @@ def ip_interface_state(text: str, key: str) -> dict:
 def ipv6_interface_state(text: str, key: str) -> dict:
     """ipv6-address and vrf of show ipv6 interface <key> (an empty answer: no IPv6 on the interface).
 
-    The VRF is read here as well: show ip interface names none when IPv4 is disabled (measured 454-r2)."""
+    The VRF is read here as well: show ip interface names none when IPv4 is disabled (measured)."""
     _check_refused(text, "show ipv6 interface " + key)
     if not text.strip():
         return {}
@@ -1748,8 +1748,8 @@ def cef_egress(text: str, peer: str) -> set[str]:
     return ports
 
 
-# ---- 1.0.12 G81: EtherChannel/LACP membership of a physical port (XE-M028) ----
-# Measured on IOL-L2 XE 17.18.2 (switch, GNS3 d-iolxe-l2, task netops-20261118-499-r2, task-evidence/g81/step2-capture):
+# ---- 1.0.12 xe etherchannel: EtherChannel/LACP membership of a physical port (XE-M028) ----
+# Measured on IOL-L2 XE 17.18.2 (switch, GNS3 Cisco IOL-L2 XE 17.18.2, verification-r2, private measurement record):
 # "channel-group N mode active|passive" (N 1-48, "interface port-channel ?" and "channel-group ?" answer <1-48>) on a
 # port outside any group creates the missing port-channel ("Creating a port-channel interface Port-channel 41"; the
 # running configuration gets an empty "interface Port-channel41" block); the same group with another mode is changed
@@ -1758,8 +1758,8 @@ def cef_egress(text: str, peer: str) -> set[str]:
 # <cr>) and then the new group. "no channel-group" leaves the port-channel interface in place; "no interface
 # Port-channelN" removes it together with the membership of every member port. The check account (privilege 1)
 # reads "show interfaces <port> etherchannel" ("Etherchannel not enabled on this port" outside any group).
-# 1.0.12 G63 (IOS-M027), IOSvL2 15.2(20200924:215240) (switch, GNS3 d-iosvl2, task netops-20261119-569,
-# task-evidence/g63): the same lines and the same table serve classic IOS. Differences measured there: "channel-group ?"
+# 1.0.12 ios etherchannel (IOS-M027), IOSvL2 15.2(20200924:215240) (switch, GNS3 Cisco IOSvL2 15.2, verification,
+# private measurement record): the same lines and the same table serve classic IOS. Differences measured there: "channel-group ?"
 # answers <1-255> but "interface port-channel ?" only <1-48> (a larger group is refused by the device with "Command
 # rejected (Port-channel49, Gi1/1): Invalid group(slot) number" and nothing changes); a member in another group is moved
 # directly (Admin still sends "no channel-group" first); "no channel-group" outside a group is silent; "no channel-group
@@ -1993,7 +1993,7 @@ def member_state(text: str, key: str):
     return {"channel-group": found["channel-group"], "mode": found["mode"]}
 
 
-# G65/G83: IOS and IOS XE put dynamic pools and manual reservations in the same named
+# ios dhcp/xe dhcp: IOS and IOS XE put dynamic pools and manual reservations in the same named
 # configuration mode. Refuse a name in use by the other kind or an empty pool.
 DHCP_POOL_LINE = "ip dhcp pool "
 DHCP_EXCLUSION_LINE = "ip dhcp excluded-address "
@@ -2266,7 +2266,7 @@ def dhcp_readback(text, table, key):
     return None if entry is None else entry.attributes
 
 
-# ---- 1.0.12 G67/G85: scoped operational clear over privileged EXEC ----
+# ---- 1.0.12 ios targeted clear/xe targeted clear: scoped operational clear over privileged EXEC ----
 CLEAR_TABLES = ("port-counters", "fdb", "iparp", "neighbor-discovery")
 WIRELESS_CLIENT = "wireless-client"
 WIRELESS_FIRMWARE = ("17.3.5b",)

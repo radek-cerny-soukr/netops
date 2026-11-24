@@ -168,8 +168,14 @@ def parent_matches(snapshot, plan, expect):
     return (header not in snapshot.lines) == absent
 
 
+# cEOS 4.36.1F without a BGP process answers the neighbor query with this document instead of "vrfs" (measured)
+INACTIVE = {"errors": ["BGP inactive"]}
+
+
 def observe(data, key):
     local, peer = key.split(":", 1)
+    if data == INACTIVE:
+        return None
     vrfs = data["vrfs"]
     if not isinstance(vrfs, dict):
         raise ValueError
@@ -186,10 +192,11 @@ def observe(data, key):
         raise ValueError
     result = {"remote-as": asn(row["asn"])}
     for suffix, side in (("Inbound", "in"), ("Outbound", "out")):
+        # cEOS 4.36.1F omits routeMapInbound/Outbound and their "Defined" keys for a neighbor without that route map
         field = f"routeMap{suffix}"
-        value = row[field]
+        value = row.get(field, "")
         if not isinstance(value, str) or (value and
-                (not re.fullmatch(eos_routing.NAME, value) or row[field + "Defined"] is not True)):
+                (not re.fullmatch(eos_routing.NAME, value) or row.get(field + "Defined") is not True)):
             raise ValueError
         if value:
             result[f"route-map-{side}"] = value

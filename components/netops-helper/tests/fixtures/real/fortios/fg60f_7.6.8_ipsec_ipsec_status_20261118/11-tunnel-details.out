@@ -1,0 +1,66 @@
+FortiGate-60F $ 
+gateway
+  name: 'netops-ipsec'
+  local-gateway: 192.0.2.1:0 (static)
+  remote-gateway: 192.0.2.20:0 (static)
+  status: up
+  mode: ike-v2
+  interface: 'PVE-MGMT' (30) vrf:0
+  rx  packets: 4  bytes: 618  errors: 0
+  tx  packets: 7  bytes: 378  errors: 0
+  dpd: on-demand/negotiated status:ok idle: 20000ms  retry: 3  count: 0
+  selectors
+    name: 'netops-ipsec'
+    auto-negotiate: enable
+    mode: tunnel
+    src: 0:203.0.113.253/255.255.255.255:0
+    dst: 0:203.0.113.252/255.255.255.255:0
+    SA
+      lifetime/rekey: 43200/42605   
+      mtu: 1438
+      tx-esp-seq: 6
+      replay: enabled
+      qat: 0
+      inbound
+        spi: b9721923
+        enc:  aes-cb  dc8a9ec4ca76e30c4c911b065de5df9665db12fa8014c507cc409338c9e962e8
+        auth: sha256  1234b571e58177ce38bed588c0be9f12119ca01783bc8f75aecf0ae8f54b7b1f
+      outbound
+        spi: c446aa46
+        enc:  aes-cb  35729d2b7190e72c246f20cfff522f4c365c244a55a5824a7e973a22b5a72441
+        auth: sha256  6cbded3cfad406f1623d7b6b5549d957d404fbf987ddb376db20393e43106500
+      NPU acceleration: encryption(outbound) decryption(inbound)
+    SA
+      lifetime/rekey: 43200/42629   
+      mtu: 1438
+      tx-esp-seq: 1
+      replay: enabled
+      qat: 0
+      inbound
+        spi: b9721924
+        enc:  aes-cb  58969cd1bfded601668f656f8c7c2ccb31472823fe3c05a712fd4bba70b50e5b
+        auth: sha256  d0c0adeeb10e0a82bf0507faf155f63becc4df49b0f72e3bcb342cfcd6f73e5b
+      outbound
+        spi: ccba0dbd
+        enc:  aes-cb  5ecf47d63bf96ec82b70d9ce2ca695c3ea55c418f072d70635af08c0b0ee434c
+        auth: sha256  ca4c2149797902f4432f2178b36c3d0f8c225c8b5ca2e2e73bfd1504b8e4bad8
+      NPU acceleration: none
+
+gateway
+  name: 'netops-ipsec-dn'
+  local-gateway: 192.0.2.1:0 (static)
+  remote-gateway: 192.0.2.251:0 (static)
+  status: down
+  mode: ike-v2
+  interface: 'PVE-MGMT' (30) vrf:0
+  rx  packets: 0  bytes: 0  errors: 0
+  tx  packets: 0  bytes: 0  errors: 1
+  dpd: on-demand/unnegotiated
+  selectors
+    name: 'netops-ipsec-dn'
+    auto-negotiate: enable
+    mode: tunnel
+    src: 0:203.0.113.253/255.255.255.255:0
+    dst: 0:203.0.113.244/255.255.255.255:0
+
+FortiGate-60F $ 

@@ -1,8 +1,8 @@
-"""Task 140: the public config_read path for the Cisco IOS XE profile.
+"""verification: the public config_read path for the Cisco IOS XE profile.
 
 ``cisco_xe`` / IOL-XE ``Version 17.18.2`` ``RELEASE SOFTWARE (fc3)`` / ``X86_64BI_LINUX-ADVENTERPRISEK9-M``
 is the tested identity (``config_cisco_xe_adapter``), the same pattern as the accepted ``cisco_ios`` path
-(task 128); since G00 another identity is read too, with ``firmware_support`` and a warning.
+(verification); since STARTUP another identity is read too, with ``firmware_support`` and a warning.
 The positive reads run through the real root ``netops.worker.HelperBridge.call`` -> ``Proxy.request`` ->
 FastMCP ``server.config_read`` (``_paged_auth``) -> ``TargetAuth.decode`` -> ``engine.config_read`` ->
 ``read_from_device`` -> ``_exec_read`` -> the real unchanged ``config_cisco_ios.StreamRedactor`` /
@@ -310,7 +310,7 @@ def test_fresh_public_read_pages_and_continues_without_more_ssh(env):
     assert first['include_defaults'] is False
     assert first['redaction_profile'] == adapter.PROFILE
     assert first['firmware'] == {'model': 'Linux', 'version': '17.18.2', 'build': 'fc3'}
-    # The tested identity (G00): the reply is as before, without firmware_support or warnings.
+    # The tested identity (STARTUP): the reply is as before, without firmware_support or warnings.
     assert 'firmware_support' not in first and 'warnings' not in first
     assert first['capture_complete'] is True and first['configuration_complete'] is False
     assert first['identity_scope_verified'] is False and first['config_scope'] == 'device-account-visible'
@@ -448,7 +448,7 @@ def test_engine_refuses_options_access_and_platform_before_ssh(env):
             _read(replace(auth, ssh_platform=platform))
     with pytest.raises(ValueError, match='not enabled'):
         _read(replace(auth, read_inventory={**auth.read_inventory, 'config_access': ()}))
-    # Task 157: config_diff is open for cisco_xe, but only with compare (next to read) in config_access.
+    # verification: config_diff is open for cisco_xe, but only with compare (next to read) in config_access.
     with pytest.raises(ValueError, match='not enabled'):
         engine.config_diff(auth, 'cisco_xe', 'cfg_' + '0' * 32, 'cfg_' + '1' * 32)
     compare = replace(auth, read_inventory={**auth.read_inventory, 'config_access': ('read', 'compare')})
@@ -468,7 +468,7 @@ def test_engine_refuses_options_access_and_platform_before_ssh(env):
      '17.18.2 fc4 (X86_64BI_LINUX-ADVENTERPRISEK9-M) [IOSXE] on Linux is not among'),
 ], ids=['derived-other-release', 'derived-other-build'])
 def test_untested_identity_is_read_with_a_warning_through_the_public_chain(env, version, firmware, shown):
-    """G00: an untested identity is read through worker, proxy and engine; same redaction, plus a warning."""
+    """STARTUP: an untested identity is read through worker, proxy and engine; same redaction, plus a warning."""
     wire = _rewire(env, Wire(version=version))
     first = _page(_call(env, 'config_read', _b(limit=200)))
     assert wire.commands() == ['show version', 'show running-config']
@@ -568,7 +568,7 @@ def test_cached_snapshot_keeps_profile_and_platform_binding(env):
         configuration._SNAPSHOTS[identity] = replace(stored, profile=profile)
         with pytest.raises(ValueError, match='invalid configuration profile|capture options mismatch'):
             _read(auth, snapshot_id=identity)
-    # G00: a stored untested record pages with its warning; a record of another shape is refused.
+    # STARTUP: a stored untested record pages with its warning; a record of another shape is refused.
     configuration._SNAPSHOTS[identity] = replace(stored, firmware=('Linux', '17.18.1', 'fc3', adapter.IMAGE_FAMILY,
                                                                    'IOSXE'))
     assert _read(auth, snapshot_id=identity)['warnings'][0]['code'] == 'firmware_untested'

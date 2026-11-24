@@ -1,2 +1,0 @@
-error: In routing-instance default-switch vlan g137-trunk configured under interface ge-0/0/2.0 does not exist
-error: configuration check-out failed

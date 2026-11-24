@@ -358,7 +358,7 @@ def test_public_other_query_and_other_profile_get_no_mlag_key(tmp_path, monkeypa
     assert answer["ok"] and "vpc" in answer and "mlag" not in answer
 
 
-# --- task 136: _KEY_VALUE without lazy quantifiers over overlapping classes ---
+# --- _KEY_VALUE without lazy quantifiers over overlapping classes ---
 # The ed1b508 spelling, frozen independently of the production constant: same groups, quadratic backtracking.
 _KEY_VALUE_ED1B508 = re.compile(r"^[ \t]*([A-Za-z][A-Za-z0-9 ()/._-]*?)[ \t]*:[ \t]*(.*?)[ \t]*$")
 
@@ -406,8 +406,8 @@ def test_key_value_regex_is_equivalent_on_all_short_strings():
 
 
 @pytest.mark.parametrize("text", [
-    "    key " + " " * 19991 + "!", "ge-0/0/0 Current " + " " * 19982 + "!",  # label side (test_parser_complexity)
-    "k:a" + " " * 19996 + "!", "Peer State :" + " \t" * 10000 + "x",  # value side
+    "    key " + " " * 99991 + "!", "ge-0/0/0 Current " + " " * 99982 + "!",  # label side (test_parser_complexity)
+    "k:a" + " " * 99996 + "!", "Peer State :" + " \t" * 50000 + "x",  # value side
 ], ids=["label-spaces", "label-after-words", "value-spaces", "value-mixed-blanks"])
 def test_key_value_regex_is_linear_on_long_blank_runs(text):
     import signal
@@ -415,9 +415,9 @@ def test_key_value_regex_is_linear_on_long_blank_runs(text):
     from netops_helper import switch_mlag_eos
 
     def expired(*_):
-        raise AssertionError("switch_mlag_eos._KEY_VALUE exceeded 0.5s")
+        raise AssertionError("switch_mlag_eos._KEY_VALUE exceeded the 10 s hard stop")
     previous = signal.signal(signal.SIGALRM, expired)
-    signal.setitimer(signal.ITIMER_REAL, 0.5)
+    signal.setitimer(signal.ITIMER_REAL, 10)  # hard stop only; the verdict below is the work done, not the speed
     try:
         started = time.perf_counter()
         for operation in ("match", "fullmatch", "search"):
@@ -426,4 +426,7 @@ def test_key_value_regex_is_linear_on_long_blank_runs(text):
     finally:
         signal.setitimer(signal.ITIMER_REAL, 0)
         signal.signal(signal.SIGALRM, previous)
-    assert elapsed < 0.05, elapsed  # ed1b508: about 0.4-1.4 s per fullmatch at 20000 characters (PC-Radek)
+    # Speed-independent: 100000 characters make a quadratic pattern take tens of seconds on any machine
+    # (at 20000 characters the old code took 0.4-2.8 s), so the 10 s hard stop trips it; a linear one needs milliseconds.
+    # This bound has a reserve of three orders of magnitude for a slow or fully loaded runner.
+    assert elapsed < 5, elapsed

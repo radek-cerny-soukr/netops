@@ -1,0 +1,1 @@
+set switch-options voip interface ge-0/0/2.0 vlan junos-vlan-admin-voice

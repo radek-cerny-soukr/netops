@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Task 108 regressions for the standalone Cisco IOS consumer ``config_cisco_ios``.
+"""verification regressions for the standalone Cisco IOS consumer ``config_cisco_ios``.
 
 A recognised ``menu`` header (``menu`` as a separate token, unindented or indented) outside an
 already open banner/macro/quoted text body is an unsupported multi-line format (Cisco ``menu

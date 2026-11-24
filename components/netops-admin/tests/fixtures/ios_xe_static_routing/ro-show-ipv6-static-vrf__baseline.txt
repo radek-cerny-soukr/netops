@@ -1,0 +1,4 @@
+
+
+
+% IPv6 routing table netops-xe-static-routing does not exist

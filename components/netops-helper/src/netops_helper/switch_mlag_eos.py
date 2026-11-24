@@ -32,7 +32,7 @@ _PROMPT = re.compile(r"^[ \t]*[A-Za-z0-9][A-Za-z0-9_.:/()-]*[#>][ \t]*$")
 _HEADING = re.compile(r"^[ \t]*([A-Za-z](?:[A-Za-z0-9 -]*[A-Za-z0-9])?):[ \t]*$")
 # Label: a letter, then blank-separated non-blank label characters (no tab), trailing blanks excluded; value:
 # the rest of the line without leading/trailing spaces and tabs.  Possessive and non-overlapping, so the
-# match is linear: same groups as the former lazy spelling, which backtracked quadratically (task 136).
+# match is linear: same groups as the former lazy spelling, which backtracked quadratically (verification).
 _KEY_VALUE = re.compile(r"^[ \t]*+([A-Za-z](?: *+[A-Za-z0-9()/._-])*+)[ \t]*+:[ \t]*+((?:[ \t]*+[^ \t\n])*+)[ \t]*+$")
 _INTEGER = re.compile(r"[0-9]{1,10}")
 _MAX_LINE = 1024

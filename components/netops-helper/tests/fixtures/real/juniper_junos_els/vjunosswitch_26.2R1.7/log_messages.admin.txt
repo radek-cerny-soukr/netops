@@ -48,7 +48,7 @@ Nov  9 01:13:43  host05   mplsoamd[20530]: JTASK_SCHED_SLIP_KEVENT: 4 sec 731948
 Nov  9 01:13:58  host05   rpd[20522]: JTASK_IO_CONNECT_FAILED: unix:/var/run/japi_rmopd_ac./var/run/japi_rmopd: Connecting to /var/run/japi_rmopd failed: No such file or directory
 Nov  9 01:14:47  host05   sshd[32080]: Accepted keyboard-interactive/pam for user01       from 198.51.100.56 port 41236 ssh2
 Nov  9 01:14:47  host05   mgd[32085]: UI_DBASE_LOGIN_EVENT: User 'user01' entering configuration mode
-Nov  9 01:14:48  host05   mgd[32085]: UI_COMMIT: User 'user01' requested 'commit' operation (comment: d-lab D5 temporary log class)
+Nov  9 01:14:48  host05   mgd[32085]: UI_COMMIT: User 'user01' requested 'commit' operation (comment: emulated-environment D5 temporary log class)
 Nov  9 01:14:59  host05   ffp: "dynamic-profiles": No change to profiles
 Nov  9 01:15:02  host05   fpc0 SCHED: Thread 74 (PFE Statistics) ran for 1075 ms without yielding
 Nov  9 01:15:02  host05   fpc0 Scheduler Oinker
@@ -83,7 +83,7 @@ Nov  9 01:17:53  host05   sshd[32958]: Disconnected from user user02    198.51.1
 Nov  9 01:17:53  host05   inetd[20348]: /usr/sbin/sshd[32955]: exited, status 255
 Nov  9 01:18:01  host05   sshd[32961]: Accepted keyboard-interactive/pam for user01       from 198.51.100.56 port 39786 ssh2
 Nov  9 01:18:01  host05   mgd[32966]: UI_DBASE_LOGIN_EVENT: User 'user01' entering configuration mode
-Nov  9 01:18:02  host05   mgd[32966]: UI_COMMIT: User 'user01' requested 'commit' operation (comment: d-lab D5 temporary log class 2)
+Nov  9 01:18:02  host05   mgd[32966]: UI_COMMIT: User 'user01' requested 'commit' operation (comment: emulated-environment D5 temporary log class 2)
 Nov  9 01:18:14  host05   ffp: "dynamic-profiles": No change to profiles
 Nov  9 01:18:20  host05   kernel: jtimer_post_job_q_handler: elapsed time: 1214 function: 0xffffffff81ce1970 curthread: 0xfffff8000451a000 proc name: jfe_job_0_0
 Nov  9 01:18:20  host05   kernel: jfe_job_thread: elapsed time: 1214 function: 0xffffffff81addf70 qid: 0 curthread: 0xfffff8000451a000 proc name: jfe_job_0_0
@@ -105,7 +105,7 @@ Nov  9 01:18:37  host05   inetd[20348]: /usr/sbin/sshd[33609]: exited, status 25
 Nov  9 01:18:50  host05   sshd[33778]: Accepted keyboard-interactive/pam for user01       from 198.51.100.56 port 42596 ssh2
 Nov  9 01:18:51  host05   mgd[33786]: UI_DBASE_LOGIN_EVENT: User 'user01' entering configuration mode
 Nov  9 01:19:00  host05   kernel: jlock (W) hog reported for 1215 msecs: time_uptime (acq=10791, rel=10792), ticks (acq=2157674319, rel=2157675534), net_jlock_uptime (acq=9184, rel=9184) td 0xfffff80031876000 (sshd): td_prio 104, pri_promo 1, CPU 0, td_lastrt 2157675534, jlock (acq=2157674319, cur=2157675534): offending fns (acq=tcp_usr_send(), rel=tcp_usr_send()). td_runtime 9165 usecs, nvcsw 0, nivcsw 2 (../../../../../../../../../src/junos/bsd/sys/netinet/tcp_usrreq.c, line 1551): { 0xffffffff81ae3e5f 0xffffffff81ae9cd3 0xffffffff81aea5a9 0xffffffff81cead3e 0xffffffff81ae11a5 0xffffffff8060fa83 0xffffffff805e27f1 0xffffffff805e23ec 0xffffffff8079f8ba 0xffffffff8
-Nov  9 01:19:04  host05   mgd[33786]: UI_COMMIT: User 'user01' requested 'commit' operation (comment: d-lab D5 temporary log class 3)
+Nov  9 01:19:04  host05   mgd[33786]: UI_COMMIT: User 'user01' requested 'commit' operation (comment: emulated-environment D5 temporary log class 3)
 Nov  9 01:19:20  host05   ffp: "dynamic-profiles": No change to profiles
 Nov  9 01:19:29  host05   mgd[33786]: UI_CONFIGURATION_REVISION_UPDATED: New database revision 're0-1794187144-9' and old database revision 're0-1794187082-8'
 Nov  9 01:19:29  host05   mgd[33786]: UI_COMMIT_COMPLETED:  : commit complete
@@ -151,7 +151,7 @@ Nov  9 01:23:21  host05   secure-dot1xd[20676]: JTASK_SCHED_SLIP_KEVENT: 5 sec 4
 Nov  9 01:23:24  host05   sshd[34931]: Accepted keyboard-interactive/pam for user01       from 198.51.100.56 port 59318 ssh2
 Nov  9 01:23:25  host05   mgd[34936]: UI_DBASE_LOGIN_EVENT: User 'user01' entering configuration mode
 Nov  9 01:23:26  host05   mplsoamd[20530]: JTASK_SCHED_SLIP_KEVENT: 5 sec 254267 usec kevent block
-Nov  9 01:23:27  host05   mgd[34936]: UI_COMMIT: User 'user01' requested 'commit' operation (comment: d-lab D5 temporary log class 4)
+Nov  9 01:23:27  host05   mgd[34936]: UI_COMMIT: User 'user01' requested 'commit' operation (comment: emulated-environment D5 temporary log class 4)
 Nov  9 01:23:36  host05   ffp: "dynamic-profiles": No change to profiles
 Nov  9 01:23:46  host05   mgd[34936]: UI_CONFIGURATION_REVISION_UPDATED: New database revision 're0-1794187407-10' and old database revision 're0-1794187144-9'
 Nov  9 01:23:46  host05   mgd[34936]: UI_COMMIT_COMPLETED:  : commit complete

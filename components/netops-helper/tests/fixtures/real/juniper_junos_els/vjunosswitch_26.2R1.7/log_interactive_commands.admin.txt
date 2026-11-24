@@ -1,7 +1,7 @@
 Nov  9 01:19:29  host05   mgd[33786]: UI_COMMIT_PROGRESS: Commit operation in progress: mgd tracing: disabled
 Nov  9 01:19:29  host05   mgd[33786]: UI_COMMIT_PROGRESS: Commit operation in progress: New database revision 're0-1794187144-9' and old database revision 're0-1794187082-8'
 Nov  9 01:19:29  host05   mgd[33786]: UI_CONFIGURATION_REVISION_UPDATED: New database revision 're0-1794187144-9' and old database revision 're0-1794187082-8'
-Nov  9 01:19:29  host05   mgd[33786]: UI_COMMIT_COMMENT:  : d-lab D5 temporary log class 3
+Nov  9 01:19:29  host05   mgd[33786]: UI_COMMIT_COMMENT:  : emulated-environment D5 temporary log class 3
 Nov  9 01:19:29  host05   mgd[33786]: UI_COMMIT_PROGRESS: Commit operation in progress: commit complete
 Nov  9 01:19:29  host05   mgd[33786]: UI_COMMIT_COMPLETED:  : commit complete
 Nov  9 01:19:29  host05   mgd[33786]: UI_COMMIT_PROGRESS: Commit operation in progress: cannot signal 'Web management gatekeeper process', signal 31, no pid
@@ -46,8 +46,8 @@ Nov  9 01:23:25  host05   mgd[34936]: UI_LOGIN_EVENT: User 'user01' login, class
 Nov  9 01:23:25  host05   mgd[34936]: UI_CMDLINE_READ_LINE: User 'user01', command 'configure '
 Nov  9 01:23:25  host05   mgd[34936]: UI_DBASE_LOGIN_EVENT: User 'user01' entering configuration mode
 Nov  9 01:23:26  host05   mgd[34936]: UI_CMDLINE_READ_LINE: User 'user01', command 'set system login class d-log-test permissions trace '
-Nov  9 01:23:26  host05   mgd[34936]: UI_CMDLINE_READ_LINE: User 'user01', command 'commit no-synchronize comment "d-lab D5 temporary log class 4" '
-Nov  9 01:23:27  host05   mgd[34936]: UI_COMMIT: User 'user01' requested 'commit' operation (comment: d-lab D5 temporary log class 4)
+Nov  9 01:23:26  host05   mgd[34936]: UI_CMDLINE_READ_LINE: User 'user01', command 'commit no-synchronize comment "emulated-environment D5 temporary log class 4" '
+Nov  9 01:23:27  host05   mgd[34936]: UI_COMMIT: User 'user01' requested 'commit' operation (comment: emulated-environment D5 temporary log class 4)
 Nov  9 01:23:27  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: Obtaining lock for commit
 Nov  9 01:23:27  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: updating commit revision
 Nov  9 01:23:27  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: UI extensions feature is not configured
@@ -150,7 +150,7 @@ Nov  9 01:23:46  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in pr
 Nov  9 01:23:46  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: mgd tracing: disabled
 Nov  9 01:23:46  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: New database revision 're0-1794187407-10' and old database revision 're0-1794187144-9'
 Nov  9 01:23:46  host05   mgd[34936]: UI_CONFIGURATION_REVISION_UPDATED: New database revision 're0-1794187407-10' and old database revision 're0-1794187144-9'
-Nov  9 01:23:46  host05   mgd[34936]: UI_COMMIT_COMMENT:  : d-lab D5 temporary log class 4
+Nov  9 01:23:46  host05   mgd[34936]: UI_COMMIT_COMMENT:  : emulated-environment D5 temporary log class 4
 Nov  9 01:23:46  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: commit complete
 Nov  9 01:23:46  host05   mgd[34936]: UI_COMMIT_COMPLETED:  : commit complete
 Nov  9 01:23:46  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: cannot signal 'Web management gatekeeper process', signal 31, no pid

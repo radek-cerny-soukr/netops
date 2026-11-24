@@ -36,7 +36,7 @@ def main():
     product = common + ['--user', '51000:51000']
     engine = common + ['--memory', '2g', '--cpus', '2',
                        '--tmpfs', '/tmp:rw,nosuid,nodev,exec,size=512m,mode=1777',
-                       '--tmpfs', '/pytmp:rw,nosuid,nodev,exec,size=512m,mode=1777']
+                       '--tmpfs', '/pytmp:rw,nosuid,nodev,exec,size=2g,mode=1777']
 
     def run(name, command):
         if args.suite and name not in args.suite:

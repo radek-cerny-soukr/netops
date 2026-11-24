@@ -1,7 +1,0 @@
-set firewall family inet6 filter NETOPS-G142-V6 term t6-src from source-address 2001:db8:2::0/48
-set firewall family inet6 filter NETOPS-G142-V6 term t6-src then count c6-src
-set firewall family inet6 filter NETOPS-G142-V6 term t6-src then accept
-set firewall family inet6 filter NETOPS-G142-V6 term t6-deny from source-address 2001:db8:3::0/48
-set firewall family inet6 filter NETOPS-G142-V6 term t6-deny then reject
-set firewall family inet6 filter NETOPS-G142-V6 term t6-rest then count c6-rest
-set firewall family inet6 filter NETOPS-G142-V6 term t6-rest then accept

@@ -203,7 +203,7 @@ def _snapshot_profile(profile, platform):
             raise ValueError('invalid configuration profile')
         return
     if platform in ('juniper_junos', 'juniper_junos_els'):
-        # Only the exact Junos read profile (config_junos_adapter.PROFILE, G136); no family pattern.
+        # Only the exact Junos read profile (config_junos_adapter.PROFILE, junos config); no family pattern.
         from . import config_junos_adapter
         if type(profile) is not str or profile != config_junos_adapter.PROFILE:
             raise ValueError('invalid configuration profile')
@@ -326,7 +326,7 @@ class Snapshot:
 
 def require(auth, platform, permission):
     if platform == 'extreme_exos':
-        # EXOS: read, and compare (config_diff of two stored snapshots, task 157) only together with read.
+        # EXOS: read, and compare (config_diff of two stored snapshots, verification) only together with read.
         if permission not in ('read', 'compare'):
             raise ValueError('config_platform_not_supported')
         if auth.ssh_platform != 'extreme_exos':
@@ -999,14 +999,14 @@ def store(auth, text, hidden, count, section, firmware, *, platform='fortios', p
 INCOMPARABLE = 'configuration snapshot section, firmware or profile mismatch'
 FORTIADC_VISIBILITY_MISMATCH = 'configuration snapshot account visibility mismatch'
 
-# config_diff of the ExtremeXOS, Cisco IOS, IOS XE, NX-OS and Arista EOS snapshots (task 186) and, since
-# 1.0.10 (task 298), of the FortiOS snapshots (minimal and full profiles), now also used by FortiADC: a line diff along a
+# config_diff of the ExtremeXOS, Cisco IOS, IOS XE, NX-OS and Arista EOS snapshots (verification) and, since
+# 1.0.10 (verification), of the FortiOS snapshots (minimal and full profiles), now also used by FortiADC: a line diff along a
 # shortest edit script (Myers 1986, greedy forward pass with a stored furthest-reaching trace), not a
 # positional comparison, so one inserted line is one '+' line and a device-rewritten header line is one '-'/'+'
 # pair without shifting the rest.  In the FortiOS minimal profile the hidden values stay outside the text
 # (constant '<REDACTED>' markers; their changes are the secrets_changed records, computed apart from the text).
 # In the FortiOS and FortiADC full profiles the hidden values are numbered '<REDACTED:credential#N>' markers (StreamRedactor
-# ._credential), and an added or removed hidden line renumbers every later marker; there (task 298-r2) the lines
+#._credential), and an added or removed hidden line renumbers every later marker; there (verification) the lines
 # are matched with the marker number left out ('<REDACTED:credential>', only the marker is normalized, never a
 # value) while the diff writes the real lines of each snapshot, numbers included.  So the full profile shows an
 # added or removed hidden line, not a changed hidden value: it keeps no secrets_changed records (only the
@@ -1062,7 +1062,7 @@ class DiffLimitExceeded(ValueError):
         super().__init__(message)
 
 
-# FortiOS full profile (task 298-r2): the number of a credential marker is its order in the snapshot, not
+# FortiOS full profile (verification): the number of a credential marker is its order in the snapshot, not
 # configuration; the comparison key leaves it out.
 _CREDENTIAL_NUMBER = re.compile(rb'<REDACTED:credential#[1-9][0-9]*>')
 _CREDENTIAL_KEY = b'<REDACTED:credential>'
@@ -1096,14 +1096,14 @@ def _line_ids(content, ids, lines, charged, originals=None):
 
 
 def _edit_script(a, b, charged, head=0, tail=0):
-    """Hunks [(deleted a indexes, inserted b indexes), ...] of a shortest edit script from a to b, in order.
+    """Hunks [(deleted a indexes, inserted b indexes),...] of a shortest edit script from a to b, in order.
 
     Only a[head:len(a) - tail] and b[head:len(b) - tail] are compared, through offsets (no copies of the line
-    tables, task 186-r2); the returned indexes are relative to ``head``.  The edit bound is checked first on
+    tables, verification); the returned indexes are relative to ``head``.  The edit bound is checked first on
     every path, including a pure insertion or deletion (one side empty after the common head and tail).
 
     Greedy forward pass of Myers' O((N+M)D) algorithm.  After step d the furthest-reaching x of every
-    diagonal k = -d, -d+2, ..., d is kept (d + 1 values), so the trace of D steps holds (D+1)(D+2)/2 values;
+    diagonal k = -d, -d+2,..., d is kept (d + 1 values), so the trace of D steps holds (D+1)(D+2)/2 values;
     the backtrack takes, as the forward pass did, the diagonal k+1 (an insertion) when k == -d or when
     v[k-1] < v[k+1], otherwise k-1 (a deletion).  Equal lines are never listed.
     """
@@ -1246,14 +1246,14 @@ def _line_diff(left, right, out, changed, normalize_credentials=False):
     _budget(charged[0] + out.memory_bytes + changed.memory_bytes)
 
 
-# Comparability of two snapshots of the same scope (task 194).  For the EXOS/IOS family the capture
+# Comparability of two snapshots of the same scope (verification).  For the EXOS/IOS family the capture
 # metadata also carries content summaries (unverified_count, credential_redactions, unsupported_format_count,
 # unverified_fields, unverified_truncated, configuration_complete and the visibility_limitations they imply),
 # which change with every added or removed hidden line; only the identity keys below take part, so such a
 # change is a diff (a redacted marker line), not a false config_snapshot_incomparable.  Section, firmware,
 # redaction profile (name and rule hash) and include_defaults still have to match. FortiADC also compares
 # account visibility. FortiOS compares the whole metadata except that a full-profile pair ignores
-# credential_redactions, which changes with every added or removed secret line (task 298-r3).
+# credential_redactions, which changes with every added or removed secret line (verification).
 # The stored metadata itself is unchanged and is still
 # returned per capture in base_capture/other_capture.
 _IDENTITY_METADATA = frozenset(('config_scope', 'identity_scope_verified'))
@@ -1352,7 +1352,7 @@ def _compare_pair(auth, base, other, pair, platform, approved, with_metadata, ad
             _line_diff(left.text, right.text, out, changed,
                        normalize_credentials=platform in ('fortios', 'fortiadc') and left.profile != PROFILE)
         except ConfigurationBudgetError:
-            # The line tables, trace or output of the new diff path exceed the memory budget (task 186-r2):
+            # The line tables, trace or output of the new diff path exceed the memory budget (verification):
             # the same controlled refusal code as the edit bound, not an internal error.
             out.close()
             raise DiffLimitExceeded(DIFF_BUDGET_EXCEEDED) from None
@@ -1671,7 +1671,7 @@ def _decode_saved_snapshot(path, target, auth, platform, *, staged=0, key=None):
         raise ValueError()
     _snapshot_profile(record['profile'], platform)
     if platform in ('cisco_ios', 'cisco_xe'):
-        # G00 stores image family (and XE train) in addition to the public firmware fields.
+        # startup stores image family (and XE train) in addition to the public firmware fields.
         # Validate with the same authority as cached config_read; optional fields may be None.
         from . import config_cisco_ios_adapter, config_cisco_xe_adapter
         adapter = config_cisco_ios_adapter if platform == 'cisco_ios' else config_cisco_xe_adapter

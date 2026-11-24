@@ -2,6 +2,7 @@
   "platform": "eos",
   "table": "inline-power",
   "action": "poe-cycle",
+  "measured": false,
   "versions": [
     "4.36.1F"
   ],
@@ -29,5 +30,5 @@
       "undo_to_default": true
     }
   },
-  "rollback_evidence": "Used only by the poe-cycle operation on EOS (1.0.12 G123 E07): 'poe disabled', a pause, then 'no poe disabled' on one Ethernet port behind the timed safeguard session of EOS. Not measured: the lab cEOS has no PoE hardware and answers '% Unavailable command (not supported on this hardware platform)' for poe disabled and show poe (task-evidence/g123/raw/probe1, probe2), which Admin turns into poe_not_capable before any write. Command syntax ('poe disabled', 'no poe disabled', Interface-Ethernet Configuration) and the layout of show poe interface N (Privileged EXEC; PSE Enabled True/False, Port State such as powered) come from the Arista EOS manual, Ethernet Ports (fixtures/eos_g123/PROVENANCE.md). The write account reads show poe; the operation waits at most 15 s for the power to go off and, when the port was powered before, at most 60 s of pauses for powered again, and reports the observed state."
+  "rollback_evidence": "Used only by the poe-cycle operation on EOS (1.0.12 eos port maintenance E07): 'poe disabled', a pause, then 'no poe disabled' on one Ethernet port behind the timed safeguard session of EOS. Not measured: cEOS has no PoE hardware and answers '% Unavailable command (not supported on this hardware platform)' for poe disabled and show poe (verification record, probe2), which Admin turns into poe_not_capable before any write. Command syntax ('poe disabled', 'no poe disabled', Interface-Ethernet Configuration) and the layout of show poe interface N (Privileged EXEC; PSE Enabled True/False, Port State such as powered) come from the Arista EOS manual, Ethernet Ports (fixtures/eos_eos_port_maintenance/PROVENANCE.md). The write account reads show poe; the operation waits at most 15 s for the power to go off and, when the port was powered before, at most 60 s of pauses for powered again, and reports the observed state."
 }

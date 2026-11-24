@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from netops_auditor import l1_fortios
 
-from . import engine, eos, exos, exos_acl, exos_g44, exos_services, fortios, ios, junos, membership, nxos
+from . import engine, eos, exos, exos_acl, exos_g44, exos_services, fortios, fortios_tables, ios, junos, membership, nxos
 from .profiles import find_profile
 from .request import list_items
 
@@ -55,7 +55,15 @@ def snapshot_after(text, plan):
     if plan["platform"] == "fortios":
         snapshot = fortios.load(text, plan["firmware"])
         tree = snapshot.root
-        if table in fortios.NESTED:
+        registered = fortios_tables.hooks(table)
+        singleton = registered is not None and registered.kind == "singleton"
+        if registered is not None and registered.predict is not None:
+            registered.predict(tree, plan)
+            return text.splitlines()[0] + "\n" + "\n".join(fortios_text(tree)) + "\n"
+        if singleton:
+            # 1.0.13 A1-R: the section of a singleton holds the attributes itself (key "-"), as rest_digest and readback
+            section = tree.section(table)
+        elif table in fortios.NESTED:
             parent_table, child_table = fortios.NESTED[table]
             parent_key, key = fortios.split_nested(table, key)
             parent = tree.section(parent_table).entries[parent_key]
@@ -63,7 +71,7 @@ def snapshot_after(text, plan):
         elif table in fortios.SWITCH_PORT_TABLES:
             serial, key = key.split(":")
             section = tree.section(fortios.MANAGED_SWITCH).entries[serial].section("ports")
-        elif table in (fortios.GROUP_TABLE, fortios.POLICY_TABLE, fortios.PHASE2_TABLE, *fortios.NAT_TABLES):
+        elif table in (fortios.GROUP_TABLE, fortios.POLICY_TABLE, fortios.PHASE2_TABLE, *fortios.NAT_TABLES) or registered:
             section = tree.sub.setdefault(table, l1_fortios.Node((table,), 0))
         else:
             section = tree.section(table)
@@ -74,7 +82,7 @@ def snapshot_after(text, plan):
             elif table in fortios.NESTED and not (section.entries or section.attrs or section.sub):
                 parent.sub.pop(fortios.NESTED[table][1], None)
         elif plan["op"] != "move":
-            entry = section.entries.setdefault(key, l1_fortios.Node((table, key), 0))
+            entry = section if singleton else section.entries.setdefault(key, l1_fortios.Node((table, key), 0))
             profile = find_profile("fortios", table, plan["firmware"])
             for name in profile.attributes:
                 entry.attrs.pop(name, None)

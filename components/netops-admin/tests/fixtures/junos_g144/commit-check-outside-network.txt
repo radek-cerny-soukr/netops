@@ -1,4 +1,0 @@
-[edit access address-assignment pool NETOPS-G144-PROBE family inet]
-  'host NETOPS-G144-H2'
-    Address is outside the network defined for pool 'NETOPS-G144-PROBE'
-error: configuration check-out failed

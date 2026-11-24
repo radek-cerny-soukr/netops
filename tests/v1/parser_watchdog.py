@@ -1,4 +1,4 @@
-"""Real-time growth measurements in a disposable process (Linux lab/Actions).
+"""Measure parser growth using the best of three child-process CPU timings.
 
 Explicit fork preserves test closures and monkeypatches on Python 3.14, whose
 multiprocessing default changed. A blocked regex cannot block the test runner.
@@ -9,7 +9,7 @@ import time
 import traceback
 
 
-def measured_growth(build, run, small=2500, *, factor=4, timeout=15):
+def measured_growth(build, run, small=2500, *, factor=4, timeout=120):
     context = multiprocessing.get_context('fork')
     reader, writer = context.Pipe(duplex=False)
 
@@ -23,9 +23,9 @@ def measured_growth(build, run, small=2500, *, factor=4, timeout=15):
                 timings = []
                 for repeat in range(3):
                     gc.disable()
-                    started = time.perf_counter()
+                    started = time.process_time()
                     current = run(value)
-                    timings.append(time.perf_counter() - started)
+                    timings.append(time.process_time() - started)
                     if size == small and repeat == 0:
                         result = current
                 samples.append(min(timings))
@@ -49,8 +49,8 @@ def measured_growth(build, run, small=2500, *, factor=4, timeout=15):
         assert message[0] == 'ok', message[1]
         assert child.exitcode == 0, child.exitcode
         _, result, (first, second) = message
-        # Four times the input: tolerate linear growth and scheduler noise,
-        # but reject quadratic/exponential growth once above timer noise.
+        # Four times the input: allow linear growth and reject quadratic or
+        # exponential growth once the samples are above timer noise.
         assert second < max(first, 0.002) * 8, (first, second)
         return result
     finally:

@@ -20,5 +20,5 @@
   "volatile": [],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "Read the named policy file over pinned SFTP and check its presence and syntax over independent SSH. Restore the exact original bytes, or remove a file created by the operation."
+  "rollback_evidence": "Live write and return on ExtremeXOS 33.6.1.14 / 33.7.1.6 (2026-11-19): An ACL policy file or attachment was changed, independently read back and undone. Read the named policy file over pinned SFTP and check its presence and syntax over independent SSH. Restore the exact original bytes, or remove a file created by the operation."
 }

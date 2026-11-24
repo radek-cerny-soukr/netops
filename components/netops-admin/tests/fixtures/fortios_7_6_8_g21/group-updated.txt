@@ -1,9 +1,0 @@
-host01        $ config firewall addrgrp
-    edit "netops-g21-group"
-        set member "netops-g21-mask" "netops-g21-fqdn"
-        set comment "G21 updated"
-        set uuid 00000000-0000-4000-8000-000000000004
-    next
-end
-
-host01        $

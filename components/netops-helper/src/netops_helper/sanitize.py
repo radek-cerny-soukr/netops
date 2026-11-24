@@ -14,7 +14,7 @@ from netops import redaction_spans as _spans
 from .normalization import EOS_UNAVAILABLE_LINE
 
 
-# Span operations of the response chain (task 165-r4). The same results as the
+# Span operations of the response chain (verification). The same results as the
 # generic ``netops.redaction_spans`` operations for credential ranges, in one
 # windowed pass over the ranges, plus tracked kinds (``Track``). The proxy uses
 # them too; the product layer gets them in ``_tracked_product``.
@@ -206,7 +206,7 @@ _LINE_CREDENTIAL = (r"(?:" + _DOUBLE_QUOTED + "|" + _SINGLE_QUOTED
 CISCO_USER_SECRET = re.compile(
     r"(?im)^([^\S\n]*username\s+\S+\s+(?:password|secret)(?:\s+\d+)?\s+)\S+"
 )
-# Type of a Cisco IOS/IOS XE, NX-OS or Arista EOS secret/password (task 302-r2): a numeric
+# Type of a Cisco IOS/IOS XE, NX-OS or Arista EOS secret/password (verification): a numeric
 # type (IOS/XE 0/5/7/8/9, NX-OS 0/5, EOS 0/5/7), an algorithm name (EOS `sha512`, IOS XE
 # `algorithm-type` names `md5`/`scrypt`/`sha256`, `pbkdf2`, `sha1`), or any other word directly
 # followed by a crypt hash (`$...`). It is a type only when a value follows it.
@@ -220,12 +220,12 @@ CISCO_USER_ACCOUNT_SECRET = re.compile(
     r"[ \t]+(?:password|secret)(?:[ \t]+(?:" + _SECRET_TYPE + r"))?[ \t]+)" + _LINE_CREDENTIAL
 )
 # `enable [algorithm-type ALG] secret|password [level N] [TYPE] VALUE` (IOS/IOS XE, NX-OS, EOS),
-# also after a prompt (`R1(config)#enable ...`) and inside JSON string tokens (task 302-r2).
+# also after a prompt (`R1(config)#enable...`) and inside JSON string tokens (verification).
 # A known type stays visible and the next token is the value. Without a known type, a first
 # token followed by another one may be an unknown type word or a value followed by a keyword
 # (ASA `enable password HASH encrypted`): both tokens are hidden. CISCO_ENABLE_SECRET (the
 # 1.0.8 rule) still runs afterwards; the floor of the 1.0.8 chain keeps everything it hid
-# hidden, also what a later rule of that chain took after an anchor in the value (task 302-r6).
+# hidden, also what a later rule of that chain took after an anchor in the value (verification).
 CISCO_ENABLE_ACCOUNT_SECRET = re.compile(
     r"(?im)(?<![^\s#>])(enable[ \t]+(?:algorithm-type[ \t]+\S+[ \t]+)?(?:secret|password)"
     r"(?:[ \t]+level[ \t]+\d+)?(?:[ \t]+(" + _SECRET_TYPE + r"))?[ \t]+)"
@@ -262,7 +262,7 @@ def _mask_community_rows(match):
     )
 
 
-# NX-OS `show snmp` / `show snmp community` (task 490): NXOS_SNMP_COMMUNITY_TABLE only knows the 9.3(12) header.
+# NX-OS `show snmp` / `show snmp community` (verification): NXOS_SNMP_COMMUNITY_TABLE only knows the 9.3(12) header.
 # The community block is checked first: an empty table, the role notice or that exact header (optional underline,
 # rows up to the first blank line) stay with the general rules; any other shape is masked line by line (fail-closed).
 NXOS_SNMP_COMMUNITY_NOTE = "[netops-helper: unrecognized SNMP community-table format; all lines redacted]"
@@ -296,8 +296,8 @@ def _nxos_community_block_known(lines: list[str]) -> bool:
     return all(i < rows_end for i in body)
 
 
-# NX-OS 9.3(12) with a configured community prints no table but one labelled triple per community (task 490-r3,
-# live d-nxos capture): `Community name:`, `Community groupname:`, `Context mapped:`. Only the name value is masked
+# NX-OS 9.3(12) with a configured community prints no table but one labelled triple per community (verification,
+# live Nexus 9300v, NX-OS 9.3(12) capture): `Community name:`, `Community groupname:`, `Context mapped:`. Only the name value is masked
 # here; the group and the context stay. A missing, extra, reordered or split line is not this shape.
 _NXOS_SNMP_NAME = re.compile(r"(?P<label>[ \t]*Community name:[ \t]*)(?P<value>\S[^\r\n]*)(?P<cr>\r?)")
 _NXOS_SNMP_LABELLED = (
@@ -387,7 +387,7 @@ def redact_nxos_snmp_communities(text: str, *, community_secrets: set[str] | Non
         return text, False
     return "\n".join(lines[:begin] + [NXOS_SNMP_COMMUNITY_NOTE] + masked + lines[end:]), True
 
-# G95 publishes only recognized operational fields. SNMP's credentials can
+# nxos management publishes only recognized operational fields. SNMP's credentials can
 # appear outside the community table, including in user and notification rows.
 _NX_G95_NAME = r"[A-Za-z0-9_.@+-]+"
 _NX_G95_IPS = r"[0-9A-Fa-f:.]+(?:[ ,]+[0-9A-Fa-f:.]+)*"
@@ -937,7 +937,7 @@ def redact_cisco_sa_keys(text: str) -> str:
     return "\n".join(lines)
 
 
-# G14 (FP-09): FortiOS IPsec detail reads print live key material even to a read-only account (measured on a
+# ipsec status (FP-09): FortiOS IPsec detail reads print live key material even to a read-only account (measured on a
 # FortiGate-60F 7.6.8 build3744): `diagnose vpn ike gateway list` the IKE SA keys (`SK_ei: <hex>-<hex>-<hex>-<hex>`),
 # `diagnose vpn tunnel list` the ESP keys (`esp=aes key=32 <hex>`, `ah=sha256 key=32 <hex>`) and
 # `get vpn ipsec tunnel details` (`enc:  aes-cb  <hex>`, `auth: sha256  <hex>`). The value after the label is
@@ -970,7 +970,7 @@ DYNAMIC_PSK_STATE = re.compile(r"(?i)[ \t]*dynamic[ \t]+psk[ \t]*=[ \t]*(?:enabl
 RUCKUS_PASSPHRASE = re.compile(r"(?im)^([ \t]*passphrase[ \t]*=[ \t]*)[^\r\n]*")
 # Ruckus Unleashed `show` trees (WLAN, AAA, mesh): one `Label = value` per line, values unquoted and possibly with
 # spaces. Any label naming a key, passphrase, PSK, secret or password hides the whole rest of its line
-# (`Key = …`, `RADIUS Key = …`, `SAE-Passphrase = …`, `Secret= …`, G110: `RO Community= …`, `Token= …`,
+# (`Key = …`, `RADIUS Key = …`, `SAE-Passphrase = …`, `Secret= …`, wireless network services: `RO Community= …`, `Token= …`,
 # `Authentication Pass Phrase= …`, `Privacy Phrase= …`); the `Dynamic PSK = Enabled|Disabled` state stays.
 RUCKUS_SECRET_LINE = re.compile(
     r"(?im)^([ \t]*[^\r\n=:]*?\b(?:key|keys|passphrase|pass[ \t]+phrase|privacy[ \t]+phrase|psk|secret|password|passwd|community|token)\b[^\r\n=:]*?[ \t]*[=:][ \t]*)"
@@ -981,10 +981,10 @@ _RUCKUS_SECRET_STATE = re.compile(
 )
 
 def redact_ruckus_secrets(value: str, secrets: Iterable[str] = ()) -> str:
-    """Whole-value redaction of secret lines in Ruckus Unleashed output, before the general rules (G107 475-r2).
+    """Whole-value redaction of secret lines in Ruckus Unleashed output, before the general rules (wireless inventory).
 
     The result has no terminal controls when the input had any: the line rule runs both on the text as read and
-    on the text without ANSI sequences and C0 controls (475-r3), so a label split by them is still recognised.
+    on the text without ANSI sequences and C0 controls, so a label split by them is still recognised.
 
     The known secrets (`secrets`, e.g. the login password, possibly spanning lines) are replaced first, as the
     general chain does: a line rule must never cut a known secret and leave its other lines unmatched.
@@ -1004,11 +1004,11 @@ def redact_ruckus_secrets(value: str, secrets: Iterable[str] = ()) -> str:
             return match.group(0)
         return match.group(1) + "<REDACTED>"
     value = RUCKUS_SECRET_LINE.sub(replace, value)
-    # A label is recognisable only once ANSI sequences and other controls are gone (475-r3): the line rule runs
+    # A label is recognisable only once ANSI sequences and other controls are gone: the line rule runs
     # again on that cleaned text, which is what the general chain and the response finally carry.
     cleaned = strip_terminal_controls(value)
     return RUCKUS_SECRET_LINE.sub(replace, cleaned) if cleaned != value else value
-# G110 (RP08): `show config` of Unleashed holds PSKs, RADIUS secrets, the admin password, the network token and SNMP
+# wireless network services (RP08): `show config` of Unleashed holds PSKs, RADIUS secrets, the admin password, the network token and SNMP
 # communities spread over many sections. Only these top-level sections are passed on (allowlist); every other block,
 # including any section a later release adds, is replaced by one withheld marker, and the lines of the kept
 # blocks still go through redact_ruckus_secrets (labels naming a key, secret, password, community, token, phrase).
@@ -1068,13 +1068,13 @@ _MARKER_FIRST = re.compile("(" + _MARKER + r"[ \t]+)(.+)", re.S)
 
 
 def _replace_enable(match):
-    """CISCO_ENABLE_ACCOUNT_SECRET: a marker taken as the first of two tokens stays (task 302-r2).
+    """CISCO_ENABLE_ACCOUNT_SECRET: a marker taken as the first of two tokens stays (verification).
 
     A later pass (the fixed point of the response chain) sees `enable secret <REDACTED>
     <REDACTED>`; joining both markers would let the 1.0.8 rule take what follows the
     last one (for example the closing quote of a JSON string). Otherwise the value is
     hidden whole; what a later rule of the 1.0.8 chain hid after it stays hidden through
-    the floor of that chain (task 302-r6, _redact_credentials, redact_response).
+    the floor of that chain (verification, _redact_credentials, redact_response).
     """
     value = match.group(0)[len(match.group(1)):]
     if _MARKERS_ONLY.fullmatch(value):
@@ -1292,7 +1292,7 @@ def _json_account_edits(text: str, cache: dict) -> list | None:
     """Translate the edits of each JSON string token into document offsets.
 
     None when ``text`` is not a JSON object or array. The line rules never run over
-    the raw text of a document (task 302-r2): `enable` may follow a space inside a
+    the raw text of a document (verification): `enable` may follow a space inside a
     string, and its value would take the closing quote (`{"c": "  enable secret 5 x"}`).
     The rules anchored to a line start cannot match the raw text of a valid document.
     """
@@ -1521,7 +1521,7 @@ def _mask_origin(value, ranges: list):
 
 def _covering_floor(plain: str, released: list, output, later):
     """The output of a layer, with origin ranges of ``plain``, such that ``later(output)``
-    hides every range of ``released`` (task 302-r6): the structural guarantee of a layer
+    hides every range of ``released`` (verification): the structural guarantee of a layer
     whose output goes on to ``later`` layers before it reaches the AI client.
 
     ``released`` is what the frozen released chain hides of ``plain``; ``output`` is the
@@ -1582,7 +1582,7 @@ def _inserted_only(text: str) -> bool:
 
 def _token_piece(piece: str) -> bool:
     """A piece of a redaction token, also of a numbered credential token (`1>`,
-    `REDACTED:credential#12>`) that SNMP masking renumbered in a later pass (task 302-r3)."""
+    `REDACTED:credential#12>`) that SNMP masking renumbered in a later pass (verification)."""
     if any(piece in token for token in _TOKEN_TEXTS):
         return True
     number = re.search(r"[0-9]+", piece)
@@ -1628,7 +1628,7 @@ def _cut(value, max_bytes: int):
 
 
 def _redact_credentials(value: str, normalized: tuple[str, ...], cut_bytes: int | None = None) -> str:
-    """Current credential rules for ``redact``, never weaker than the 1.0.8 chain (task 302-r6).
+    """Current credential rules for ``redact``, never weaker than the 1.0.8 chain (verification).
 
     The output of ``redact()`` goes on through the proxy and the product (e.g. a
     diagnostic's ``untrusted_device_output``). The released 1.0.8 chain of that path
@@ -1645,7 +1645,7 @@ def _redact_credentials(value: str, normalized: tuple[str, ...], cut_bytes: int 
     In a JSON document whose 1.0.8 result keeps its shape, the floor of the later layers
     keeps only string contents (_json_value_floor), as in redact_response.
 
-    ``cut_bytes`` (task 302-r7): the caller sends only the first ``cut_bytes`` UTF-8 bytes of
+    ``cut_bytes`` (verification): the caller sends only the first ``cut_bytes`` UTF-8 bytes of
     the output on (a diagnostic's ``max_bytes``). A cut can remove context that a later layer
     needs (the END line of a private key), so the floor must not depend on the later layers
     seeing the whole output:
@@ -1723,7 +1723,7 @@ def redact(text: object, secrets: Iterable[str] = (), limit: int | None = None,
     """Redact credentials; control-bearing diagnostics need the complete chain.
 
     ``cut_bytes``: the caller sends on only the first ``cut_bytes`` UTF-8 bytes of the result
-    (task 302-r7); the result then keeps the 1.0.8 floor in every such prefix
+    (verification); the result then keeps the 1.0.8 floor in every such prefix
     (``_redact_credentials``). The complete chain (``redact_response``) already masks its
     floor in its own output, after its last layer, so a prefix keeps it too.
     """
@@ -1734,7 +1734,7 @@ def redact(text: object, secrets: Iterable[str] = (), limit: int | None = None,
         # The complete chain; see redact_response for its complete passes.
         value = redact_response(value, normalized)
     else:
-        # Two passes, both used (task 302): the 1.0.8 rules with origin ranges give
+        # Two passes, both used (verification): the 1.0.8 rules with origin ranges give
         # the floor, the current rules give the text (carrying that floor if any).
         value = _redact_credentials(value, normalized, cut_bytes)
     if limit is not None and len(value) > limit:
@@ -1766,9 +1766,9 @@ def _tracked_product():
 def _proxy_1_0_8(value, secrets):
     """The released 1.0.8 proxy rules: the current proxy without CISCO_TYPED_SECRET.
 
-    Since 1.0.8 (61e7de3) the proxy changed only by that rule (task 302-r2) and by the
+    Since 1.0.8 (61e7de3) the proxy changed only by that rule (verification) and by the
     span operations, which give the same results. The 1.0.8 floor chain uses this, so a
-    new proxy rule cannot weaken its own reference (task 302-r3).
+    new proxy rule cannot weaken its own reference (verification).
     """
     from .proxy_sanitize import _sanitize_object
     return _sanitize_object(value, secrets, typed=False)
@@ -1914,32 +1914,32 @@ def redact_response(text: str, secrets: Iterable[str] = ()) -> str:
 
     The chain runs with the current credential and proxy rules. Where the released
     1.0.8 rules give the same text and ranges at every Helper step and every proxy step
-    (task 302-r3: the proxy has a new rule too), the complete 1.0.8 chain reaches the
+    (verification: the proxy has a new rule too), the complete 1.0.8 chain reaches the
     same result. Otherwise the characters the complete 1.0.8 chain
     hides are found by original offset and masked after the last layer of the
-    current chain, which itself runs unchanged (task 165-r4). In a JSON document
+    current chain, which itself runs unchanged (verification). In a JSON document
     whose 1.0.8 result keeps its shape, the floor keeps only string contents
-    (``_json_value_floor``, task 302); a floor the chain cannot carry through JSON
+    (``_json_value_floor``, verification); a floor the chain cannot carry through JSON
     decoding still withholds the output.
     """
     secrets = tuple(secrets)
     state = {}
 
-    # Complete chains (task 302): (1) the current chain; once the rules differ,
+    # Complete chains (verification): (1) the current chain; once the rules differ,
     # (2) the complete 1.0.8 chain with origin ranges, computed at the first
     # difference; (3) the current chain carrying the floor, only for a partial
-    # floor. Until task 302, (1) always ran to its end and, with a partial floor,
+    # floor. Until verification, (1) always ran to its end and, with a partial floor,
     # its text served only to be compared with the text of (3). (3) runs the same
     # functions on the same text: the span operations give the text of the plain
     # operations and a floor range never changes text (a floor that cannot follow
     # a JSON token raises _UnrepresentableFloor, and the output is withheld). So
     # (1) now stops at the first difference when the floor is partial; the
-    # differential test in test_response_json_account_floor_302.py compares both
+    # differential test in test_response_json_account_floor.py compares both
     # algorithms. Without a floor or with a floor over the whole input, (1) is the
     # result and runs to its end as before. No other complete chain repeats work.
     #
     # The 1.0.8 chain uses the released Helper rules and the released proxy rules
-    # (_proxy_1_0_8, task 302-r3): a new proxy rule that removes an anchor of a later
+    # (_proxy_1_0_8, verification): a new proxy rule that removes an anchor of a later
     # rule cannot weaken the reference. A difference at a proxy step starts it as a
     # difference at a Helper step does; the proxy is compared only after its new rule
     # changed text (otherwise both proxies give the same result). The masked result of
@@ -1998,7 +1998,7 @@ def _floor_response(text, secrets, floor, released):
 
 
 def _settle_floor_result(text, secrets):
-    """The masked floor result, run through the current chain to its fixed point (task 302-r3).
+    """The masked floor result, run through the current chain to its fixed point (verification).
 
     The floor is masked after the last layer, so a layer can still change the masked
     text (`set passwd <REDACTED>` for the product, a line joined by a masked line break
@@ -2026,7 +2026,7 @@ def _same_shape(original, released) -> bool:
 
 
 def _json_value_floor(text: str, floor: list, released) -> list:
-    """The floor of a JSON document reduced to string-token contents (task 302).
+    """The floor of a JSON document reduced to string-token contents (verification).
 
     When the complete 1.0.8 chain re-serializes a document (e.g. the product
     rule replaces `set password x` inside a value that holds a CLI account
@@ -2044,7 +2044,7 @@ def _json_value_floor(text: str, floor: list, released) -> list:
 
     A string that holds a JSON document, which the proxy decodes and may
     re-serialize as well, is reduced the same way when the 1.0.8 result holds a
-    document of the same shape at the same place (task 302-r2): only the contents
+    document of the same shape at the same place (verification): only the contents
     of its own string tokens keep their floor, at any depth. Otherwise that string
     keeps its floor on all of its contents, as before, and a range on the nested
     document's punctuation still withholds the output.
@@ -2069,7 +2069,7 @@ def _json_value_floor(text: str, floor: list, released) -> list:
         return floor
     reduced = []
     for start, end in floor:
-        # Index iteration, no copy of the remaining list per floor range (task 302-r2).
+        # Index iteration, no copy of the remaining list per floor range (verification).
         for index in range(max(bisect.bisect_right(contents, (start, len(text) + 1)) - 1, 0), len(contents)):
             content_start, content_end = contents[index]
             if content_start >= end:

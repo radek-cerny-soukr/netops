@@ -160,7 +160,7 @@ def environment(text: str) -> dict[str, Any]:
     return {"state": "partial" if missing else "measured", "temperatures": rows, "missing_fields": missing}
 
 
-# IOS `show interfaces <if> transceiver detail` (1.0.12 G53): one table per metric, the value followed by
+# IOS `show interfaces <if> transceiver detail` (1.0.12 router ports): one table per metric, the value followed by
 # the four thresholds; the device may mark the value (++ high alarm, + high warning, - low warning, -- low alarm).
 _IOS_METRICS = (("temperature", "Temperature", "C"), ("voltage", "Voltage", "V"), ("tx_bias_current", "Current", "mA"),
                 ("tx_power", "Transmit Power", "dBm"), ("rx_power", "Receive Power", "dBm"))
@@ -306,7 +306,7 @@ def nxos_transceiver(text: str, interface: str) -> dict[str, Any]:
     """Parse the single-interface NX-OS DOM table, in the units shown by the module.
 
     A multi-lane module (QSFP) prints one `Lane Number:<n> Network Lane` block per lane, each with the
-    documented table (Cisco NX-OS 9.3(x)/10.6(x), see the G92 fixture PROVENANCE).  Every lane is kept in
+    documented table (Cisco NX-OS 9.3(x)/10.6(x), see the nxos ports fixture PROVENANCE).  Every lane is kept in
     ``lanes``. If the device declares a lane count, it must match the number of lane blocks.
     A top-level reading summarizes identical values. Differing readings stay in ``lanes``.
     """

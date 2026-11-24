@@ -1,0 +1,260 @@
+
+
+
+Building configuration...
+
+  
+Current configuration : 6422 bytes
+!
+! Last configuration change at 08:37:06 UTC Thu Nov 19 2026 by user01
+!
+version 15.9
+service timestamps debug datetime msec
+service timestamps log datetime msec
+no service password-encryption
+!
+hostname host01
+!
+boot-start-marker
+boot-end-marker
+!
+!
+vrf definition blue
+ description ROUTER-PROBES probe VRF
+ rd 65001:69
+ !
+ address-family ipv4
+ exit-address-family
+ !
+ address-family ipv6
+ exit-address-family
+!
+enable secret 9 <REDIGOVANO>
+!
+no aaa new-model
+!
+!
+!
+mmi polling-interval 60
+no mmi auto-configure
+no mmi pvc
+mmi snmp-timeout 180
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+no ip domain lookup
+ip domain name host11
+ip cef
+ipv6 unicast-routing
+ipv6 cef
+!
+multilink bundle-name authenticated
+!
+!
+!
+!
+archive
+ path flash:netops-archive
+ maximum 14
+username user02    secret 9 <REDIGOVANO>
+username user01       privilege 15 secret 9 <REDIGOVANO>
+!
+redundancy
+!
+lldp run
+!
+! 
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+interface Loopback0
+ ip address 203.0.113.245 255.255.255.255
+ ipv6 address 2001:db8:2::1/128
+ ipv6 ospf 69 area 0
+!
+interface Loopback52
+ description ROUTER-PROBES VRF blue probe target
+ vrf forwarding blue
+ ip address 203.0.113.244 255.255.255.0
+ ipv6 address 2001:db8:5::1/64
+!
+interface Loopback53
+ description ROUTER-PROBES global IPv6 probe target
+ no ip address
+ ipv6 address 2001:db8:6::1/64
+!
+interface GigabitEthernet0/0
+ ip address 203.0.113.51   255.255.255.0
+ duplex auto
+ speed auto
+ media-type rj45
+!
+interface GigabitEthernet0/1
+ no ip address
+ duplex auto
+ speed auto
+ media-type rj45
+!
+interface GigabitEthernet0/1.10
+ encapsulation dot1Q 10
+ ip address 203.0.113.250 255.255.255.0
+ ipv6 address fe80::12 link-local
+ ipv6 address 2001:db8:3::1/64
+ ipv6 nd ra suppress all
+ ipv6 ospf 69 area 0
+ bfd interval 999 min_rx 999 multiplier 10
+!
+interface GigabitEthernet0/1.20
+ encapsulation dot1Q 20
+ ip address 203.0.113.246 255.255.255.0
+!
+interface GigabitEthernet0/2
+ description XE-ROUTING VRF blue link to host02  Eth0/2
+ vrf forwarding blue
+ ip address 198.51.100.1 255.255.255.0
+ ip access-group NETOPS-IOS-ACCESS-CONTROL-V4 in
+ duplex auto
+ speed auto
+ media-type rj45
+ ipv6 address 2001:db8:1::1/64
+ ipv6 nd ra suppress all
+!
+interface GigabitEthernet0/3
+ no ip address
+ shutdown
+ duplex auto
+ speed auto
+ media-type rj45
+!
+router ospf 29
+ router-id 203.0.113.245
+ passive-interface Loopback0
+ network 203.0.113.248 0.0.0.255 area 0
+ network 203.0.113.245 0.0.0.0 area 0
+!
+router bgp 65001
+ bgp router-id 203.0.113.245
+ bgp log-neighbor-changes
+ no bgp default ipv4-unicast
+ neighbor 203.0.113.254 remote-as 65007
+ neighbor 203.0.113.254 description host02  XE-ROUTING
+ neighbor 203.0.113.254 fall-over bfd
+ neighbor 2001:db8:3::7     remote-as 65007
+ neighbor 2001:db8:3::7     description host02  XE-ROUTING IPv6
+ !
+ address-family ipv4
+  network 203.0.113.248 mask 255.255.255.0
+  network 203.0.113.243 mask 255.255.255.0
+  network 203.0.113.242 mask 255.255.255.0
+  neighbor 203.0.113.254 activate
+ exit-address-family
+ !
+ address-family ipv6
+  network 2001:db8:7::0/64
+  neighbor 2001:db8:3::7     activate
+ exit-address-family
+!
+ip forward-protocol nd
+!
+!
+no ip http server
+no ip http secure-server
+ip route 0.0.0.0 0.0.0.0 203.0.113.1
+ip route 203.0.113.243 255.255.255.0 Null0
+ip route 203.0.113.242 255.255.255.0 Null0
+ip ssh version 2
+!
+ip access-list extended NETOPS-IOS-ACCESS-CONTROL-EMPTY4
+ip access-list extended NETOPS-IOS-ACCESS-CONTROL-OPTS
+ permit tcp any any range www 90
+ permit ip any any log
+ip access-list extended NETOPS-IOS-ACCESS-CONTROL-REMARK
+ remark ios-access-control remark test
+ permit ip any any
+ip access-list extended NETOPS-IOS-ACCESS-CONTROL-V4
+ permit icmp any any
+ deny   ip host 198.51.100.9 any
+ permit tcp 198.51.100.0 0.0.0.255 any eq 22
+ permit tcp any any eq www
+ permit udp any host 198.51.100.1 eq snmp
+ permit ip any any
+!
+ip sla 69
+ icmp-echo 192.0.2.1 source-ip 203.0.113.250
+ip sla schedule 69 life forever start-time now
+ipv6 route 2001:db8:7::0/64 Null0
+ipv6 router ospf 69
+ router-id 203.0.113.245
+!
+ipv6 ioam timestamp
+!
+!
+!
+ipv6 access-list NETOPS-IOS-ACCESS-CONTROL-V6
+ permit icmp any any
+ deny ipv6 host 2001:db8:1::9  any
+ sequence 25 deny tcp any any eq telnet
+ sequence 30 permit tcp 2001:db8:1::0/64 any eq 22
+ permit tcp any any eq www
+ sequence 100 permit ipv6 any any
+!
+control-plane
+!
+banner exec ^C
+**************************************************************************
+* IOSv is strictly limited to use for evaluation, demonstration and IOS  *
+* education. IOSv is provided as-is and is not supported by Cisco's      *
+* Technical Advisory Center. Any use or disclosure, in whole or in part, *
+* of the IOSv Software or Documentation to any third party for any       *
+* purposes is expressly prohibited except as otherwise authorized by     *
+* Cisco in writing.                                                      *
+**************************************************************************^C
+banner incoming ^C
+**************************************************************************
+* IOSv is strictly limited to use for evaluation, demonstration and IOS  *
+* education. IOSv is provided as-is and is not supported by Cisco's      *
+* Technical Advisory Center. Any use or disclosure, in whole or in part, *
+* of the IOSv Software or Documentation to any third party for any       *
+* purposes is expressly prohibited except as otherwise authorized by     *
+* Cisco in writing.                                                      *
+**************************************************************************^C
+banner login ^C
+**************************************************************************
+* IOSv is strictly limited to use for evaluation, demonstration and IOS  *
+* education. IOSv is provided as-is and is not supported by Cisco's      *
+* Technical Advisory Center. Any use or disclosure, in whole or in part, *
+* of the IOSv Software or Documentation to any third party for any       *
+* purposes is expressly prohibited except as otherwise authorized by     *
+* Cisco in writing.                                                      *
+**************************************************************************^C
+!
+line con 0
+line aux 0
+line vty 0 4
+ exec-timeout 15 0
+ login local
+ transport input ssh
+line vty 5 15
+ login local
+ transport input ssh
+!
+no scheduler allocate
+!
+end

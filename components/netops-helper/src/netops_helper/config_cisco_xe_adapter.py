@@ -1,10 +1,10 @@
-"""Cisco IOS XE identity/profile adapter for the public ``config_read`` (task 140).
+"""Cisco IOS XE identity/profile adapter for the public ``config_read`` (verification).
 
 Same shape as ``config_cisco_ios_adapter``.  The tested combination is IOL-XE ``Version 17.18.2``,
 ``RELEASE SOFTWARE (fc3)``, image family ``X86_64BI_LINUX-ADVENTERPRISEK9-M``
 (``tests/fixtures/real/cisco_xe/iolxe_17.18.2/version.txt``).  Another model, release, train or image
 family (e.g. a Catalyst 9300) is read too and reported as ``firmware_support`` ``untested`` with a warning
-(G00, decision of 2026-11-17).  The model is read from the separate hardware line of ``show version``
+(startup, decision of 2026-11-17).  The model is read from the separate hardware line of ``show version``
 only (for the tested IOL also checked against the header), never from file names, serial numbers or host
 names; when no single hardware line is recognized the model is unknown (``None``).  The header may be
 repeated verbatim; two different headers are never admitted.  The running configuration goes through the
@@ -28,7 +28,7 @@ STARTUP_COMMAND = 'show startup-config'
 DIFF_COMMAND = 'show archive config differences nvram:startup-config system:running-config'
 LIVE_DIFF = ('startup', 'running')
 IDENTITY_COMMANDS = ('show version',)
-# The identity config_read was tested on (G00: a list of tested identities, not a gate).
+# The identity config_read was tested on (startup: a list of tested identities, not a gate).
 TESTED = ('Linux', '17.18.2', 'fc3')
 TESTED_NAME = 'Cisco IOS XE'
 IMAGE_FAMILY = 'X86_64BI_LINUX-ADVENTERPRISEK9-M'

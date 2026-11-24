@@ -9,6 +9,7 @@ from test_execute_exos import request as exos_request
 
 from netops_admin import audit_gate, exos, execute, fortios
 from netops_admin.errors import Rejected
+from approved_apply import approved_apply, preview_hash
 
 
 def at_change(action):
@@ -22,7 +23,7 @@ def test_check_account_that_cannot_read_refuses_before_any_mutation(tmp_path):
     device = FakeFortiOS()
     device.check_unreadable = True
     with pytest.raises(Rejected) as caught:
-        execute.apply(make_runtime(tmp_path, device), "lab", request())
+        approved_apply(make_runtime(tmp_path, device), "lab", request())
     assert "check account could not read" in caught.value.reasons[0]
     assert device.applied_blocks == []
 
@@ -31,7 +32,7 @@ def test_check_account_seeing_another_state_refuses_before_any_mutation(tmp_path
     device = FakeFortiOS()
     device.check_override = {"spare-host": {"subnet": "192.0.2.99 255.255.255.255", "comment": "unused"}}
     with pytest.raises(Rejected) as caught:
-        execute.apply(make_runtime(tmp_path, device), "lab",
+        approved_apply(make_runtime(tmp_path, device), "lab",
                       request(op="update", key="spare-host", changes={"comment": "x"}))
     assert "another state than the snapshot" in caught.value.reasons[0]
     assert device.applied_blocks == []
@@ -40,7 +41,7 @@ def test_check_account_seeing_another_state_refuses_before_any_mutation(tmp_path
 def test_check_account_seeing_another_result_reverts(tmp_path):
     device = FakeFortiOS()
     device.on_apply = at_change(lambda fake: setattr(fake, "check_override", {"new-host": None}))
-    record = execute.apply(make_runtime(tmp_path, device), "lab", request())
+    record = approved_apply(make_runtime(tmp_path, device), "lab", request())
     assert record["result"] == "reverted" and record["reason"] == "check identity mismatch"
     assert "new-host" not in device.addresses and not device.stitches
 
@@ -48,32 +49,36 @@ def test_check_account_seeing_another_result_reverts(tmp_path):
 def test_check_account_lost_after_the_change_reverts(tmp_path):
     device = FakeFortiOS()
     device.on_apply = at_change(lambda fake: setattr(fake, "check_unreadable", True))
-    record = execute.apply(make_runtime(tmp_path, device), "lab", request())
+    record = approved_apply(make_runtime(tmp_path, device), "lab", request())
     assert record["result"] == "reverted" and record["reason"] == "check identity unavailable"
 
 
 def test_both_gates_pass_on_a_normal_change(tmp_path):
-    record = execute.apply(make_runtime(tmp_path, FakeFortiOS()), "lab", request())
+    record = approved_apply(make_runtime(tmp_path, FakeFortiOS()), "lab", request())
     assert record["result"] == "confirmed"
     assert steps(record).index("audit_passed") < steps(record).index("check_identity_passed") \
         < steps(record).index("confirm_start")
 
 
 def test_new_audit_finding_reverts(tmp_path, monkeypatch):
+    device = FakeFortiOS()
+    runtime = make_runtime(tmp_path, device)
+    approved = preview_hash(runtime, "lab", request())
     original = audit_gate.new_blocking
     calls = []
     def fail_after(*args):
         calls.append(None)
         return original(*args) if len(calls) == 1 else ["fortios-dangling-reference"]
     monkeypatch.setattr(audit_gate, "new_blocking", fail_after)
-    device = FakeFortiOS()
-    record = execute.apply(make_runtime(tmp_path, device), "lab", request())
+    record = execute.apply(runtime, "lab", request(), expected_plan_sha256=approved)
     assert record["result"] == "reverted" and record["reason"] == "audit finding"
     assert record["audit_findings"] == ["fortios-dangling-reference"]
     assert "new-host" not in device.addresses
 
 
 def test_audit_that_cannot_evaluate_after_the_change_reverts(tmp_path, monkeypatch):
+    runtime = make_runtime(tmp_path, FakeFortiOS())
+    approved = preview_hash(runtime, "lab", request())
     original = audit_gate.new_blocking
     calls = []
     def broken(*args):
@@ -83,7 +88,7 @@ def test_audit_that_cannot_evaluate_after_the_change_reverts(tmp_path, monkeypat
         return original(*args)
 
     monkeypatch.setattr(audit_gate, "new_blocking", broken)
-    record = execute.apply(make_runtime(tmp_path, FakeFortiOS()), "lab", request())
+    record = execute.apply(runtime, "lab", request(), expected_plan_sha256=approved)
     assert record["result"] == "reverted" and record["reason"] == "audit unavailable"
 
 
@@ -94,7 +99,7 @@ def test_audit_that_cannot_evaluate_before_the_change_refuses(tmp_path, monkeypa
     monkeypatch.setattr(audit_gate, "findings", broken)
     device = FakeFortiOS()
     with pytest.raises(Rejected) as caught:
-        execute.apply(make_runtime(tmp_path, device), "lab", request())
+        approved_apply(make_runtime(tmp_path, device), "lab", request())
     assert "auditor could not evaluate" in caught.value.reasons[0]
     assert device.applied_blocks == []
 
@@ -102,7 +107,7 @@ def test_audit_that_cannot_evaluate_before_the_change_refuses(tmp_path, monkeypa
 def test_exos_check_account_is_asked_and_a_mismatch_reverts(tmp_path):
     device = FakeExos()
     device.on_apply = at_change(lambda fake: setattr(fake, "check_override", {"guest": {"tag": "3998"}}))
-    record = execute.apply(make_exos_runtime(tmp_path, device), "sw", exos_request())
+    record = approved_apply(make_exos_runtime(tmp_path, device), "sw", exos_request())
     assert record["result"] == "reverted" and record["reason"] == "check identity mismatch"
     assert "guest" not in device.vlans and not device.profiles and not device.timers
 
@@ -142,25 +147,25 @@ def test_exos_answer_of_the_check_account_is_read():
 def test_admin_entry_changed_since_the_last_operation_blocks(tmp_path):
     device = FakeFortiOS()
     runtime = make_runtime(tmp_path, device)
-    assert execute.apply(runtime, "lab", request())["result"] == "confirmed"
+    assert approved_apply(runtime, "lab", request())["result"] == "confirmed"
     device.admin_comments["netops-rw"] = "changed by someone"
     blocks = len(device.applied_blocks)
     with pytest.raises(Rejected) as caught:
-        execute.apply(runtime, "lab", request(key="second-host", request_id="req-second-1"))
+        approved_apply(runtime, "lab", request(key="second-host", request_id="req-second-1"))
     assert "changed since the last operation" in caught.value.reasons[0]
     assert len(device.applied_blocks) == blocks
     assert runtime.store.blocked("lab")["reason"] == "administrator table"
     assert execute.unblock(runtime, "lab", "investigated the comment change")
     from enrollment_helpers import certify
     certify(runtime, device, "lab")
-    assert execute.apply(runtime, "lab", request(key="second-host", request_id="req-second-2"))["result"] == "confirmed"
+    assert approved_apply(runtime, "lab", request(key="second-host", request_id="req-second-2"))["result"] == "confirmed"
 
 
 def test_admin_entry_changed_during_the_change_reverts_and_blocks(tmp_path):
     device = FakeFortiOS()
     device.on_apply = at_change(lambda fake: fake.admin_comments.update({"netops-rw": "changed"}))
     runtime = make_runtime(tmp_path, device)
-    record = execute.apply(runtime, "lab", request())
+    record = approved_apply(runtime, "lab", request())
     assert record["result"] == "reverted" and record["reason"] == "administrator table"
     assert runtime.store.blocked("lab") is not None
 
@@ -176,16 +181,16 @@ def test_configured_check_account_may_be_visible(tmp_path):
     runtime.config = replace(config, devices={"lab": lab})
     from enrollment_helpers import certify
     certify(runtime, device, "lab")
-    assert execute.apply(runtime, "lab", request())["result"] == "confirmed"
+    assert approved_apply(runtime, "lab", request())["result"] == "confirmed"
 
 
 def test_exos_account_hash_changed_since_the_last_operation_blocks(tmp_path):
     device = FakeExos()
     runtime = make_exos_runtime(tmp_path, device)
-    assert execute.apply(runtime, "sw", exos_request())["result"] == "confirmed"
+    assert approved_apply(runtime, "sw", exos_request())["result"] == "confirmed"
     device.account_hashes["netops-rw"] = "$5$new$hash"
     with pytest.raises(Rejected) as caught:
-        execute.apply(runtime, "sw", exos_request(key="guest2", changes={"tag": 3997}, request_id="req-second-1"))
+        approved_apply(runtime, "sw", exos_request(key="guest2", changes={"tag": 3997}, request_id="req-second-1"))
     assert "changed since the last operation" in caught.value.reasons[0]
 
 
@@ -193,30 +198,30 @@ def test_undelivered_notification_stops_the_next_change_on_the_device(tmp_path):
     device = FakeFortiOS()
     runtime = make_runtime(tmp_path, device)
     runtime.notifier = lambda record: "failed"
-    first = execute.apply(runtime, "lab", request())
+    first = approved_apply(runtime, "lab", request())
     assert first["result"] == "confirmed" and first["notification"] == "failed"
     blocks = len(device.applied_blocks)
     with pytest.raises(Rejected) as caught:
-        execute.apply(runtime, "lab", request(key="second-host", request_id="req-second-1"))
+        approved_apply(runtime, "lab", request(key="second-host", request_id="req-second-1"))
     assert "was not delivered" in caught.value.reasons[0]
     assert len(device.applied_blocks) == blocks
     runtime.notifier = lambda record: "sent"
     assert execute.notify_retry(runtime, first["change_id"])["notification"] == "sent"
-    assert execute.apply(runtime, "lab", request(key="second-host", request_id="req-second-2"))["result"] == "confirmed"
+    assert approved_apply(runtime, "lab", request(key="second-host", request_id="req-second-2"))["result"] == "confirmed"
 
 
 def test_a_person_can_waive_an_undeliverable_notification(tmp_path):
     device = FakeFortiOS()
     runtime = make_runtime(tmp_path, device)
     runtime.notifier = lambda record: "failed"
-    first = execute.apply(runtime, "lab", request())
+    first = approved_apply(runtime, "lab", request())
     assert execute.unblock(runtime, "lab", "the notification channel is down, the change was reviewed")
     assert runtime.store.operation(first["change_id"])["notification"] == "waived"
     events = [line for line in (tmp_path / "audit" / "audit.jsonl").read_text().splitlines()
               if "notification waived" in line]
     assert len(events) == 1
     runtime.notifier = lambda record: "sent"
-    assert execute.apply(runtime, "lab", request(key="second-host", request_id="req-second-1"))["result"] == "confirmed"
+    assert approved_apply(runtime, "lab", request(key="second-host", request_id="req-second-1"))["result"] == "confirmed"
 
 
 def test_foreign_admin_sessions_are_recorded_and_notified(tmp_path):
@@ -224,10 +229,10 @@ def test_foreign_admin_sessions_are_recorded_and_notified(tmp_path):
 
     device = FakeFortiOS()
     device.foreign_session_users = ["svc-operator", "admin"]
-    record = execute.apply(make_runtime(tmp_path, device), "lab", request())
+    record = approved_apply(make_runtime(tmp_path, device), "lab", request())
     assert record["result"] == "confirmed" and record["foreign_sessions"] == 2
     assert "other administrator sessions were active: 2" in notify.message(record)[1]
-    quiet = execute.apply(make_runtime(tmp_path / "quiet", FakeFortiOS()), "lab", request())
+    quiet = approved_apply(make_runtime(tmp_path / "quiet", FakeFortiOS()), "lab", request())
     assert quiet["foreign_sessions"] == 0
     assert "other administrator sessions" not in notify.message(quiet)[1]
 
@@ -235,7 +240,7 @@ def test_foreign_admin_sessions_are_recorded_and_notified(tmp_path):
 def test_exos_sessions_other_than_the_own_are_counted(tmp_path):
     device = FakeExos()
     device.foreign_session_users = ["svc-operator"]
-    record = execute.apply(make_exos_runtime(tmp_path, device), "sw", exos_request())
+    record = approved_apply(make_exos_runtime(tmp_path, device), "sw", exos_request())
     assert record["foreign_sessions"] == 1
 
 

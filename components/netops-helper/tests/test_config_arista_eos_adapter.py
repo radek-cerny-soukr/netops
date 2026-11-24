@@ -3,7 +3,7 @@
 Identity: ``show version`` is the immutable REAL capture
 ``fixtures/real/arista_eos/ceos_4.36.1F/version.txt``; every other identity text is DERIVED by editing it
 (or, for the foreign-vendor case, the REAL ``fixtures/real/cisco_xe/iolxe_17.18.2/version.txt``).
-The running-config fed to the consumer below is SYNTHETIC.  Task 153: the redaction profile is the
+The running-config fed to the consumer below is SYNTHETIC.  verification: the redaction profile is the
 indentation-based ``config_indented.EosStreamRedactor`` (no longer the IOS line consumer).
 """
 
@@ -76,7 +76,7 @@ def test_crlf_and_prompt_lines():
     (IMAGE, IMAGE.replace('4.36.1F-', '4.36.1.1F-'), 'cEOSLab', '4.36.1.1F'),               # four-part release
 ], ids=['model-veos', 'model-hw', 'release', 'train', 'release-type', 'four-part'])
 def test_derived_foreign_wellformed_is_untested(old, new, model, release):
-    """G00: another model or release is read; firmware_support says untested."""
+    """STARTUP: another model or release is read; firmware_support says untested."""
     assert old in CEOS
     firmware, meta = ad.verify_identity(CEOS.replace(old, new))
     assert firmware[:2] == (model, release) and meta == ad.metadata() and ad.firmware_record(firmware)
@@ -143,7 +143,7 @@ def test_identity_ignores_image_file_internal_build_serial_and_hostname():
 
 
 def test_firmware_record_only_for_the_record_shape():
-    # G00: any consistent record is a record (tested or not); the release must be the image's release.
+    # STARTUP: any consistent record is a record (tested or not); the release must be the image's release.
     for firmware in (FIRMWARE, ('vEOS-lab', '4.36.1F', '4.36.1F'), ('cEOSLab', '4.35.1F', '4.35.1F')):
         assert ad.firmware_record(firmware), firmware
     for firmware in (ad.TESTED, ('cEOSLab', '4.36.1F', ''), ('cEOSLab', '4.36.1F', '4.35.1F'),
@@ -176,7 +176,7 @@ def test_constants_and_profile_fingerprint():
     digest = hashlib.sha256(json.dumps(desc, separators=(',', ':')).encode('ascii')).hexdigest()
     assert ad.PROFILE == 'arista_eos-full-1:' + digest
     assert ad.PROFILE not in (ios_ad.PROFILE, xe_ad.PROFILE)
-    # The task 143 profile (IOS line consumer) is not this profile.
+    # The verification profile (IOS line consumer) is not this profile.
     old = ('arista_eos', 'config_cisco_ios.StreamRedactor', 'ios-lines-menu-reject-1', config_cisco_ios.MARKER,
            'show running-config', ('show version',), ('cEOSLab', '4.36.1F'))
     assert ad.PROFILE != 'arista_eos-full-1:' + hashlib.sha256(

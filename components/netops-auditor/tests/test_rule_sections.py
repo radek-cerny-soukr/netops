@@ -8,6 +8,7 @@ import pytest
 from netops_auditor import cli, engine, l1_exos, l1_fortios, management
 from netops_auditor.engine import NOT_EVALUATED, CatalogError, evaluate, load_catalog, section_missing
 from test_cli import complete, invoke, run_args, write_config
+from support.check_gates import FIXTURE_NAMES, fixture_names
 
 RULE_FIXTURES = Path(__file__).parent / "fixtures" / "rules"
 REAL_SECTIONS = Path(__file__).parent / "fixtures" / "real-sections"
@@ -18,7 +19,7 @@ CASES = tuple(
     (platform, rule)
     for platform in sorted(PARSERS)
     for rule in load_catalog(platform)
-    if not rule.scope_gate
+    if not rule.scope_gate and fixture_names(rule.id) == FIXTURE_NAMES
 )
 IDS = tuple(rule.id for _platform, rule in CASES)
 
@@ -63,7 +64,9 @@ def positive(platform, rule):
 def expected_reason(platform, rule, text, policy, name):
     probe = engine._STATUS.get(rule.check)
     if probe is not None:
-        state, reason = probe(PARSERS[platform].parse(text), policy)
+        # The argument the engine gives the probe: an Auditor context for context-aware checks.
+        argument = engine.AuditContext(management_policy=policy) if rule.check in engine._AUDITOR else policy
+        state, reason = probe(PARSERS[platform].parse(text), argument)
         if state == NOT_EVALUATED:
             return reason
     return section_missing(name)

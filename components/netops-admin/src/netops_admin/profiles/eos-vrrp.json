@@ -38,5 +38,5 @@
   "volatile": [],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "G124 on cEOSLab 4.36.1F. EOS configuration session timer and verified running-config readback apply. The key is Vlan<id>:<group>. The SVI needs an IPv4 address and the group owns one primary IPv4 address. Additional settings are refused. The configured priority and address are read with the privileged account."
+  "rollback_evidence": "Live write and return on cEOSLab 4.36.1F (2026-11-18–19): The VRRP or VARP configuration was changed, read back and undone. eos static routing on cEOS 4.36.1F. EOS configuration session timer and verified running-config readback apply. The key is Vlan<id>:<group>. The SVI needs an IPv4 address and the group owns one primary IPv4 address. Additional settings are refused. The configured priority and address are read with the privileged account."
 }

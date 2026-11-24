@@ -22,5 +22,5 @@
   "volatile": [],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "G103 NX-M021. Update acl with a named ACL of the selected IP family or null to detach it. Ethernet switchports support ingress PACL only. Routed Ethernet and SVIs use RACL commands subject to hardware capability. Protects management and uplinks and uses the NX-OS timed safeguard."
+  "rollback_evidence": "Live write and return on Nexus 9000v NX-OS 9.3(12) (2026-11-19): The ACL or its interface attachment was read back after apply and after undo. nxos access control NX-M021. Update acl with a named ACL of the selected IP family or null to detach it. Ethernet switchports support ingress PACL only. Routed Ethernet and SVIs use RACL commands subject to hardware capability. Protects management and uplinks and uses the NX-OS timed safeguard."
 }

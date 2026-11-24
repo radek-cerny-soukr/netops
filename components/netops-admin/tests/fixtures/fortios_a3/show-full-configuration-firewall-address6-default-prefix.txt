@@ -1,0 +1,10 @@
+config firewall address6
+    edit "netops-a3r2-any"
+        set uuid 00000000-0000-4000-8000-a30000000011
+        set type ipprefix
+        set ip6 ::/0
+        set color 0
+        set comment "netops A3 r2 test"
+        set fabric-object disable
+    next
+end

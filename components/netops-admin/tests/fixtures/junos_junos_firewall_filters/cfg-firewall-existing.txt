@@ -1,0 +1,8 @@
+set firewall family inet filter junos-security-test term t1 from protocol icmp
+set firewall family inet filter junos-security-test term t1 then policer junos-security-pol
+set firewall family inet filter junos-security-test term t1 then count junos-security-cnt
+set firewall family inet filter junos-security-test term t1 then accept
+set firewall family inet filter junos-security-test term rest then accept
+set firewall policer junos-security-pol if-exceeding bandwidth-limit 1m
+set firewall policer junos-security-pol if-exceeding burst-size-limit 15k
+set firewall policer junos-security-pol then discard

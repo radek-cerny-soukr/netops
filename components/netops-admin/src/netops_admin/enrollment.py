@@ -23,7 +23,7 @@ PROBES = {
     "iosxe": lambda key, probe: ("interface", "update", {"description": key}),
     "nxos": lambda key, probe: ("interface", "update", {"description": key}),
     "junos": lambda key, probe: ("interface", "update", {"description": key}),
-    # 1.0.12 G111: Unleashed creates the selected WLAN named by the probe, disabled, and returns it in the same run
+    # 1.0.12 wireless wlans: Unleashed creates the selected WLAN named by the probe, disabled, and returns it in the same run
     "ruckus": lambda key, probe: ("wlan", "create", {"ssid": probe, "service": "disabled"}),
 }
 # platforms whose probe argument names the interface whose description the self-test changes

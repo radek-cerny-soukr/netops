@@ -1,0 +1,25 @@
+ipv6 access-list NETOPS-IOS-ACCESS-CONTROL-V6
+host01(config-ipv6-acl)#
+10 permit icmp any any
+                        ^
+% Invalid input detected at '^' marker.
+
+host01(config-ipv6-acl)#
+permit icmp any any sequence 10
+host01(config-ipv6-acl)#
+sequence 20 permit tcp any any eq 22
+host01(config-ipv6-acl)#
+sequence 20 permit tcp any any eq 22
+host01(config-ipv6-acl)#
+permit tcp any any eq 22 sequence 30
+host01(config-ipv6-acl)#
+no sequence 20
+host01(config-ipv6-acl)#
+no sequence 30
+host01(config-ipv6-acl)#
+no sequence 10
+host01(config-ipv6-acl)#
+exit
+host01(config)#
+no ipv6 access-list NETOPS-IOS-ACCESS-CONTROL-V6
+host01(config)#

@@ -130,7 +130,7 @@ EXPECTED = {
         False,
     ),
     "routing_table": ("get router info routing-table all", (), True),
-    # G11 (1.0.12)
+    # FIREWALL-ROUTING (1.0.12)
     "ipv6_routing_table": ("get router info6 routing-table", (), True),
     "routing_table_database": ("get router info routing-table database", (), True),
     "ipv6_routing_table_database": ("get router info6 routing-table database", (), True),
@@ -334,7 +334,7 @@ def test_commands_are_narrow_read_only_cli() -> None:
             "execute dhcp lease-list",
             "execute traceroute-options view-settings",
             "diagnose debug info",
-            # G13: fixed reads measured with a read-only account (80F 8.0.2); no clear, set or interval argument.
+            # SENSORS-CRASHLOG: fixed reads measured with a read-only account (80F 8.0.2); no clear, set or interval argument.
             "execute sensor detail",
             "diagnose debug crashlog read",
             "diagnose debug config-error-log read",
@@ -348,7 +348,7 @@ def test_commands_are_narrow_read_only_cli() -> None:
         lowered = command.lower()
         assert not any(term in lowered for term in FORBIDDEN_TERMS)
 
-    # G14: only the name-scoped detail of one enrolled tunnel; never the unscoped listing of every tunnel.
+    # IPSEC-STATUS: only the name-scoped detail of one enrolled tunnel; never the unscoped listing of every tunnel.
     assert "diagnose vpn ike gateway list" not in commands
     assert "diagnose vpn tunnel list" not in commands
     assert "get vpn ipsec tunnel details" not in commands

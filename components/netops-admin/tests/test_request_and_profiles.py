@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import copy
 import json
+import re
 
 import pytest
 from conftest import request_bytes
 
-from netops_admin import profiles
+from netops_admin import fortios_tables, profiles
 from netops_admin.errors import Rejected
 from netops_admin.request import MAX_REQUEST_BYTES, parse_request
 from netops_admin.state import Store
@@ -63,7 +64,7 @@ def test_missing_field_is_refused():
 
 def test_shipped_profiles_load():
     loaded = profiles.load_profiles()
-    assert set(loaded) == {("fortios", "firewall address"), ("exos", "vlan"), ("exos", "ports"),
+    base = {("fortios", "firewall address"), ("exos", "vlan"), ("exos", "ports"),
                            ("exos", "bootprelay"), ("exos", "dhcp-server"),
                            ("exos", "ospf"), ("exos", "ospf-area"), ("exos", "ospf-interface"),
                            ("exos", "bgp"), ("exos", "bgp-neighbor"),
@@ -138,6 +139,12 @@ def test_shipped_profiles_load():
                            ("fortios", "system interface"), ("fortios", "router static"),
                            ("fortios", "switch-controller managed-switch/ports"), ("fortios", "port-bounce"),
                            ("fortios", "poe-cycle")}
+    # 1.0.13 A1-R: the groups of wave A add only the planned FortiOS tables of the registry; integration of wave A
+    # turns the subset into equality
+    added = set(loaded) - base
+    assert base <= set(loaded)
+    assert {platform for platform, _table in added} <= {"fortios"}
+    assert {table for _platform, table in added} <= fortios_tables.PLANNED_TABLES
     assert loaded[("fortiadc", "load-balance pool/pool_member")].versions == ("7.6.7 build0676",)
     assert loaded[("fortiadc", "load-balance pool/pool_member")].exact_versions
     assert loaded[("exos", "ports")].implicit_keys and loaded[("exos", "ports")].ops == ("update",)
@@ -158,7 +165,7 @@ def test_shipped_profiles_load():
     assert loaded[("exos", "port-bounce")].action == "port-bounce"
     assert set(loaded[("exos", "ports")].attributes) == {"display-string", "description-string", "admin-state"}
     assert loaded[("eos", "interface")].versions == ("4.36.1F",) and loaded[("eos", "interface")].exact_versions
-    # 1.0.12 G123 (E06/E23): speed, MTU and PoE of an EOS port; bounce and PoE cycle have their own tables
+    # 1.0.12 EOS-PORT-MAINTENANCE (E06/E23): speed, MTU and PoE of an EOS port; bounce and PoE cycle have their own tables
     assert set(loaded[("eos", "interface")].attributes) == {"description", "admin-state", "speed", "mtu", "poe"}
     assert loaded[("eos", "port-bounce")].action == "port-bounce"
     assert loaded[("eos", "inline-power")].action == "poe-cycle"
@@ -186,11 +193,23 @@ def shipped():
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def test_measured_profiles_describe_live_write_and_return():
+    live = re.compile(r"(?<!not )\b(?:measured on|measured directly on devices|verified live|live write and return)\b")
+    restored = re.compile(r"\b(?:undo|restore\w*|revert\w*|return\w*|rollback)\b")
+    measured = {key: profile.rollback_evidence.strip().lower()
+                for key, profile in profiles.load_profiles().items() if profile.measured}
+    assert measured
+    missing = [key for key, evidence in measured.items() if not (live.search(evidence) and restored.search(evidence))]
+    assert not missing, f"measured profiles missing live rollback evidence: {missing}"
+
+
 def test_shipped_profile_texts_name_no_internal_documents_or_accounts():
     from importlib import resources
     directory = resources.files("netops_admin") / "profiles"
     names = sorted(entry.name for entry in directory.iterdir() if entry.name.endswith(".json"))
-    assert len(names) == 178
+    assert len(names) == 188  # 178 of 1.0.12 + 4 FortiOS service, 3 policy-object and 3 IPv6 tables of 1.0.13
+    assert {"fortios-firewall-address6.json", "fortios-firewall-addrgrp6.json",
+            "fortios-router-static6.json"} <= set(names)
     for name in names:
         text = (directory / name).read_text(encoding="utf-8")
         for marker in ("docs/t167", "not releasable", "netops-test-", " branch "):
@@ -211,7 +230,7 @@ def test_shipped_profile_texts_name_no_internal_documents_or_accounts():
     (lambda data: data.update(volatile=["uuid", "comment"]), "listed twice"),
     (lambda data: data.update(inverse_identity_changes={"delete": ["subnet"]}), "must be a volatile"),
     (lambda data: data.update(reserved_values={"color": ["1"]}), "unknown attribute"),
-    (lambda data: data.update(rollback_evidence=""), "measured rollback"),
+    (lambda data: data.update(rollback_evidence=""), "rollback evidence"),
     (lambda data: data.update(platform="vyos"), "unknown platform"),
 ])
 def test_profile_validation_is_strict(mutate, fragment):

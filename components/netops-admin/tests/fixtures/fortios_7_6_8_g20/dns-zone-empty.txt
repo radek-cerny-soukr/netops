@@ -1,5 +1,0 @@
-config system dns-database
-    edit "netops-g20.test"
-        set domain "netops-g20.test"
-    next
-end

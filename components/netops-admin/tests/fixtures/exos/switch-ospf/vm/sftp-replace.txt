@@ -1,0 +1,1 @@
+sftp> rename netops-switch-ospf-stage.pol netops-switch-ospf-capture.pol

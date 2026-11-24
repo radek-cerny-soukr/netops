@@ -1,4 +1,4 @@
-"""G2-29-1: PC-Radek captures via proxy, isolated worker and real engine.
+"""Linux host captures via proxy, isolated worker and real engine.
 
 The replay fixture imports neighbors/bridge_fdb/links together from
 ref/captures/g2-live-2-linux.json using tests/support/add_capture.py. Dynamic FDB cases below are explicit

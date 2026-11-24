@@ -1,0 +1,17 @@
+{
+    "ipPrefixLists": {
+        "NETOPS-EOS-DYNAMIC-ROUTING-P": {
+            "ipPrefixEntries": [
+                {
+                    "seqno": 10,
+                    "filterType": "permit",
+                    "prefix": "192.0.2.0/24",
+                    "ge": 0,
+                    "le": 0
+                }
+            ],
+            "ipRemarkEntries": [],
+            "duplicateHandling": "duplicateError"
+        }
+    }
+}

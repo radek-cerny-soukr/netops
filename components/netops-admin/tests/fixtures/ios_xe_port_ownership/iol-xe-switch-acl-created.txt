@@ -1,0 +1,2 @@
+Extended IP access list NETOPS-XE-PORT-OWNERSHIP-713
+    10 permit ip any any

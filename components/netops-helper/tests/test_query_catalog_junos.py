@@ -75,7 +75,7 @@ COMMON = {
     "authentication_order": ("show configuration system authentication-order | display xml | no-more", {}, False),
     "radius_servers": ("show configuration system radius-server | display xml | no-more", {}, False),
     "tacacs_servers": ("show configuration system tacplus-server | display xml | no-more", {}, False),
-    # G132 (1.0.12): probes, routing-instance context and BGP/OSPF detail.
+    # JUNOS-ROUTING (1.0.12): probes, routing-instance context and BGP/OSPF detail.
     "ping": ("ping {address} count 5 source {source} | no-more", {"address": ("addresses", "ipv4_address"), "source": ("addresses", "ipv4_address")}, False),
     "ping_instance": ("ping {address} count 5 source {source} routing-instance {instance} | no-more", {"address": ("addresses", "ipv4_address"), "source": ("addresses", "ipv4_address"), "instance": ("routing_instances", "routing_instance")}, False),
     "traceroute": ("traceroute {address} no-resolve ttl 30 wait 1 | no-more", {"address": ("addresses", "ipv4_address")}, False),
@@ -126,7 +126,7 @@ MANAGEMENT_COMMANDS = {
     *(f"show configuration system {path} | display xml" for path in
       ("name-server", "syslog", "authentication-order", "radius-server", "tacplus-server")),
 }
-# G132: the only non-show templates, fixed count/hops/wait with typed slots.
+# JUNOS-ROUTING: the only non-show templates, fixed count/hops/wait with typed slots.
 PROBE_COMMANDS = {
     "ping {address} count 5 source {source}",
     "ping {address} count 5 source {source} routing-instance {instance}",

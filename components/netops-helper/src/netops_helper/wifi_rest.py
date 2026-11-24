@@ -271,7 +271,8 @@ def get(auth, path, *, method="GET", addresses=None, budget_seconds=None):
         peer.settimeout(remaining())
         connection.request("GET", path, headers={"Authorization": "Bearer " + token, "Accept": "application/json"})
         response = connection.getresponse()
-        if isinstance(response, http.client.HTTPResponse) and response.chunked:
+        http_response = isinstance(response, http.client.HTTPResponse)
+        if http_response and response.chunked:
             response._read_next_chunk_size = types.MethodType(_read_chunk_size, response)
         if response.status != 200:
             code = ("authentication_failed" if response.status == 401 else
@@ -291,7 +292,8 @@ def get(auth, path, *, method="GET", addresses=None, budget_seconds=None):
             body.extend(chunk)
             if len(body) > MAX_BYTES:
                 raise RestError("response_too_large", "fortios_rest_response_too_large")
-            if not chunk:
+            # HTTPResponse can close the socket as soon as it reads the last byte.
+            if not chunk or (http_response and response.isclosed()):
                 break
         remaining()
         from .inventory import unique_object

@@ -1,0 +1,16 @@
+
+
+
+Extended IP access list NETOPS-IOS-ACCESS-CONTROL-EMPTY4
+Extended IP access list NETOPS-IOS-ACCESS-CONTROL-OPTS
+    10 permit tcp any any range www 90
+    20 permit ip any any log
+Extended IP access list NETOPS-IOS-ACCESS-CONTROL-REMARK
+    10 permit ip any any
+Extended IP access list NETOPS-IOS-ACCESS-CONTROL-V4
+    10 permit icmp any any
+    20 deny ip host 198.51.100.9 any
+    30 permit tcp 198.51.100.0 0.0.0.255 any eq 22
+    40 permit tcp any any eq www
+    50 permit udp any host 198.51.100.1 eq snmp
+    100 permit ip any any

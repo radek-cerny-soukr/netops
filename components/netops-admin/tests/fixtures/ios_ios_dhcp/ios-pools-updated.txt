@@ -1,0 +1,7 @@
+ip dhcp pool NETOPS-IOS-DHCP-EMPTY
+ip dhcp pool NETOPS-IOS-DHCP-POOL
+ network 192.0.2.0    255.255.255.0
+ default-router 192.0.2.2
+ip dhcp pool NETOPS-IOS-DHCP-HOST
+ host 192.0.2.42    255.255.255.0
+ client-identifier 0102.0000.0000.42

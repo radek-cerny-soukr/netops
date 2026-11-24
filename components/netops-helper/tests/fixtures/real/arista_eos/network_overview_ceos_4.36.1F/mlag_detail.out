@@ -1,0 +1,49 @@
+MLAG Configuration:
+domain-id                          :             domain-1
+local-interface                    :            Vlan4094
+peer-address                       :         192.0.2.2
+peer-link                          :     Port-Channel200
+hb-peer-address                    :        198.51.100.64
+peer-config                        :          consistent
+
+MLAG Status:
+state                              :              Active
+negotiation status                 :           Connected
+peer-link status                   :                  Up
+local-int status                   :                  Up
+system-id                          :   00:00:5e:00:53:01
+dual-primary detection             :            Disabled
+dual-primary interface errdisabled :               False
+
+MLAG Ports:
+Disabled                           :                   0
+Configured                         :                   0
+Inactive                           :                   0
+Active-partial                     :                   0
+Active-full                        :                   1
+
+MLAG Detailed Status:
+State                           :             secondary
+Peer State                      :               primary
+State changes                   :                     2
+Last state change time          :   5 days, 9:56:39 ago
+Hardware ready                  :                  True
+Peer MAC address                :     00:00:5e:00:53:02
+Peer MAC routing supported      :                 False
+Reload delay                    :            30 seconds
+Non-MLAG reload delay           :            30 seconds
+Ports errdisabled               :                 False
+Lacp standby                    :                 False
+Configured heartbeat interval   :               4000 ms
+Effective heartbeat interval    :               4000 ms
+Heartbeat timeout               :              60000 ms
+Last heartbeat timeout          :                 never
+Heartbeat timeouts since reboot :                     0
+UDP heartbeat alive             :                  True
+Heartbeats sent/received        :         233918/233861
+Peer monotonic clock offset     :      0.000383 seconds
+Agent should be running         :                  True
+P2p mount state changes         :                     1
+Fast MAC redirection enabled    :                 False
+Peer-link forwarding restricted :                 False
+Interface activation interlock  :           unsupported

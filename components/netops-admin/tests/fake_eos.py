@@ -1,7 +1,6 @@
 """Simulated Arista cEOS 4.36.1F for netops-admin tests.
 
-Every answer is built from an anonymised output measured on cEOSLab 4.36.1F (fixtures/eos_4_36_1F, task
-netops-provoz-20261116-301 and the read of task netops-20261116-304): the running configuration starts from the real
+Every answer is built from an anonymised output measured on cEOSLab 4.36.1F (fixtures/eos_4_36_1F, verification and the read of verification): the running configuration starts from the real
 baseline and only the lines of the changed interface, VLAN blocks and sessions follow the measured behaviour
 (safeguard session with commit timer, configure terminal under it, confirmation, expiry with revert and log lines,
 abort, refusal of a second timer, write memory that saves whatever is running).
@@ -24,10 +23,10 @@ from netops_admin.eos import hardware_speeds as eos_speeds
 FIRMWARE = "4.36.1F"
 HOSTNAME = "host01"
 FIXTURES = Path(__file__).parent / "fixtures" / "eos_4_36_1F"
-# 1.0.12 G122: VLAN, trunk, phone VLAN, 802.1X and UTF-8 description outputs of cEOSLab 4.36.1F (Ethernet12)
-G122 = Path(__file__).parent / "fixtures" / "eos_g122"
-# 1.0.12 G123: hardware, MTU, PoE and status outputs of cEOSLab 4.36.1F (Ethernet12) and the Arista EOS manual
-G123 = Path(__file__).parent / "fixtures" / "eos_g123"
+# 1.0.12 EOS-SWITCHPORT-ADMIN: VLAN, trunk, phone VLAN, 802.1X and UTF-8 description outputs of cEOSLab 4.36.1F (Ethernet12)
+EOS_SWITCHPORT_ADMIN = Path(__file__).parent / "fixtures" / "eos_eos_switchport_admin"
+# 1.0.12 EOS-PORT-MAINTENANCE: hardware, MTU, PoE and status outputs of cEOSLab 4.36.1F (Ethernet12) and the Arista EOS manual
+EOS_PORT_MAINTENANCE = Path(__file__).parent / "fixtures" / "eos_eos_port_maintenance"
 START_EPOCH = 1794781830.0  # show clock | json of the measurement (2026-11-15 22:30:30 UTC)
 
 
@@ -35,25 +34,25 @@ def fixture(name: str) -> str:
     return (FIXTURES / name).read_text(encoding="utf-8")
 
 
-def g122(name: str) -> str:
-    return (G122 / name).read_text(encoding="utf-8")
+def eos_switchport_admin(name: str) -> str:
+    return (EOS_SWITCHPORT_ADMIN / name).read_text(encoding="utf-8")
 
 
-def g123(name: str) -> str:
-    return (G123 / name).read_text(encoding="utf-8")
+def eos_port_maintenance(name: str) -> str:
+    return (EOS_PORT_MAINTENANCE / name).read_text(encoding="utf-8")
 
 
-def g123_answer(name: str) -> str:
-    """The answer line of a measured interactive line (fixtures/eos_g123/interface-line-*.txt)."""
-    return g123(name).split("\n")[3] + "\n"
+def eos_port_maintenance_answer(name: str) -> str:
+    """The answer line of a measured interactive line (fixtures/eos_eos_port_maintenance/interface-line-*.txt)."""
+    return eos_port_maintenance(name).split("\n")[3] + "\n"
 
 
 def short(name: str) -> str:
     return name.replace("Ethernet", "Et").replace("Management", "Ma")
 
 
-def g122_missing_vlan(vlan) -> str:
-    # measured answer of a native or phone VLAN that does not exist (task-evidence/g122/raw/probe4)
+def eos_switchport_admin_missing_vlan(vlan) -> str:
+    # measured answer of a native or phone VLAN that does not exist (private measurement record)
     return "! VLAN id %s not found in current VLAN configuration\n" % vlan
 
 
@@ -78,17 +77,17 @@ class FakeEos:
         self.learned_macs = {}
         self.foreign_users = []
         self.ssh_source = "192.0.2.36"
-        self.ssh_status = g123("show-management-ssh.txt")
+        self.ssh_status = eos_port_maintenance("show-management-ssh.txt")
         self.check_unreadable = False
         self.check_override = None
         self.refuse_commit_timer = False
         self.timer_shift = 0
         self.on_apply = None
         self.credential = SimpleNamespace(login="netops-admin")
-        # G123: ports with PoE (port -> Port State while powered); a switch without PoE answers as cEOS (measured)
+        # EOS-PORT-MAINTENANCE: ports with PoE (port -> Port State while powered); a switch without PoE answers as cEOS (measured)
         self.poe_ports = {}
         self.poe_states_off = "disabled"
-        # G123: hardware answer of the port (measured cEOS by default) and the link of the port while it is enabled
+        # EOS-PORT-MAINTENANCE: hardware answer of the port (measured cEOS by default) and the link of the port while it is enabled
         self.hardware = None
         self.link = "connected"
         self.link_after_bounce = None
@@ -173,7 +172,7 @@ class FakeEos:
     def _vlan_line(self, vlan, words, line):
         start, end = self._block("vlan %s" % vlan)
         if words[0] == "name" and len(words) == 2 and words[1] == "VLAN%04d" % int(vlan):
-            # measured (task-evidence/g122/r2/raw/probe9): the default name VLANnnnn of the VLAN stores no name line
+            # measured (private measurement record): the default name VLANnnnn of the VLAN stores no name line
             self.lines[start + 1:end] = []
         elif words[0] == "name" and len(words) == 2:
             self.lines[start + 1:end] = ["   name %s" % words[1][:32]]
@@ -187,11 +186,11 @@ class FakeEos:
         self.lines[index:index] = ["interface %s" % name, "!"]
 
     def snapshot(self):
-        """show running-config as the ssh exec of the write account returns it (measured in task 304): an empty
+        """show running-config as the ssh exec of the write account returns it (measured in verification): an empty
         line, the echo "> show running-config" and the header "! Command: show running-config at line 1"."""
         self._fire()
         # Keep the simulated commands working on individual VLANs. Running-config groups adjacent default VLANs
-        # as measured in fixtures/eos_g122/show-session-config-diffs__adjacent-default-vlans.txt.
+        # as measured in fixtures/eos_eos_switchport_admin/show-session-config-diffs__adjacent-default-vlans.txt.
         lines = "\n".join(self.lines) + "\n"
         def group_defaults(match):
             ids = [int(vid) for vid in re.findall(r"vlan ([0-9]+)", match[0])]
@@ -300,12 +299,12 @@ class FakeEos:
             elif words == ["no", "switchport", "access", "vlan"]:
                 self._set(name, re.compile(r"^switchport access vlan "))
             else:
-                return self._g122_line(name, words, line)
+                return self._eos_switchport_admin_line(name, words, line)
             return ""
         raise AssertionError("unexpected configuration line %r" % line)
 
-    def _g122_line(self, name, words, line) -> str:
-        """1.0.12 G122: mode, trunk, phone VLAN and 802.1X lines as measured (canonical lines in running-config; a
+    def _eos_switchport_admin_line(self, name, words, line) -> str:
+        """1.0.12 EOS-SWITCHPORT-ADMIN: mode, trunk, phone VLAN and 802.1X lines as measured (canonical lines in running-config; a
         missing native or phone VLAN gives the measured warning)."""
         mode_line = re.compile(r"^switchport mode ")
         if words[:2] == ["switchport", "mode"]:
@@ -319,7 +318,7 @@ class FakeEos:
             prefix = " ".join(words[:-1])
             self._set(name, re.compile("^" + prefix + " "), line.strip())
             if words[-1] not in self.vlans():
-                return g122_missing_vlan(words[-1])
+                return eos_switchport_admin_missing_vlan(words[-1])
         elif words[:1] == ["no"] and " ".join(words[1:]) in ("switchport trunk native vlan", "switchport phone vlan"):
             self._set(name, re.compile("^" + " ".join(words[1:]) + " "))
         elif line.strip() in ("dot1x pae authenticator", "dot1x port-control auto", "dot1x mac based authentication"):
@@ -328,27 +327,27 @@ class FakeEos:
                                                              "dot1x mac based authentication"):
             self._set(name, re.compile("^" + re.escape(" ".join(words[1:]))))
         else:
-            return self._g123_line(name, words, line)
+            return self._eos_port_maintenance_line(name, words, line)
         return ""
 
-    def _g123_line(self, name, words, line) -> str:
-        """1.0.12 G123: speed, mtu and poe lines with the measured refusals of cEOS 4.36.1F (fixtures/eos_g123)."""
+    def _eos_port_maintenance_line(self, name, words, line) -> str:
+        """1.0.12 EOS-PORT-MAINTENANCE: speed, mtu and poe lines with the measured refusals of cEOS 4.36.1F (fixtures/eos_eos_port_maintenance)."""
         if words[:1] == ["speed"] and len(words) >= 2:
             speeds = eos_speeds(self.hardware_answer(name), name)
             if words[1] == "auto" and len(words) == 3 and "auto" not in speeds:
-                return g123_answer("interface-line-speed-auto-1g__cannot-advertise.txt").replace("Ethernet12", name)
+                return eos_port_maintenance_answer("interface-line-speed-auto-1g__cannot-advertise.txt").replace("Ethernet12", name)
             self._set(name, re.compile(r"^speed "), line.strip())
         elif words == ["no", "speed"]:
             self._set(name, re.compile(r"^speed "))
         elif words[:1] == ["mtu"] and len(words) == 2:
             if int(words[1]) > 9214:
-                return g123_answer("interface-line-mtu-9215__max.txt").replace("Ethernet12", name)
+                return eos_port_maintenance_answer("interface-line-mtu-9215__max.txt").replace("Ethernet12", name)
             self._set(name, re.compile(r"^mtu "), line.strip())
         elif words == ["no", "mtu"]:
             self._set(name, re.compile(r"^mtu "))
         elif line.strip() in ("poe disabled", "no poe disabled"):
             if name not in self.poe_ports:
-                return g123_answer("interface-line-poe-disabled__unavailable.txt")
+                return eos_port_maintenance_answer("interface-line-poe-disabled__unavailable.txt")
             self._set(name, re.compile(r"^poe disabled$"), "poe disabled" if words[0] == "poe" else None)
             if words[0] == "no" and self.poe_after_cycle is not None:
                 self.poe_ports[name] = self.poe_after_cycle
@@ -359,19 +358,19 @@ class FakeEos:
     def hardware_answer(self, name) -> str:
         if self.hardware is not None:
             return self.hardware
-        return g123("show-interfaces-Ethernet12-hardware.txt").replace("Ethernet12", name)
+        return eos_port_maintenance("show-interfaces-Ethernet12-hardware.txt").replace("Ethernet12", name)
 
     def poe_answer(self, name) -> tuple:
         """show poe interface N: measured refusal (exit status 1) without PoE, the manual layout with PoE."""
         if name not in self.poe_ports:
-            return 1, g123("show-poe-interface-Ethernet12__unavailable-exec-rc1.txt").replace("Ethernet12", name)
+            return 1, eos_port_maintenance("show-poe-interface-Ethernet12__unavailable-exec-rc1.txt").replace("Ethernet12", name)
         number = name[len("Ethernet"):]
         if "poe disabled" in (self.interface(name) or []):
-            row = g123("show-poe-interface-Ethernet46__disabled-derived.txt").split("\n")
+            row = eos_port_maintenance("show-poe-interface-Ethernet46__disabled-derived.txt").split("\n")
             row[3] = row[3].replace("disabled", "%-8s" % self.poe_states_off, 1).rstrip() if \
                 self.poe_states_off != "disabled" else row[3]
         else:
-            row = g123("show-poe-interface-Ethernet46__arista-doc.txt").split("\n")
+            row = eos_port_maintenance("show-poe-interface-Ethernet46__arista-doc.txt").split("\n")
             row[3] = row[3].replace("powered", "%-7s" % self.poe_ports[name], 1)
         row[3] = "%-4s" % number + row[3][4:]
         return 0, "\n".join(row)
@@ -437,7 +436,7 @@ class FakeEos:
                 text += "   %d vty %d  %-13s idle    0:01:00  192.0.2.40\n" % (number, number + 3, user)
             return text
         if command == "show users detail | json":
-            text = g123("show-users-detail__ssh.json")
+            text = eos_port_maintenance("show-users-detail__ssh.json")
             return text.replace("192.0.2.36", self.ssh_source)
         if command == "show management ssh":
             return self.ssh_status
@@ -460,15 +459,15 @@ class FakeEos:
         match = re.fullmatch(r"show mac address-table vlan ([0-9]+)", command)
         if match:
             if self.learned_macs.get("vlan " + match.group(1)):
-                return g122("show-mac-address-table-vlan-10__learned.txt").replace("  10 ", "%4s " % match.group(1))
-            return g122("show-mac-address-table-vlan-3990__empty.txt")
+                return eos_switchport_admin("show-mac-address-table-vlan-10__learned.txt").replace("  10 ", "%4s " % match.group(1))
+            return eos_switchport_admin("show-mac-address-table-vlan-3990__empty.txt")
         match = re.fullmatch(r"show logging last ([0-9]+) minutes \| include (\S+)", command)
         if match:
             return "".join(line + "\n" for line in self.log if match.group(2) in line)
         if command == "show interfaces status":
             if self.all_status is not None:
                 return self.all_status
-            rows = g123("show-interfaces-Ethernet12-status__connected.txt").splitlines()
+            rows = eos_port_maintenance("show-interfaces-Ethernet12-status__connected.txt").splitlines()
             return "\n".join(rows + [rows[1].replace("Et12", "Et10")]) + "\n"
         answer = self._interface_query(command)
         if answer is not None:
@@ -478,7 +477,7 @@ class FakeEos:
             return self.hardware_answer(match.group(1))
         match = re.fullmatch(r"show interfaces (Ethernet[0-9]+)", command)
         if match:
-            return g123("show-interfaces-Ethernet12__baseline.txt").replace("Ethernet12", match.group(1))
+            return eos_port_maintenance("show-interfaces-Ethernet12__baseline.txt").replace("Ethernet12", match.group(1))
         match = re.fullmatch(r"show poe interface (\S+)", command)
         if match:
             status, text = self.poe_answer(match.group(1))
@@ -493,16 +492,16 @@ class FakeEos:
             return fixture("show-vlan-id-3999__missing.txt").replace("3999", vlan)
         if vlan == "10" and name == "D10":
             return fixture("show-vlan-id-10__baseline.txt")
-        # measured layout (fixtures/eos_g122/show-vlan-id-3990__created.txt)
-        lines = g122("show-vlan-id-3990__created.txt").split("\n")
+        # measured layout (fixtures/eos_eos_switchport_admin/show-vlan-id-3990__created.txt)
+        lines = eos_switchport_admin("show-vlan-id-3990__created.txt").split("\n")
         lines[2] = "%-5s %-32s %-9s %s" % (vlan, name, "active", lines[2].split()[-1])
         return "\n".join(lines)
 
     def dot1x_answer(self, name) -> str:
         lines = self.interface(name) or []
         if not any(line.startswith("dot1x ") for line in lines):
-            return g122("show-dot1x-interface-Ethernet12__none.txt")
-        text = g122("show-dot1x-interface-Ethernet12__auto-mab.txt").replace("Ethernet12", name)
+            return eos_switchport_admin("show-dot1x-interface-Ethernet12__none.txt")
+        text = eos_switchport_admin("show-dot1x-interface-Ethernet12__auto-mab.txt").replace("Ethernet12", name)
         if "dot1x port-control auto" not in lines:
             text = text.replace("Port control: auto", "Port control: force-authorized")
         if "dot1x mac based authentication" not in lines:
@@ -510,11 +509,11 @@ class FakeEos:
         return text
 
     def query_status(self, command):
-        """Exit status and answer (ssh exec): a missing VLAN answers with exit status 1 (measured, eos_g122)."""
+        """Exit status and answer (ssh exec): a missing VLAN answers with exit status 1 (measured, eos_eos_switchport_admin)."""
         match = re.fullmatch(r"show vlan id ([0-9]+)", command)
         if match and match.group(1) not in self.vlans():
             self._fire()
-            return 1, g122("show-vlan-id-3999__missing-exec-rc1.txt").replace("3999", match.group(1))
+            return 1, eos_switchport_admin("show-vlan-id-3999__missing-exec-rc1.txt").replace("3999", match.group(1))
         match = re.fullmatch(r"show poe interface (\S+)", command)
         if match:
             self._fire()
@@ -547,7 +546,7 @@ class FakeEos:
         trunk = "switchport mode trunk" in lines
         if kind == "status":
             if self.link_after_bounce is not None and "shutdown" in lines:
-                # G123: the link that the port gets after the next no shutdown
+                # EOS-PORT-MAINTENANCE: the link that the port gets after the next no shutdown
                 self.link, self.link_after_bounce = self.link_after_bounce, None
             self.status_reads.append("disabled" if disabled else self.link)
             width = max(len(description) + 1, 7)
@@ -574,7 +573,7 @@ class FakeEos:
         template = template.replace("Trunking VLANs Enabled: ALL", "Trunking VLANs Enabled: %s" % allowed.upper())
         phone = next((line.split()[-1] for line in lines if line.startswith("switchport phone vlan ")), None)
         if mode == "trunk phone" and phone is not None:
-            # measured (fixtures/eos_g122/...switchport__trunk-phone.txt): listed only in trunk phone mode
+            # measured (fixtures/eos_eos_switchport_admin/...switchport__trunk-phone.txt): listed only in trunk phone mode
             template = template.replace("VLAN forwarding mode: allowedVlansOnly\n", "VLAN forwarding mode: "
                                         "allowedVlansOnly\nPhone VLAN: %s\nPhone trunk tagging: tagged\n" % phone)
         return template.replace("Access Mode VLAN: 1 (default)", "Access Mode VLAN: %s (%s)" % (

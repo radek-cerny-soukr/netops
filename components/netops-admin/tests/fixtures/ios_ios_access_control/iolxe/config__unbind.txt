@@ -1,0 +1,10 @@
+interface Ethernet0/2
+host02(config-if)#
+ip access-group NETOPS-IOS-ACCESS-CONTROL-V4 in
+host02(config-if)#
+no ip access-group NETOPS-IOS-ACCESS-CONTROL-V4 out
+host02(config-if)#
+no ipv6 traffic-filter NETOPS-IOS-ACCESS-CONTROL-V6 in
+host02(config-if)#
+exit
+host02(config)#

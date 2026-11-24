@@ -1,0 +1,9 @@
+Pool NETOPS-IOS-DHCP-HOST :
+ Utilization mark (high/low)    : 100 / 0
+ Subnet size (first/next)       : 0 / 0
+ Total addresses                : 1
+ Leased addresses               : 1
+ Pending event                  : none
+ 0 subnet is currently in the pool :
+ Current index        IP address range                    Leased addresses
+ 192.0.2.41           192.0.2.41       - 192.0.2.41        1

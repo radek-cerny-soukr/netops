@@ -1,5 +1,7 @@
 NetOps 1.0.10 follows NetOps 1.0.9. It brings Arista EOS, FortiADC, Cisco IOS, IOS XE, NX-OS and Juniper Junos into the common Admin, makes FortiOS `config_diff` line-based, binds Admin `plan_sha256` to the device and firmware, runs the Auditor store in WAL mode, tightens the ExtremeXOS PoE cycle safeguard budget and recover, and hides typed Cisco-style hashes and whole account values in responses while keeping everything that 1.0.8 hid hidden.
 
+Editorial change after release: lab identifiers removed, no change in content.
+
 ## Changes in 1.0.10
 
 ### Added

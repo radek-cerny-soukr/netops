@@ -1,0 +1,5 @@
+'netops-ipsec-ping' is already used by firewall.policy '8'
+node_check_object fail! for name netops-ipsec-ping
+
+value parse error before 'netops-ipsec-ping'
+Command fail. Return code -651

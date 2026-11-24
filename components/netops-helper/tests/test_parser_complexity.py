@@ -15,7 +15,9 @@ from netops_helper import tables, wifi_parse
 
 
 @contextmanager
-def deadline(label, seconds=0.5):
+def deadline(label, seconds=60):
+    # A hard stop with a large reserve, not a speed budget: the inputs below make a non-linear pattern run for
+    # minutes on any machine, a linear one needs milliseconds.
     def expired(*_):
         raise AssertionError(f'parser exceeded {seconds}s: {label}')
     previous = signal.signal(signal.SIGALRM, expired)
@@ -90,7 +92,7 @@ def parser_patterns():
 
 
 def pathological_inputs():
-    for size in (128, 1000, 5000, 20000):
+    for size in (128, 1000, 5000, 20000, 100000):
         for pump in (' ', '\t', '1', 'a', ':', '1:', 'a ', '1 ', 'a.', 'a,', '()', '"'):
             repeated = (pump * (size // len(pump) + 1))[:size - 1]
             yield repeated + '!'
@@ -135,7 +137,7 @@ for boundary in ('\\n', '\\r'):
 assert module.output_status('last line Press <SPACE> to continue or <Q> to quit:') == 'truncated'
 """
     subprocess.run([sys.executable, '-B', '-c', program, normalization.__file__],
-                   check=True, timeout=5, capture_output=True)
+                   check=True, timeout=60, capture_output=True)  # hard stop only
 
 
 def test_refusal_classification_of_400kb_blank_lines_is_linear():
@@ -145,10 +147,10 @@ def test_refusal_classification_of_400kb_blank_lines_is_linear():
     for suffix, expected in (('', 'empty'), ('% Permission denied', 'permission_denied'),
                              ('% Invalid command', 'unsupported'), ('BGP is not running', 'not_applicable')):
         started = time.perf_counter()
-        with deadline('400 kB whitespace refusal classification', seconds=1):
+        with deadline('400 kB whitespace refusal classification', seconds=30):
             assert normalization.output_status(text + suffix) == expected
         elapsed = time.perf_counter() - started
-        assert elapsed < 1
+        assert elapsed < 30  # reserve; the deadline above is the hard stop
         print(f'blank_lines_bytes={len(text)} status={expected} seconds={elapsed:.4f}')
 
 

@@ -1,5 +1,7 @@
 NetOps 1.0.11 follows NetOps 1.0.10. It removes the remaining conversion paths for data from before NetOps 1.0 (Auditor `migrate-store` and `migrate-suppressions`, Admin plans of 0.x), returns a failed Junos change at once with a plain commit that the device timer cannot undo, makes the release signing tool print its whole check table when the release manifest lacks a key, limits the release tooling to the 1.0.x series and describes an installation without sudo rights.
 
+Editorial change after release: lab identifiers removed, no change in content.
+
 ## Changes in 1.0.11
 
 ### Removed

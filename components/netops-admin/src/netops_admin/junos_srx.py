@@ -1,4 +1,4 @@
-"""Junos SRX security zones, global address book, security policies and NAT (1.0.12 G143: J27, J28, J49).
+"""Junos SRX security zones, global address book, security policies and NAT (1.0.12 junos srx security: J27, J28, J49).
 
 State is read from the set-format configuration only. The statements follow the Juniper documentation of
 `security zones`, `security address-book global`, `security policies` and `security nat`

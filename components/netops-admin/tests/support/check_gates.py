@@ -17,7 +17,7 @@ PACKAGE = "netops_admin"
 PLANNING_MODULES = frozenset((
     "__future__", "argparse", "dataclasses", "hashlib", "ipaddress", "json", "pathlib", "re", "sys",
 ))
-# netops_core.tested (G00-1) is a pure comparison of the device version with the tested versions: no I/O
+# netops_core.tested (STARTUP-1) is a pure comparison of the device version with the tested versions: no I/O
 PLANNING_FROM = {"netops_auditor": frozenset(("l1_fortios", "l1_exos")), "importlib": frozenset(("resources",)),
                  "netops_core": frozenset(("tested",))}
 EXECUTION_MODULES = PLANNING_MODULES | frozenset(("datetime", "fcntl", "os", "secrets", "stat", "time"))
@@ -54,7 +54,7 @@ FILE_RULES = {
         "netops_core.sftp": frozenset(("DEFAULT_TIMEOUT_SECONDS", "EXOS_CONFIG_FILE", "EXOS_CONFIG_MAX_BYTES",
                                       "SftpError", "read_exos_configuration")),
     }),
-    # Operator-only Junos export and restore (G136): pinned SSH exec reads and one interactive configuration session.
+    # Operator-only Junos export and restore (JUNOS-CONFIG): pinned SSH exec reads and one interactive configuration session.
     "backup_junos.py": (PLANNING_MODULES | {"os", "secrets", "time"}, {
         "hmac": frozenset(("compare_digest",)),
         "netops.files": frozenset(("write_private",)),

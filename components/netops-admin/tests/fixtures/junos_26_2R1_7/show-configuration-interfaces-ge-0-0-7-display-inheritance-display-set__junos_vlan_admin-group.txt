@@ -1,0 +1,2 @@
+set interfaces ge-0/0/7 unit 0 family ethernet-switching interface-mode access
+set interfaces ge-0/0/7 unit 0 family ethernet-switching vlan members junos-vlan-admin-data

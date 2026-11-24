@@ -33,7 +33,7 @@ QUERIES: dict[str, Query] = {
         "Show state, MTU, and packet, error, and drop counters of one enrolled interface; empty output means no interface state returned.",
         empty_allowed=True,
     ),
-    # G32 ADC-C12: every interface in one read, measured on FortiADC-KVM 7.6.7 build0676 (VM220, 2026-11-17).
+    # adc objects ADC-C12: every interface in one read, measured on FortiADC-KVM 7.6.7 build0676 (FortiADC-KVM 7.6.7, 2026-11-17).
     "interface_list": Query(
         "get system interface",
         NO_SLOTS,

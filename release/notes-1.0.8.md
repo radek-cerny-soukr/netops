@@ -1,5 +1,7 @@
 NetOps 1.0.8 follows NetOps 1.0.7. It adds CDP neighbours and Linux tables to `switch_read`, makes `locate_endpoint` read Linux neighbour and bridge tables, fixes FortiOS route and VLAN parsing, hardens the Auditor store and the two HTTP response readers, makes the Admin Doctor read the journal once per request, and documents the minimum requirements and the platforms on which the installation procedure was run. The product remains one container with Helper, Auditor and Admin behind one audited HTTPS MCP endpoint. The syslog audit format and receiver requirements are unchanged.
 
+Editorial change after release: lab identifiers removed, no change in content.
+
 ## Changes in 1.0.8
 
 - `switch_read(table="cdp_neighbor")` returns the CDP neighbours of Cisco IOS, IOS XE and NX-OS from the opt-in `cdp_neighbors` query: local port, full Device ID, neighbour port, management IP, platform and CDP capabilities as text (not LLDP letters). Unrecognized lines and incomplete blocks lower `coverage`; a target without the enabled query is refused before any transport.

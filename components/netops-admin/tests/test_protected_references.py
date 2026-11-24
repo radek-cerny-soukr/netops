@@ -13,6 +13,7 @@ from test_execute_exos import make_runtime, request
 from netops_admin import engine, execute
 from netops_admin.errors import Rejected
 from netops_admin.request import parse_request
+from approved_apply import approved_apply
 
 GROUP = '        set member "grouped-host"'
 REFERENCE = "reference to protected object"
@@ -110,10 +111,10 @@ def test_apply_refuses_a_display_string_on_a_port_of_a_protected_vlan_of_the_dev
     runtime.config.devices["sw"] = dataclasses.replace(runtime.config.devices["sw"], protected={"vlan": ["data"]})
     runtime = certify(runtime, device, "sw")
     with pytest.raises(Rejected) as caught:
-        execute.apply(runtime, "sw", request(table="ports", op="update", key="2", changes={"display-string": "desk"}))
+        approved_apply(runtime, "sw", request(table="ports", op="update", key="2", changes={"display-string": "desk"}))
     assert any(REFERENCE + " 'DATA'" in reason for reason in caught.value.reasons), caught.value.reasons
     assert device.applied_blocks == []
-    record = execute.apply(runtime, "sw", request(table="ports", op="update", key="6", changes={"display-string": "desk"},
+    record = approved_apply(runtime, "sw", request(table="ports", op="update", key="6", changes={"display-string": "desk"},
                                                   request_id="req-port-six"))
     assert record["result"] == "confirmed" and device.port_strings["6"] == "desk"
 

@@ -27,6 +27,6 @@
   "volatile": [],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "Shuts down one Ethernet port, observes it down, waits five seconds and restores its administrative state under the scheduler checkpoint. A bounce restores its own configuration.",
+  "rollback_evidence": "Live write and return on Nexus 9000v NX-OS 9.3(12) (2026-11-19): Independent readback observed the port go from up to down and back to up. Shuts down one Ethernet port, observes it down, waits five seconds and restores its administrative state under the scheduler checkpoint. A bounce restores its own configuration.",
   "action": "port-bounce"
 }

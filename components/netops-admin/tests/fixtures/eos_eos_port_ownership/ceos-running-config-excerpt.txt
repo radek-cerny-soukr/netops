@@ -1,0 +1,49 @@
+
+! Command: show running-config at line 1
+! device: ceos (cEOSLab, EOS-4.36.1F-48405728.4361F (engineering build))
+!
+no aaa root
+!
+!
+no service interface inactive port-id allocation disabled
+!
+service routing protocols model multi-agent
+!
+agent PowerManager shutdown
+agent LedPolicy shutdown
+agent Thermostat shutdown
+agent PowerFuse shutdown
+agent StandbyCpld shutdown
+agent LicenseManager shutdown
+!
+hostname ceos
+!
+spanning-tree mode mstp
+!
+system l1
+   unsupported speed action error
+   unsupported error-correction action error
+!
+vlan 10
+   name D10
+!
+vlan 20
+   name D20
+!
+vlan 304
+   name DUO-EXOS-DOWNSTREAM
+!
+aaa authorization exec default local
+aaa authorization commands all default local
+!
+interface Port-Channel104
+   description DUO-EXOS-MLAG
+   switchport access vlan 304
+!
+interface Ethernet1
+   switchport trunk allowed vlan 10,20
+   switchport mode trunk
+!
+interface Ethernet2
+   switchport trunk allowed vlan 10,20
+end

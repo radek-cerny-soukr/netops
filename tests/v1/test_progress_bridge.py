@@ -63,7 +63,7 @@ class ProgressBridge(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(ipc.progress_report(json.loads(line)["progress"]),
                          {"progress": 1, "total": 4, "message": "triage_vpn: 1 of at most 4 reads (system_status)"})
         self.assertEqual(set(json.loads(line)), {"progress"})
-        self.assertEqual(worker.PROGRESS_TOOLS, {"triage_health", "triage_routing", "triage_vpn", "triage_slb"})
+        self.assertEqual(worker.PROGRESS_TOOLS, {"triage_health", "triage_routing", "triage_vpn", "triage_slb", "network_overview"})
 
 
 if __name__ == "__main__":

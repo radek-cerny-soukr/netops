@@ -9,6 +9,7 @@ from test_execute import make_runtime, request as change_request
 from netops_admin import execute
 from netops_admin.errors import Rejected
 from netops_admin.state import Store
+from approved_apply import approved_apply
 
 OLD, NEW = "b" * 32, "c" * 32
 
@@ -83,14 +84,14 @@ def test_a_blocked_change_is_unblocked_and_the_next_change_runs(tmp_path):
     device = FakeFortiOS()
     runtime = make_runtime(tmp_path, device)
     device.on_apply = at_change(lambda fake: fake.admin_comments.update({"netops-rw": "changed"}))
-    first = execute.apply(runtime, "lab", change_request())
+    first = approved_apply(runtime, "lab", change_request())
     assert first["result"] == "reverted"
     assert runtime.store.blocked("lab")["change_id"] == first["change_id"]
     device.on_apply = None
     assert execute.unblock(runtime, "lab", "investigated") is True
     assert runtime.store.blocked("lab") is None
     certify(runtime, device, "lab")
-    assert execute.apply(runtime, "lab", change_request(key="second-host", request_id="req-second-1"))["result"] == "confirmed"
+    assert approved_apply(runtime, "lab", change_request(key="second-host", request_id="req-second-1"))["result"] == "confirmed"
 
 
 def finished(runtime, change_id, notification, **fields):
@@ -144,7 +145,7 @@ def delivery_bench(tmp_path):
     status.write_text(json.dumps({"updated_at": time.time(), "pending": 1, "oldest_pending_age_seconds": 1}))
     runtime = make_runtime(tmp_path, device, export_status=str(status))
     runtime.notifier = lambda record: "failed"
-    record = execute.apply(runtime, "lab", change_request())
+    record = approved_apply(runtime, "lab", change_request())
     assert record["notification"] == "failed" and record["audit_delivery"] == "pending"
     status.write_text(json.dumps({"updated_at": time.time() + 1, "pending": 0}))
     return runtime, record["change_id"]
@@ -334,7 +335,7 @@ def test_preview_and_apply_read_the_membership_of_a_port_with_a_display_string(t
     runtime = membership_runtime(tmp_path, switch)
     preview = execute.preview(runtime, "sw", membership_request())
     assert preview["result"] == "ready", preview["reasons"]
-    record = execute.apply(runtime, "sw", membership_request())
+    record = approved_apply(runtime, "sw", membership_request())
     assert record["result"] == "confirmed"
     assert switch.memberships["10"]["untagged"] == "staging" and switch.port_strings["10"] == "InqBaseline"
 
@@ -342,7 +343,7 @@ def test_preview_and_apply_read_the_membership_of_a_port_with_a_display_string(t
 def test_a_display_string_the_switch_kept_at_20_characters_does_not_stop_the_change(tmp_path):
     switch = aliased_switch("InqBaselineUplinkSW3-trunk")
     runtime = membership_runtime(tmp_path, switch)
-    assert execute.apply(runtime, "sw", membership_request())["result"] == "confirmed"
+    assert approved_apply(runtime, "sw", membership_request())["result"] == "confirmed"
 
 
 def test_a_membership_answer_for_another_name_is_refused_with_its_own_reason(tmp_path):
@@ -360,7 +361,7 @@ def test_a_port_without_a_display_string_still_changes_as_before(tmp_path):
     switch = aliased_switch("InqBaseline")
     del switch.port_strings["10"]
     runtime = membership_runtime(tmp_path, switch)
-    assert execute.apply(runtime, "sw", membership_request())["result"] == "confirmed"
+    assert approved_apply(runtime, "sw", membership_request())["result"] == "confirmed"
     assert switch.memberships["10"]["untagged"] == "staging"
 
 
@@ -448,7 +449,7 @@ def test_an_unnamed_export_status_is_refused_before_any_change_when_the_audit_fi
     device = FakeFortiOS()
     runtime = requiring_runtime(tmp_path, device)
     with pytest.raises(Rejected) as caught:
-        execute.apply(runtime, "lab", change_request())
+        approved_apply(runtime, "lab", change_request())
     assert caught.value.reasons == ["audit export is blocked: " + REQUIRED]
     assert device.applied_blocks == []
 
@@ -457,7 +458,7 @@ def test_an_export_status_naming_another_audit_file_is_still_refused_when_the_au
     device = FakeFortiOS()
     runtime = requiring_runtime(tmp_path, device, audit_file=OTHER_AUDIT_FILE)
     with pytest.raises(Rejected) as caught:
-        execute.apply(runtime, "lab", change_request())
+        approved_apply(runtime, "lab", change_request())
     assert caught.value.reasons == ["audit export is blocked: the export status covers another audit file"]
     assert device.applied_blocks == []
 
@@ -466,14 +467,14 @@ def test_an_export_status_naming_the_audit_file_is_accepted_when_the_audit_file_
     device = FakeFortiOS()
     runtime = make_runtime(tmp_path, device)
     runtime = requiring_runtime(tmp_path, device, audit_file=runtime.config.audit_file)
-    record = execute.apply(runtime, "lab", change_request())
+    record = approved_apply(runtime, "lab", change_request())
     assert record["result"] == "confirmed" and record["audit_delivery"] == "pending"
 
 
 def test_an_unnamed_export_status_is_still_accepted_by_default(tmp_path):
     device = FakeFortiOS()
     runtime = requiring_runtime(tmp_path, device, require=False)
-    assert execute.apply(runtime, "lab", change_request())["result"] == "confirmed"
+    assert approved_apply(runtime, "lab", change_request())["result"] == "confirmed"
 
 
 @pytest.mark.parametrize("named", ["unnamed", "other"])
@@ -485,7 +486,9 @@ def test_the_command_line_refuses_both_forms_the_same_way(tmp_path, capsys, name
     path = config_file(tmp_path, export_status_file=status, export_status_require_audit_file=True)
     request = tmp_path / "request.json"
     request.write_bytes(request_bytes())
-    code = cli.main(["apply", "--config", str(path), "--device", "lab", "--request", str(request)])
+    # the audit export gate refuses before the plan exists, so a well-formed plan hash is never compared
+    code = cli.main(["apply", "--config", str(path), "--device", "lab", "--request", str(request),
+                     "--expect-plan-sha256", "0" * 64])
     answer = json.loads(capsys.readouterr().out)
     why = REQUIRED if named == "unnamed" else "the export status covers another audit file"
     assert code == cli.EXIT_REJECTED
@@ -508,13 +511,13 @@ def test_doctor_shows_the_audit_file_requirement(tmp_path, require):
 def test_admin_status_carries_the_audit_file_requirement(tmp_path, monkeypatch, require):
     import dataclasses
 
-    from test_mcp_server import arguments, call
+    from test_mcp_server import approved_call, arguments, call
     from netops_admin import mcp_server
 
     runtime = make_runtime(tmp_path, FakeFortiOS())
     monkeypatch.setattr(mcp_server, "build_runtime", lambda config: runtime)
     monkeypatch.setattr(mcp_server, "_CONFIGURATION", runtime.config)
-    assert call("admin_apply", arguments())["result"] == "confirmed"
+    assert approved_call(arguments())["result"] == "confirmed"
     runtime.config = dataclasses.replace(runtime.config, export_status_require_audit_file=require)
     status = call("admin_status", {"request_id": "req-mcp-0001"})
     assert status["result"] == "confirmed"
@@ -544,11 +547,11 @@ def test_every_audit_event_of_a_change_names_its_device_and_its_change(tmp_path)
 def test_an_administrator_table_block_is_audited_with_its_device_and_without_a_change(tmp_path):
     device = FakeFortiOS()
     runtime = make_runtime(tmp_path, device)
-    first = execute.apply(runtime, "lab", change_request())
+    first = approved_apply(runtime, "lab", change_request())
     assert first["result"] == "confirmed"
     device.admin_comments["netops-rw"] = "changed by someone"
     with pytest.raises(Rejected, match="changed since the last operation"):
-        execute.apply(runtime, "lab", change_request(key="second-host", request_id="req-second-1"))
+        approved_apply(runtime, "lab", change_request(key="second-host", request_id="req-second-1"))
     assert runtime.store.blocked("lab") == {"device": "lab", "change_id": None, "reason": "administrator table"}
     assert identities(audit_events(runtime), event="administrative") == [
         ("administrative", "blocked: administrator table", "lab", None)]

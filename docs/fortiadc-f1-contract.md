@@ -82,6 +82,8 @@ Since 1.0.12 the precheck paragraph above describes the deprecated operator comm
 
 ## Admin `pool-member-add` and `pool-member-remove`
 
+Since 1.0.13 `pool-member`, `pool-member-add` and `pool-member-remove` write only with `--expect-plan-sha256`, the approved `plan_sha256` of the same command run with `--preview` (reads and checks, no write); without it they are refused before the device is contacted (`plan_changed`), and a hash of another pool state (a member or its settings, including another real server behind the member) or of another configured device is refused with `plan_changed` before any write (an HA role that does not allow the write is reported first with its own code); for a request that changes the member, `--preview` already refuses an HA member Admin cannot write to ([Admin configuration](admin-configuration.md#fortiadc-pool-member)). The commands and the readback below are unchanged.
+
 `admin pool-member-add --device D --pool P --member N --real-server RS --service-port PORT` (command line in [Admin configuration](admin-configuration.md#fortiadc-pool-member)) creates one new pool member in a single configuration block and always with `set status disable`; the member is switched on only by the separate `pool-member --status enable` after its health check is UP. Grammar (attribute names as the device prints them, with underscores):
 
 `config load-balance pool` / `edit "P"` / `config pool_member` / `edit N` / `set real-server "RS"` / `set pool_member_service_port PORT` / `set status disable` / `next` / `end` / `next` / `end`

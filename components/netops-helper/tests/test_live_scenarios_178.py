@@ -1,12 +1,12 @@
-"""Task 186: regressions of the accepted findings of the live scenarios of task 178 (1.0.9 items 06/07/10).
+"""verification: regressions of the accepted findings of the live scenarios of verification (1.0.9 items 06/07/10).
 
 1. ``config_diff`` of the ExtremeXOS, Cisco IOS, IOS XE, NX-OS and Arista EOS snapshots is a line diff along a
    shortest edit script, not positional: one inserted line is one ``+`` line, a device-rewritten header is one
    ``-``/``+`` pair, nothing after them shifts.  FortiADC stays positional; FortiOS uses the same line diff
-   since 1.0.10 (task 298).
+   since 1.0.10 (verification).
 2. cEOS ``show mlag interfaces`` answering ``No MLAG ports configured`` is the complete empty member table.
 3. N1: a device refusal of the IOS/IOS XE/EXOS read is the same ``device-refused`` answer as on EOS/NX-OS, and an
-   unverifiable identity is ``config_platform_not_supported``, not ``-32603 Role operation failed``.  Since G00
+   unverifiable identity is ``config_platform_not_supported``, not ``-32603 Role operation failed``.  Since STARTUP
    (decision of 2026-11-17) an identity that is read but untested is no refusal: the configuration is read and
    the reply carries ``firmware_support`` with a ``firmware_untested`` warning.
 
@@ -15,7 +15,7 @@ End-to-end cases run through the real root ``netops.worker.HelperBridge.call`` -
 ``test_config_diff_ios_family``); only the physical SSH backend, the host-key scan and the audit file are replaced.
 
 Data labels:
-* REAL    - ``fixtures/real/live_178/captures.json`` (anonymised captures of task 178, see its README; credential lines DERIVED)
+* REAL    - ``fixtures/real/live_178/captures.json`` (anonymised captures of verification, see its README; credential lines DERIVED)
             and the existing real identity captures (IOSvL2 15.2, EXOS-VM 33.6.1.14).
 * DERIVED - one-line edits of those captures or of the synthetic configurations of ``test_config_diff_ios_family``,
             the EXOS read-only refusal text (the documented text of ``engine._CLI_REFUSALS``; the 178 log redacted
@@ -49,7 +49,7 @@ DEVICE_REFUSED = {'code': -32602, 'message': 'Configuration capture was refused 
 
 
 def _live(platform, name):
-    """A REAL config_diff capture of task 178; IOSv and IOL XE sent CRLF (restored), NX-OS LF."""
+    """A REAL config_diff capture of verification; IOSv and IOL XE sent CRLF (restored), NX-OS LF."""
     text = CAPTURES[f'config_diff/{DEVICE[platform]}_{name}']
     return text if platform == 'cisco_nxos' else text.replace('\n', '\r\n')
 
@@ -180,7 +180,7 @@ def test_edit_and_work_limits_refuse_instead_of_running_without_bound(monkeypatc
 
 
 def test_fortios_compare_is_a_line_diff(monkeypatch):
-    # Task 298: FortiOS uses the line diff too; the inserted object is its two '+' lines, nothing shifts
+    # verification: FortiOS uses the line diff too; the inserted object is its two '+' lines, nothing shifts
     # (FortiADC stays positional: test_config_diff_fortios_line).
     monkeypatch.setattr(configuration, 'scope', lambda auth, platform='fortios': ('scope', platform))
 
@@ -263,7 +263,7 @@ def test_live_178_line_inserted_in_the_middle_of_a_real_capture(env):
 
 
 def test_inserted_visible_line_is_one_added_line_on_every_platform(env):
-    # All five platforms of item 07 (EXOS, IOS, IOS XE, NX-OS, EOS), synthetic configurations of task 157.
+    # All five platforms of item 07 (EXOS, IOS, IOS XE, NX-OS, EOS), synthetic configurations of verification.
     spec = env['spec']
     old, new = spec['visible']
     base = family._capture(env)
@@ -298,7 +298,7 @@ def test_no_mlag_ports_configured_is_the_complete_empty_table():
     assert NO_PORTS == 'No MLAG ports configured\n'
     empty = {'state': 'measured', 'members': [], 'missing_fields': []}
     assert switch_mlag_eos_interfaces.summarize(NO_PORTS) == empty
-    assert switch_mlag_eos_interfaces.summarize('d-ceos#show mlag interfaces\r\nNo MLAG ports configured\r\nd-ceos#') == empty
+    assert switch_mlag_eos_interfaces.summarize('ceos#show mlag interfaces\r\nNo MLAG ports configured\r\nceos#') == empty
     assert switch_mlag_eos_interfaces.summarize('\nNo MLAG ports configured  \n\n') == empty
     assert switch_mlag_eos_interfaces.summarize(NO_PORTS, 'truncated') == {
         'state': 'partial', 'members': [], 'missing_fields': ['capture']}
@@ -379,7 +379,7 @@ def test_refused_identity_read_is_device_refused(env):
 @pytest.mark.parametrize('env', ['extreme_exos'], indirect=True)
 @pytest.mark.parametrize('rc', [254, 0])
 def test_exos_read_only_capture_refusal_is_device_refused(env, rc):
-    # Live 178: the read-only account got this single line with exit status 254 (review 186-rv: check rc too).
+    # Live run: the read-only account got this single line with exit status 254 (review: check rc too).
     env['wire'].config_rc = rc
     env['wire'].config = EXOS_REFUSAL
     assert _error(_read(env)) == DEVICE_REFUSED
@@ -396,8 +396,8 @@ def test_eos_and_nxos_refusals_are_the_same_answer(env):
 EXOSVM = {'show version': (REAL / 'exos/exosvm_33.6.1.14/version.txt').read_text(),
           'show switch': (REAL / 'exos/exosvm_33.6.1.14/switch.txt').read_text()}
 UNVERIFIABLE = {
-    # DERIVED from the REAL EXOS-VM identity of task 178: an indented line that is no patch after the booted
-    # image keeps the identity inconclusive (task 441; the image without a patch itself is read, see below).
+    # DERIVED from the REAL EXOS-VM identity of verification: an indented line that is no patch after the booted
+    # image keeps the identity inconclusive (verification; the image without a patch itself is read, see below).
     'extreme_exos': ({'show version': EXOSVM['show version'],
                       'show switch': EXOSVM['show switch'].replace(
                           'Primary ver:      33.6.1.14               \n',
@@ -405,7 +405,7 @@ UNVERIFIABLE = {
                      'configuration identity-unverifiable; output withheld'),
 }
 UNTESTED_REAL = {
-    # IOSvL2 identity of task 178 and the X435 remain outside the tested profiles.
+    # IOSvL2 identity of verification and the X435 remain outside the tested profiles.
     'cisco_ios': {'show version': (REAL / 'cisco_ios/iosvl2_15.2.20200924/version.txt').read_text()},
     'extreme_exos': {'show version': (REAL / 'exos/x435-8p-4s_33.7.1.6/version.txt').read_text(),
                      'show switch': (REAL / 'exos/x435-8p-4s_33.7.1.6/switch.txt').read_text()},
@@ -445,7 +445,7 @@ def test_unverifiable_identity_is_config_platform_not_supported(env):
 
 @pytest.mark.parametrize('env', ['cisco_xe', 'cisco_nxos', 'arista_eos'], indirect=True)
 def test_other_release_of_the_family_is_read_with_a_warning(env):
-    # DERIVED: the tested identity text with another release number (G00: read, untested warning).
+    # DERIVED: the tested identity text with another release number (STARTUP: read, untested warning).
     version = env['spec']['identity']['show version']
     release = {'cisco_xe': '17.18.2', 'cisco_nxos': '9.3(12)', 'arista_eos': '4.36.1F'}[env['platform']]
     assert release in version

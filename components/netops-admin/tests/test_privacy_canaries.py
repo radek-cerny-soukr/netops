@@ -21,6 +21,7 @@ from netops_admin import cli, enrollment, execute, notify, readiness
 from netops_admin.config import DEFAULT_LIMITS
 from netops_admin.errors import Rejected
 from netops_admin.request import parse_request
+from approved_apply import approved_apply
 
 SECRETS = {
     "fortios admin password": "SH2K7cAdm+Hash/q8Zr2Lw=",
@@ -252,7 +253,7 @@ def apply_with(device, runtime, name, request, hook):
 
     device.on_apply = on_apply
     try:
-        return execute.apply(runtime, name, request)
+        return approved_apply(runtime, name, request)
     finally:
         device.on_apply = None
 
@@ -266,19 +267,19 @@ def fortios_paths(base, notifier, journal):
     assert keep("enroll", lambda: enrollment.run(runtime, "lab", "192.0.2.254/32"))["enrollment"] == "valid"
     assert keep("doctor", lambda: readiness.doctor(runtime, "lab"))["firmware"]
     assert keep("preview", lambda: execute.preview(runtime, "lab", fortios_request(request_id="k7c-preview-1")))["result"] == "ready"
-    created = keep("create", lambda: execute.apply(runtime, "lab", fortios_request(request_id="k7c-create-1")))
+    created = keep("create", lambda: approved_apply(runtime, "lab", fortios_request(request_id="k7c-create-1")))
     assert created["result"] == "confirmed"
-    keep("repeat", lambda: execute.apply(runtime, "lab", fortios_request(request_id="k7c-create-1")))
+    keep("repeat", lambda: approved_apply(runtime, "lab", fortios_request(request_id="k7c-create-1")))
     keep("preview known", lambda: execute.preview(runtime, "lab", fortios_request(request_id="k7c-create-1")))
-    updated = keep("update", lambda: execute.apply(runtime, "lab", fortios_request(
+    updated = keep("update", lambda: approved_apply(runtime, "lab", fortios_request(
         op="update", key="spare-host", changes={"comment": ATTRIBUTE}, request_id="k7c-update-1")))
     assert updated["result"] == "confirmed"
     assert keep("undo", lambda: execute.undo(runtime, updated["change_id"], "undo %s" % SECRETS["free text"]))["result"] == "confirmed"
-    assert keep("delete", lambda: execute.apply(runtime, "lab", fortios_request(
+    assert keep("delete", lambda: approved_apply(runtime, "lab", fortios_request(
         op="delete", key="new-host", changes={}, request_id="k7c-delete-1")))["result"] == "confirmed"
-    keep("referenced", lambda: execute.apply(runtime, "lab", fortios_request(
+    keep("referenced", lambda: approved_apply(runtime, "lab", fortios_request(
         op="delete", key="srv-web", changes={}, request_id="k7c-reject-1")))
-    keep("name in use", lambda: execute.apply(runtime, "lab", fortios_request(key="srv-web", request_id="k7c-reject-2")))
+    keep("name in use", lambda: approved_apply(runtime, "lab", fortios_request(key="srv-web", request_id="k7c-reject-2")))
     keep("protected", lambda: execute.preview(runtime, "lab", fortios_request(key="all", request_id="k7c-reject-3")))
 
     failed = keep("refused line", lambda: apply_with(device, runtime, "lab", fortios_request(
@@ -292,7 +293,7 @@ def fortios_paths(base, notifier, journal):
     device.check_override = None
     assert lied["result"] == "reverted"
     device.drop_comment = True
-    mismatch = keep("mismatch", lambda: execute.apply(runtime, "lab", fortios_request(
+    mismatch = keep("mismatch", lambda: approved_apply(runtime, "lab", fortios_request(
         op="update", key="spare-host", changes={"comment": ATTRIBUTE + " two"}, request_id="k7c-mismatch-1")))
     device.drop_comment = False
     assert mismatch["reason"] == "prediction mismatch" and mismatch["postcheck_differences"]
@@ -302,11 +303,11 @@ def fortios_paths(base, notifier, journal):
         lambda fake, lines: setattr(fake, "object_secret", True)))
     assert foreign["result"] in ("revert-failed", "reverted", "unknown") and foreign["differences"]
     safeguard_removed_by_a_person(device)
-    keep("blocked apply", lambda: execute.apply(runtime, "lab", fortios_request(key="k7c-host-4", request_id="k7c-blocked-1")))
+    keep("blocked apply", lambda: approved_apply(runtime, "lab", fortios_request(key="k7c-host-4", request_id="k7c-blocked-1")))
     keep("blocked preview", lambda: execute.preview(runtime, "lab", fortios_request(key="k7c-host-4", request_id="k7c-blocked-2")))
     keep("blocked doctor", lambda: readiness.doctor(runtime, "lab"))
     keep("unblock", lambda: execute.unblock(runtime, "lab", "checked %s" % SECRETS["free text"]))
-    keep("outside the profile", lambda: execute.apply(runtime, "lab", fortios_request(
+    keep("outside the profile", lambda: approved_apply(runtime, "lab", fortios_request(
         op="update", key="spare-host", changes={"comment": "x"}, request_id="k7c-outside-1")))
     keep("outside the profile preview", lambda: execute.preview(runtime, "lab", fortios_request(
         op="update", key="spare-host", changes={"comment": "x"}, request_id="k7c-outside-2")))
@@ -327,9 +328,9 @@ def fortios_paths(base, notifier, journal):
 def fortios_failures(device, runtime, fresh, server, journal):
     keep = journal.keep
     server.statuses.append(500)
-    undelivered = keep("undelivered", lambda: execute.apply(runtime, "lab", fortios_request(key="k7c-host-5", request_id="k7c-notify-1")))
+    undelivered = keep("undelivered", lambda: approved_apply(runtime, "lab", fortios_request(key="k7c-host-5", request_id="k7c-notify-1")))
     assert undelivered["notification"] == "failed"
-    keep("refused while undelivered", lambda: execute.apply(runtime, "lab", fortios_request(key="k7c-host-6", request_id="k7c-notify-2")))
+    keep("refused while undelivered", lambda: approved_apply(runtime, "lab", fortios_request(key="k7c-host-6", request_id="k7c-notify-2")))
     assert keep("notify retry", lambda: execute.notify_retry(runtime, undelivered["change_id"]))["notification"] == "sent"
 
     def crash(fake, lines):
@@ -338,7 +339,7 @@ def fortios_failures(device, runtime, fresh, server, journal):
 
     with pytest.raises(KeyboardInterrupt):
         apply_with(device, runtime, "lab", fortios_request(key="k7c-host-7", request_id="k7c-crash-1"), crash)
-    keep("refused while running", lambda: execute.apply(runtime, "lab", fortios_request(key="k7c-host-8", request_id="k7c-crash-2")))
+    keep("refused while running", lambda: approved_apply(runtime, "lab", fortios_request(key="k7c-host-8", request_id="k7c-crash-2")))
     settled = keep("recover", lambda: execute.recover(runtime, "lab"))
     assert [record["result"] for record in settled] == ["reverted"]
     fresh()
@@ -354,12 +355,12 @@ def fortios_failures(device, runtime, fresh, server, journal):
     keep("unblock again", lambda: execute.unblock(runtime, "lab", "checked"))
     broken = runtime.store.requests / "k7c-broken-0001.json"
     broken.write_text("{\"request_id\": ")
-    keep("unreadable journal", lambda: execute.apply(runtime, "lab", fortios_request(key="k7c-host-10", request_id="k7c-broken-0001")))
+    keep("unreadable journal", lambda: approved_apply(runtime, "lab", fortios_request(key="k7c-host-10", request_id="k7c-broken-0001")))
     keep("unreadable journal preview", lambda: execute.preview(runtime, "lab", fortios_request(key="k7c-host-10", request_id="k7c-broken-0001")))
     broken.unlink()
     keep("status", lambda: execute.refresh_delivery(runtime, runtime.store.operation(undelivered["change_id"])))
     device.unreadable = True
-    keep("unreadable before the change", lambda: execute.apply(runtime, "lab", fortios_request(key="k7c-host-11", request_id="k7c-unreadable-2")))
+    keep("unreadable before the change", lambda: approved_apply(runtime, "lab", fortios_request(key="k7c-host-11", request_id="k7c-unreadable-2")))
     keep("unreadable doctor", lambda: readiness.doctor(runtime, "lab"))
     device.unreadable = False
 
@@ -408,17 +409,17 @@ def test_exos_secrets_reach_no_output_journal_audit_or_notification(tmp_path, nt
     assert keep("enroll", lambda: enrollment.run(runtime, "sw", "3998"))["enrollment"] == "valid"
     assert keep("doctor", lambda: readiness.doctor(runtime, "sw"))["firmware"]
     assert keep("preview", lambda: execute.preview(runtime, "sw", exos_request(request_id="k7c-preview-1")))["result"] == "ready"
-    assert keep("create", lambda: execute.apply(runtime, "sw", exos_request(request_id="k7c-create-1")))["result"] == "confirmed"
-    port = keep("display string", lambda: execute.apply(runtime, "sw", exos_request(
+    assert keep("create", lambda: approved_apply(runtime, "sw", exos_request(request_id="k7c-create-1")))["result"] == "confirmed"
+    port = keep("display string", lambda: approved_apply(runtime, "sw", exos_request(
         table="ports", op="update", key="11", changes={"display-string": PORT_STRING}, request_id="k7c-port-1")))
     assert port["result"] == "confirmed"
     assert keep("undo", lambda: execute.undo(runtime, port["change_id"], "back"))["result"] == "confirmed"
-    keep("protected", lambda: execute.apply(runtime, "sw", exos_request(op="delete", key="Default", changes={},
+    keep("protected", lambda: approved_apply(runtime, "sw", exos_request(op="delete", key="Default", changes={},
                                                                          request_id="k7c-reject-1")))
-    keep("tag in use", lambda: execute.apply(runtime, "sw", exos_request(key="other", changes={"tag": 10},
+    keep("tag in use", lambda: approved_apply(runtime, "sw", exos_request(key="other", changes={"tag": 10},
                                                                           request_id="k7c-reject-2")))
     device.drop_description = True
-    mismatch = keep("mismatch", lambda: execute.apply(runtime, "sw", exos_request(
+    mismatch = keep("mismatch", lambda: approved_apply(runtime, "sw", exos_request(
         op="update", key="spare", changes={"description": ATTRIBUTE + " two"}, request_id="k7c-mismatch-1")))
     device.drop_description = False
     assert mismatch["reason"] == "prediction mismatch"
@@ -433,7 +434,7 @@ def test_exos_secrets_reach_no_output_journal_audit_or_notification(tmp_path, nt
         key="guest3", changes={"tag": 3996}, request_id="k7c-unreadable-1"), lambda fake, steps: setattr(fake, "unreadable", True)))
     device.unreadable = False
     assert lost["result"] == "unknown"
-    keep("blocked", lambda: execute.apply(runtime, "sw", exos_request(key="guest4", changes={"tag": 3995},
+    keep("blocked", lambda: approved_apply(runtime, "sw", exos_request(key="guest4", changes={"tag": 3995},
                                                                        request_id="k7c-blocked-1")))
     keep("doctor while blocked", lambda: readiness.doctor(runtime, "sw"))
     config = write_config(tmp_path / "inputs" / "admin.json", runtime, "sw", "exos", firmware=FIRMWARE,
@@ -480,21 +481,32 @@ def test_mcp_answers_carry_no_secret(tmp_path, ntfy, monkeypatch):
         body.update(fields)
         return body
 
-    answers = [call("admin_doctor", {"device": "lab"}), call("admin_preview", arguments()),
-               call("admin_apply", arguments()), call("admin_status", {"request_id": "k7c-mcp-0001"})]
+    def approved(preview, body):
+        # every apply carries the plan_sha256 of the preview of the same change; a refused preview has none, and
+        # the apply then meets the same refusal before a (well-formed) hash is compared
+        return dict(body, expected_plan_sha256=(json.loads(preview)[0] or {}).get("plan_sha256") or "0" * 64)
+
+    answers = [call("admin_doctor", {"device": "lab"}), call("admin_preview", arguments())]
+    answers += [call("admin_apply", approved(answers[1], arguments())),
+                call("admin_status", {"request_id": "k7c-mcp-0001"})]
+    update = arguments(op="update", key="spare-host", changes={"comment": ATTRIBUTE}, request_id="k7c-mcp-0002")
+    ahead = call("admin_preview", update)
     device.drop_comment = True
-    answers.append(call("admin_apply", arguments(op="update", key="spare-host", changes={"comment": ATTRIBUTE},
-                                                 request_id="k7c-mcp-0002")))
+    answers.append(call("admin_apply", approved(ahead, update)))
     device.drop_comment = False
-    answers.append(call("admin_apply", arguments(op="delete", key="srv-web", changes={}, request_id="k7c-mcp-0003")))
+    delete = arguments(op="delete", key="srv-web", changes={}, request_id="k7c-mcp-0003")
+    answers.append(call("admin_apply", approved(call("admin_preview", delete), delete)))
     device.object_secret = True
     answers.append(call("admin_preview", arguments(op="update", key="spare-host", changes={"comment": "x"},
                                                    request_id="k7c-mcp-0004")))
-    answers.append(call("admin_apply", arguments(op="update", key="spare-host", changes={"comment": "x"},
-                                                 request_id="k7c-mcp-0005")))
+    answers.append(call("admin_apply", approved(answers[6], arguments(op="update", key="spare-host",
+                                                                      changes={"comment": "x"},
+                                                                      request_id="k7c-mcp-0005"))))
     device.unreadable = True
     answers.append(call("admin_doctor", {"device": "lab"}))
-    answers.append(call("admin_apply", arguments(key="k7c-mcp-host2", request_id="k7c-mcp-0006")))
+    # the unreadable device refuses before any plan exists, so the well-formed hash is never compared
+    answers.append(call("admin_apply", dict(arguments(key="k7c-mcp-host2", request_id="k7c-mcp-0006"),
+                                            expected_plan_sha256="0" * 64)))
     assert '"confirmed"' in answers[2] and '"prediction mismatch"' in answers[4] and "passwd" in answers[7]
     texts = collected(tmp_path, ("answers", "\n".join(answers)), ("notifications", notification_texts(server)))
     assert leaks(texts, SECRETS) == []
@@ -575,7 +587,9 @@ def test_vault_secrets_stay_out_of_refusals_of_the_real_device_access(tmp_path, 
     outputs = []
     for argv in (["doctor", "--config", config, "--device", "lab"],
                  ["preview", "--config", config, "--device", "lab", "--request", request],
-                 ["apply", "--config", config, "--device", "lab", "--request", request]):
+                 # a well-formed hash lets apply reach the (closed) device port like preview does
+                 ["apply", "--config", config, "--device", "lab", "--request", request,
+                  "--expect-plan-sha256", "0" * 64]):
         code = cli.main([str(item) for item in argv])
         printed = capsys.readouterr()
         outputs.append(printed.out + printed.err)

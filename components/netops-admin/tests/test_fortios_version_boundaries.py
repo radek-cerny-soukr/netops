@@ -8,6 +8,7 @@ from fake_webhook import FakeFortiOSWebhook
 from netops_admin import execute, fortios, mcp_server, profiles
 from netops_admin.errors import Rejected
 from test_execute import audit_lines, make_runtime, request
+from approved_apply import approved_apply
 
 
 GROUP_AND_DHCP = [
@@ -21,7 +22,7 @@ DHCP = [case for case in GROUP_AND_DHCP if case[0].startswith("system dhcp")]
 
 
 def req(table, op, key, changes):
-    # 1.0.12 G20: a DHCP reservation change names its impact and is applied from an approved preview
+    # 1.0.12 DHCP-DNS: a DHCP reservation change names its impact and is applied from an approved preview
     extra = {"endpoint_impact": key} if table.startswith("system dhcp") else {}
     return request(table=table, op=op, key=key, changes=changes, **extra)
 
@@ -66,7 +67,7 @@ def test_800_build0167_runs_the_measured_group_and_dhcp_operations(tmp_path, tab
 
 @pytest.mark.parametrize(("table", "op", "key", "changes"), GROUP_AND_DHCP)
 def test_untested_800_build_runs_group_and_dhcp_with_a_warning(tmp_path, table, op, key, changes):
-    # G00-1: until 1.0.11 an unlisted build was refused before any write; it now runs with the cli-script
+    # STARTUP-1: until 1.0.11 an unlisted build was refused before any write; it now runs with the cli-script
     # safeguard of 8.0.0 and the warning in the plan, the result, the audit and the notification
     device = firmware_class(FortiOS800, "8.0.0", "0168")()
     runtime = make_runtime(tmp_path, device)
@@ -90,7 +91,7 @@ def test_untested_800_build_runs_group_and_dhcp_with_a_warning(tmp_path, table, 
 @pytest.mark.parametrize(("release", "build"), [("8.0.1", "0245"), ("8.0.2", "0251"), ("8.0.3", "0300")])
 @pytest.mark.parametrize(("table", "op", "key", "changes"), DHCP)
 def test_dhcp_on_webhook_builds_is_planned_with_a_rest_inverse(tmp_path, release, build, table, op, key, changes):
-    # 1.0.12 G20 (FP-24): from 8.0.1 the webhook safeguard returns a DHCP reservation through the REST API
+    # 1.0.12 DHCP-DNS (FP-24): from 8.0.1 the webhook safeguard returns a DHCP reservation through the REST API
     # system.dhcp/server/<id>/reserved-address/<id> (until 1.0.11 these builds refused it, safeguard_no_rest_inverse)
     device = firmware_class(WebhookWithDhcp, release, build)()
     runtime = make_runtime(tmp_path, device)
@@ -107,7 +108,7 @@ def test_live_snapshot_version_cannot_be_overridden_by_configuration(tmp_path, c
     runtime = make_runtime(tmp_path, device)
     runtime.config.devices["lab"] = replace(runtime.config.devices["lab"], firmware=configured)
     with pytest.raises(Rejected) as caught:
-        execute.apply(runtime, "lab", request())
+        approved_apply(runtime, "lab", request())
     assert any("differs from the expected" in reason for reason in caught.value.reasons)
     assert not device.applied_blocks
 
@@ -119,7 +120,7 @@ def test_live_snapshot_version_cannot_be_overridden_by_configuration(tmp_path, c
 ])
 def test_untested_fortios_build_runs_the_address_with_its_safeguard_and_a_warning(tmp_path, base, release, build):
     device = firmware_class(base, release, build)()
-    record = execute.apply(make_runtime(tmp_path, device), "lab", request())
+    record = approved_apply(make_runtime(tmp_path, device), "lab", request())
     assert record["result"] == "confirmed", record
     assert record["plan"]["firmware_support"]["status"] == "untested"
     sent = [line for block in device.applied_blocks for line in block]
@@ -151,7 +152,7 @@ def test_the_auto_script_note_is_only_given_for_8x(firmware):
 
 
 def test_76_family_is_untested_not_inherited():
-    # one rule for all versions (G00 §2.1): only listed builds are tested, there is no family inheritance
+    # one rule for all versions (STARTUP §2.1): only listed builds are tested, there is no family inheritance
     profile = profiles.find_profile("fortios", "firewall address", "7.6.9 build4000")
     assert profile.table == "firewall address"
     assert profiles.firmware_support(profile, "7.6.9 build4000")["status"] == "untested"

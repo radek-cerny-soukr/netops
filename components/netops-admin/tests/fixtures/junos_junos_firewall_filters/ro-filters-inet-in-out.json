@@ -1,0 +1,63 @@
+{
+    "interface-filter-information" : [
+    {
+        "attributes" : {"xmlns" : "http://xml.juniper.net/junos/26.2R0/junos-interface", 
+                        "junos:style" : "filter"
+                       }, 
+        "logical-interface" : [
+        {
+            "name" : [
+            {
+                "data" : "irb.3921"
+            }
+            ], 
+            "admin-status" : [
+            {
+                "data" : "up"
+            }
+            ], 
+            "oper-status" : [
+            {
+                "data" : "down"
+            }
+            ], 
+            "filter-information" : [
+            {
+            }, 
+            {
+                "filter-family" : [
+                {
+                    "data" : "inet"
+                }
+                ], 
+                "filter-input" : [
+                {
+                    "data" : "NETOPS-JUNOS-FIREWALL-FILTERS-IN"
+                }
+                ], 
+                "filter-output" : [
+                {
+                    "data" : "NETOPS-JUNOS-FIREWALL-FILTERS-OUT"
+                }
+                ]
+            }, 
+            {
+                "filter-family" : [
+                {
+                    "data" : "inet6"
+                }
+                ]
+            }, 
+            {
+                "filter-family" : [
+                {
+                    "data" : "multiservice"
+                }
+                ]
+            }
+            ]
+        }
+        ]
+    }
+    ]
+}

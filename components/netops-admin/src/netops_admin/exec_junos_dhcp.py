@@ -1,9 +1,9 @@
-"""1.0.12 G144: readback of Junos DHCP pools, host reservations and relay groups.
+"""1.0.12 junos dhcp: readback of Junos DHCP pools, host reservations and relay groups.
 
 The read-only check account cannot read the configuration and the operational views do not list these objects
 (measured on vJunos-switch 26.2R1.7: ``show network-access address-assignment pool`` is empty without a DHCP local
 server, ``show dhcp relay`` lists counters and client bindings only), so the object is read back from the scoped
-configuration with the write account, like the G145 objects."""
+configuration with the write account, like the junos port ownership objects."""
 
 from __future__ import annotations
 

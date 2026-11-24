@@ -90,7 +90,7 @@ def observe_clear(access, table, target):
     return exos.clear_observation(table, target, text)
 
 
-# 501-rv finding 1: counters that were 0 or small before the clear may count control traffic (ND, LLDP, ...) sent
+# Review finding 1: counters that were 0 or small before the clear may count control traffic (ND, LLDP, ...) sent
 # between the clear and the readback; a counter passes when it fell or stays within this tolerance.
 CLEAR_COUNTER_TOLERANCE_PACKETS = 64
 CLEAR_COUNTER_TOLERANCE_BYTES = CLEAR_COUNTER_TOLERANCE_PACKETS * 1522
@@ -106,7 +106,7 @@ def _entry_ports(row) -> set:
 
 
 def clear_prechecks(access, device, table, target, before, snapshot_text="") -> list:
-    """501-rv: the protections of the admin-state path apply to the clear scope and to every learned entry it
+    """the protections of the admin-state path apply to the clear scope and to every learned entry it
     removes: protected and policy ports, ports carrying a management VLAN (running configuration or the port_vlans
     allowlist of the audit policy), ports with an LLDP neighbor (uplinks), management and protected VLANs, the
     built-in Mgmt VLAN and the system VRs (VR-Mgmt, VR-Control). An unreadable answer refuses the clear."""
@@ -164,7 +164,7 @@ def _entry_order(entry):
 
 
 def clear_readback(plan, observed):
-    """501-rv finding 1: verify what the clear guarantees, not an idle table. The selected learned entries are gone
+    """Review finding 1: verify what the clear guarantees, not an idle table. The selected learned entries are gone
     or learned again by live traffic (marked `relearned`), every static entry stays, and the readback stays in the
     scope of the target. Counters fall or stay within a small tolerance for control traffic.
     Returns (matches, readback)."""
@@ -187,8 +187,8 @@ def clear_readback(plan, observed):
 
 
 def _l3_prechecks(access, device, plan, snapshot_text) -> None:
-    """1.0.12 G45: a static route or a VLAN subnet never carries or takes the path of a session client. The VR of a
-    session comes from the route tables of the check account (every origin, dynamic routes included; 479-rv finding
+    """1.0.12 switch ip routing: a static route or a VLAN subnet never carries or takes the path of a session client. The VR of a
+    session comes from the route tables of the check account (every origin, dynamic routes included; review finding
     2), read only when the plan holds a client address."""
     snapshot = exos.Snapshot(snapshot_text, device.firmware)
     try:
@@ -217,7 +217,7 @@ def _l3_prechecks(access, device, plan, snapshot_text) -> None:
 
 
 def _vlan_port_prechecks(plan, before, after) -> None:
-    """1.0.12 G43: every port named by a VLAN port plan is reported by the switch."""
+    """1.0.12 switch rest: every port named by a VLAN port plan is reported by the switch."""
     named = set()
     for state in (before, after):
         for attribute in exos.PORT_ATTRIBUTES:
@@ -512,7 +512,7 @@ def observe(access, plan):
         state = poe_state(access, plan["key"], check=True)
         return {"admin-state": "disabled"} if state["configured"] == "disabled" else {}
     if plan["table"] == exos.ROUTE_TABLE:
-        # 1.0.12 G45: the routes of the VR of the key (the list must be complete)
+        # 1.0.12 switch ip routing: the routes of the VR of the key (the list must be complete)
         vr, network = exos.route_key(plan["key"])
         text = access.check_query("show iproute%s vr %s" % (" ipv6" if network.version == 6 else "", vr))
         return exos.shown_route(text, plan["key"])
@@ -525,7 +525,7 @@ def observe(access, plan):
     predicted = plan.get("predicted") or {}
     kind = exos.plan_kind(predicted.get("before"), predicted.get("after"))
     if kind == "rename":
-        # 1.0.12 G43: exactly one of the two names exists, before and after the rename
+        # 1.0.12 switch rest: exactly one of the two names exists, before and after the rename
         names = (plan["predicted"]["before"][exos.RENAME], plan["predicted"]["after"][exos.RENAME])
         found = {name: state for name in names for state in [_shown_vlan(access, name, include_l3=False)]
                  if state is not None}
@@ -535,7 +535,7 @@ def observe(access, plan):
         name, state = found.popitem()
         state[exos.RENAME] = name
         return state
-    # 479-rv finding 5: a plan with IP attributes reads the forwarding rows strictly
+    # Review finding 5: a plan with IP attributes reads the forwarding rows strictly
     strict = exos.touches_l3("vlan", predicted.get("before"), predicted.get("after"))
     return _shown_vlan(access, plan["key"], ports=kind == "ports", strict_l3=strict,
                        include_l3=strict or plan.get("op") != "update")

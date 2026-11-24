@@ -16,5 +16,5 @@
   "volatile": [],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "Saving replaces startup-config with running-config. Admin has no undo for this operation."
+  "rollback_evidence": "Live write and return on Nexus 9000v NX-OS 9.3(12) (2026-11): The save was confirmed live and the startup configuration restored. Saving replaces startup-config with running-config. Admin has no undo for this operation."
 }

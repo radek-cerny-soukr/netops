@@ -12,11 +12,12 @@ from test_execute import SECRET, make_runtime, request
 
 from netops_admin import execute, notify
 from netops_admin.errors import Rejected
+from approved_apply import approved_apply
 
 
 def test_message_is_ascii_and_carries_no_free_text(tmp_path):
     device = FakeFortiOS()
-    record = execute.apply(make_runtime(tmp_path, device), "lab", request())
+    record = approved_apply(make_runtime(tmp_path, device), "lab", request())
     title, body = notify.message(record)
     assert title == "netops-admin lab confirmed"
     assert title.isascii()
@@ -53,7 +54,7 @@ def test_failed_notification_does_not_change_the_result_and_is_retried_alone(tmp
     answers = ["failed", "sent"]
     runtime = make_runtime(tmp_path, device)
     runtime.notifier = lambda record: answers.pop(0)
-    record = execute.apply(runtime, "lab", request())
+    record = approved_apply(runtime, "lab", request())
     assert record["result"] == "confirmed" and record["notification"] == "failed"
     blocks = len(device.applied_blocks)
     again = execute.notify_retry(runtime, record["change_id"])
@@ -68,7 +69,7 @@ def test_audit_delivery_is_acknowledged_once_the_queue_is_empty_after_the_operat
     status = tmp_path / "export-status.json"
     status.write_text(json.dumps({"updated_at": time.time(), "pending": 1, "oldest_pending_age_seconds": 1}))
     runtime = make_runtime(tmp_path, device, export_status=str(status))
-    record = execute.apply(runtime, "lab", request())
+    record = approved_apply(runtime, "lab", request())
     assert record["audit_delivery"] == "pending"
     status.write_text(json.dumps({"updated_at": time.time() + 1, "pending": 0}))
     assert execute.refresh_delivery(runtime, record)["audit_delivery"] == "acknowledged"
@@ -80,7 +81,7 @@ def test_audit_delivery_is_acknowledged_when_the_status_names_this_audit_file(tm
     named = str(tmp_path / "audit" / "." / "audit.jsonl")
     status.write_text(json.dumps({"updated_at": time.time(), "pending": 1, "audit_file": named}))
     runtime = make_runtime(tmp_path, device, export_status=str(status))
-    record = execute.apply(runtime, "lab", request())
+    record = approved_apply(runtime, "lab", request())
     assert record["audit_delivery"] == "pending"
     status.write_text(json.dumps({"updated_at": time.time() + 1, "pending": 0, "audit_file": named}))
     assert execute.refresh_delivery(runtime, record)["audit_delivery"] == "acknowledged"
@@ -92,7 +93,7 @@ def test_status_of_another_audit_file_acknowledges_nothing_and_refuses_changes(t
     own = str(tmp_path / "audit" / "audit.jsonl")
     status.write_text(json.dumps({"updated_at": time.time(), "pending": 1, "audit_file": own}))
     runtime = make_runtime(tmp_path, device, export_status=str(status))
-    record = execute.apply(runtime, "lab", request())
+    record = approved_apply(runtime, "lab", request())
     assert record["audit_delivery"] == "pending"
     blocks = len(device.applied_blocks)
     other = "/var/lib/netops-admin-audit/audit.jsonl"
@@ -102,7 +103,7 @@ def test_status_of_another_audit_file_acknowledges_nothing_and_refuses_changes(t
     events = [json.loads(line) for line in (tmp_path / "audit" / "audit.jsonl").read_text().splitlines()]
     assert "acknowledged" not in [event.get("audit_delivery") for event in events]
     with pytest.raises(Rejected) as caught:
-        execute.apply(runtime, "lab", request(key="other-host", request_id="req-0002-example"))
+        approved_apply(runtime, "lab", request(key="other-host", request_id="req-0002-example"))
     assert "another audit file" in caught.value.reasons[0]
     assert len(device.applied_blocks) == blocks
 
@@ -191,12 +192,12 @@ def test_a_redirected_notification_refuses_the_next_change(tmp_path, endpoints):
     device = FakeFortiOS()
     runtime = make_runtime(tmp_path, device)
     runtime.notifier = _sender(first, topic)
-    record = execute.apply(runtime, "lab", request())
+    record = approved_apply(runtime, "lab", request())
     assert record["result"] == "confirmed" and record["notification"] == "failed"
     assert second.received == []
     blocks = len(device.applied_blocks)
     with pytest.raises(Rejected) as caught:
-        execute.apply(runtime, "lab", request(key="other-host", request_id="req-0002-example"))
+        approved_apply(runtime, "lab", request(key="other-host", request_id="req-0002-example"))
     assert "was not delivered" in caught.value.reasons[0]
     assert len(device.applied_blocks) == blocks
 

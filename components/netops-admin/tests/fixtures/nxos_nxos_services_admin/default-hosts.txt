@@ -1,0 +1,7 @@
+DNS lookup enabled
+Vrf Name: default Default domain is nxos-services-admin.example
+Name servers are   198.51.100.30
+
+
+
+Host 		Address

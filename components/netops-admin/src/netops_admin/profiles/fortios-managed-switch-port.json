@@ -84,5 +84,5 @@
       "required_on_create": false
     }
   },
-  "rollback_evidence": "FortiLink managed port update. Admin applies only changed port fields with a timed safeguard, and reads back VLAN membership and PoE configuration through a separate check identity."
+  "rollback_evidence": "Live write and return on FortiOS 7.6.8 build3744 (2026-11-20): Description, admin state and VLAN lists were written, verified and restored; PoE and allowed-vlans-all have automated coverage. FortiLink managed port update. Admin applies only changed port fields with a timed safeguard, and reads back VLAN membership and PoE configuration through a separate check identity."
 }

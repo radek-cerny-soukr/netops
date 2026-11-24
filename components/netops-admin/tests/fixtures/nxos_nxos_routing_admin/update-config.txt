@@ -1,0 +1,14 @@
+ip route 198.51.100.0/24 192.0.2.250
+ipv6 route 2001:db8::/32 2001:db8:ffff::fe
+vlan 1,10,20,3900
+vrf context nxos-routing-admin
+  ip route 198.51.100.0/24 192.0.2.250
+  ipv6 route 2001:db8::/32 2001:db8:ffff::fe    23
+interface Vlan3900
+  no shutdown
+  ip address 192.0.2.1/28
+  ipv6 address 2001:db8:3900::1/64
+
+interface loopback900
+  ip address 192.0.2.223/32
+  ipv6 address 2001:db8:900::2/128

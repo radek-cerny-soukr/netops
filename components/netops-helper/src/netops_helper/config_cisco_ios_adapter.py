@@ -3,7 +3,7 @@
 The tested combination is IOSv ``15.9(3)M12`` build ``fc1``, image family ``VIOS-ADVENTERPRISEK9-M``
 (``tests/fixtures/real/cisco_ios/iosv_15.9.3M12/version.txt``).  Another model, release or image family
 (e.g. IOSvL2 or a Catalyst) is read too and reported as ``firmware_support`` ``untested`` with a warning
-(G00, decision of 2026-11-17); the line-based stream redactor hides every line it does not know on every
+(startup, decision of 2026-11-17); the line-based stream redactor hides every line it does not know on every
 version.  The model is read from the separate hardware line of ``show version`` only (for the tested
 IOSv also checked against the header), never from file names, serial numbers or host names; when no
 single hardware line is recognized the model is unknown (``None``).  ``show running-config`` is
@@ -26,7 +26,7 @@ STARTUP_COMMAND = 'show startup-config'
 DIFF_COMMAND = 'show archive config differences nvram:startup-config system:running-config'
 LIVE_DIFF = ('startup', 'running')
 IDENTITY_COMMANDS = ('show version',)
-# The identity config_read was tested on (G00: a list of tested identities, not a gate).
+# The identity config_read was tested on (startup: a list of tested identities, not a gate).
 TESTED = ('IOSv', '15.9(3)M12', 'fc1')
 TESTED_NAME = 'Cisco IOS'
 IMAGE_FAMILY = 'VIOS-ADVENTERPRISEK9-M'

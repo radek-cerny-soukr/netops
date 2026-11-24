@@ -1,0 +1,23 @@
+##
+## '0' was inherited from group 'junos-vlan-admin-grp'
+##
+unit 0 {
+    ##
+    ## 'ethernet-switching' was inherited from group 'junos-vlan-admin-grp'
+    ##
+    family ethernet-switching {
+        ##
+        ## 'access' was inherited from group 'junos-vlan-admin-grp'
+        ##
+        interface-mode access;
+        ##
+        ## 'vlan' was inherited from group 'junos-vlan-admin-grp'
+        ##
+        vlan {
+            ##
+            ## 'junos-vlan-admin-data' was inherited from group 'junos-vlan-admin-grp'
+            ##
+            members junos-vlan-admin-data;
+        }
+    }
+}

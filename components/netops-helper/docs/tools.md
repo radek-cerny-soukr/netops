@@ -10,7 +10,7 @@ References to `-32602` below mean this tool error result, not a top-level JSON-R
 and traceroute. For FortiADC diagnostics, at the deadline the final `^C` echo of Helper’s interrupt is removed
 from `untrusted_device_output`; partial device output and deadline metadata remain.
 
-The HTTPS MCP endpoint exposes Helper tools alongside [Auditor](../../netops-auditor/docs/tools.md) and [Admin](../../../docs/admin-configuration.md#mcp-tools) tools. It exposes 31 Helper tool names, including `ftp_list`, which is refused in the shipped profile. Clients pass enrolled aliases, never device credentials or auth_context. The private bridge injects ephemeral device authentication and validates policy before dispatch.
+The HTTPS MCP endpoint exposes Helper tools alongside [Auditor](../../netops-auditor/docs/tools.md) and [Admin](../../../docs/admin-configuration.md#mcp-tools) tools. It exposes 32 Helper tool names, including `ftp_list`, which is refused in the shipped profile. Clients pass enrolled aliases, never device credentials or auth_context. The private bridge injects ephemeral device authentication and validates policy before dispatch.
 
 ## Troubleshooting prompts
 
@@ -30,6 +30,7 @@ With Helper enabled, `prompts/list` advertises `internet_or_vpn`, `everything_sl
 | ssh_read | Enabled named query, pinned SSH host key, bounded/paginated output; FortiOS and FortiADC targets are first checked to be the selected product (`product_identity`); empty or whitespace-only device output answers `ok: false` with `error_code: "empty"` unless the catalogue declares that query's empty output legal |
 | config_read | Opt-in running configuration with bounded memory capture ([Ruckus Unleashed parameters](#ruckus-unleashed-configuration-snapshots)); `redaction="full"` reads the whole configuration and reports how much of it the account could see ([guide](#reading-the-whole-fortios-configuration-config_read)) |
 | config_diff | Compare two captures for the same authenticated target; no device contact |
+| network_overview | Bounded operational snapshot of enrolled network targets, with per-device read coverage and pagination ([guide](network-overview.md)) |
 | triage_health | Fixed read-only health chain with findings, missing steps and a verdict on FortiOS (ten catalogue reads; tested on FortiGate-60F 7.6.8 build 3744 and FortiGate-80F 8.0.2 build 0251, [guide](#fortios-health-triage-triage_health)), Cisco IOS, IOS XE, NX-OS, EXOS, Junos and Ruckus Unleashed (AP resources, links, roles and mesh) |
 | triage_routing | Read-only route chain for one enrolled IPv4 address with sourced findings, hypotheses and what is not simulated. FortiOS: route, policy routes, SD-WAN and ARP, tested on FortiGate-60F 7.6.8 build 3744 and FortiGate-80F 8.0.2 build 0251 ([guide](#fortios-route-triage-triage_routing)). Cisco IOS/IOS XE: the RIB and, for an enrolled `vrf`, the next-hop ARP entry; `sla_id` adds a separate IP SLA observation. Junos and Junos ELS: the active route and OSPF/BGP neighbors; `vrf` and `sla_id` are refused there and on FortiOS |
 | triage_flow | One IPv4 flow (`src`, `dst`, `port`, `proto` tcp, udp or icmp) through the firewall: route to the destination (egress) and to the source (ingress), policy lookup and, when the target enrols it, the sessions of the flow, with sourced findings and a verdict; on FortiOS tested on FortiGate-80F 8.0.2 build 0251 and refused with VDOMs enabled ([guide](#fortios-flow-triage-triage_flow)). On Cisco IOS and IOS XE pass the enrolled ingress `interface` and enrolled addresses; the RIB and CEF use the ingress routing table, named VRFs and their read queries must be enrolled, and ingress ACL and policy routing are separate observations |
@@ -63,6 +64,7 @@ Public arguments of each tool (required, then optional). `auth_context` and `red
 | ssh_read | `target`, `platform`, `query` | `parameters`, `offset`, `max_bytes`, `content_sha256` |
 | config_read | `target`, `platform`, `section` | `include_all`, `snapshot_id`, `offset`, `limit`, `redaction`, `include_defaults`, `contains`, `context`, `content_sha256`, `filter_sha256`, `approve_baseline` |
 | config_diff | `target`, `platform`, `base_snapshot`, `other_snapshot` | `offset`, `limit`, `secret_offset` |
+| network_overview | – | `targets`, `groups`, `limit`, `after`, `timeout_seconds` |
 | triage_health | `target` | – |
 | triage_routing | `target`, `address` | `vrf`, `sla_id` (Cisco IOS/IOS XE) |
 | triage_flow | `target`, `src`, `dst`, `port`, `proto` | `source_port`, `interface` (required on Cisco IOS/IOS XE) |
@@ -472,6 +474,37 @@ The per-target `rate_limit` caps the sum of manual queries and reserved triage r
 A triage runs a bounded plan of device reads. Measured `triage_slb` calls took about 61 seconds for HTTP, 71 seconds with a DOWN member (including its configuration read), and 81 seconds for HTTPS with a TLS profile; DOWN members can add up to four real-server reads. When the client sends a `progressToken` in `_meta` of the `tools/call` request, the triage reports `notifications/progress` after every device read: `progress` is the number of reads done (0 at the start), `total` the planned maximum of that call (for example 21 for `triage_slb`; a call can finish with fewer reads) and `message` names the tool and the query or step that was just read, for example `triage_slb: 3 of at most 21 reads (pool_config)`. The message never contains device output. A client that resets its request timeout on progress, as the MCP SDK clients can, therefore does not abandon a long triage. Without a `progressToken` nothing changes: no notification is sent and the result is the same.
 
 Through the NetOps HTTPS endpoint, a `tools/call` of a triage tool that carries a `progressToken` is answered as `text/event-stream` (Streamable HTTP, which NetOps serves only over TLS on its single HTTPS endpoint; unencrypted HTTP is not supported) instead of one JSON body, as soon as the first progress report exists: server-sent `message` events with the progress notifications, then the JSON-RPC result as the last event. Every notification is written to the audit (`progress` records) before it is sent, and the result is audited before it is sent, as for any response. A call that is refused before its first device read (authorization, rate limit, platform) is answered with an ordinary JSON body. Without a `progressToken` the endpoint answers JSON as before. At most 64 progress notifications are sent per call. A failure after the first notification ends the stream with a JSON-RPC `error` event (`operation_failed`, `automatic_retry: false`); do not retry automatically, because the reads are already audited.
+
+## Network overview (`network_overview`)
+
+Select enrolled Helper aliases or groups on the HTTPS endpoint. A complete page has verified coverage for the selected page and no outstanding page or unverified group. See [network overview](network-overview.md) for selection and the continuation cursor.
+
+The tool reserves the longest eligible prefix of its read plan, up to 30 reads per target. That reservation can consume the entire default quota of 30 reads and additional reads on the target will be refused until quota becomes available in the 60-second window. Reserved capacity stays charged if timeout or a device failure prevents a read.
+
+<!-- overview-reasons -->
+| Reason | Coverage |
+|---|---|
+| `not_applicable` | The device explicitly lacks the capability or the read establishes that the metric does not apply. |
+| `not_enrolled` | The alias exists outside Helper enrollment. |
+| `unknown_target` | The alias is absent from the current inventory. |
+| `group_unverified` | An explicit target’s group could not be verified. |
+| `unsupported_platform` | The framework has no adapter for this platform. |
+| `policy_scope` | The account, query, typed slot, egress, or VDOM did not authorize the read. |
+| `auth_failed` | Enrollment credential material or endpoint authentication failed. |
+| `host_key_failed` | The pinned SSH host key or TLS endpoint could not be verified. |
+| `identity_unverified` | The endpoint did not establish the enrolled product identity. |
+| `timeout` | The queue, target, or read exceeded its available time. |
+| `unreachable` | The transport failed before obtaining usable output. |
+| `rate_limited` | The target’s rolling quota is in use. A proxy quota refusal includes `retry_after_seconds`. |
+| `read_limit` | The remaining plan would exceed the per-call read budget or the target’s configured cap. |
+| `source_limit` | The source covered only part of the requested field. |
+| `permission_denied` | The endpoint refused the read. |
+| `rest_unavailable` | The pinned monitor read was unavailable. |
+| `unparsed` | The response did not establish the expected data. |
+| `truncated` | The captured response was incomplete or hit a transport output limit. |
+| `output_limit` | The response budget omitted details. |
+| `internal_error` | Helper could not complete the approved read or assembly. |
+<!-- overview-reasons -->
 
 ## FortiOS health triage (`triage_health`)
 

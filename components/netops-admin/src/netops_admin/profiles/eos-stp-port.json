@@ -44,5 +44,5 @@
   "volatile": [],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "G125: configures port-wide settings of an unused Layer 2 interface. Unsetting an attribute returns it to the switch default. The EOS session timer and scoped port readback apply."
+  "rollback_evidence": "Live write and return on cEOSLab 4.36.1F (2026-11-19): The changed port STP properties were read back and undone. eos mlag admin: configures port-wide settings of an unused Layer 2 interface. Unsetting an attribute returns it to the switch default. The EOS session timer and scoped port readback apply."
 }

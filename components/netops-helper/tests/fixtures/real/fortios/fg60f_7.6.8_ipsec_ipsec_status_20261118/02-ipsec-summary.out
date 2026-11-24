@@ -1,0 +1,4 @@
+FortiGate-60F $ 'netops-ipsec' 192.0.2.20:0  selectors(total,up): 1/1  rx(pkt,err): 1/0  tx(pkt,err): 4/0
+'netops-ipsec-dn' 192.0.2.251:0  selectors(total,up): 1/0  rx(pkt,err): 0/0  tx(pkt,err): 0/1
+
+FortiGate-60F $ 

@@ -3,12 +3,14 @@ import json
 import os
 import sqlite3
 from contextlib import nullcontext
-from types import SimpleNamespace
+from unittest import mock
 
 import pytest
 
-from netops_auditor import cli
+from netops_auditor import cli, fortios_audit, platforms
 from netops_auditor.collect import SSH_STEPS, CollectError, collect_ssh
+from netops_core.session import FortinetResult
+from test_channel_events_on_failure import IDENTITY, targeted
 from test_cli import complete
 
 TENANT = "tenant-a"
@@ -39,14 +41,24 @@ class Device:
         self.sent = []
 
     def run(self, command, **options):
+        # Answers in the shape of the held Fortinet session, for both FortiOS step tables.
         self.sent.append(command)
         if command == SSH_STEPS["fortios"][0].command:
-            return SimpleNamespace(rc=0, stdout=self.console)
-        return SimpleNamespace(rc=0, stdout=DUMP.encode("utf-8"))
+            stdout = self.console
+        elif command == "get system status":
+            stdout = IDENTITY
+        elif command == "show":
+            stdout = DUMP.encode("utf-8")
+        else:
+            stdout = targeted(DUMP.encode("utf-8"), command)
+        return FortinetResult(rc=0, stdout=stdout, said="", started_at="", finished_at="")
 
 
 def gather(device):
-    return collect_ssh(DEVICE, "fortios", HOST, 22, Credential(), KEY_PIN, session=device)
+    # The generic SSH step engine with its own FortiOS table (console preflight, then show).
+    # The shipped collector uses fortios_audit.SSH_STEPS; the CLI tests below go through it.
+    with mock.patch.object(platforms, "optional_collector", lambda name: None):
+        return collect_ssh(DEVICE, "fortios", HOST, 22, Credential(), KEY_PIN, session=device)
 
 
 def refusal(device):
@@ -125,13 +137,23 @@ def stored(database):
         connection.close()
 
 
-def test_the_cli_refusal_carries_no_device_words_and_keeps_the_event(tmp_path, capsys, monkeypatch):
+SHIPPED = tuple("%s@%s %s" % (LOGIN, HOST, step.command) for step in fortios_audit.SSH_STEPS)
+
+
+def test_the_cli_carries_no_device_words_of_a_diagnostic_console(tmp_path, capsys, monkeypatch):
+    # The shipped FortiOS collector reads the console only as a diagnostic and goes on; the
+    # device's words reach neither the report, the error stream nor any file of the store.
     database = tmp_path / "audit.sqlite"
-    code, out, err = collect_cli(capsys, monkeypatch, tmp_path, Device(INJECTED), database)
-    assert (code, out) == (cli.EXIT_ERROR, "")
-    assert CANARY not in err and "IGNORE" not in err and "CANARY-KEY" not in err
-    assert "an unrecognized value (" in err and err.count("\n") == 1
-    assert stored(database) == [(PREFLIGHT, "failed", None)]
+    device = Device(INJECTED)
+    code, out, err = collect_cli(capsys, monkeypatch, tmp_path, device, database)
+    assert (code, err) == (cli.EXIT_OK, "")
+    assert device.sent == [step.command for step in fortios_audit.SSH_STEPS]
+    assert CANARY not in out and "IGNORE" not in out and "CANARY-KEY" not in out
+    for path in tmp_path.glob("audit.sqlite*"):
+        assert CANARY.encode() not in path.read_bytes() and b"IGNORE" not in path.read_bytes()
+    run_id = stored(database)[0][2]
+    assert run_id is not None
+    assert stored(database) == [(request, "ok", run_id) for request in SHIPPED]
 
 
 def test_a_run_refused_for_a_changed_policy_keeps_both_events(tmp_path, capsys, monkeypatch):
@@ -145,10 +167,10 @@ def test_a_run_refused_for_a_changed_policy_keeps_both_events(tmp_path, capsys, 
     assert code == cli.EXIT_OK, err
     recorded = stored(database)
     run_id = recorded[0][2]
-    assert recorded == [(PREFLIGHT, "ok", run_id), (SHOW, "ok", run_id)]
+    assert recorded == [(request, "ok", run_id) for request in SHIPPED]
     device = Device()
     code, out, err = collect_cli(capsys, monkeypatch, tmp_path, device, database, "--policy", str(second))
     assert (code, out) == (cli.EXIT_ERROR, "")
     assert "operator policy differs" in err and "stayed unrecorded" not in err
-    assert device.sent == ["get system console", "show"]
-    assert stored(database)[2:] == [(PREFLIGHT, "ok", None), (SHOW, "ok", None)]
+    assert device.sent == [step.command for step in fortios_audit.SSH_STEPS]
+    assert stored(database)[len(SHIPPED):] == [(request, "ok", None) for request in SHIPPED]

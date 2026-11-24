@@ -1,4 +1,4 @@
-"""Shared retention for formats without device identity keeps the pre-G58 stop-before-publish behaviour."""
+"""Shared retention for formats without device identity keeps the pre-ROUTER-CONFIG stop-before-publish behaviour."""
 
 import os
 

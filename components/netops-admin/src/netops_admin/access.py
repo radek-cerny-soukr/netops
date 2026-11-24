@@ -11,7 +11,7 @@ from netops_admin import fortinet_cli, fortios, schema_runtime
 from netops_admin.errors import Rejected
 
 QUERY_TIMEOUT_SECONDS = 60.0
-# vJunos under load answered ssh exec reads in more than 60 s (task 319; the measurement of task 308 saw 121 s until
+# vJunos under load answered ssh exec reads in more than 60 s (verification; the measurement of verification saw 121 s until
 # the SSH banner), the same limit as a collected snapshot
 JUNOS_QUERY_TIMEOUT_SECONDS = 180.0
 SNAPSHOT_TIMEOUT_SECONDS = 180.0
@@ -161,7 +161,7 @@ class DeviceAccess:
                 from netops_admin import ios
                 text = ios.with_vlan_database(text, self._query(self.credential, "show vlan brief"))
             if re.search(r"^(?:ip|ipv6) access-list ", text, re.MULTILINE):
-                # 1.0.12 G64: the running configuration of IOS 15.9 omits the sequence numbers of ACL rules, so the
+                # 1.0.12 ios access control: the running configuration of IOS 15.9 omits the sequence numbers of ACL rules, so the
                 # ACL listings (the answers of the check account too) are part of the snapshot
                 from netops_admin import ios_acl
                 text = ios_acl.with_listing(text, self._query(self.credential, ios_acl.LISTING_COMMANDS["ipv4"]),
@@ -427,7 +427,7 @@ class DeviceAccess:
                     typed = spec.typed(text) if spec.typed else text
                     resolve = getattr(spec, "resolve", None)
                     if resolve is not None:
-                        # 1.0.12 G112: a vault reference in the line becomes its secret only here, in the transport
+                        # 1.0.12 wireless dhcp: a vault reference in the line becomes its secret only here, in the transport
                         typed = resolve(typed, self)
                     if answer_secrets is not None:
                         secret_values.update(answer_secrets(typed))
@@ -558,7 +558,7 @@ class DeviceAccess:
         return accepted
 
     def _abort_block(self, shell, original, spec) -> bool:
-        """1.0.12 G24: a line the device refused inside a config or edit block leaves FortiOS in that block. `abort`
+        """1.0.12 firewall commit: a line the device refused inside a config or edit block leaves FortiOS in that block. `abort`
         discards the unfinished edit and returns the held session to its context, so the return of a profile batch
         runs on the same session (one held session per operation and account)."""
         try:
@@ -669,12 +669,12 @@ def _login_anchor(spec) -> bytes:
 
 
 def _alternatives(spec) -> list:
-    """The alternative prompt anchors of the spec (1.0.12 G145: the old and the new Junos host name)."""
+    """The alternative prompt anchors of the spec (1.0.12 junos port ownership: the old and the new Junos host name)."""
     return list(getattr(spec, "anchors", ()) or ())
 
 
 def _usable_anchor(anchor: bytes) -> bool:
-    """A prompt anchor is a host name, optionally after the "@" of a Junos prompt (1.0.12 G145)."""
+    """A prompt anchor is a host name, optionally after the "@" of a Junos prompt (1.0.12 junos port ownership)."""
     text = anchor.decode("ascii", "replace").strip().rstrip(".")
     return bool(HOSTNAME.fullmatch(text[1:] if text.startswith("@") else text))
 

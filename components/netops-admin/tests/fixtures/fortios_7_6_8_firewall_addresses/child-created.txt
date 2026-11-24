@@ -1,0 +1,9 @@
+host01        $ config firewall addrgrp
+    edit "netops-firewall-addresses-child"
+        set member "netops-firewall-addresses-mac"
+        set comment "FIREWALL-ADDRESSES child"
+        set uuid 00000000-0000-4000-8000-000000000001
+    next
+end
+
+host01        $

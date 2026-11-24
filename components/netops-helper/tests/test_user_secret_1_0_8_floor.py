@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""`username ... secret|password` redaction stays a superset of 1.0.8 (task 165).
+"""`username ... secret|password` redaction stays a superset of 1.0.8 (verification).
 
 Commit f0f5f46 narrowed CISCO_USER_SECRET to space/tab separators on one line, so a
 value after NBSP/Unicode whitespace or a wrapped `username X\\nsecret 9 VALUE` leaked
-(ref/result-164.md). Every value below is synthetic. The tests call the real public
+(a private review table). Every value below is synthetic. The tests call the real public
 ``sanitize.redact`` and ``sanitize.redact_response`` without mocking any layer.
 """
 
@@ -30,7 +30,7 @@ _SPEC = importlib.util.spec_from_file_location(
 RELEASE = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(RELEASE)
 
-# Inputs from the ref/result-164.md table and its variants.
+# Inputs from the private review table and its variants.
 LEAK_INPUTS = {
     "nbsp-before-username": "\u00a0 username synthetic secret 9 synthetic-canary\r\n",
     "nbsp-before-username-lf": "\u00a0 username synthetic secret 9 synthetic-canary\n",
@@ -116,7 +116,7 @@ def test_every_value_redacted_by_1_0_8_is_redacted_now():
     assert checked > 500
 
 
-# Review 165-rv: one rule's early redaction must not remove another rule's anchor, and a
+# Review: one rule's early redaction must not remove another rule's anchor, and a
 # 1.0.8 range inside the prefix of a newer rule must stay hidden.
 REVIEW_INPUTS = {
     "nbsp-username-enc": ("\u00a0username a secret ENC synthetic-canary\n",

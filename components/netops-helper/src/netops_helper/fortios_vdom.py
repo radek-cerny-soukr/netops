@@ -1,6 +1,6 @@
 """VDOM scope of FortiOS reads: never present per-VDOM data as data of the whole device.
 
-Measured on a FortiGate-60F, FortiOS 7.6.8 build 3744, in multi-VDOM mode (task 172, fixtures under
+Measured on a FortiGate-60F, FortiOS 7.6.8 build 3744, in multi-VDOM mode (verification, fixtures under
 tests/fixtures/real/fortinet/fortigate60f_7.6.8_multivdom/):
 
 1. The login prints no VDOM; only `get system status` names it (`Virtual domain configuration: multiple`,
@@ -13,12 +13,12 @@ tests/fixtures/real/fortinet/fortigate60f_7.6.8_multivdom/):
 6. `get system interface` and `get system interface physical` inside a VDOM list the interfaces of every
    VDOM without a VDOM field; only `show system interface` (`set vdom`) tells the owner.
 
-A read in a multi-VDOM FortiGate therefore runs inside `config vdom` / `edit <vdom>` / ... / `end` for the
+A read in a multi-VDOM FortiGate therefore runs inside `config vdom` / `edit <vdom>` /... / `end` for the
 current VDOM of the session, verified by its `current vf=` marker, and only when that VDOM is enrolled in the
 target's `diagnostic_vdoms`; otherwise the read is refused before any per-VDOM command is sent.
 
 A per-VDOM administrator (an account with `set vdom <one VDOM>`, logged in through an interface of that VDOM) was
-measured too (task 197, `ref/scenare-197-vdom/60f-cli/44-vd1acct-exec-run2`/`-run3`): `get system status` names
+measured too (verification, `ref/scenare-197-vdom/60f-cli/44-vd1acct-exec-run2`/`-run3`): `get system status` names
 its own VDOM (`Current virtual domain: nops172-vd1`), `config vdom` answers `Unknown action 0` even with
 `cli-config`, and the per-VDOM `get system arp` answers its table right after the login, where a global
 administrator gets `-61` (`503-A-noctx-arp`). Only after `config vdom` was refused, the same SSH session is
@@ -35,7 +35,7 @@ VDOM_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,30}")
 _MODE_LINE = re.compile(r"(?m)^[ \t]*Virtual domain configuration:[ \t]*([^\r\n]*?)[ \t]*\r?$")
 _CURRENT_LINE = re.compile(r"(?m)^[ \t]*Current virtual domain:[ \t]*([^\r\n]*?)[ \t]*\r?$")
 # `Virtual domains status: <n> in NAT mode, <m> in TP mode`: the VDOM count of the whole device, the same for a
-# global and a per-VDOM administrator (measured, task 197: `21-status-multivdom` 1 in NAT mode with only `root`,
+# global and a per-VDOM administrator (measured, verification: `21-status-multivdom` 1 in NAT mode with only `root`,
 # `40-ctx-pre` and the VDOM account's `44-vd1acct-exec-run2` both 2 with `root` and `nops172-vd1`).
 _COUNT_LINE = re.compile(
     r"(?m)^[ \t]*Virtual domains status:[ \t]*([0-9]{1,5}) in NAT mode, ([0-9]{1,5}) in TP mode[ \t]*\r?$")
@@ -45,7 +45,7 @@ _MODES = {"disable": "disable", "multiple": "multiple"}
 # never returned by the VDOM membership join; only the interface name and its `set vdom` value are used.
 MEMBERSHIP_QUERY = "interface_vlan_ids"
 MEMBERSHIP_COMMAND = "show system interface"
-# Reads whose data is not limited to the VDOM they are read in. Measured (task 172, see the module docstring):
+# Reads whose data is not limited to the VDOM they are read in. Measured (verification, see the module docstring):
 # the status and the session counters are device-wide, the interface listings (`get system interface [physical]`,
 # `show system interface`) list the interfaces of every VDOM. Global system state (resources, HA, NTP, FortiGuard
 # packages) describes the whole device by its nature; these reads are labelled `device`, never as data of the
@@ -62,13 +62,13 @@ DATA_SCOPES = {
         "ha_status", "ha_checksum", "ha_nonsync_checksum", "ha_sync_statistics", "ha_history",
         "ntp_status", "autoupdate_status", "autoupdate_versions", "fortiguard_communication",
         "hardware_sensors", "crash_log", "config_error_log",
-        # G11: `diagnose netlink interface list` lists every kernel interface; its VDOM scope was not measured.
+        # firewall routing: `diagnose netlink interface list` lists every kernel interface; its VDOM scope was not measured.
         "interface_list", "local_stp_ports", "local_switch_vlans",
     ), "device"),
 }
-# The global system state reads of triage_health. Measured (task 197, `35-diag-ctx-cliconfig`): inside
+# The global system state reads of triage_health. Measured (verification, `35-diag-ctx-cliconfig`): inside
 # `config vdom` / `edit <vdom>` FortiOS 7.6.8 refuses `get system performance status` with `-61`; these are
-# global commands, so in multi-VDOM the triage reads them inside `config global` (task 202). `config global`
+# global commands, so in multi-VDOM the triage reads them inside `config global` (verification). `config global`
 # prints no marker; the context is verified by an empty answer and the `<host> (global) # ` / `$ ` prompt
 # (measured, `34-gdiag-cliconfig`). An account that may not enter it (`config vdom` without the right answers
 # `Unknown action 0` / `Command fail. Return code -1`, `33-diag-ctx`) gets these parts refused, never guessed.
@@ -76,7 +76,7 @@ GLOBAL_QUERIES = frozenset((
     "performance", "conserve_state", "ha_status", "ha_checksum", "ntp_status", "autoupdate_versions",
 ))
 GLOBAL_CONTEXT = "global"
-# Per-VDOM administrator (task 206, see the module docstring): the reads it is refused, because their data is not
+# Per-VDOM administrator (verification, see the module docstring): the reads it is refused, because their data is not
 # limited to its VDOM (the identity status excepted), and the probe whose answer proves the login VDOM context.
 VDOM_ADMIN_GLOBAL = "vdom_admin_global_scope_unavailable"
 VDOM_ADMIN_REFUSED_QUERIES = frozenset(query for query, data_scope in DATA_SCOPES.items()
@@ -198,7 +198,7 @@ def context_index(edit_answer: str, vdom: str) -> int:
 
 
 def login_probe_answered(answer: str) -> bool:
-    """True when the probe `get system arp` answered its table (header first) and no refusal (measured, task 197)."""
+    """True when the probe `get system arp` answered its table (header first) and no refusal (measured, verification)."""
     lines = [line for line in answer.splitlines() if line.strip()]
     return bool(lines) and _PROBE_HEADER.fullmatch(lines[0]) is not None and not any(
         line.strip().startswith(("Command fail", "command parse error", "Unknown action")) for line in lines)

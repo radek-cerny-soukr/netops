@@ -1,2 +1,0 @@
-
-IPv6 access list NETOPS-G103-V6

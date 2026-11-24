@@ -375,7 +375,7 @@ class Store:
     def block(self, device: str, change_id: str, reason: str) -> None:
         write_atomic(self.blocks / ("%s.json" % device), {"device": device, "change_id": change_id, "reason": reason})
 
-    # 1.0.12 G07 r2 (502-rv finding 1): the last MCP undo or unblock preview this server issued for a device. Its hash
+    # 1.0.12 execution access r2 (review finding 1): the last MCP undo or unblock preview this server issued for a device. Its hash
     # is accepted once, only for that preview; the action takes (removes) the record whether it matches or not.
     def _preview_path(self, device: str, kind: str) -> Path:
         if not isinstance(device, str) or DEVICE_NAME.fullmatch(device) is None or kind not in PREVIEW_KINDS:

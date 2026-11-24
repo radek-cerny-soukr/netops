@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Review 98 regressions for the standalone Cisco IOS consumer ``config_cisco_ios`` (task 102).
+"""Review regressions for the standalone Cisco IOS consumer ``config_cisco_ios`` (verification).
 
 98-N1: an indented ``banner``/``macro name`` header must not be hidden as an ordinary sub-line so
 that an exact ``!`` inside its body lets the following body lines be released as allowed syntax.

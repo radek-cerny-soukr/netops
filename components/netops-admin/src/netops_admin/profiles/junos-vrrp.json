@@ -44,5 +44,5 @@
   "volatile": [],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "G139 J47. The key combines the IRB and VRRP group. The IRB must already have one local IPv4 address. The check account uses show vrrp detail. The Junos interface profile commit confirmed safeguard protects the change; the inverse restores the exact configured attributes."
+  "rollback_evidence": "Live write and return on vJunos-switch 26.2R1.7 (2026-11-19): The route, IRB settings or VRRP group were changed, read back and undone. junos static routing J47. The key combines the IRB and VRRP group. The IRB must already have one local IPv4 address. The check account uses show vrrp detail. The Junos interface profile commit confirmed safeguard protects the change; the inverse restores the exact configured attributes."
 }

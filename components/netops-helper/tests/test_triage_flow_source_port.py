@@ -1,4 +1,4 @@
-"""triage_flow with a known or unknown source port (task 109-05).
+"""triage_flow with a known or unknown source port (verification-05).
 
 The end to end cases drive the real Proxy.request -> TargetAuth.decode -> engine.triage_flow -> triage_flow chain; only
 the SSH transport is replaced (`engine.read_from_device` and the diagnostic shell). The device outputs are the existing

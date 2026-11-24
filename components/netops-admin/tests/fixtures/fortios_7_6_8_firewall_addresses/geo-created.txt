@@ -1,0 +1,9 @@
+host01        $ config firewall address
+    edit "netops-firewall-addresses-geo"
+        set uuid 00000000-0000-4000-8000-000000000003
+        set type geography
+        set country "CZ"
+    next
+end
+
+host01        $

@@ -90,7 +90,7 @@ def test_a_secondary_that_does_not_restore_the_device_stays_a_failed_restoration
 def test_a_refused_ping_source_is_reported_with_its_reason() -> None:
     session = _Replay(PING, "primary")
     session.member["responses"]["execute ping-options source auto"] = SOURCE_REFUSAL.replace(
-        "traceroute-options", "ping-options").replace("FGT80F0000002222(Secondary)", "FGT80F0000001111(Primary)")
+        "traceroute-options", "ping-options").replace("FGTEXAMPLE0002222(Secondary)", "FGTEXAMPLE0001111(Primary)")
     shell = engine._FortiosDiagnosticShell(session)
     with pytest.raises(d.OptionRefused) as refused:
         d.run(shell, "ping", ADDRESS, INTERFACE, 3, 5)

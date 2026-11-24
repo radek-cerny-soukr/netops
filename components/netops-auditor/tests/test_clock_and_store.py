@@ -151,4 +151,4 @@ def test_state_coverage_of_a_run_stored_without_rule_status_has_no_gaps(tmp_path
     with Store(tmp_path / "audit.db") as store:
         run = record(store, stamp(NOW - timedelta(hours=1)))
         found = state.coverage(store.findings_for_run("tenant", run), state.stored_statuses(store, "tenant", run))
-    assert found == {"complete": True, "inherent_gaps": [], "actionable_gaps": []}
+    assert found == {"complete": True, "inherent_gaps": [], "actionable_gaps": [], "counts": None}

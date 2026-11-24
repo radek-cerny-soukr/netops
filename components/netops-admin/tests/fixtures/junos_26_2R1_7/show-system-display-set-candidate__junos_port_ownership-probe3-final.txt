@@ -1,0 +1,14 @@
+set system host-name -bad
+set system domain-name other.junos-port-ownership.example
+set system name-server 192.0.2.54
+set system name-server 192.0.2.53
+set system name-server 2001:db8:1::53
+set system syslog host 192.0.2.10 any info
+set system syslog host 192.0.2.10 port 5515
+set system syslog host 192.0.2.10 facility-override local6
+set system syslog host 2001:db8:1::10 any warning
+set system ntp server 192.0.2.1 prefer
+set system ntp server 192.0.2.2
+set system ntp server 2001:db8:1::a1
+set system ntp source-address 192.0.2.9
+set system ntp source-address 192.0.2.8

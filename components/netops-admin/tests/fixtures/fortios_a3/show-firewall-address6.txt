@@ -1,0 +1,9 @@
+config firewall address6
+    edit "all"
+        set uuid 00000000-0000-4000-8000-00005e005301
+    next
+    edit "none"
+        set uuid 00000000-0000-4000-8000-00005e005302
+        set ip6 ::/128
+    next
+end

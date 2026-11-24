@@ -58,7 +58,7 @@ def policy_hits(rows):
 
 QUERIES = {'interface': 'physical_interfaces', 'vlan': 'interface_vlan_ids',
            'lldp_neighbor': 'lldp_summary', 'mac_entry': None,
-           # G11 (1.0.12, FP-07): FortiGate-local routing, aggregate and counter tables.
+           # firewall routing (1.0.12, FP-07): FortiGate-local routing, aggregate and counter tables.
            'ospf_neighbor': 'ospf_neighbors', 'bgp_peer': 'bgp_summary', 'lag': 'lacp_detail',
            'interface_errors': 'interface_details', 'stp_port': 'local_stp_ports',
            'port_vlan': 'local_switch_vlans'}
@@ -167,7 +167,7 @@ def configuration_view(text, keep=None):
 def vdom_configuration_view(text, vdom):
     """The VLAN projection of one VDOM from `show system interface`, owners assigned before the projection.
 
-    Measured (task 172): in multi-VDOM `show system interface` lists the interfaces of every VDOM, each with its
+    Measured (verification): in multi-VDOM `show system interface` lists the interfaces of every VDOM, each with its
     own `set vdom`. Only VLAN interfaces whose own `set vdom` names `vdom` are projected; the projection never
     carries `set vdom`, so the owner is decided here, on the full entry. A VLAN interface without exactly one
     valid `set vdom` refuses (VdomRefused("vdom_membership_unverified")). Returns (projection, other VLANs).

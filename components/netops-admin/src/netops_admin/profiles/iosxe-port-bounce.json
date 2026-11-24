@@ -29,5 +29,5 @@
       "undo_to_default": true
     }
   },
-  "rollback_evidence": "G79 (XE-C021): shutdown, a five-second hold and no shutdown run under one device revert timer. IOS XE IOL-L2 17.18.2 uses show interfaces INTERFACE status for operational readback. An initially connected port must return to connected. The configuration is restored before confirmation; there is no separate undo."
+  "rollback_evidence": "Live write and return on Cisco IOS XE 17.18.2 (2026-11-19): The switch port was disabled and re-enabled; the configuration returned to its initial state. xe port maintenance (XE-C021): shutdown, a five-second hold and no shutdown run under one device revert timer. IOS XE IOL-L2 17.18.2 uses show interfaces INTERFACE status for operational readback. An initially connected port must return to connected. The configuration is restored before confirmation; there is no separate undo."
 }

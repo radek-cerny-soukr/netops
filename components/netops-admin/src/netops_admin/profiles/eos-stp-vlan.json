@@ -1,6 +1,7 @@
 {
   "platform": "eos",
   "table": "stp-vlan",
+  "measured": true,
   "versions": [
     "4.36.1F"
   ],
@@ -26,5 +27,5 @@
   "volatile": [],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "G125: Rapid-PVST bridge priority on an existing VLAN, in steps of 4096. Unsetting restores the device default. Other VLANs in the same priority range are preserved."
+  "rollback_evidence": "Live write and return on cEOSLab 4.36.1F (2026-11-22): A Rapid-PVST bridge priority of a VLAN without ports was set, read back by the check identity and undone. eos mlag admin: Rapid-PVST bridge priority on an existing VLAN, in steps of 4096. Unsetting restores the device default. Other VLANs in the same priority range are preserved."
 }

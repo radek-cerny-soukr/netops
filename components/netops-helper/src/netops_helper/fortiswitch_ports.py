@@ -61,7 +61,7 @@ def parse(table, text):
                 current['discards_in' if counts[1] == 'input' else 'discards_out'] = int(counts[3])
             continue
         if current is not None and any(re.fullmatch(pattern, value) for pattern in (
-                r'Interface Type is .+', r'Address is [0-9A-Fa-f:]+, None loopback',
+                r'Interface Type is .+', r'Address is [0-9A-Fa-f:]+,(?: None loopback)?',
                 r'MTU \d+ bytes, Encapsulation IEEE 802.3/Ethernet-II',
                 r'\d+ unicasts, \d+ multicasts, \d+ broadcasts(?:, \d+ unknowns)?',
                 r'\d+ fragments, \d+ undersizes, \d+ collisions, \d+ jabbers')):

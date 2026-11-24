@@ -1,0 +1,12 @@
+Policy NETOPS-JUNOS-SYSTEM-SERVICES-POLICY: [CHANGED/RESOLVED]
+    Term match:
+        from
+             prefix-list NETOPS-JUNOS-SYSTEM-SERVICES-PREFIXES
+             route filter:
+                  203.0.113.1/32 exact
+                  203.0.113.2/32 exact
+        then
+               accept
+    Term default:
+        then
+               reject

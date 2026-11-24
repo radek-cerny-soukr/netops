@@ -35,7 +35,7 @@ def test_real_captures(path):
     assert result['unparsed'] == []
     if expected == 'ok':
         assert result['records'] and result['coverage']['complete']
-        # Junos rows always carry the port overview state (482-r2), None when the capture omits it.
+        # Junos rows always carry the port overview state, None when the capture omits it.
         status = port_errors.JUNOS_STATUS_FIELDS if profile.startswith('juniper_') else ()
         assert set(result['records'][0]) == set(port_errors.FIELDS) | set(status)
     if profile == 'extreme_exos' and query == 'ports_rx_errors':

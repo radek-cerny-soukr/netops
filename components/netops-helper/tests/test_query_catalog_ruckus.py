@@ -18,7 +18,7 @@ EXPECTED = {
     "ethernet_info": ("show ethinfo", {}, False),
     "access_points": ("show ap all", {}, True),
     "wlans": ("show wlan all", {}, True),
-    # G107 (Unleashed 200.15): client, radio, rogue/event and single-object reads.
+    # WIRELESS-INVENTORY (Unleashed 200.15): client, radio, rogue/event and single-object reads.
     "clients": ("show current-active-clients all", {}, True),
     "client_detail": ("show current-active-clients mac {mac}", {"mac": ("literal", "wifi_mac_literal")}, False),
     "client_performance": ("show performance station mac {mac}", {"mac": ("literal", "wifi_mac_literal")}, False),
@@ -31,10 +31,10 @@ EXPECTED = {
     "access_point": ("show ap mac {ap_mac}", {"ap_mac": ("literal", "wifi_mac_literal")}, False),
     "access_point_by_name": ("show ap devname {wtp_id}", {"wtp_id": ("wtp_ids", "fortios_wtp_id")}, False),
     "wlan": ("show wlan name {wlan}", {"wlan": ("wlan_names", "ruckus_wlan_name")}, False),
-    # G108 (R02): the CLI ping itself is bounded (three echo requests, ~12 s without answer, measured on 200.15).
+    # WIRELESS-PATH (R02): the CLI ping itself is bounded (three echo requests, ~12 s without answer, measured on 200.15).
     "ping": ("ping {address}", {"address": ("addresses", "ipv4_address")}, False),
-    # G110 (R10-R13): lists of configured objects; (RP08) the one configuration display, passed through the section
-    # allowlist and the secret redaction of the engine (tests/test_g110_ruckus.py).
+    # WIRELESS-NETWORK-SERVICES (R10-R13): lists of configured objects; (RP08) the one configuration display, passed through the section
+    # allowlist and the secret redaction of the engine (tests/test_wireless_network_services_ruckus.py).
     "l2_acls": ("show l2acl all", {}, True),
     "mgmt_acls": ("show mgmt-acl all", {}, False),
     "l3_acls": ("show l3acl all", {}, True),
@@ -43,9 +43,9 @@ EXPECTED = {
     "static_routes": ("show static-route all", {}, False),
     "config_settings": ("show config", {}, True),
 }
-# G110: the only configuration display; every other `show config` form stays unsafe.
+# WIRELESS-NETWORK-SERVICES: the only configuration display; every other `show config` form stays unsafe.
 ALLOWLISTED_CONFIG_FORMS = {"show config"}
-# G108: the only non-`show` form, a bounded probe to one enrolled IPv4 literal.
+# WIRELESS-PATH: the only non-`show` form, a bounded probe to one enrolled IPv4 literal.
 PROBE_FORMS = {"ping {address}"}
 PERFORMANCE_FORMS = {"show performance station mac {mac}", "show performance ap-radio2-4 mac {ap_mac}",
                      "show performance ap-radio5 mac {ap_mac}"}

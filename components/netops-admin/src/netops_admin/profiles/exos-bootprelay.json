@@ -24,5 +24,5 @@
   "volatile": [],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "G48 X22: VLAN-scoped IPv4 relay on d-exos 33.6.1.14 and lab X440-G2 33.7.1.6. Set or remove server-ip on an existing VLAN. The independent check account reads show bootprelay configuration ipv4 vlan."
+  "rollback_evidence": "Live write and return on ExtremeXOS 33.6.1.14 / 33.7.1.6 (2026-11-19): A VLAN-scoped DHCP relay or pool was changed, read back and undone. switch access control X22: VLAN-scoped IPv4 relay on ExtremeXOS VM 33.6.1.14 33.6.1.14 and lab X440-G2 33.7.1.6. Set or remove server-ip on an existing VLAN. The independent check account reads show bootprelay configuration ipv4 vlan."
 }

@@ -24,7 +24,7 @@ import unittest
 from unittest.mock import patch
 
 # Installed-image unit test (tests/v1 = /opt/netops/tests): the gateway package and the role packages it starts
-# come from the production image built from the same commit, which also has fastmcp (task 258, P3). The root
+# come from the production image built from the same commit, which also has fastmcp (verification, P3). The root
 # tests/ job installs only the SBOM tooling, so this file must not live there.
 from netops import __version__, operator  # noqa: E402
 from netops import audit as audit_module  # noqa: E402
@@ -70,7 +70,7 @@ INTERRUPTED = (
 )
 
 
-# Synchronisation points prepended to INTERRUPTED (review 152-r2rv). Each sends a real SIGINT at one exact
+# Synchronisation points prepended to INTERRUPTED (review finding). Each sends a real SIGINT at one exact
 # point of the result writer start; the operator process then ends on its own (no Ctrl+C from the test).
 # Ctrl+C right after the result writer started and before the workflow runs: SIGINT to the operator process.
 WRITER_STARTED = (
@@ -646,7 +646,7 @@ class RunningCollect(RunningCollectBase):
 
 
 class InterruptedWorkflow(RunningCollectBase):
-    """Ctrl+C during `docker compose exec netops netops auditor collect|run` (review 152-rv, finding 2)."""
+    """Ctrl+C during `docker compose exec netops netops auditor collect|run` (review finding 2)."""
 
     def interrupt(self, *arguments):
         environment = dict(os.environ, PYTHONPATH=os.pathsep.join(path for path in sys.path if path))
@@ -734,7 +734,7 @@ class InterruptedWorkflow(RunningCollectBase):
         def start(*arguments):
             writer = real_start(*arguments)
             if point == "writer-started":
-                # the window of review 152-r2rv: the writer exists, the workflow has not started
+                # the window of the review finding: the writer exists, the workflow has not started
                 ctrl_c(point)
             return writer
 
@@ -769,7 +769,7 @@ class InterruptedWorkflow(RunningCollectBase):
         self.interrupt_in_process("after-fork")
 
     def test_ctrl_c_between_the_writer_start_and_the_workflow_records_one_incomplete_result(self):
-        """Review 152-r2rv: SIGINT after `_operator_audit_result` returned, before the workflow runs."""
+        """Review finding: SIGINT after `_operator_audit_result` returned, before the workflow runs."""
         self.interrupt_in_process("writer-started")
 
     def test_ctrl_c_between_the_writer_start_and_the_workflow_ends_the_operator_with_130(self):
@@ -779,7 +779,7 @@ class InterruptedWorkflow(RunningCollectBase):
         self.assert_locked("gateway/instance.lock")
 
     def test_group_ctrl_c_before_the_writer_ignores_sigint_records_one_incomplete_result(self):
-        """Review 152-r2rv note: the group SIGINT reaches the new writer while it is still blocked there."""
+        """Review note: the group SIGINT reaches the new writer while it is still blocked there."""
         output = self.run_hooked(WRITER_BEFORE_IGNORE, "run", "--platform", "fortios", "--device", DEVICE, "--config", "-")
         self.assertIn(b"writer-pending\n", output)
         self.assertIn(b"writer-discarded\n", output)

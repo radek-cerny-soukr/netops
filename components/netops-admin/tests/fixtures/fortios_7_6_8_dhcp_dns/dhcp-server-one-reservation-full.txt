@@ -1,0 +1,51 @@
+config system dhcp server
+    edit 3
+        set status enable
+        set lease-time 604800
+        set mac-acl-default-action assign
+        set forticlient-on-net-status enable
+        set dns-service default
+        set wifi-ac-service specify
+        set wifi-ac1 0.0.0.0
+        set wifi-ac2 0.0.0.0
+        set wifi-ac3 0.0.0.0
+        set ntp-service specify
+        set domain ''
+        set wins-server1 0.0.0.0
+        set wins-server2 0.0.0.0
+        set default-gateway 192.0.2.1
+        set next-server 0.0.0.0
+        set netmask 255.255.255.0
+        set interface "quarantine"
+        config ip-range
+            edit 1
+                set start-ip 192.0.2.2
+                set end-ip 192.0.2.254
+                set vci-match disable
+                set uci-match disable
+                set lease-time 0
+            next
+        end
+        set timezone-option default
+        set filename ''
+        set server-type regular
+        set conflicted-ip-timeout 1800
+        set auto-configuration enable
+        set dhcp-settings-from-fortiipam disable
+        set ddns-update disable
+        set vci-match disable
+        set shared-subnet disable
+        config reserved-address
+            edit 1
+                set type mac
+                set ip 192.0.2.220
+                set mac 00:00:5e:00:53:01
+                set action reserved
+                set description "netops-dhcp-dns test"
+            next
+        end
+        set ntp-server1 0.0.0.0
+        set ntp-server2 0.0.0.0
+        set ntp-server3 0.0.0.0
+    next
+end

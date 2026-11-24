@@ -238,7 +238,7 @@ EXPECTED["ios"].update({
     'ip_policy': ('show ip policy', {}),
 })
 
-# G69 independently declared IOS XE command and slot expectations.
+# XE-ROUTING independently declared IOS XE command and slot expectations.
 EXPECTED["ios_xe"].update({
     'vrfs': ('show ip vrf', {}),
     'vrf_route_lookup': ('show ip route vrf {vrf} {address}', {'vrf': ('vrfs', 'vrf'), 'address': ('addresses', 'ipv4_lookup')}),
@@ -338,7 +338,7 @@ SHELL_METACHARACTERS = {
 
 
 
-# G90 catalogue additions.
+# NXOS-ROUTING catalogue additions.
 EXPECTED["nxos"]['route_prefix_lookup'] = ('show ip route {prefix}', {'prefix': ('lookup_prefixes', 'ipv4_prefix')})
 EXPECTED["nxos"]['route_map_counters'] = ('show route-map {route_map} pbr-statistics', {'route_map': ('route_maps', 'route_map')})
 HIGH_VOLUME["nxos"].add('route_map_counters')
@@ -375,13 +375,13 @@ HIGH_VOLUME["nxos"].add('route_maps')
 EXPECTED["nxos"]['ip_policy'] = ('show ip policy', {})
 HIGH_VOLUME["nxos"].add('ip_policy')
 for _name in ('route_lookup', 'route_prefix_lookup', 'route_table', 'arp_table', 'ipv6_neighbors', 'ip_interfaces', 'bgp_summary', 'ospf_neighbors', 'ospf_interfaces', 'ipv6_route_lookup', 'ipv6_route_table', 'bgp_ipv6_summary', 'ospfv3_neighbors'):
-    _command, _slots_g90 = EXPECTED['nxos'][_name]
-    EXPECTED['nxos'][_name + '_vrf'] = (_command + ' vrf {vrf}', {**_slots_g90, 'vrf': ('vrfs', 'vrf')})
+    _command, _slots_nxos_routing = EXPECTED['nxos'][_name]
+    EXPECTED['nxos'][_name + '_vrf'] = (_command + ' vrf {vrf}', {**_slots_nxos_routing, 'vrf': ('vrfs', 'vrf')})
     if _name in HIGH_VOLUME['nxos']:
         HIGH_VOLUME['nxos'].add(_name + '_vrf')
 
 
-# G52 independently specified probe contract.
+# ROUTER-PROBES independently specified probe contract.
 EXPECTED["ios"]['ping'] = ('ping {address} repeat 5 timeout 1', {'address': ('addresses', 'ipv4_address')})
 EXPECTED["ios"]['ping_source'] = ('ping {address} source {source} repeat 5 timeout 1', {'address': ('addresses', 'ipv4_address'), 'source': ('interfaces', 'interface')})
 EXPECTED["ios"]['ping_vrf'] = ('ping vrf {vrf} {address} repeat 5 timeout 1', {'vrf': ('vrfs', 'vrf'), 'address': ('addresses', 'ipv4_address')})
@@ -393,7 +393,7 @@ EXPECTED["ios"]['traceroute_source'] = ('traceroute {address} source {source} nu
 EXPECTED["ios"]['traceroute_vrf'] = ('traceroute vrf {vrf} {address} numeric timeout 1 probe 1 ttl 1 5', {'vrf': ('vrfs', 'vrf'), 'address': ('addresses', 'ipv4_address')})
 EXPECTED["ios"]['traceroute_vrf_source'] = ('traceroute vrf {vrf} {address} source {source} numeric timeout 1 probe 1 ttl 1 5', {'vrf': ('vrfs', 'vrf'), 'address': ('addresses', 'ipv4_address'), 'source': ('interfaces', 'interface')})
 
-# G70 adds the same bounded command forms on IOS XE and the measured IPv6/VRF forms.
+# XE-PROBES adds the same bounded command forms on IOS XE and the measured IPv6/VRF forms.
 _XE_IPV6_PROBES = {
     "ping_ipv6_vrf": ("ping vrf {vrf} ipv6 {address} repeat 5 timeout 1", ("vrf", "address")),
     "ping_ipv6_vrf_source": ("ping vrf {vrf} ipv6 {address} source {source} repeat 5 timeout 1", ("vrf", "address", "source")),
@@ -409,18 +409,18 @@ EXPECTED["ios_xe"].update({name: spec for name, spec in EXPECTED["ios"].items()
 EXPECTED["ios_xe"].update({name: (command, {slot: _XE_PROBE_SLOTS[slot] for slot in names})
                        for name, (command, names) in _XE_IPV6_PROBES.items()})
 
-# G53 independently specified port/STP/EtherChannel/PoE/neighbor contract (IOSvL2-verified syntax).
-_G53_PORT = {'interface': ('interfaces', 'cisco_ios_physical_interface')}
+# ROUTER-PORTS independently specified port/STP/EtherChannel/PoE/neighbor contract (IOSvL2-verified syntax).
+_ROUTER_PORTS_PORT = {'interface': ('interfaces', 'cisco_ios_physical_interface')}
 EXPECTED["ios"].update({
     'stp_detail': ('show spanning-tree detail', {}),
-    'stp_interface_detail': ('show spanning-tree interface {interface} detail', _G53_PORT),
+    'stp_interface_detail': ('show spanning-tree interface {interface} detail', _ROUTER_PORTS_PORT),
     'stp_mst': ('show spanning-tree mst', {}),
     'etherchannel_detail': ('show etherchannel detail', {}),
     'lacp_internal': ('show lacp internal', {}),
     'etherchannel_load_balance': ('show etherchannel load-balance', {}),
-    'power_inline_detail': ('show power inline {interface} detail', _G53_PORT),
-    'lldp_neighbor_interface': ('show lldp neighbors {interface} detail', _G53_PORT),
-    'cdp_neighbor_interface': ('show cdp neighbors {interface} detail', _G53_PORT),
+    'power_inline_detail': ('show power inline {interface} detail', _ROUTER_PORTS_PORT),
+    'lldp_neighbor_interface': ('show lldp neighbors {interface} detail', _ROUTER_PORTS_PORT),
+    'cdp_neighbor_interface': ('show cdp neighbors {interface} detail', _ROUTER_PORTS_PORT),
 })
 HIGH_VOLUME["ios"].update({'stp_detail', 'stp_mst', 'etherchannel_detail', 'lacp_internal'})
 
@@ -482,35 +482,35 @@ HIGH_VOLUME["nxos"].update({
 
 
 
-_G55_PHYSICAL_PORT = {"interface": ("interfaces", "cisco_ios_physical_interface")}
-_G55_INTERFACE = {"interface": ("interfaces", "interface")}
-_G55_VRF = {"vrf": ("vrfs", "vrf")}
-_G55_IPV4 = {"address": (None, "ipv4_neighbor")}
+_ROUTER_SECURITY_PHYSICAL_PORT = {"interface": ("interfaces", "cisco_ios_physical_interface")}
+_ROUTER_SECURITY_INTERFACE = {"interface": ("interfaces", "interface")}
+_ROUTER_SECURITY_VRF = {"vrf": ("vrfs", "vrf")}
+_ROUTER_SECURITY_IPV4 = {"address": (None, "ipv4_neighbor")}
 
 _IOS_SECURITY_EXPECTED = {
     "mac_table_address": ("show mac address-table address {mac}", {"mac": (None, "mac_literal")}),
     "mac_table_interface": ("show mac address-table interface {interface}", {"interface": ("interfaces", "cisco_ios_switchport")}),
     "mac_table_vlan": ("show mac address-table vlan {vlan_id}", {"vlan_id": (None, "vlan_id")}),
-    "arp_lookup": ("show ip arp {address}", _G55_IPV4),
-    "arp_lookup_vrf": ("show ip arp vrf {vrf} {address}", {**_G55_VRF, **_G55_IPV4}),
-    "arp_table_vrf": ("show ip arp vrf {vrf}", _G55_VRF),
-    "ipv6_neighbors_interface": ("show ipv6 neighbors {interface}", _G55_INTERFACE),
-    "ipv6_neighbors_vrf": ("show ipv6 neighbors vrf {vrf}", _G55_VRF),
-    "ipv6_neighbors_interface_vrf": ("show ipv6 neighbors vrf {vrf} {interface}", {**_G55_VRF, **_G55_INTERFACE}),
+    "arp_lookup": ("show ip arp {address}", _ROUTER_SECURITY_IPV4),
+    "arp_lookup_vrf": ("show ip arp vrf {vrf} {address}", {**_ROUTER_SECURITY_VRF, **_ROUTER_SECURITY_IPV4}),
+    "arp_table_vrf": ("show ip arp vrf {vrf}", _ROUTER_SECURITY_VRF),
+    "ipv6_neighbors_interface": ("show ipv6 neighbors {interface}", _ROUTER_SECURITY_INTERFACE),
+    "ipv6_neighbors_vrf": ("show ipv6 neighbors vrf {vrf}", _ROUTER_SECURITY_VRF),
+    "ipv6_neighbors_interface_vrf": ("show ipv6 neighbors vrf {vrf} {interface}", {**_ROUTER_SECURITY_VRF, **_ROUTER_SECURITY_INTERFACE}),
     "ipv4_access_lists": ("show ip access-lists", {}),
     "ipv6_access_lists": ("show ipv6 access-list", {}),
     "dhcp_server_bindings": ("show ip dhcp binding", {}),
-    "dhcp_server_binding_address": ("show ip dhcp binding {address}", _G55_IPV4),
+    "dhcp_server_binding_address": ("show ip dhcp binding {address}", _ROUTER_SECURITY_IPV4),
     "dhcp_server_pools": ("show ip dhcp pool", {}),
     "dhcp_server_conflicts": ("show ip dhcp conflict", {}),
     "dhcp_server_statistics": ("show ip dhcp server statistics", {}),
     "dhcp_snooping_status": ("show ip dhcp snooping", {}),
     "dhcp_snooping_binding": ("show ip dhcp snooping binding", {}),
     "dhcp_snooping_statistics": ("show ip dhcp snooping statistics", {}),
-    "port_security_interface": ("show port-security interface {interface}", _G55_PHYSICAL_PORT),
+    "port_security_interface": ("show port-security interface {interface}", _ROUTER_SECURITY_PHYSICAL_PORT),
     "port_security_addresses": ("show port-security address", {}),
-    "authentication_sessions_interface": ("show authentication sessions interface {interface} details", _G55_PHYSICAL_PORT),
-    "dot1x_interface": ("show dot1x interface {interface} details", _G55_PHYSICAL_PORT),
+    "authentication_sessions_interface": ("show authentication sessions interface {interface} details", _ROUTER_SECURITY_PHYSICAL_PORT),
+    "dot1x_interface": ("show dot1x interface {interface} details", _ROUTER_SECURITY_PHYSICAL_PORT),
     "arp_inspection_statistics": ("show ip arp inspection statistics", {}),
     "ip_source_guard": ("show ip verify source", {}),
 }
@@ -523,20 +523,20 @@ _IOS_SECURITY_HIGH_VOLUME = {
 
 EXPECTED["ios"].update(_IOS_SECURITY_EXPECTED)
 HIGH_VOLUME["ios"].update(_IOS_SECURITY_HIGH_VOLUME)
-_G73_PHYSICAL_PORT = {"interface": ("interfaces", "cisco_xe_physical_interface")}
+_XE_SECURITY_PHYSICAL_PORT = {"interface": ("interfaces", "cisco_xe_physical_interface")}
 EXPECTED["ios_xe"].update({
     **_IOS_SECURITY_EXPECTED,
     "mac_table_interface": ("show mac address-table interface {interface}", {"interface": ("interfaces", "cisco_xe_switchport")}),
-    "port_security_interface": ("show port-security interface {interface}", _G73_PHYSICAL_PORT),
-    "authentication_sessions_interface": ("show access-session interface {interface} details", _G73_PHYSICAL_PORT),
-    "dot1x_interface": ("show dot1x interface {interface} details", _G73_PHYSICAL_PORT),
+    "port_security_interface": ("show port-security interface {interface}", _XE_SECURITY_PHYSICAL_PORT),
+    "authentication_sessions_interface": ("show access-session interface {interface} details", _XE_SECURITY_PHYSICAL_PORT),
+    "dot1x_interface": ("show dot1x interface {interface} details", _XE_SECURITY_PHYSICAL_PORT),
 })
 HIGH_VOLUME["ios_xe"].update(_IOS_SECURITY_HIGH_VOLUME)
 
 
-# G57 operational reads share syntax across the two router profiles. MLS is Catalyst IOS only.
+# ROUTER-DIAGNOSTICS operational reads share syntax across the two router profiles. MLS is Catalyst IOS only.
 for _profile in ("ios", "ios_xe"):
-    _g57 = {
+    _router_diagnostics = {
         "qos_policy": ("show policy-map interface {interface}", {"interface": ("interfaces", "interface")}),
         "nat_translations": ("show ip nat translations", {}),
         "nat_statistics": ("show ip nat statistics", {}),
@@ -544,8 +544,8 @@ for _profile in ("ios", "ios_xe"):
         "ikev2_sa": ("show crypto ikev2 sa", {}),
         "ipsec_sa": ("show crypto ipsec sa", {}),
     }
-    EXPECTED[_profile].update(_g57)
-    HIGH_VOLUME[_profile].update(_g57)
+    EXPECTED[_profile].update(_router_diagnostics)
+    HIGH_VOLUME[_profile].update(_router_diagnostics)
 EXPECTED["ios"]["qos_queues"] = ("show mls qos interface {interface} statistics",
                                 {"interface": ("interfaces", "cisco_ios_physical_interface")})
 HIGH_VOLUME["ios"].add("qos_queues")
@@ -556,7 +556,7 @@ EXPECTED["ios_xe"]["qos_queues"] = (
 HIGH_VOLUME["ios_xe"].add("qos_queues")
 
 
-# G71: IOS XE uses the Catalyst interface grammar and an explicit channel-group selector.
+# XE-PORTS: IOS XE uses the Catalyst interface grammar and an explicit channel-group selector.
 _XE_PHYSICAL_PORT = {"interface": ("interfaces", "cisco_xe_physical_interface")}
 EXPECTED["ios_xe"].update({
     "stp_detail": ("show spanning-tree detail", {}),
@@ -636,7 +636,7 @@ EXPECTED["nxos"].update({
 HIGH_VOLUME["nxos"].update({"processes_cpu", "logging_info", "log_history", "hsrp_detail", "vrrp_detail",
                            "vrrpv3_detail", "object_tracking"})
 
-# G87 Catalyst 9800 operational reads and G89 hardware QFP diagnostics.
+# WIRELESS-CONTROLLER Catalyst 9800 operational reads and FORWARDING-PROCESSOR hardware QFP diagnostics.
 EXPECTED["ios_xe"].update({
     "c9800_aps": ("show ap summary", {}),
     "c9800_ap_joins": ("show wireless stats ap join summary", {}),
@@ -811,7 +811,7 @@ def test_vendor_interface_rendering_is_canonical_and_exact() -> None:
             f"unsafe Cisco interface was accepted: {platform} {value!r}"
         )
 
-    # G53 r3: on IOS the short and the full name of one enrolled port are the same port (both
+    # ROUTER-PORTS r3: on IOS the short and the full name of one enrolled port are the same port (both
     # sides canonicalized by the slot validator); another port and other platforms stay exact.
     assert render_read_query(
         "cisco_ios",

@@ -1,14 +1,14 @@
-"""Juniper Junos identity/profile adapter for the public ``config_read`` and ``config_diff`` (G136, JP10).
+"""Juniper Junos identity/profile adapter for the public ``config_read`` and ``config_diff`` (junos config, JP10).
 
 Same shape as the Cisco/Arista adapters.  The tested combination is model ``ex9214`` (vJunos-switch) with Junos
 ``26.2R1.7`` (``tests/fixtures/real/juniper_junos_els/vjunosswitch_26.2R1.7/version.txt``); another model or
-release is read too and reported as ``firmware_support`` ``untested`` with a warning (G00).  The model is read
+release is read too and reported as ``firmware_support`` ``untested`` with a warning (startup).  The model is read
 only from the ``Model:`` line and the release only from the ``Junos:`` line of ``show version``, each of which
 must occur exactly once.
 
-Capture (measured on d-vjunos, task 553): ``show configuration | display set | no-more`` over SSH exec.  Every
+Capture (measured on vJunos-switch, verification): ``show configuration | display set | no-more`` over SSH exec.  Every
 statement is one physical line ``set <path...>`` (``deactivate <path...>`` for an inactive statement); the first
-line is ``set version <release>``.  The exit status is 0 also for an error (``error: ...`` on stdout).  An
+line is ``set version <release>``.  The exit status is 0 also for an error (``error:...`` on stdout).  An
 account without the view-configuration permission (class read-only) gets ``set <section> /* ACCESS-DENIED */;``
 lines with exit status 0: such a capture is refused as a device refusal, never shown as a configuration.
 
@@ -18,7 +18,7 @@ time-zone, name-server, ntp, services, syslog, arp, processes and ``login user <
 interfaces, vlans, routing-options, protocols, firewall, policy-options, routing-instances, chassis,
 multi-chassis, switch-options, forwarding-options, class-of-service, poe, ethernet-switching-options,
 virtual-chassis) and when it holds no forbidden value, no secret keyword and no password hash (the shared checks
-of ``config_indented``: ``encrypted-password``, ``authentication-key``, ``secret``, ``$1$``/``$6$``/``$9$`` ...).
+of ``config_indented``: ``encrypted-password``, ``authentication-key``, ``secret``, ``$1$``/``$6$``/``$9$``...).
 Every other line is one ``JUNOS_MARKER``.  Root authentication, the authentication of every login user, SNMP,
 security (IKE/IPsec), access/RADIUS/TACACS and groups are therefore never shown.  An unclosed quoted value refuses
 the stream (redaction-unverifiable); a last line without a line ending is ``stream-incomplete``.

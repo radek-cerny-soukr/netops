@@ -1,0 +1,48 @@
+{
+  "platform": "fortios",
+  "versions": [
+    "7.6.8 build3744"
+  ],
+  "ops": [
+    "create",
+    "update",
+    "delete"
+  ],
+  "exact_versions": true,
+  "provisional": true,
+  "measured": true,
+  "table": "firewall service group",
+  "key_pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,78}$",
+  "protected_keys": [],
+  "attributes": {
+    "member": {
+      "type": "name-list",
+      "required_on_create": true,
+      "update": true,
+      "unset": false,
+      "referenced_update": true
+    },
+    "comment": {
+      "type": "text",
+      "required_on_create": false,
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "max_length": 255
+    }
+  },
+  "fixed": {
+    "color": "0",
+    "fabric-object": "disable"
+  },
+  "volatile": [
+    "uuid"
+  ],
+  "reserved_values": {},
+  "inverse_identity_changes": {
+    "delete": [
+      "uuid"
+    ]
+  },
+  "rollback_evidence": "Measured on FortiGate-60F 7.6.8 build3744 on 2026-11-23 with the check account: show firewall service group prints uuid and the quoted member list and omits comment, color 0 and fabric-object disable, which show full-configuration lists; no proxy attribute is printed by either command. A new group opened by edit and closed by abort printed only its uuid and was not saved. Live through Admin on the same FortiGate-60F on 2026-11-23 (preview, apply with the approved plan hash, readback by the check account in its own held session, undo): create, a member update and its undo, the undo of the create; a group used by a disabled and by an active firewall policy was refused for delete (fortios_object_referenced) and for a member change without endpoint_impact (fortios_policy_impact_required); apply without the plan hash was refused (fortios_object_preview_required); with the Admin process stopped after change_applied, the cli-script safeguard returned a comment change and admin recover reported reverted. show and show full-configuration of the table had the same sha256 before and after the run. On FortiOS 8.0.2 build0251 no REST inverse of the table is verified and the preview was refused with safeguard_no_rest_inverse."
+}

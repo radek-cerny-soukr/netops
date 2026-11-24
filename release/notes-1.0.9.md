@@ -1,5 +1,7 @@
 NetOps 1.0.9 follows NetOps 1.0.8. It adds configuration captures and `config_diff` for ExtremeXOS, Cisco and Arista, FortiOS IPv6 route lookup and multi-VDOM reads, NX-OS vPC and EOS/EXOS MLAG views, ExtremeXOS optics and chassis summaries, Wi-Fi AP backhaul correlation and FortiADC schedule-pool triage. The Auditor gains `findings_summary` and collection while NetOps runs; Admin gains `expected_plan_sha256`, `admin_undo_preview`, the measured FortiOS `firewall service custom` profile and ExtremeXOS port admin-state and PoE cycles.
 
+Editorial change after release: lab identifiers removed, no change in content.
+
 ## Changes in 1.0.9
 
 ### Added

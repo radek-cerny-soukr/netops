@@ -1,1 +1,0 @@
-set system domain-name g145.example

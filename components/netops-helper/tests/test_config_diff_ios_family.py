@@ -1,4 +1,4 @@
-"""Task 157: config_diff for the ExtremeXOS, Cisco IOS, IOS XE, NX-OS and Arista EOS full captures.
+"""verification: config_diff for the ExtremeXOS, Cisco IOS, IOS XE, NX-OS and Arista EOS full captures.
 
 Every platform runs the same scenarios through the real root ``netops.worker.HelperBridge.call`` ->
 ``Proxy.request`` -> FastMCP ``server.config_read`` / ``server.config_diff`` (``_paged_auth``) ->
@@ -370,7 +370,7 @@ def test_change_only_in_a_hidden_line_is_not_visible(env):
 
 # ------------------------------------------------------------------------- incomparable snapshots
 
-# Task 194 (live finding of scenario 191 on X440 EXOS 33.7.1.6): a hidden line added on the same target
+# verification (live finding of scenario 191 on X440 EXOS 33.7.1.6): a hidden line added on the same target
 # changes the content counts of the capture (unverified_count/credential_redactions); the pair stays
 # comparable and the diff shows only the redacted marker line, never its content.  EXOS uses the exact
 # change of ref/scenare-191.md, IOS/XE a username secret; NX-OS/EOS a second copy of their hidden line.
@@ -463,7 +463,7 @@ def test_engine_refuses_firmware_profile_and_scope_mismatch_without_ssh(env):
 
 
 def test_snapshot_of_another_target_is_incomparable_with_a_machine_code(env):
-    # Review 157-rv: a snapshot of another scope (another target) reaches the client with the machine
+    # Review: a snapshot of another scope (another target) reaches the client with the machine
     # code config_snapshot_incomparable and the unchanged scope mismatch text, not a generic failure.
     spec = env['spec']
     base = _capture(env)

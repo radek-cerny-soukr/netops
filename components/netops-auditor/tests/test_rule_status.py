@@ -4,7 +4,7 @@ import threading
 
 import pytest
 
-from netops_auditor import cli, collect, l1_exos, management, sarif
+from netops_auditor import cli, collect, engine, l1_exos, management, sarif
 from netops_auditor.engine import load_catalog
 from netops_auditor.store import Store
 from test_cli import TENANT, DEVICE, clean_text, complete, file_inventory, gather, invoke, run_args, write_config
@@ -254,12 +254,16 @@ def test_every_rule_carries_a_status_in_json_sarif_and_store(tmp_path, capsys):
     report = json.loads(out)
     assert code == 0 and report["evaluation_complete"] is True and "evaluation" not in report
     assert set(report["rule_status"]) == FORTIOS_RULES
+    # A rule that applies only with audit intent is optional when no intent is given.
+    checks = {rule.id: rule.check for rule in engine.load_catalog("fortios")}
+    by_intent = {rule for rule, check in checks.items() if engine._AUDITOR.get(check, (None,))[0] is not None}
+    assert by_intent and not any(".management." in rule for rule in by_intent)
     for rule, item in report["rule_status"].items():
         assert set(item) == {"status", "reason", "required"}
-        assert item["required"] is (".management." not in rule)
+        assert item["required"] is (".management." not in rule and rule not in by_intent)
         assert item["status"] in ("evaluated", "not-evaluated", "unsupported")
         if ".management." not in rule:
-            assert item == {"status": "evaluated", "reason": "", "required": True}
+            assert item == {"status": "evaluated", "reason": "", "required": rule not in by_intent}
     code, out, _ = invoke(capsys, run_args(config) + ["--sarif"])
     device = json.loads(out)["runs"][0]["properties"]["devices"][0]
     assert device["rule_status"] == report["rule_status"] and device["evaluation_complete"] is True

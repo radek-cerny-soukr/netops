@@ -9,7 +9,7 @@ import pytest
 
 from netops_admin import backup, cli
 
-PROJECTED = (Path(__file__).parent / 'fixtures/g16/fg60f-global.conf').read_bytes()
+PROJECTED = (Path(__file__).parent / 'fixtures/interface-addressing/fg60f-global.conf').read_bytes()
 # Extend the real transport projection with synthetic global sections for a positive replay.
 HEADER, INTERFACES = PROJECTED.split(b'\n', 1)
 EXPORT = (HEADER + b'\nconfig system global\n    set hostname "fixture-60f"\nend\n' + INTERFACES +
@@ -94,7 +94,7 @@ def wire(monkeypatch):
 def operator(tmp_path, capsys):
     directory = tmp_path / 'private'
     directory.mkdir(mode=0o700)
-    args = ['backup', '--host', '192.0.2.10', '--login', 'netops-test-rw',
+    args = ['backup', '--host', '192.0.2.10', '--login', 'fixture-operator',
             '--tls-sha256', PIN, '--directory', str(directory), '--keep', '1']
 
     def execute(arguments):

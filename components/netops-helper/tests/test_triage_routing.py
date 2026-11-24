@@ -321,7 +321,7 @@ def test_unknown_shape_is_unparsed_and_incomplete(query, text):
 @pytest.mark.parametrize("product", ["FortiGate-80F"])
 def test_accepted_802_identities_run_full_chain_on_simulated_output(product):
     # The measured 80F status names its VDOM mode (fixtures/fortios_80f_802_routing_status.txt); without the line
-    # the scope is unverified and no verdict is given (review 175-rv finding 1).
+    # the scope is unverified and no verdict is given (review finding 1).
     status = f"Version: {product} v8.0.2,build0251,260101 (GA.F)\nVirtual domain configuration: disable\n"
     result, calls = run(outputs(system_status=status))
     assert result["identity"] == {"product": product, "version": "8.0.2", "build": "0251"}

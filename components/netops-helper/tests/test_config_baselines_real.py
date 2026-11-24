@@ -1,7 +1,7 @@
-"""Durable baseline with real redacted FortiOS and G02-r2 IOS captures.
+"""Durable baseline with real redacted FortiOS and PLATFORM-BASELINE-r2 IOS captures.
 
 Physical SSH alone is replayed. IOSv exercises the public Helper bridge across
-an actual Python process restart; IOSvL2 reads with the G00 untested firmware warning.
+an actual Python process restart; IOSvL2 reads with the STARTUP untested firmware warning.
 """
 import json
 import os
@@ -92,13 +92,13 @@ def test_failed_approval_keeps_previous_baseline(wire, baseline_state, monkeypat
     assert engine.config_diff(auth, 'fortios', 'baseline', second['snapshot_id'])['identical'] is False
 
 
-# Captured using the configuration account on PC-Radek, with no device writes.
+# Captured using the configuration account, with no device writes.
 # The configuration fixture is actual config_read output after product redaction
 # and site anonymization. Hidden original statements are deliberately absent.
 from test_config_diff_ios_family import env
 from test_config_baselines import read as bridge_read, approve as bridge_approve, diff as bridge_diff
 
-REAL_IOS = Path(__file__).parent / 'fixtures' / 'real' / 'g02_r2_20261117'
+REAL_IOS = Path(__file__).parent / 'fixtures' / 'real' / 'platform_baseline_r2_20261117'
 
 
 def _real_ios(env, name='iosv'):
@@ -157,7 +157,7 @@ with pytest.MonkeyPatch.context() as patch:
 
 @pytest.mark.parametrize('env', ['cisco_ios'], indirect=True)
 def test_real_iosvl2_config_account_reads_with_warning_and_baseline(env, baseline_state):
-    # G00-3 accepts IOSvL2 (untested firmware, warning); supersedes the G02 refusal test and the 448 positive test.
+    # STARTUP-3 accepts IOSvL2 (untested firmware, warning); supersedes the PLATFORM-BASELINE refusal test and the 448 positive test.
     _real_ios(env, 'iosvl2')
     first = bridge_read(env)
     assert first['ok'] and first['capture_complete']

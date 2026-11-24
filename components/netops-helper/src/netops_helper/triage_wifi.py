@@ -19,7 +19,7 @@ from .triage_health import (
     C9800_HA_QUERIES, REASONS, UnsupportedPlatform, _lines, _utc, firmware_fields, firmware_support, missing_read,
 )
 
-# Tested identity (G00): not a gate; another model or build runs with firmware_support "untested" and a warning.
+# Tested identity (startup): not a gate; another model or build runs with firmware_support "untested" and a warning.
 IDENTITIES = frozenset({("FortiGate-80F", "8.0.2", "0251")})
 EVENT_LINES = 200
 HISTORY_LIMIT = 20
@@ -883,7 +883,7 @@ def full_page(result, history_limit=100, history_offset=0):
     return result
 
 
-# --- G108 (RP02, RP09): Ruckus Unleashed client triage --------------------------------------------------------
+# --- wireless path (RP02, RP09): Ruckus Unleashed client triage --------------------------------------------------------
 #
 # Measured on R610 on Ruckus Unleashed 200.15.6.212.27 (master AP, read with the admin `enable` CLI). Every read is a
 # catalogue `show` query of the same target. The device prints the client signal without a unit, so no signal
@@ -975,7 +975,7 @@ def ruckus_relations(ap: dict[str, Any] | None, wlan: dict[str, Any] | None, cli
 def _ruckus_uplink_ethinfo(ap: dict[str, Any], ethinfo: list[dict[str, Any]], checked: list[str],
                            missing: list[dict[str, Any]]) -> list[dict[str, Any]] | None:
     """The Ethernet step is incomplete only when the port the AP is connected by (a logically up LAN port) has no
-    interface/link data; an unused LAN port without link data is normal (489-r3). Without a known uplink every
+    interface/link data; an unused LAN port without link data is normal. Without a known uplink every
     printed port must be complete."""
     uplinks = [port["interface"] for port in ap["lan_ports"]
                if (port["logical_link"] or "").lower() == "up" and port["interface"]]

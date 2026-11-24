@@ -180,7 +180,7 @@ def test_snapshot_rejections(fortios_snapshot, old, new, fragment):
 
 @pytest.mark.parametrize("new", ["FGT80F-8.0.1-FW-build0245", "FGT80F-8.0.0-FW-build0168"])
 def test_untested_build_in_the_snapshot_is_planned_with_a_warning(fortios_snapshot, new):
-    # G00-1: these builds were refused as unmeasured until 1.0.11; now they are planned and reported untested
+    # STARTUP-1: these builds were refused as unmeasured until 1.0.11; now they are planned and reported untested
     tested = plan(fortios_snapshot)
     document = plan(replace(fortios_snapshot, "FGT80F-8.0.0-FW-build0167", new))
     assert tested["firmware_support"]["status"] == "tested"

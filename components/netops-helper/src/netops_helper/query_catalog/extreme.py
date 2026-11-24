@@ -368,7 +368,7 @@ QUERIES: dict[str, Query] = {
 }
 
 
-# G37: VR and address parameters are enrolled inventory, never free CLI text.
+# switch routing: VR and address parameters are enrolled inventory, never free CLI text.
 _VR = {"vr": Slot("virtual_routers", "vr")}
 _PROBE = {**_VR, "address": Slot("addresses", "ipv4_address")}
 _SOURCE_PROBE = {**_PROBE, "source": Slot("addresses", "ipv4_address")}

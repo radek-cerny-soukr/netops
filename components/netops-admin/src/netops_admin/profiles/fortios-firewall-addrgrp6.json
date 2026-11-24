@@ -1,0 +1,47 @@
+{
+  "platform": "fortios",
+  "table": "firewall addrgrp6",
+  "versions": [
+    "7.6.8 build3744"
+  ],
+  "ops": [
+    "create",
+    "update",
+    "delete"
+  ],
+  "key_pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,78}$",
+  "protected_keys": [],
+  "attributes": {
+    "member": {
+      "type": "name-list",
+      "required_on_create": true,
+      "update": true,
+      "unset": false,
+      "referenced_update": true
+    },
+    "comment": {
+      "type": "text",
+      "required_on_create": false,
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "max_length": 255
+    }
+  },
+  "fixed": {
+    "exclude": "disable"
+  },
+  "volatile": [
+    "uuid"
+  ],
+  "reserved_values": {},
+  "inverse_identity_changes": {
+    "delete": [
+      "uuid"
+    ]
+  },
+  "rollback_evidence": "Measured on FortiGate-60F v7.6.8,build3744 on 2026-11-23 with the full admin orchestration and the cli-script safeguard: create of an IPv6 address group with one firewall address6 member, used by a disabled IPv6 firewall policy (srcaddr6), and its undo (delete) ended confirmed, and the check account showed the predicted group each time. Refused before any write: apply without the approved preview hash (fortios_object_preview_required) and the delete of the group while the policy used it (fortios_object_referenced). show full-configuration prints exclude disable (fixed). show and show full-configuration of firewall addrgrp6 equalled the output before the run. Member updates, the delete request outside an undo and the endpoint_impact rule of an enabled policy are covered by the simulated device only. A recreated group receives a new uuid. FortiOS 8.0.1 and later: refused before any write (safeguard_no_rest_inverse), verified by preview on FortiOS 8.0.2 build0251.",
+  "exact_versions": true,
+  "provisional": true,
+  "measured": true
+}

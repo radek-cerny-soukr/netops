@@ -1,0 +1,5 @@
+config system dns
+    set primary 198.51.100.45
+    set secondary 203.0.113.46
+end
+

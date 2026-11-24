@@ -26,5 +26,5 @@
   "volatile": [],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "G125: changes the local MLAG ID on an unused Port-Channel. Peer configuration is independent. The EOS session timer, scoped port configuration and MLAG interface readback apply."
+  "rollback_evidence": "Live write and return on cEOSLab 4.36.1F (2026-11-19): A local MLAG ID on a memberless channel was read back and removed on the switch pair. eos mlag admin: changes the local MLAG ID on an unused Port-Channel. Peer configuration is independent. The EOS session timer, scoped port configuration and MLAG interface readback apply."
 }

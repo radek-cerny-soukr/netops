@@ -1,4 +1,4 @@
-"""Junos SRX preflight (platform capability, management path) and readback for the G143 profiles."""
+"""Junos SRX preflight (platform capability, management path) and readback for the junos srx security profiles."""
 
 from __future__ import annotations
 

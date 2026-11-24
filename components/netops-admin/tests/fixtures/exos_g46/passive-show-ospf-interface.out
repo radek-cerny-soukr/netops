@@ -1,8 +1,0 @@
-Interface(rif1000113): 198.51.100.1/24 Vlan: netops-g46 OSPF: ENABLED Router: DISABLED
-AreaId: 0.0.0.15   RtId: 0.0.0.0  Link Type: auto  Passive: Yes
-Cost: 10/A  Priority: 1  Transit Delay: 1
-Hello Interval: 10s  Rtr Dead Time: 40s  Retransmit Interval: 5s
-Authentication: NONE
-BFD Protection: Off
-
-Neighbors:

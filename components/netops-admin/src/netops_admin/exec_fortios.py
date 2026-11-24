@@ -6,7 +6,7 @@ import json
 import re
 from dataclasses import dataclass
 
-from netops_admin import fortios, fortios_lease
+from netops_admin import fortios, fortios_lease, fortios_tables
 from netops_admin.errors import Rejected, StateUnreadable
 from netops_admin.profiles import find_profile
 from netops_admin.request import parse_request
@@ -22,7 +22,7 @@ class PromptSpec:
     # seconds a line may take before its prompt returns (None: access.LINE_TIMEOUT_SECONDS); Junos commits take
     # minutes
     seconds: object = None
-    # alternative anchors (1.0.12 G145: the old and the new Junos host name of a host-name change)
+    # alternative anchors (1.0.12 junos port ownership: the old and the new Junos host name of a host-name change)
     anchors: tuple = ()
 
 
@@ -223,6 +223,11 @@ def plan_prechecks(access, device, plan, snapshot_text="") -> list:
                                reason_codes=["fortiswitch_write_permission_required"])
         plan["cycle_state"] = switch_port_preflight(access, plan)
     reasons = []
+    if plan["table"] == fortios.ROUTE6_TABLE and fortios_tables.hooks(plan["table"]) is not None and \
+            not fortios.management_ipv4(device.address, getattr(device, "check_address", None)):
+        # 1.0.13 A1-R (design A 3, rule f): IPv6 routes change only while the sessions of Admin run over IPv4
+        raise Rejected(["an IPv6 static route is changed only while Admin reaches the device over IPv4 literals"
+                        " (address and check_address)"], reason_codes=["fortios_route6_protected"])
     fields = plan.get("predicted", {}).get("after") or {}
     if plan["table"] == fortios.POLICY_TABLE and plan["op"] != "move":
         for name in fortios.l1_fortios.tokenize(fields.get("internet-service-name", "")):
@@ -441,6 +446,9 @@ def observe(access, plan, *, before=False):
                 raise Rejected(["the check account sees different firewall policy configuration"],
                                reason_codes=["fortios_policy_order_changed"])
             return fortios._shown_attributes(entry)
+    registered = fortios_tables.hooks(plan["table"])
+    if registered is not None:
+        return _observe_registered(access, plan, registered)
     if plan["table"] in fortios.NESTED:
         command = "show %s %s" % (fortios.NESTED[plan["table"]][0], fortios.split_nested(plan["table"], plan["key"])[0])
     else:
@@ -459,6 +467,33 @@ def observe(access, plan, *, before=False):
         return state
     answer = access.check_query(command)
     return fortios.shown_object(answer, plan["table"], plan["key"])
+
+
+def readback_command(plan, registered) -> str:
+    """1.0.13 A1-R: show <table> (singleton), show <parent> <parent id> (nested), show <table> "<key>" (object)."""
+    if registered.readback_command is not None:
+        return registered.readback_command(plan)
+    if registered.kind == "singleton":
+        return "show " + plan["table"]
+    if registered.kind == "nested":
+        parent_table, _child = registered.parent
+        parent = fortios.split_nested(plan["table"], plan["key"])[0]
+        return "show %s %s" % (parent_table, parent if parent.isdigit() else '"%s"' % parent)
+    return 'show %s "%s"' % (plan["table"], plan["key"])
+
+
+def _observe_registered(access, plan, registered):
+    """The check account read of a registered table in the held session; an incomplete or refused answer carries the
+    readback reason code of the table (the operation is then not confirmed and the safeguard returns the change)."""
+    answer = access.check_query(readback_command(plan, registered))
+    try:
+        if registered.readback_parse is not None:
+            return registered.readback_parse(answer, plan)
+        return fortios.shown_registered(answer, plan["table"], plan["key"])
+    except Rejected as exc:
+        if registered.readback_code is None:
+            raise
+        raise Rejected(exc.reasons, reason_codes=[registered.readback_code]) from None
 
 
 def _nat_read(access, command, table, key):
@@ -557,7 +592,7 @@ def foreign_sessions(access, device) -> int:
 
 
 def observe_clear(access, target):
-    """Every DHCP lease of the device, read with the check account (1.0.12 G20 FG-37)."""
+    """Every DHCP lease of the device, read with the check account (1.0.12 dhcp dns FG-37)."""
     return fortios_lease.observation(access.check_query(target.read))
 
 

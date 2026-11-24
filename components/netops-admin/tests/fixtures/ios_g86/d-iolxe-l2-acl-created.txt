@@ -1,2 +1,0 @@
-Extended IP access list NETOPS-G86-713
-    10 permit ip any any

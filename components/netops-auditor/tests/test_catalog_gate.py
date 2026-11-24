@@ -20,6 +20,8 @@ COMPONENT = Path(__file__).resolve().parents[1]
 
 SCRIPT = COMPONENT / "tests" / "support" / "check_gates.py"
 
+from support.check_gates import fixture_names
+
 CATALOG_DIRECTORY = COMPONENT / "src" / "netops_auditor" / "catalog"
 
 CATALOG = CATALOG_DIRECTORY / "fortios.json"
@@ -87,7 +89,7 @@ def _tree(tmp_path: Path) -> Path:
     for identifier in _rule_identifiers():
         directory = root / "tests" / "fixtures" / "rules" / identifier
         directory.mkdir(parents=True)
-        for name in ("positive.conf", "negative.conf"):
+        for name in fixture_names(identifier):
             (directory / name).write_text(_text(SYNTHETIC), encoding="utf-8")
     return root
 

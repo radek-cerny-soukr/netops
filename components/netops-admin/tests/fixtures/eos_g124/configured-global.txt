@@ -1,7 +1,0 @@
-ip virtual-router mac-address 00:00:5e:00:53:01
-ip routing
-ip routing vrf g124-route
-ipv6 unicast-routing vrf g124-route
-ip route 0.0.0.0/0 192.0.2.1
-ip route vrf g124-route 198.51.100.0/24 192.0.2.1
-ipv6 route vrf g124-route ::/0 2001:db8:1::1

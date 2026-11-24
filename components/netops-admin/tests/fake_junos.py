@@ -1,11 +1,10 @@
 """Simulated vJunos-switch 26.2R1.7 (ELS) for netops-admin tests.
 
-Every answer is built from an anonymised output measured on vJunos-switch 26.2R1.7 (fixtures/junos_26_2R1_7, task
-netops-provoz-20261116-308). The configuration starts from the reconstructed lab configuration; the candidate, the
+Every answer is built from an anonymised output measured on vJunos-switch 26.2R1.7 (fixtures/junos_26_2R1_7, verification). The configuration starts from the reconstructed lab configuration; the candidate, the
 commit history and the commit confirmed timer follow the measured behaviour: configure exclusive works on the shared
 candidate and drops it at exit, every commit confirmed restarts the timer, commit check and a plain commit confirm it,
 the timer expires 0-60 s after its minutes and the automatic rollback is committed as "root via other" a while later,
-returning the configuration before the newest commit confirmed (task netops-20261116-378), and a confirmation that
+returning the configuration before the newest commit confirmed (verification), and a confirmation that
 starts before the expiry wins the race.
 """
 from __future__ import annotations
@@ -42,8 +41,8 @@ def fixture(name: str) -> str:
     return (FIXTURES / name).read_text(encoding="utf-8")
 
 
-def fixture_g138(name: str) -> str:
-    return (FIXTURES.parent / "junos_g138" / name).read_text(encoding="utf-8")
+def fixture_junos_port_maintenance(name: str) -> str:
+    return (FIXTURES.parent / "junos_junos_port_maintenance" / name).read_text(encoding="utf-8")
 
 
 BASELINE = fixture("show-configuration-display-set__reconstructed.txt")
@@ -102,14 +101,14 @@ PORT = r"(?:ge|xe)-0/0/[0-9]+"
 TEXT = r'(?:"[^"]*"|\S+)'
 _PORT_REST = (r"(?:description %s|disable|native-vlan-id [0-9]{1,4}|apply-groups %s"
               r"|unit 0 family ethernet-switching (?:interface-mode (?:access|trunk)|vlan members %s))" % (TEXT, NAME, NAME))
-# the statements the simulated switch accepts (the measured forms of task-evidence/g137 and ref/mereni-c8)
-# 1.0.12 G145 r2: the facilities of the message selectors of a remote host ("set system syslog host <ip> ?",
-# task-evidence/g145/probe1/help.txt)
+# The simulated switch accepts the statement forms observed in the measurements.
+# 1.0.12 JUNOS-PORT-OWNERSHIP r2: the facilities of the message selectors of a remote host ("set system syslog host <ip> ?",
+# private measurement record)
 SELECTORS = ("authorization|change-log|conflict-log|daemon|dfc|external|firewall|ftp|interactive-commands|kernel|ntp|pfe"
              "|security|user")
 SYNTAX = [re.compile(item) for item in (
     r"set interfaces %s %s" % (PORT, _PORT_REST),
-    # 1.0.12 G138 (read by ? on d-vjunos, task-evidence/g138/znalost/s3-help.txt)
+    # 1.0.12 JUNOS-PORT-MAINTENANCE (read by ? on vjunos-switch, private measurement record)
     r"set interfaces %s (?:speed (?:10m|100m|1g|10g|auto)|mtu (?:25[6-9]|2[6-9][0-9]|[3-8][0-9]{3}|9[01][0-9]{2}|91[0-8][0-9]|919[0-2])"
     r"|ether-options (?:no-)?auto-negotiation)" % PORT,
     r"set poe interface %s disable" % PORT,
@@ -120,7 +119,7 @@ SYNTAX = [re.compile(item) for item in (
     r"set vlans %s (?:vlan-id [0-9]{1,4}|description %s|l3-interface irb\.[0-9]+)" % (NAME, TEXT),
     r"set switch-options voip interface %s\.0 vlan %s" % (PORT, NAME),
     r"set protocols mstp msti [0-9]+ vlan %s" % NAME,
-    # 1.0.12 G145 (task-evidence/g145/probe1-3): the measured forms and the CLI completions ('?')
+    # 1.0.12 JUNOS-PORT-OWNERSHIP (private measurement record): the measured forms and the CLI completions ('?')
     r"set system host-name [A-Za-z0-9.-]+",
     r"set system domain-name [A-Za-z0-9.-]+",
     r"set system name-server %s" % ADDRESS,
@@ -152,8 +151,11 @@ def _place_other(candidate, line):
 
 
 def effective(lines, port) -> list:
-    """The statements of a port from the port itself, an interface-range and applied groups (Junos inheritance as
-    measured in task-evidence/g137: display inheritance | display set shows them as statements of the port)."""
+    """Return direct and inherited statements for a port.
+
+    ``show configuration interfaces <port> | display inheritance | display set``
+    displays these statements in the port's configuration scope.
+    """
     prefix = "set interfaces %s " % port
     found = [line[len(prefix):] for line in lines if line.startswith(prefix)
              and not line[len(prefix):].startswith("apply-groups ")]
@@ -202,7 +204,7 @@ class FakeJunos:
         self.learned_macs = {}
         self.vlan_macs = {}
         self.check_unreadable = False
-        # 1.0.12 G138: the ports with a link up, the PoE controller (vJunos has none) and the ports that power a device
+        # 1.0.12 JUNOS-PORT-MAINTENANCE: the ports with a link up, the PoE controller (vJunos has none) and the ports that power a device
         self.up_ports = {"ge-0/0/0", "ge-0/0/1"}
         self.poe_capable = False
         self.powered = set()
@@ -249,7 +251,7 @@ class FakeJunos:
 
     @property
     def hostname(self) -> str:
-        """The committed host name: the prompt shows a new name right after its commit (measured, task-evidence/g145)."""
+        """The committed host name: the prompt shows a new name right after its commit (measured, private measurement record)."""
         return next((line.split()[3] for line in self.lines if line.startswith("set system host-name ")), HOSTNAME)
 
     def pending(self) -> bool:
@@ -269,7 +271,7 @@ class FakeJunos:
     # ---- interactive session (access.apply) ----
     def apply(self, steps, spec):
         anchors = (spec.anchor,) + tuple(getattr(spec, "anchors", ()))
-        # 1.0.12 G145: the anchor is "@<host name>", the part of the prompt after the account
+        # 1.0.12 JUNOS-PORT-OWNERSHIP: the anchor is "@<host name>", the part of the prompt after the account
         assert all(anchor.startswith(b"@") for anchor in anchors) and callable(spec.seconds)
         assert b"@" + self.hostname.encode("ascii") in anchors
         assert spec.seconds("commit comment \"x\"") >= 300 and spec.seconds("set interfaces x") >= 30
@@ -407,7 +409,7 @@ class FakeJunos:
                     return ""
             toggle = re.fullmatch(r"set (interfaces \S+ ether-options) (?:no-)?auto-negotiation", shown)
             if toggle is not None:
-                # measured (task-evidence/g138/znalost/s5-private.txt): the two statements replace each other
+                # measured (private measurement record): the two statements replace each other
                 candidate[:] = [item for item in candidate
                                 if not re.fullmatch(r"set %s (?:no-)?auto-negotiation" % re.escape(toggle.group(1)), item)]
             if shown not in candidate:
@@ -431,7 +433,7 @@ class FakeJunos:
         return ""
 
     def _rename(self, line, candidate) -> str:
-        # d-vjunos requires the VLAN hierarchy keyword on both sides of an IGMP rename.
+        # vjunos-switch requires the VLAN hierarchy keyword on both sides of an IGMP rename.
         match = re.fullmatch(r"rename (protocols igmp-snooping vlan) (\S+) to vlan (\S+)", line)
         if match is None:
             match = re.fullmatch(r"rename (vlans|protocols (?:mld-snooping|vstp) vlan) (\S+) to (\S+)", line)
@@ -464,12 +466,12 @@ class FakeJunos:
         before = list(self.lines)
         self.lines = list(candidate)
         self.foreign_candidate = None
-        # measured in task 319: the commit row carries the end of the commit and the timer counts from it
+        # measured in verification: the commit row carries the end of the commit and the timer counts from it
         self._record(LOGIN, "cli", minutes, comment, pending=minutes is not None)
         if minutes is None:
             self.timer = None
             return "commit complete"
-        # measured in task 378: the expiry returns the configuration before the NEWEST commit confirmed (after an
+        # measured in verification: the expiry returns the configuration before the NEWEST commit confirmed (after an
         # empty safeguard, a change and an inverse each committed with commit confirmed, the change came back), not
         # the configuration before the first one
         self.timer = {"minutes": minutes, "expire": self.epoch + minutes * 60 + self.expiry_delay, "target": before}
@@ -493,7 +495,7 @@ class FakeJunos:
 
     def version_text(self) -> str:
         """show version with the committed host name (measured: the check account sees a new name right after its
-        commit, task-evidence/g145/live-l1)."""
+        commit, private measurement record)."""
         return (fixture("show-version-match__hostname-model-junos.txt").replace("26.2R1.7", self.firmware)
                 .replace("Hostname: %s" % HOSTNAME, "Hostname: %s" % self.hostname)
                 + "JUNOS OS Kernel 64-bit  [20260619.173755_builder_junos_262_r1]\n")
@@ -510,7 +512,7 @@ class FakeJunos:
                            for line in effective(self.lines, match.group(1))) + "\n"
         match = re.fullmatch(r"show configuration (system(?: [A-Za-z0-9:.-]+)*) \| display set", command)
         if match:
-            # 1.0.12 G145: the scoped reads of task-evidence/g145/probe2 (only the lines of the stanza, empty if none)
+            # A scoped system read returns only statements from the requested stanza.
             path = "set " + match.group(1)
             return "".join(line + "\n" for line in self.lines if line == path or line.startswith(path + " "))
         match = re.fullmatch(r"show configuration vlans (\S+) \| display set", command)
@@ -604,7 +606,7 @@ class FakeJunos:
             speed = next((line.split()[1] for line in lines if line.startswith("speed ")), "auto")
             speeds = {"10m": "10mbps", "100m": "100mbps", "1g": "1000mbps", "10g": "10Gbps", "auto": "1000mbps"}
             negotiation = "Disabled" if "ether-options no-auto-negotiation" in lines else "Enabled"
-            text = fixture_g138("show-interfaces-ge-0-0-9-match-mtu__9000.txt").replace("ge-0/0/9", name)
+            text = fixture_junos_port_maintenance("show-interfaces-ge-0-0-9-match-mtu__9000.txt").replace("ge-0/0/9", name)
             return (text.replace("MTU: 9000", "MTU: " + mtu).replace("Speed: 1000mbps", "Speed: " + speeds[speed])
                     .replace("Auto-negotiation: Enabled", "Auto-negotiation: " + negotiation))
         match = re.fullmatch(r"show poe interface (\S+)", command)
@@ -612,7 +614,7 @@ class FakeJunos:
             name = match.group(1)
             self.poe_log.append(name)
             if not self.poe_capable:
-                return fixture_g138("show-poe-interface-ge-0-0-9__vjunos-no-controller.txt")
+                return fixture_junos_port_maintenance("show-poe-interface-ge-0-0-9__vjunos-no-controller.txt")
             disabled = "set poe interface %s disable" % name in self.lines
             on = name in self.powered and not disabled
             return ("PoE interface status:\nPoE interface                :  %s\nAdministrative status        : %s\n"
@@ -644,7 +646,7 @@ class FakeJunos:
             if name not in self.vlans():
                 return "\n"
             ports = [(port, row) for port in PORTS for row in self.port_vlans(port) or () if row[0] == name]
-            text = fixture("show-vlans-g137-data-extensive__ro-access.txt").split("Interfaces:")[0]
+            text = fixture("show-vlans-junos-vlan-admin-data-extensive__ro-access.txt").split("Interfaces:")[0]
             text = re.sub(r"VLAN Name: \S+\s+", "VLAN Name: %-23s" % name, text).replace("3901", self.tag(name))
             text += "Interfaces:\n" + "".join("    %s.0,%s,%s\n" % (port, row[1], row[2]) for port, row in ports)
             text += "Number of interfaces: Tagged %d    , Untagged %d    \nTotal MAC count: %d \n" % (
@@ -660,7 +662,7 @@ class FakeJunos:
 
     def port_vlans(self, name):
         """(VLAN, tagging, mode) of the port as show ethernet-switching interface and show vlans extensive show them
-        (measured in task-evidence/g137): an access port carries its member untagged and a voice VLAN tagged, a trunk
+        (measured in private measurement record): an access port carries its member untagged and a voice VLAN tagged, a trunk
         its members tagged and the member that is the native VLAN untagged; a native VLAN that is no member is not
         shown at all. None for a port without ethernet-switching."""
         lines = effective(self.lines, name)

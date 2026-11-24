@@ -23,8 +23,12 @@ the shard has finished, one at a time, with no other test container running.
                          in parallel, or only the SERIAL_MODULES of the shard
                          (run alone, one after another, after the parallel
                          part; may be empty)
-  --shards N --check     prove the shards are disjoint, non-empty and together
-                         contain every test module (nothing can drop out)
+  --check [--shards N]   prove the shards are disjoint, non-empty and together
+                         contain every test module (default: three shards);
+                         estimates include the redaction corpus. With
+                         GITHUB_EVENT_NAME=workflow_dispatch, run the whole
+                         corpus as one module; otherwise, use partitions when
+                         supported by the tested tree.
   --tests DIR            split the test modules of another tree (a manual CI
                          run tests a released tag with the tools of the
                          workflow revision)
@@ -37,6 +41,7 @@ Standard library only; it never imports the product or the tests.
 """
 
 import argparse
+import os
 from pathlib import Path
 import sys
 
@@ -61,6 +66,7 @@ WEIGHTS = {
     "test_audit_file_order": 11.2,
     "test_audit_pending_truth": 3.8,
     "test_audit_shutdown": 12.1,
+    "test_auditor_admin_gate_compatibility": 1.0,
     "test_auditor_ctrl_c_message": 2.1,
     "test_auditor_inputs": 2.3,
     "test_auditor_running_collect": 11.8,
@@ -119,6 +125,7 @@ WEIGHTS = {
     "test_initialization_guidance": 2.4,
     "test_linear_time_parsers": 2.4,
     "test_mcp_argument_guidance": 5.9,
+    "test_network_overview_bridge": 4.3,
     "test_operator_failure_consistency": 3.3,
     "test_operator_faults": 2.5,
     "test_parser_watchdog": 1.1,
@@ -172,6 +179,7 @@ WEIGHTS = {
     "test_worker_snmp_get": 1.3,
 }
 DEFAULT_WEIGHT = 10.0
+REDACTION_FLOOR = "test_redaction_1_0_6_floor"
 # Modules with a wall-clock budget inside the test: under four concurrent test
 # containers test_admin_text_limits exceeded its 10 s parser budget on GitHub
 # (runs 45022462276 and 45022466018) although it passes alone.  Each runs in its
@@ -183,6 +191,7 @@ SERIAL_MODULES = (
 )
 # Test processes per shard: a GitHub ubuntu-24.04 runner has 4 vCPUs and the job runs xargs -P "$(nproc)".
 PARALLEL = 4
+DEFAULT_SHARDS = 3
 
 
 class ShardError(Exception):
@@ -244,7 +253,7 @@ def parts(members, serial=None):
     return [name for name in members if name not in serial], [name for name in members if name in serial]
 
 
-def check(names, shards, weights=None, ignore_stale=False, serial=None):
+def check(names, shards, weights=None, ignore_stale=False, serial=None, parallel=None):
     weights = WEIGHTS if weights is None else weights
     serial = SERIAL_MODULES if serial is None else tuple(serial)
     errors = []
@@ -257,7 +266,7 @@ def check(names, shards, weights=None, ignore_stale=False, serial=None):
     absent = sorted(set(serial) - set(names))
     if absent and not ignore_stale:
         errors.append("serial modules name missing test modules: " + ", ".join(absent))
-    plan, loads = assign(names, shards, weights, serial=serial)
+    plan, loads = assign(names, shards, weights, parallel=parallel, serial=serial)
     seen = {}
     for number, members in enumerate(plan, 1):
         if not members:
@@ -299,16 +308,35 @@ def main(argv=None):
             print("\n".join(names))
             return 0
         if args.shards is None:
-            parser.error("--shards is required with --shard or --check")
+            if not args.check:
+                parser.error("--shards is required with --shard")
+            args.shards = DEFAULT_SHARDS
         if args.part and (args.check or args.shard is None):
             parser.error("--part needs --shard and cannot be combined with --check")
+        weights = WEIGHTS
+        parallel = PARALLEL
+        partitioned = False
+        if os.environ.get("GITHUB_EVENT_NAME") != "workflow_dispatch" and REDACTION_FLOOR in names:
+            floor_source = Path(args.tests, REDACTION_FLOOR + ".py").read_text(encoding="utf-8")
+            partitioned = "NETOPS_REDACTION_FUZZ_PART" in floor_source
+            if partitioned:
+                # Branch CI starts one partition in each runner's first slot.
+                # Balance the other modules across the remaining slots.
+                weights = {**WEIGHTS, REDACTION_FLOOR: 0}
+                parallel = PARALLEL - 1
         if args.check:
-            errors, plan, loads = check(names, args.shards, ignore_stale=args.ignore_stale_weights)
+            errors, plan, loads = check(names, args.shards, weights,
+                                       ignore_stale=args.ignore_stale_weights, parallel=parallel)
+            if partitioned:
+                print("branch CI: redaction corpus split into %d partitions" % args.shards)
             unweighted = sorted(set(names) - set(WEIGHTS))
             if unweighted:
                 print("modules without a measured weight (%.0f s assumed): %s" % (DEFAULT_WEIGHT, ", ".join(unweighted)))
             for number, (members, load) in enumerate(zip(plan, loads), 1):
                 alone = parts(members)[1]
+                if partitioned:
+                    floor_seconds = WEIGHTS[REDACTION_FLOOR] / args.shards
+                    load = max(load, floor_seconds + sum(weights.get(name, DEFAULT_WEIGHT) for name in alone))
                 print("shard %d/%d: %d modules (%d run alone afterwards%s), estimated %.0f s at the measured speed with %d processes"
                       % (number, args.shards, len(members), len(alone), (": " + ", ".join(alone)) if alone else "",
                          load, PARALLEL))
@@ -318,7 +346,7 @@ def main(argv=None):
             return 1 if errors else 0
         if args.shard is None or not 1 <= args.shard <= args.shards:
             parser.error("--shard must be between 1 and --shards")
-        plan, _ = assign(names, args.shards)
+        plan, _ = assign(names, args.shards, weights, parallel=parallel)
         members = plan[args.shard - 1]
         if args.part:
             members = parts(members)[0 if args.part == "parallel" else 1]

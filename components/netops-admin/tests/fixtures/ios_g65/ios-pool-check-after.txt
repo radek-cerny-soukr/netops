@@ -1,5 +1,0 @@
-ip dhcp pool NETOPS-G65-POOL
- network 192.0.2.0    255.255.255.0
- default-router 192.0.2.1    192.0.2.2
- dns-server 192.0.2.3    192.0.2.4
-end

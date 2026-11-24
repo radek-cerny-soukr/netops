@@ -1,2 +1,0 @@
-ip domain-name g104.example
-ip name-server 198.51.100.30

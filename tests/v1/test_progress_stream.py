@@ -167,6 +167,14 @@ class ProgressThroughTheGateway(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(on_progress)
         self.assertNotIn("progress", [record["direction"] for record in self.audit_records()])
 
+    def test_overview_progress_requires_a_request_id_and_progress_token(self):
+        scope = {"method": "POST", "path": "/mcp"}
+        message = {"jsonrpc": "2.0", "id": 9, "method": "tools/call",
+                   "params": {"name": "network_overview", "arguments": {}}}
+        self.assertIsNone(gateway.progress_request(scope, json.dumps(message)))
+        message["params"]["_meta"] = {"progressToken": "overview"}
+        self.assertEqual(gateway.progress_request(scope, json.dumps(message)), (9, "overview"))
+
     async def test_only_the_triage_tools_stream(self):
         self.script = self.reports()
         message = json.loads(json.dumps(CALL))

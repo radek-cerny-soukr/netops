@@ -42,7 +42,7 @@ def test_every_literal_kind_of_the_catalogue_is_named_in_the_exceptions():
     assert "literal.junos_log_time" in catalogue and "literal.junos_log_severity" in catalogue
     assert "start-inclusive, end-exclusive" in catalogue
     kinds -= {"junos_log_time", "junos_log_severity"}
-    # G28 keeps the prose guide frozen for the text phase; the new literal kind
+    # ADC-STATISTICS keeps the prose guide frozen for the text phase; the new literal kind
     # is documented by the generated catalogue, alongside its numeric-ID description.
     if "fortiadc_member_id" in kinds:
         assert "None.fortiadc_member_id" in catalogue
@@ -57,24 +57,24 @@ def test_every_literal_kind_of_the_catalogue_is_named_in_the_exceptions():
         assert "None.etherchannel_group_id" in catalogue
         assert "numeric group ID 1–128" in catalogue
         kinds = kinds - {"etherchannel_group_id"}
-    # G120 likewise: the EOS log window slots are documented by the generated catalogue in the text phase.
-    g120 = {"eos_log_minutes", "log_severity", "log_date", "log_time"}
-    if kinds & g120:
+    # EOS-HEALTH likewise: the EOS log window slots are documented by the generated catalogue in the text phase.
+    eos_health = {"eos_log_minutes", "log_severity", "log_date", "log_time"}
+    if kinds & eos_health:
         catalogue = (GUIDE.parents[0].parent / "components/netops-helper/docs/query-catalog.md").read_text()
-        for kind in kinds & g120:
+        for kind in kinds & eos_health:
             assert "None." + kind in catalogue, kind
-        kinds = kinds - g120
+        kinds = kinds - eos_health
     assert "None.nxos_log_count" in catalogue
     kinds.discard("nxos_log_count")
     exos_log = {"exos_log_source", "exos_log_severity"}
     for kind in kinds & exos_log:
         assert "None." + kind in catalogue
     kinds -= exos_log
-    # G94 documents the new literal slots in the generated catalogue.
-    g94 = {"ipv4_neighbor", "ipv6_neighbor", "nxos_acl_name"}
-    for kind in kinds & g94:
+    # NXOS-SECURITY documents the new literal slots in the generated catalogue.
+    nxos_security = {"ipv4_neighbor", "ipv6_neighbor", "nxos_acl_name"}
+    for kind in kinds & nxos_security:
         assert "None." + kind in catalogue
-    kinds -= g94
+    kinds -= nxos_security
     assert "None.c9800_ap_name" in catalogue
     kinds.discard("c9800_ap_name")
     if "ip_literal" in kinds:

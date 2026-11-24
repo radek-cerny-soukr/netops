@@ -13,6 +13,7 @@ from test_fortios import plan, rejected, replace
 from netops_admin import execute
 from netops_admin.config import DEFAULT_LIMITS
 from netops_admin.errors import Rejected
+from approved_apply import approved_apply
 
 FORTIOS_SECRETS = {
     "snmp community": 'config system snmp community\n    edit 1\n        set name "%s"\n    next\nend\n',
@@ -198,7 +199,7 @@ def test_refused_previews_exhaust_the_budget_of_refusals(tmp_path):
                          "reasons": ["the budget of rejected requests for this hour is exhausted"], "reason_codes": ["budget_exhausted"], "reason_details": [{"code": "budget_exhausted", "budget": "rejected_hour"}]}
     assert runtime.store.rejections_since(0) == 3
     with pytest.raises(Rejected):
-        execute.apply(runtime, "lab", request())
+        approved_apply(runtime, "lab", request())
     assert device.applied_blocks == []
 
 
@@ -220,7 +221,7 @@ def test_preview_of_an_unenrolled_device_counts_as_a_refusal(tmp_path):
 def test_ready_and_known_previews_are_not_counted(tmp_path):
     runtime = make_runtime(tmp_path, FakeFortiOS())
     assert execute.preview(runtime, "lab", request())["result"] == "ready"
-    execute.apply(runtime, "lab", request())
+    approved_apply(runtime, "lab", request())
     assert execute.preview(runtime, "lab", request())["result"] == "known-request"
     assert runtime.store.rejections_since(0) == 0
 

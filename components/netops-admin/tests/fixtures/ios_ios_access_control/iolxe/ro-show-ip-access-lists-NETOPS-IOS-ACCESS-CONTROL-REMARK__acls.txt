@@ -1,0 +1,5 @@
+
+
+
+Extended IP access list NETOPS-IOS-ACCESS-CONTROL-REMARK
+    10 permit ip any any

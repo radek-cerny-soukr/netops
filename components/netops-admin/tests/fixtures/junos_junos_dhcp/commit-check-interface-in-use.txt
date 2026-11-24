@@ -1,0 +1,4 @@
+[edit forwarding-options dhcp-relay group NETOPS-JUNOS-DHCP-RG3]
+  'interface irb.3922'
+    Interface irb.3922 already configured.
+error: configuration check-out failed

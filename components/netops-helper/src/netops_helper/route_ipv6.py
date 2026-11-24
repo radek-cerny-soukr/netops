@@ -77,7 +77,7 @@ def exos_routes(table, text):
     """EXOS IPv6 two-line routes; a header and final route count prove completion.
 
     Live empty captures: EXOS-VM 33.6.1.14 and X440/X435 33.7.1.6-patch1-11.
-    Populated shape: vendor show_iproute_ipv6.shtml example (G37 evidence).
+    Populated shape: vendor show_iproute_ipv6.shtml example (switch routing evidence).
     """
     from . import tables
     numbered = [(n, raw) for n, raw in enumerate(text.splitlines(), 1) if raw.strip()]
@@ -159,7 +159,7 @@ def ios_table(table, text):
             continue
         legend = False
         # IOS XE 17.18.2 appends the route tag to BGP/redistributed entries:
-        # "B   2001:DB8::/64 [20/0], tag 65001" (measured, G69 task 473).
+        # "B   2001:DB8::/64 [20/0], tag 65001" (measured, xe routing verification).
         entry = re.fullmatch(r'([A-Z][A-Za-z0-9]*)\s+([0-9A-Fa-f:]+/\d+)\s+\[\d+/\d+\](?:, tag \d+)?', value)
         if entry:
             if pending:
@@ -245,7 +245,7 @@ def eos_routes(table, text):
     return rows, unknown
 
 
-# G11 (1.0.12, FG-21): the whole FortiOS IPv6 table, `get router info6 routing-table`. Measured on FortiGate-60F
+# firewall routing (1.0.12, FG-21): the whole FortiOS IPv6 table, `get router info6 routing-table`. Measured on FortiGate-60F
 # 7.6.8 build3744 (only the connected loopback) and FortiGate-80F 8.0.2 build0251 (a static default route via a
 # link-local gateway and connected prefixes): `<code>[*] <prefix> [<distance>/<metric>] via <address>, <interface>,
 # <uptime>[, [<weight>/<priority>]]`; `via ::` is a directly connected route.

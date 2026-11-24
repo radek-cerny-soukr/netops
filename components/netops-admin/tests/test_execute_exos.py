@@ -10,9 +10,11 @@ from netops_admin import execute
 from netops_admin.config import DEFAULT_LIMITS, Config, Device
 from netops_admin.errors import Rejected
 from netops_admin.request import parse_request
+from approved_apply import approved_apply, preview_hash
 
 
-def make_runtime(tmp_path, device, accounts=("admin", "netops-rw"), firmware=FIRMWARE):
+def make_runtime(tmp_path, device, accounts=("admin", "netops-rw"), firmware=FIRMWARE,
+                 *, simulate_unmeasured_profiles=False):
     config = Config(
         state_dir=str(tmp_path / "state"), audit_file=str(tmp_path / "audit" / "audit.jsonl"),
         export_status_file=None, notify=None, limits=dict(DEFAULT_LIMITS),
@@ -24,7 +26,8 @@ def make_runtime(tmp_path, device, accounts=("admin", "netops-rw"), firmware=FIR
         )},
     )
     from enrollment_helpers import certify
-    runtime = execute.Runtime(config, lambda _device: device, sleep=device.advance)
+    runtime = execute.Runtime(config, lambda _device: device, sleep=device.advance,
+                              simulate_unmeasured_profiles=simulate_unmeasured_profiles)
     runtime.monotonic = lambda: device.uptime
     return certify(runtime, device, "sw")
 
@@ -46,7 +49,7 @@ def clean(device):
 
 def test_create_is_confirmed_saved_and_the_safeguard_is_gone(tmp_path):
     device = FakeExos()
-    record = execute.apply(make_runtime(tmp_path, device), "sw", request())
+    record = approved_apply(make_runtime(tmp_path, device), "sw", request())
     assert record["result"] == "confirmed"
     assert device.vlans["guest"] == {"tag": "3999", "description": "guest wifi"}
     assert clean(device) and not device.unsaved and device.saves == 1
@@ -65,13 +68,13 @@ def test_create_is_confirmed_saved_and_the_safeguard_is_gone(tmp_path):
 def test_update_remove_and_delete_are_confirmed(tmp_path):
     device = FakeExos()
     runtime = make_runtime(tmp_path, device)
-    assert execute.apply(runtime, "sw", request(op="update", key="spare", changes={"description": "parked"},
+    assert approved_apply(runtime, "sw", request(op="update", key="spare", changes={"description": "parked"},
                                                 request_id="req-update-1"))["result"] == "confirmed"
     assert device.vlans["spare"]["description"] == "parked"
-    assert execute.apply(runtime, "sw", request(op="update", key="spare", changes={"description": None},
+    assert approved_apply(runtime, "sw", request(op="update", key="spare", changes={"description": None},
                                                 request_id="req-update-2"))["result"] == "confirmed"
     assert "description" not in device.vlans["spare"]
-    assert execute.apply(runtime, "sw", request(op="delete", key="spare", changes={},
+    assert approved_apply(runtime, "sw", request(op="delete", key="spare", changes={},
                                                 request_id="req-delete-1"))["result"] == "confirmed"
     assert "spare" not in device.vlans and clean(device) and device.saves == 3
 
@@ -79,7 +82,7 @@ def test_update_remove_and_delete_are_confirmed(tmp_path):
 def test_prediction_mismatch_is_reverted_by_the_timer_and_saved(tmp_path):
     device = FakeExos()
     device.drop_description = True
-    record = execute.apply(make_runtime(tmp_path, device), "sw", request())
+    record = approved_apply(make_runtime(tmp_path, device), "sw", request())
     assert record["result"] == "reverted" and record["reason"] == "prediction mismatch"
     assert "guest" not in device.vlans and clean(device)
     assert not device.unsaved and device.saves == 1
@@ -89,7 +92,7 @@ def test_unsaved_foreign_changes_are_refused_before_any_mutation(tmp_path):
     device = FakeExos()
     device.unsaved = True
     with pytest.raises(Rejected) as caught:
-        execute.apply(make_runtime(tmp_path, device), "sw", request())
+        approved_apply(make_runtime(tmp_path, device), "sw", request())
     assert "unsaved" in caught.value.reasons[0]
     assert device.applied_blocks == []
 
@@ -98,7 +101,7 @@ def test_other_firmware_is_refused(tmp_path):
     device = FakeExos()
     device.firmware = "33.6.1"
     with pytest.raises(Rejected) as caught:
-        execute.apply(make_runtime(tmp_path, device), "sw", request())
+        approved_apply(make_runtime(tmp_path, device), "sw", request())
     assert "33.6.1" in caught.value.reasons[0]
     assert device.applied_blocks == []
 
@@ -108,7 +111,7 @@ def test_unexpected_account_blocks_before_any_mutation(tmp_path):
     device.accounts.append("intruder")
     runtime = make_runtime(tmp_path, device)
     with pytest.raises(Rejected) as caught:
-        execute.apply(runtime, "sw", request())
+        approved_apply(runtime, "sw", request())
     assert "accounts differ" in caught.value.reasons[0]
     assert runtime.store.blocked("sw")["reason"] == "administrator table"
     assert device.applied_blocks == []
@@ -123,7 +126,7 @@ def test_account_created_during_the_change_is_reverted_and_blocks(tmp_path):
 
     device.on_apply = create_account
     runtime = make_runtime(tmp_path, device)
-    record = execute.apply(runtime, "sw", request())
+    record = approved_apply(runtime, "sw", request())
     assert record["result"] == "reverted" and record["reason"] == "administrator table"
     assert "guest" not in device.vlans
     assert runtime.store.blocked("sw")["reason"] == "administrator table"
@@ -133,7 +136,7 @@ def test_leftover_safeguard_is_refused(tmp_path):
     device = FakeExos()
     device.profiles["netopsabcdefp"] = ["delete vlan guest"]
     with pytest.raises(Rejected) as caught:
-        execute.apply(make_runtime(tmp_path, device), "sw", request())
+        approved_apply(make_runtime(tmp_path, device), "sw", request())
     assert "still installed" in caught.value.reasons[0]
     assert device.applied_blocks == []
 
@@ -141,7 +144,7 @@ def test_leftover_safeguard_is_refused(tmp_path):
 def test_timer_scheduled_elsewhere_is_removed_and_nothing_changes(tmp_path):
     device = FakeExos()
     device.timer_shift = 60
-    record = execute.apply(make_runtime(tmp_path, device), "sw", request())
+    record = approved_apply(make_runtime(tmp_path, device), "sw", request())
     assert record["result"] == "reverted" and record["reason"] == "safeguard not verified"
     assert "guest" not in device.vlans and clean(device) and not device.unsaved
     assert len(device.applied_blocks) == 3
@@ -150,7 +153,7 @@ def test_timer_scheduled_elsewhere_is_removed_and_nothing_changes(tmp_path):
 def test_profile_that_reads_back_differently_is_removed_and_nothing_changes(tmp_path):
     device = FakeExos()
     device.body_override = ["show switch"]
-    record = execute.apply(make_runtime(tmp_path, device), "sw", request())
+    record = approved_apply(make_runtime(tmp_path, device), "sw", request())
     assert record["result"] == "reverted" and record["reason"] == "safeguard not verified"
     assert "guest" not in device.vlans and clean(device)
 
@@ -162,7 +165,7 @@ def test_refused_line_is_reverted(tmp_path):
         fake.fail_at_line = 2 if len(fake.applied_blocks) == 2 else None
 
     device.on_apply = refuse
-    record = execute.apply(make_runtime(tmp_path, device), "sw", request())
+    record = approved_apply(make_runtime(tmp_path, device), "sw", request())
     assert record["result"] == "reverted" and "change_failed" in steps(record)
     assert "guest" not in device.vlans and clean(device)
 
@@ -178,7 +181,7 @@ def test_crash_after_the_change_is_settled_by_recover(tmp_path):
     device.on_apply = crash
     runtime = make_runtime(tmp_path, device)
     with pytest.raises(KeyboardInterrupt):
-        execute.apply(runtime, "sw", request())
+        approved_apply(runtime, "sw", request())
     assert "guest" in device.vlans
     device.on_apply = None
     settled = execute.recover(make_runtime(tmp_path, device), "sw")
@@ -190,7 +193,7 @@ def test_failed_save_after_confirmation_blocks(tmp_path):
     device = FakeExos()
     device.refuse_save = True
     runtime = make_runtime(tmp_path, device)
-    record = execute.apply(runtime, "sw", request())
+    record = approved_apply(runtime, "sw", request())
     assert record["result"] == "confirmed" and record["reason"] == "not persisted"
     assert "persist_failed" in steps(record)
     assert runtime.store.blocked("sw")["reason"] == "not persisted"
@@ -205,7 +208,7 @@ def test_foreign_change_in_the_window_is_reverted_not_saved_and_blocks(tmp_path)
 
     device.on_apply = foreign
     runtime = make_runtime(tmp_path, device)
-    record = execute.apply(runtime, "sw", request(op="update", key="spare", changes={"description": "mine"}))
+    record = approved_apply(runtime, "sw", request(op="update", key="spare", changes={"description": "mine"}))
     assert record["result"] == "reverted" and record["reason"] == "foreign change"
     assert device.vlans["spare"]["description"] == "unused"
     assert device.saves == 0 and device.unsaved
@@ -252,8 +255,9 @@ def before_save(device, action):
 def test_foreign_change_before_the_safeguard_is_removed_is_returned_by_the_safeguard(tmp_path):
     device = FakeExos()
     runtime = make_runtime(tmp_path, device)
+    approved = preview_hash(runtime, "sw", request())
     after_check_identity(device, foreign_description)
-    record = execute.apply(runtime, "sw", request())
+    record = execute.apply(runtime, "sw", request(), expected_plan_sha256=approved)
     assert record["result"] == "reverted" and record["reason"] == "foreign change"
     assert "configuration outside the planned object changed" in record["differences"]
     assert "configuration outside the planned object changed" in record["final_check_differences"]
@@ -278,9 +282,10 @@ def test_unreadable_final_check_is_settled_by_the_safeguard(tmp_path):
             raise RuntimeError("snapshot unavailable")
         return snapshot()
 
+    approved = preview_hash(runtime, "sw", request())
     device.snapshot = reading
     after_check_identity(device, once)
-    record = execute.apply(runtime, "sw", request())
+    record = execute.apply(runtime, "sw", request(), expected_plan_sha256=approved)
     assert record["result"] == "reverted" and record["reason"] == "final check unavailable"
     assert "final_check_failed" in steps(record) and "confirm_start" not in steps(record)
     assert "guest" not in device.vlans and clean(device) and device.saves == 1
@@ -290,7 +295,7 @@ def test_foreign_change_after_the_safeguard_is_removed_is_not_saved_and_blocks(t
     device = FakeExos()
     runtime = make_runtime(tmp_path, device)
     after_removal(device, foreign_description)
-    record = execute.apply(runtime, "sw", request())
+    record = approved_apply(runtime, "sw", request())
     assert record["result"] == "unknown" and record["reason"] == "foreign change after the safeguard was removed"
     assert record["differences"] == ["configuration outside the planned object changed"]
     assert steps(record)[-2:] == ["confirm_start", "removal_check_failed"]
@@ -308,7 +313,7 @@ def test_safeguard_that_fires_during_the_removal_is_reported_as_reverted(tmp_pat
             fake.advance(300)
 
     device.on_apply = late
-    record = execute.apply(runtime, "sw", request())
+    record = approved_apply(runtime, "sw", request())
     assert record["result"] == "reverted" and record["reason"] == "safeguard fired during confirmation"
     assert "guest" not in device.vlans and clean(device) and device.saves == 0
 
@@ -317,7 +322,7 @@ def test_foreign_change_during_the_save_is_recorded_and_blocks(tmp_path):
     device = FakeExos()
     runtime = make_runtime(tmp_path, device)
     before_save(device, foreign_description)
-    record = execute.apply(runtime, "sw", request())
+    record = approved_apply(runtime, "sw", request())
     assert record["result"] == "confirmed" and record["reason"] == "foreign change during save"
     assert record["differences"] == ["configuration outside the planned object changed"]
     assert steps(record)[-2:] == ["configuration_saved", "saved_check_failed"]
@@ -333,7 +338,7 @@ def test_unreadable_check_after_the_save_blocks(tmp_path):
         fake.unreadable = True
 
     before_save(device, unreadable)
-    record = execute.apply(runtime, "sw", request())
+    record = approved_apply(runtime, "sw", request())
     assert record["result"] == "confirmed" and record["reason"] == "saved configuration unverified"
     assert steps(record)[-2:] == ["configuration_saved", "saved_check_failed"]
     assert runtime.store.blocked("sw")["reason"] == "saved configuration unverified"
@@ -342,7 +347,7 @@ def test_unreadable_check_after_the_save_blocks(tmp_path):
 def test_clean_confirmation_checks_the_saved_configuration(tmp_path):
     device = FakeExos()
     runtime = make_runtime(tmp_path, device)
-    record = execute.apply(runtime, "sw", request())
+    record = approved_apply(runtime, "sw", request())
     assert record["result"] == "confirmed" and record["reason"] is None
     assert steps(record)[-3:] == ["check_identity_passed", "confirm_start", "configuration_saved"]
     assert runtime.store.blocked("sw") is None

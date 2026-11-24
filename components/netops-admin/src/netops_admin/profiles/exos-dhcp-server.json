@@ -68,5 +68,5 @@
   "volatile": [],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "G48 X23: scoped DHCPv4 pool on d-exos 33.6.1.14 and lab X440-G2 33.7.1.6. The independent check account reads operational DHCP configuration and port state. Explicit lease removal needs an empty result because the CLI resets the complete pool."
+  "rollback_evidence": "Live write and return on ExtremeXOS 33.6.1.14 / 33.7.1.6 (2026-11-19): A VLAN-scoped DHCP relay or pool was changed, read back and undone. switch access control X23: scoped DHCPv4 pool on ExtremeXOS VM 33.6.1.14 33.6.1.14 and lab X440-G2 33.7.1.6. The independent check account reads operational DHCP configuration and port state. Explicit lease removal needs an empty result because the CLI resets the complete pool."
 }

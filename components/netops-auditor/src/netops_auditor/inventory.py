@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from netops_core import inventory as core
 
 from .findings import FingerprintError, checked_component
+from .platforms import PLATFORMS, catalog_key
 
 CONSUMER = "auditor"
 FILE_VERSION = core.FILE_VERSION
@@ -150,6 +151,10 @@ def section(entry) -> AuditorSection:
     if unknown:
         raise InventoryError("%s: unknown fields: %s" % (where, ", ".join(unknown)), field='inventory.devices[].auditor', code='unknown-fields')
     channel = _checked_choice(where, "channel", item["channel"], CHANNELS)
+    platform = PLATFORMS.get(catalog_key(entry.platform))
+    if platform is not None and platform.channels and channel not in platform.channels:
+        raise InventoryError("%s: channel %s is unavailable for this platform" % (where, channel),
+                             field="inventory.devices[].auditor.channel", code="channel")
     _checked_common(where, channel, entry)
     return AuditorSection(
         channel=channel,

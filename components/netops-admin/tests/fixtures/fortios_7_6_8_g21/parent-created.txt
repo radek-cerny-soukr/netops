@@ -1,9 +1,0 @@
-host01        $ config firewall addrgrp
-    edit "netops-g21-parent"
-        set member "netops-g21-child"
-        set comment "G21 parent"
-        set uuid 00000000-0000-4000-8000-000000000008
-    next
-end
-
-host01        $

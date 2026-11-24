@@ -470,7 +470,7 @@ def parse(profile, table, query, text, *, rc=0, status=None, filters=None, comma
         result['coverage']['warnings'] = ['refusal_like_line_in_data']
         result['warnings'].append('refusal_like_line_in_data')
     if profile == 'cisco_ios' and table == 'lag_member' and state == 'empty':
-        # G53 r3: an empty `show lacp internal` (no channel group) is a valid answer, not complete member data.
+        # router ports r3: an empty `show lacp internal` (no channel group) is a valid answer, not complete member data.
         result['coverage']['complete'] = False
         result['warnings'].append('no_channel_groups')
     if missing:
@@ -2269,7 +2269,7 @@ fortigate_tables.register(QUERY_PARSERS)
 QUERY_PARSERS[('fortinet', 'route', 'route_lookup')] = lambda table, text: switch_managed.routes(table, text, lookup=True)
 QUERY_PARSERS[('fortinet', 'route', 'ipv6_route_lookup')] = _route_ipv6.routes
 QUERY_PARSERS[('fortinet', 'route', 'ipv6_routing_table')] = _route_ipv6.fortios_table
-# G11 (FP-07): FortiGate-local routing and aggregate tables (requests are built by fortigate_tables.request).
+# firewall routing (FP-07): FortiGate-local routing and aggregate tables (requests are built by fortigate_tables.request).
 BINDINGS['fortinet'].update(ospf_neighbor='ospf_neighbors', bgp_peer='bgp_summary', lag='lacp_detail',
                            stp_port='local_stp_ports', port_vlan='local_switch_vlans')
 PARSERS['fortinet'] = switch_managed.parse
@@ -2312,7 +2312,7 @@ from . import exos_ports as _exos_ports
 _exos_ports.register(__import__(__name__, fromlist=['']))
 from . import eos_ports as _eos_ports  # noqa: E402
 _eos_ports.register(__import__(__name__, fromlist=['']))
-from . import ios_ports as _ios_ports  # noqa: E402  (G53 IOS port/STP/LACP/PoE/DOM tables)
+from . import ios_ports as _ios_ports  # noqa: E402  (router ports IOS port/STP/LACP/PoE/DOM tables)
 _ios_ports.register(__import__(__name__, fromlist=['']))
 # NX-OS shares the Cisco detail layout with two vPC port annotations.
 def _nxos_stp(table, text):
@@ -2379,7 +2379,7 @@ PROFILE_OPTIONAL_FIELDS['cisco_nxos']['lag_member'] = set(FIELDS['lag_member']) 
     'group', 'port', 'state', 'bundled', 'port_state', 'port_state_flags'}
 BINDINGS['cisco_nxos'].update(stp_topology='stp_detail', stp_port_counters='stp_detail',
                              optics_port='interface_transceiver', lag_member='lacp_interface')
-# G51: direct catalogue reads have table adapters without changing existing
+# router routing: direct catalogue reads have table adapters without changing existing
 # table_read defaults or adding implicit device reads.
 from . import triage_routing as _triage_routing
 FIELDS['vrf'] = ('name', 'rd', 'interfaces')
@@ -2441,7 +2441,7 @@ def nxos_ospfv3_neighbors(table, text):
 for _query in ('ospfv3_neighbors', 'ospfv3_neighbors_vrf'):
     QUERY_PARSERS[('cisco_nxos', 'ospf_neighbor', _query)] = nxos_ospfv3_neighbors
 
-# G69: IOS XE uses the verified IOS address/RIB/VRF grammars.
+# xe routing: IOS XE uses the verified IOS address/RIB/VRF grammars.
 for _query, _table in _triage_routing.IOS_TABLES.items():
     QUERY_PARSERS[("cisco_xe", _table, _query)] = QUERY_PARSERS[("cisco_ios", _table, _query)]
 
@@ -3379,7 +3379,7 @@ def _ios_security_empty(profile, query, text, parameters):
     return query in ('dhcp_server_pools', 'dot1x_interface') and not lines
 
 
-# G57 operational reads use the ssh_read envelope and retain partial, sourced results.
+# router diagnostics operational reads use the ssh_read envelope and retain partial, sourced results.
 _IOS_QOS_PORT = r'[A-Za-z][A-Za-z-]*\d+(?:/\d+)*(?:\.\d+)?'
 _IOS_QOS_CLASS = re.compile(r'Class-map:\s*(\S+)\s+\(match[- ](?:all|any)\)(?: fragment \S+)?', re.I)
 _IOS_QOS_POLICY = re.compile(r'Service-policy(?: (input|output))?\s*:\s*(\S+)(?: \(\d+\))?', re.I)
@@ -3857,7 +3857,7 @@ def ios_g57_diagnostics(profile, query, text, parameters, state):
     return result
 
 
-# G89 — Cisco IOS XE hardware Quantum Flow Processor.
+# forwarding processor — Cisco IOS XE hardware Quantum Flow Processor.
 _QFP_DROP_HEADER = re.compile(r"Global Drop Stats\s+Packets\s+Octets")
 _QFP_DROP_ROW = re.compile(r"([A-Za-z][A-Za-z0-9_/-]*)\s+(\d+)\s+(\d+)")
 _QFP_SEPARATOR = re.compile(r"-+")

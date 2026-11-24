@@ -35,7 +35,7 @@ The NetOps 1.0.7 additions for `cisco_nxos` (all cite the [NX-OS 10.5(x) complet
 
 Additional official Cisco references retained from the audit are the [Catalyst 9300 command-reference release list](https://www.cisco.com/c/en/us/support/switches/catalyst-9300-series-switches/products-command-reference-list.html), the [IOS-XE 17.15 IP Routing Configuration Guide](https://www.cisco.com/c/en/us/td/docs/switches/lan/catalyst9300/software/release/17-15/configuration_guide/rtng/b_1715_rtng_9300_cg.pdf), and the earlier [IOS-XE 17.3 interface and hardware command reference](https://www.cisco.com/c/en/us/td/docs/switches/lan/catalyst9300/software/release/17-3/command_reference/b_173_9300_cr/interface_and_hardware_commands.html) used only to check command lineage.
 
-### Management diagnostics (G56/G74/G95)
+### Management diagnostics (ROUTER-MANAGEMENT/XE-MANAGEMENT/NXOS-MANAGEMENT)
 
 Each query is independently enrolled. Source IDs and URLs below are the existing
 per-query records in `query-sources.json`.
@@ -669,16 +669,16 @@ Every template was run on the lab images with the read-only account; the stored 
 
 ### IOS router source references
 
-- C-G51-BGP: [IOS BGP command reference](https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/iproute_bgp/command/irg-cr-book/bgp-s1.html).
-- C-G51-IP: [IOS IP addressing reference](https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/ipaddr/command/ipaddr-cr-book/ipaddr-r1.html).
-- C-G51-VRF: [IOS show ip vrf reference](https://www.cisco.com/c/en/us/td/docs/ios/qos/command/reference/qos_book/qos_s3.html).
-- C-G51-ROUTING: [IOS protocol-independent routing reference](https://www.cisco.com/c/en/us/td/docs/ios/iproute_pi/command/reference/iri_book/iri_pi2.html).
-- C-G51-IPV6-RIB: [IOS IPv6 RIB reference](https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/ipv6/command/ipv6-cr-book/ipv6-s5.html).
-- C-G51-IPV6-IF: [IOS IPv6 interface reference](https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/ipv6/command/ipv6-cr-book/ipv6-s2.html).
-- C-G51-OSPFV3: [IOS OSPFv3 reference](https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/ipv6/command/ipv6-cr-book/ipv6-s4.html).
-- C-G51-BGPV6: [IOS IPv6 BGP reference](https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/ipv6/command/ipv6-cr-book/ipv6-s1.html).
-- C-G51-CEF: [IOS CEF and adjacency command reference](https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/ipswitch/command/isw-cr-book/isw-s1.html).
-- C-G51-OSPF: [IOS OSPF command reference](https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/iproute_ospf/command/iro-cr-book/ospf-s1.html).
+- C-ROUTER-ROUTING-BGP: [IOS BGP command reference](https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/iproute_bgp/command/irg-cr-book/bgp-s1.html).
+- C-ROUTER-ROUTING-IP: [IOS IP addressing reference](https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/ipaddr/command/ipaddr-cr-book/ipaddr-r1.html).
+- C-ROUTER-ROUTING-VRF: [IOS show ip vrf reference](https://www.cisco.com/c/en/us/td/docs/ios/qos/command/reference/qos_book/qos_s3.html).
+- C-ROUTER-ROUTING-ROUTING: [IOS protocol-independent routing reference](https://www.cisco.com/c/en/us/td/docs/ios/iproute_pi/command/reference/iri_book/iri_pi2.html).
+- C-ROUTER-ROUTING-IPV6-RIB: [IOS IPv6 RIB reference](https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/ipv6/command/ipv6-cr-book/ipv6-s5.html).
+- C-ROUTER-ROUTING-IPV6-IF: [IOS IPv6 interface reference](https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/ipv6/command/ipv6-cr-book/ipv6-s2.html).
+- C-ROUTER-ROUTING-OSPFV3: [IOS OSPFv3 reference](https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/ipv6/command/ipv6-cr-book/ipv6-s4.html).
+- C-ROUTER-ROUTING-BGPV6: [IOS IPv6 BGP reference](https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/ipv6/command/ipv6-cr-book/ipv6-s1.html).
+- C-ROUTER-ROUTING-CEF: [IOS CEF and adjacency command reference](https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/ipswitch/command/isw-cr-book/isw-s1.html).
+- C-ROUTER-ROUTING-OSPF: [IOS OSPF command reference](https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/iproute_ospf/command/iro-cr-book/ospf-s1.html).
 
 ### IOS port, STP, EtherChannel, PoE and neighbor detail
 
@@ -720,8 +720,8 @@ NX-OS forwarding and security diagnostics use the [Nexus 9000 NX-OS show-command
 
 ### IOS health source references
 
-- C-G54-FHRP · [Cisco IOS First Hop Redundancy Protocols Command Reference](https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/ipapp_fhrp/command/fhp-cr-book.pdf).
-- C-G54-TRACK · [Cisco IOS 15M&T Enhanced Object Tracking](https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/ipapp/configuration/15-mt/iap-15-mt-book/iap-eot.pdf).
+- C-ROUTER-HEALTH-FHRP · [Cisco IOS First Hop Redundancy Protocols Command Reference](https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/ipapp_fhrp/command/fhp-cr-book.pdf).
+- C-ROUTER-HEALTH-TRACK · [Cisco IOS 15M&T Enhanced Object Tracking](https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/ipapp/configuration/15-mt/iap-15-mt-book/iap-eot.pdf).
 
 ### IOS XE health source references
 
@@ -729,13 +729,13 @@ IOS XE diagnostics use `hsrp_detail` (`show standby`), `vrrp_detail` (`show vrrp
 `object_tracking` (`show track`), `ip_sla_statistics` (`show ip sla statistics`)
 and `log_history` (the existing fixed `show logging` buffer command with client-side filters).
 
-- C-G72-HSRP: [IOS XE 17.x HSRP guide](https://www.cisco.com/c/en/us/td/docs/routers/ios/config/17-x/ntw-servs/b-network-services/m_fhp-hsrp-0.html).
-- C-G72-SLA: [Cisco IOS IP SLAs show commands reference](https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/ipsla/command/sla-cr-book/sla_s1.html).
-- C-G72-TRACK: [IOS XE Enhanced Object Tracking guide](https://www.cisco.com/c/en/us/td/docs/routers/ios-xe/ip-addressing/ip-addressing/m_iap-eot-xe.html).
-- C-G72-VRRP: [IOS XE 17.x VRRP guide](https://www.cisco.com/c/en/us/td/docs/routers/ios/config/17-x/ntw-servs/b-network-services/m_fhp-vrrp-0.html).
+- C-XE-HEALTH-HSRP: [IOS XE 17.x HSRP guide](https://www.cisco.com/c/en/us/td/docs/routers/ios/config/17-x/ntw-servs/b-network-services/m_fhp-hsrp-0.html).
+- C-XE-HEALTH-SLA: [Cisco IOS IP SLAs show commands reference](https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/ipsla/command/sla-cr-book/sla_s1.html).
+- C-XE-HEALTH-TRACK: [IOS XE Enhanced Object Tracking guide](https://www.cisco.com/c/en/us/td/docs/routers/ios-xe/ip-addressing/ip-addressing/m_iap-eot-xe.html).
+- C-XE-HEALTH-VRRP: [IOS XE 17.x VRRP guide](https://www.cisco.com/c/en/us/td/docs/routers/ios/config/17-x/ntw-servs/b-network-services/m_fhp-vrrp-0.html).
 ### IOS XE forwarding and client security
 
-The [IOS XE forwarding and client security captures](../../tests/fixtures/real/cisco_xe/iolxe_17.18.2_g73/PROVENANCE.md)
+The [IOS XE forwarding and client security captures](../../tests/fixtures/real/cisco_xe/iolxe_17.18.2_xe_security/PROVENANCE.md)
 include the IOL XE router and IOL-L2 switch. The IOS XE table above has a router column.
 
 - [IOS XE 17.18 access sessions and 802.1X](https://www.cisco.com/c/en/us/td/docs/switches/lan/catalyst9300/software/release/17-18/command_reference/b_1718_9300_cr/security_commands.html)
@@ -749,12 +749,12 @@ include the IOL XE router and IOL-L2 switch. The IOS XE table above has a router
 
 ### IOS XE operational source references
 
-- C-G75-XE-FED [Catalyst 9300 hardware QoS command reference](https://www.cisco.com/c/en/us/td/docs/switches/lan/catalyst9300/software/release/17-15/command_reference/b_1715_9300_cr/qos_commands.html)
-- C-G75-XE-FED-AVB [Catalyst 9300 AVB hardware QoS examples](https://www.cisco.com/c/en/us/td/docs/switches/lan/catalyst9300/software/release/17-12/configuration_guide/lyr2/b_1712_lyr2_9300_cg/audio_video_bridging.html)
-- C-G75-XE-IKEV1 [IOS XE DMVPN verification](https://www.cisco.com/c/en/us/td/docs/routers/ios/config/17-x/sec-vpn/b-security-vpn/m_sec-conn-dmvpn-dmvpn-0.html)
-- C-G75-XE-IKEV2 [IOS XE IKEv2 HSRP verification](https://www.cisco.com/c/en/us/support/docs/ip/hot-standby-router-protocol-hsrp/222200-configure-ipsec-redundancy-with-hsrp-for.html)
-- C-G75-XE-IPSEC [IOS XE GRE over IPsec verification](https://www.cisco.com/c/en/us/td/docs/routers/sdwan/configuration/security/ios-xe-17/security-book-xe/m-gre-over-ipsec-tunnels.html)
-- C-G75-XE-POLICING [IOS XE QoS packet policing](https://www.cisco.com/c/en/us/td/docs/routers/ios/config/17-x/qos/b-quality-of-service/m_qos-policing.html)
+- C-XE-DIAGNOSTICS-XE-FED [Catalyst 9300 hardware QoS command reference](https://www.cisco.com/c/en/us/td/docs/switches/lan/catalyst9300/software/release/17-15/command_reference/b_1715_9300_cr/qos_commands.html)
+- C-XE-DIAGNOSTICS-XE-FED-AVB [Catalyst 9300 AVB hardware QoS examples](https://www.cisco.com/c/en/us/td/docs/switches/lan/catalyst9300/software/release/17-12/configuration_guide/lyr2/b_1712_lyr2_9300_cg/audio_video_bridging.html)
+- C-XE-DIAGNOSTICS-XE-IKEV1 [IOS XE DMVPN verification](https://www.cisco.com/c/en/us/td/docs/routers/ios/config/17-x/sec-vpn/b-security-vpn/m_sec-conn-dmvpn-dmvpn-0.html)
+- C-XE-DIAGNOSTICS-XE-IKEV2 [IOS XE IKEv2 HSRP verification](https://www.cisco.com/c/en/us/support/docs/ip/hot-standby-router-protocol-hsrp/222200-configure-ipsec-redundancy-with-hsrp-for.html)
+- C-XE-DIAGNOSTICS-XE-IPSEC [IOS XE GRE over IPsec verification](https://www.cisco.com/c/en/us/td/docs/routers/sdwan/configuration/security/ios-xe-17/security-book-xe/m-gre-over-ipsec-tunnels.html)
+- C-XE-DIAGNOSTICS-XE-POLICING [IOS XE QoS packet policing](https://www.cisco.com/c/en/us/td/docs/routers/ios/config/17-x/qos/b-quality-of-service/m_qos-policing.html)
 
 ### NX-OS QoS and hardware resources
 
@@ -768,16 +768,16 @@ include the IOL XE router and IOL-L2 switch. The IOS XE table above has a router
 
 | Query | Cisco sources |
 |---|---|
-| `nve_peers` | [C-G97-NXOS-VXLAN](https://www.cisco.com/c/en/us/td/docs/dcn/nx-os/nexus9000/103x/configuration/vxlan/cisco-nexus-9000-series-nx-os-vxlan-configuration-guide-release-103x/m-configuring-vxlan-bbgp-evpn.html), [C-G97-NXOS-VXLANV6](https://www.cisco.com/c/en/us/td/docs/switches/datacenter/nexus9000/sw/93x/vxlan/configuration/guide/b-cisco-nexus-9000-series-nx-os-vxlan-configuration-guide-93x/b-cisco-nexus-9000-series-nx-os-vxlan-configuration-guide-93x_chapter_010011.html) |
-| `nve_vni` | [C-G97-NXOS-VXLAN](https://www.cisco.com/c/en/us/td/docs/dcn/nx-os/nexus9000/103x/configuration/vxlan/cisco-nexus-9000-series-nx-os-vxlan-configuration-guide-release-103x/m-configuring-vxlan-bbgp-evpn.html) |
-| `nve_interface_detail` | [C-G97-NXOS-VXLAN](https://www.cisco.com/c/en/us/td/docs/dcn/nx-os/nexus9000/103x/configuration/vxlan/cisco-nexus-9000-series-nx-os-vxlan-configuration-guide-release-103x/m-configuring-vxlan-bbgp-evpn.html), [C-G97-NXOS-VXLANV6](https://www.cisco.com/c/en/us/td/docs/switches/datacenter/nexus9000/sw/93x/vxlan/configuration/guide/b-cisco-nexus-9000-series-nx-os-vxlan-configuration-guide-93x/b-cisco-nexus-9000-series-nx-os-vxlan-configuration-guide-93x_chapter_010011.html) |
-| `evpn_bgp_summary` | [C-G97-NXOS-BGP](https://www.cisco.com/c/en/us/td/docs/switches/datacenter/nexus9000/sw/93x/label-switching/b-cisco-nexus-9000-series-nx-os-label-switching-configuration-guide-93x/b-cisco-nexus-9000-series-nx-os-label-switching-configuration-guide-93x_chapter_01000.html) |
-| `evpn_bgp_prefix` | [C-G97-NXOS-BGP](https://www.cisco.com/c/en/us/td/docs/switches/datacenter/nexus9000/sw/93x/label-switching/b-cisco-nexus-9000-series-nx-os-label-switching-configuration-guide-93x/b-cisco-nexus-9000-series-nx-os-label-switching-configuration-guide-93x_chapter_01000.html), [C-G97-NXOS-B](https://www.cisco.com/c/en/us/td/docs/switches/datacenter/nexus9000/sw/93x/command/reference/show/b_N9K_Show_Commands_93x/b_N9K_Show_Commands_93x_chapter_010.html) |
-| `evpn_mac_ip` | [C-G97-NXOS-L](https://www.cisco.com/c/en/us/td/docs/switches/datacenter/nexus9000/sw/93x/command/reference/show/b_N9K_Show_Commands_93x/b_N9K_Show_Commands_93x_chapter_01011.html), [C-G97-NXOS-VXLAN](https://www.cisco.com/c/en/us/td/docs/dcn/nx-os/nexus9000/103x/configuration/vxlan/cisco-nexus-9000-series-nx-os-vxlan-configuration-guide-release-103x/m-configuring-vxlan-bbgp-evpn.html) |
+| `nve_peers` | [C-NXOS-OVERLAY-NXOS-VXLAN](https://www.cisco.com/c/en/us/td/docs/dcn/nx-os/nexus9000/103x/configuration/vxlan/cisco-nexus-9000-series-nx-os-vxlan-configuration-guide-release-103x/m-configuring-vxlan-bbgp-evpn.html), [C-NXOS-OVERLAY-NXOS-VXLANV6](https://www.cisco.com/c/en/us/td/docs/switches/datacenter/nexus9000/sw/93x/vxlan/configuration/guide/b-cisco-nexus-9000-series-nx-os-vxlan-configuration-guide-93x/b-cisco-nexus-9000-series-nx-os-vxlan-configuration-guide-93x_chapter_010011.html) |
+| `nve_vni` | [C-NXOS-OVERLAY-NXOS-VXLAN](https://www.cisco.com/c/en/us/td/docs/dcn/nx-os/nexus9000/103x/configuration/vxlan/cisco-nexus-9000-series-nx-os-vxlan-configuration-guide-release-103x/m-configuring-vxlan-bbgp-evpn.html) |
+| `nve_interface_detail` | [C-NXOS-OVERLAY-NXOS-VXLAN](https://www.cisco.com/c/en/us/td/docs/dcn/nx-os/nexus9000/103x/configuration/vxlan/cisco-nexus-9000-series-nx-os-vxlan-configuration-guide-release-103x/m-configuring-vxlan-bbgp-evpn.html), [C-NXOS-OVERLAY-NXOS-VXLANV6](https://www.cisco.com/c/en/us/td/docs/switches/datacenter/nexus9000/sw/93x/vxlan/configuration/guide/b-cisco-nexus-9000-series-nx-os-vxlan-configuration-guide-93x/b-cisco-nexus-9000-series-nx-os-vxlan-configuration-guide-93x_chapter_010011.html) |
+| `evpn_bgp_summary` | [C-NXOS-OVERLAY-NXOS-BGP](https://www.cisco.com/c/en/us/td/docs/switches/datacenter/nexus9000/sw/93x/label-switching/b-cisco-nexus-9000-series-nx-os-label-switching-configuration-guide-93x/b-cisco-nexus-9000-series-nx-os-label-switching-configuration-guide-93x_chapter_01000.html) |
+| `evpn_bgp_prefix` | [C-NXOS-OVERLAY-NXOS-BGP](https://www.cisco.com/c/en/us/td/docs/switches/datacenter/nexus9000/sw/93x/label-switching/b-cisco-nexus-9000-series-nx-os-label-switching-configuration-guide-93x/b-cisco-nexus-9000-series-nx-os-label-switching-configuration-guide-93x_chapter_01000.html), [C-NXOS-OVERLAY-NXOS-B](https://www.cisco.com/c/en/us/td/docs/switches/datacenter/nexus9000/sw/93x/command/reference/show/b_N9K_Show_Commands_93x/b_N9K_Show_Commands_93x_chapter_010.html) |
+| `evpn_mac_ip` | [C-NXOS-OVERLAY-NXOS-L](https://www.cisco.com/c/en/us/td/docs/switches/datacenter/nexus9000/sw/93x/command/reference/show/b_N9K_Show_Commands_93x/b_N9K_Show_Commands_93x_chapter_01011.html), [C-NXOS-OVERLAY-NXOS-VXLAN](https://www.cisco.com/c/en/us/td/docs/dcn/nx-os/nexus9000/103x/configuration/vxlan/cisco-nexus-9000-series-nx-os-vxlan-configuration-guide-release-103x/m-configuring-vxlan-bbgp-evpn.html) |
 
 ### NX-OS health, local logging and gateway detail
 
-[C-G93-NXOS-SHOW](https://www.cisco.com/c/en/us/td/docs/switches/datacenter/nexus9000/sw/93x/command/reference/show/b_N9K_Show_Commands_93x/b_N9K_Show_Commands_93x.pdf)
+[C-NXOS-HEALTH-NXOS-SHOW](https://www.cisco.com/c/en/us/td/docs/switches/datacenter/nexus9000/sw/93x/command/reference/show/b_N9K_Show_Commands_93x/b_N9K_Show_Commands_93x.pdf)
 
 | Query | Command |
 |---|---|

@@ -279,7 +279,7 @@ def test_routing_peer_and_layer_two_tables_are_bound_where_the_catalogue_prints_
     for profile in (() if table in ('stp_port', 'lag') else ('extreme_exos',)):
         assert t.request(profile, table)[0] is None
         assert t.parse(profile, table, None, '', status='unsupported')['status'] == 'unsupported'
-    # G11 (FP-07): the FortiGate itself reads its routing peers and one enrolled aggregate.
+    # FIREWALL-ROUTING (FP-07): the FortiGate itself reads its routing peers and one enrolled aggregate.
     if table == 'lag':
         with pytest.raises(ValueError):
             t.request('fortinet', table)

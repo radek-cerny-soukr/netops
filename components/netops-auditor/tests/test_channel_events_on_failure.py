@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import sqlite3
 from contextlib import nullcontext
 from types import SimpleNamespace
@@ -8,7 +9,8 @@ import pytest
 
 from netops_auditor import cli
 from netops_auditor import collect
-from netops_auditor.collect import SSH_STEPS, CollectError, collect_ssh
+from netops_auditor.collect import CollectError, collect_ssh
+from netops_auditor.fortios_audit import SSH_STEPS
 from netops_auditor import store as store_module
 from test_cli import complete
 
@@ -23,8 +25,12 @@ KEY = "-----BEGIN " + "OPENSSH PRIVATE KEY-----\nCANARY-KEY-CHANNEL-EVENTS\n----
 CONSOLE = b"output              : standard\n"
 DUMP = complete('config system global\n    set hostname "fw-example"\nend\nconfig system admin\n    edit "netadmin"\n        set accprofile "super_admin"\n        set trusthost1 192.0.2.0 255.255.255.0\n        set ip6-trusthost1 2001:db8::/32\n    next\nend\n')
 DEEP = "".join("config a%d\n" % level for level in range(70)) + "end\n" * 70
-PREFLIGHT = "%s@%s %s" % (LOGIN, HOST, SSH_STEPS["fortios"][0].command)
-SHOW = "%s@%s %s" % (LOGIN, HOST, SSH_STEPS["fortios"][1].command)
+STATUS, PREFLIGHT, SHOW = (f"{LOGIN}@{HOST} {name}" for name in (
+    "get system status", "get system console", "show",
+))
+REQUESTS = tuple(f"{LOGIN}@{HOST} {step.command}" for step in SSH_STEPS)
+IDENTITY = b"Version: FortiGate v7.6.8\n"
+
 
 
 class Credential:
@@ -44,9 +50,41 @@ class Device:
 
     def run(self, command, **options):
         self.sent.append(command)
-        if command == SSH_STEPS["fortios"][0].command:
-            return SimpleNamespace(rc=0, stdout=self.console)
-        return SimpleNamespace(rc=self.show_code, stdout=self.show)
+        if command == "get system console":
+            return SimpleNamespace(rc=0, stdout=self.console, stderr=b"")
+        if command == "get system status":
+            return SimpleNamespace(rc=0, stdout=IDENTITY, stderr=b"")
+        if command == "show":
+            return SimpleNamespace(rc=self.show_code, stdout=self.show, stderr=b"")
+        return SimpleNamespace(rc=0, stdout=targeted(self.show, command), stderr=b"")
+
+
+def targeted(body, command):
+    section = command.removeprefix("show ").removeprefix("full-configuration ").encode()
+    match = re.search(rb"^config " + re.escape(section) + rb"\n.*?^end\n", body, re.M | re.S)
+    block = match[0] if match else b""
+    if not command.startswith("show full-configuration "):
+        return block
+
+    # Scalar readbacks in FortiOS's full rendering include default fields.
+    defaults = {
+        b"system global": (b"admin-ssh-v1 disable",),
+        b"system snmp sysinfo": (b"status disable",),
+        b"system ntp": (b"ntpsync enable", b"type fortiguard", b"authentication disable"),
+    }
+    for suffix in (b"", b"2", b"3", b"4"):
+        defaults[b"log syslogd" + suffix + b" setting"] = (b"status disable",)
+        defaults[b"log syslogd" + suffix + b" filter"] = (b"severity information",)
+    if section in defaults:
+        if not block:
+            block = b"config " + section + b"\nend\n"
+        fields = b"".join(
+            b"    set " + item + b"\n" for item in defaults[section]
+            if b"\n    set " + item.split()[0] + b" " not in block
+        )
+        block = block[:-4] + fields + b"end\n"
+    return block
+
 
 
 def gather(device):
@@ -57,23 +95,24 @@ def trail(events):
     return [(event.request, event.outcome) for event in events]
 
 
-def test_every_sent_command_stays_an_event_when_the_second_step_fails():
+def test_every_sent_command_stays_an_event_when_the_primary_step_fails():
     _, events = gather(Device())
-    assert trail(events) == [(PREFLIGHT, "ok"), (SHOW, "ok")]
+    assert trail(events) == [(request, "ok") for request in REQUESTS]
     device = Device(show_code=1)
     with pytest.raises(CollectError) as caught:
         gather(device)
-    assert device.sent == ["get system console", "show"]
-    assert trail(caught.value.events) == [(PREFLIGHT, "ok"), (SHOW, "failed")]
+    assert device.sent == ["get system status", "get system console", "show"]
+    assert trail(caught.value.events) == [(STATUS, "ok"), (PREFLIGHT, "ok"), (SHOW, "failed")]
     assert caught.value.event == caught.value.events[-1]
 
 
-def test_a_refused_first_step_carries_only_its_own_event():
-    device = Device(console=b"output              : more\n")
-    with pytest.raises(CollectError) as caught:
-        gather(device)
-    assert device.sent == ["get system console"]
-    assert trail(caught.value.events) == [(PREFLIGHT, "failed")]
+def test_a_refused_console_diagnostic_does_not_block_the_snapshot():
+    device = Device(console=b"Permission denied\n")
+    snapshot, events = gather(device)
+    assert snapshot.text == DUMP
+    assert trail(events)[:3] == [(STATUS, "ok"), (PREFLIGHT, "failed"), (SHOW, "ok")]
+    assert device.sent == [step.command for step in SSH_STEPS]
+
 
 
 def write_inventory(directory):
@@ -129,7 +168,7 @@ def test_a_failed_second_step_records_the_first_command_too(tmp_path, capsys, mo
     assert code == cli.EXIT_ERROR
     assert out == ""
     assert "stayed unrecorded" not in err
-    assert stored(database) == ([], [(PREFLIGHT, "ok", None), (SHOW, "failed", None)])
+    assert stored(database) == ([], [(STATUS, "ok", None), (PREFLIGHT, "ok", None), (SHOW, "failed", None)])
 
 
 def test_a_run_refused_after_the_collection_keeps_the_events_of_the_collection(tmp_path, capsys, monkeypatch):
@@ -139,7 +178,7 @@ def test_a_run_refused_after_the_collection_keeps_the_events_of_the_collection(t
     assert out == ""
     assert "nest deeper than" in err
     assert "stayed unrecorded" not in err
-    assert stored(database) == ([], [(PREFLIGHT, "ok", None), (SHOW, "ok", None)])
+    assert stored(database) == ([], [(request, "ok", None) for request in REQUESTS])
     assert status(capsys, database) == (cli.EXIT_STALE, "never")
 
 
@@ -163,7 +202,7 @@ def test_the_run_and_its_events_are_one_transaction(tmp_path, capsys, monkeypatc
     assert (code, err) == (cli.EXIT_OK, "")
     runs, events = stored(database)
     assert len(runs) == 1
-    assert events == [(PREFLIGHT, "ok", runs[0]), (SHOW, "ok", runs[0])]
+    assert events == [(request, "ok", runs[0]) for request in REQUESTS]
     assert status(capsys, database) == (cli.EXIT_OK, "fresh")
 
 
@@ -177,3 +216,32 @@ def test_a_file_audit_still_records_no_channel_event(tmp_path, capsys):
     assert code == cli.EXIT_OK
     runs, events = stored(database)
     assert len(runs) == 1 and events == []
+
+
+def test_registered_fortios_collector_can_add_auxiliary_evidence(monkeypatch):
+    from netops_auditor import platforms
+
+    def metadata(snapshot, answers, visibility):
+        return platforms.SnapshotMetadata("fortios", visibility, answers, complete=True)
+
+    steps = (
+        platforms.SSHStep("get system status", section="identity"),
+        platforms.SSHStep("show", snapshot=True, prompt=True),
+        platforms.SSHStep("show full-configuration system admin", section="system admin"),
+    )
+    module = SimpleNamespace(SSH_STEPS=steps, snapshot_metadata=metadata)
+    monkeypatch.setattr(collect.platforms, "optional_collector", lambda key: module)
+
+    class Profile(Device):
+        def run(self, command, **options):
+            if command == "show":
+                return super().run(command, **options)
+            self.sent.append(command)
+            return SimpleNamespace(rc=0, stdout=b"" if "full-configuration" in command else b"version\n", stderr=b"")
+
+    profile = Profile()
+    snapshot, events = gather(profile)
+    assert profile.sent == [step.command for step in steps]
+    assert [event.outcome for event in events] == ["ok", "ok", "ok"]
+    assert snapshot.metadata.auxiliary["system admin"] == ""
+    assert snapshot.metadata.visibility("identity").state == "visible"

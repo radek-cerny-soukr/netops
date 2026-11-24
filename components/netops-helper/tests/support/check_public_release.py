@@ -147,7 +147,7 @@ def _diagnostic_vdom_allowed(tree: ast.AST) -> bool:
     enter = functions.get("enter_vdom")
     marker = enter is not None and any(isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
                                        and n.func.id == "context_index" for n in ast.walk(enter))
-    # G00 (2026-11-17): the tested identities are not a gate any more (firmware_support reports them), so the
+    # STARTUP (2026-11-17): the tested identities are not a gate any more (firmware_support reports them), so the
     # status read is followed directly by the VDOM guards.
     return (len(unscoped) == len(vdom_foreign) == len(reported) == len(unknown) == len(foreign) == len(status) == 1
             and len(contexts) == len(entered) == 1 and marker
@@ -483,12 +483,12 @@ def _phase1_surface_errors(root: Path) -> list[str]:
         ("src/netops_helper/config_indented.py", "show running-config"): 1,
         ("src/netops_helper/config_cisco_ios_adapter.py", "show running-config"): 1,
         ("src/netops_helper/config_exos_adapter.py", "show configuration"): 1,
-        # G136: Junos display-set capture, the ACCESS-DENIED visibility probe and compare rollback <n>
+        # JUNOS-CONFIG: Junos display-set capture, the ACCESS-DENIED visibility probe and compare rollback <n>
         ("src/netops_helper/config_junos_adapter.py", "show configuration"): 3,
         ("src/netops_helper/config_fortiadc.py", "show full-configuration"): 2,
         ("src/netops_helper/config_fortios.py", "show full-configuration"): 1,
-        # G110 (RP08): the one Unleashed `show config` template and its exact read-policy admission; the engine
-        # passes only the allowlisted sections with secrets redacted (tests/test_g110_ruckus.py).
+        # WIRELESS-NETWORK-SERVICES (RP08): the one Unleashed `show config` template and its exact read-policy admission; the engine
+        # passes only the allowlisted sections with secrets redacted (tests/test_wireless_network_services_ruckus.py).
         ("src/netops_helper/query_catalog/ruckus.py", "show configuration"): 1,
         ("src/netops_helper/read_policy.py", "show configuration"): 1,
     }
@@ -522,7 +522,7 @@ def _phase1_surface_errors(root: Path) -> list[str]:
             lines[node.lineno - 1] = line[:start] + " " * (end - start) + line[end:]
         catalog_text = "".join(lines)
         if relative == "src/netops_helper/adc_monitoring.py":
-            # G33: one fixed NTP section read; no general configuration export.
+            # ADC-HA: one fixed NTP section read; no general configuration export.
             exports = [node.value for node in ast.walk(source_trees[source_path])
                        if isinstance(node, ast.Constant) and isinstance(node.value, str)
                        and "show full-configuration" in node.value.lower()]

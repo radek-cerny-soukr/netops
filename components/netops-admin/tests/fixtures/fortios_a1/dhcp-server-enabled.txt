@@ -1,0 +1,14 @@
+config system dhcp server
+    edit 7
+        set default-gateway 192.0.2.1
+        set netmask 255.255.255.0
+        set interface "netops-a1s"
+        config ip-range
+            edit 1
+                set start-ip 192.0.2.100
+                set end-ip 192.0.2.150
+            next
+        end
+    next
+end
+

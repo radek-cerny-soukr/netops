@@ -1,6 +1,0 @@
---- system:/running-config
-+++ session:/g122-probe9-session-config
-+vlan 3992-3993
-+!
-+vlan 3994
-+   name VLAN3992

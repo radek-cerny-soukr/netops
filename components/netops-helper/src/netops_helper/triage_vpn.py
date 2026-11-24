@@ -11,7 +11,7 @@ STEPS = (
     ("route", "routing_table"),
     ("ike", "ike_errors"),
 )
-# G14 (FP-09): detail of the named phase-1 tunnel, read only when the summary lists it under exactly that name
+# ipsec status (FP-09): detail of the named phase-1 tunnel, read only when the summary lists it under exactly that name
 # and only when the detail queries are enrolled; key material is withheld by the engine before parsing.
 DETAIL_STEPS = (
     ("phase1", "ike_gateway_detail"),

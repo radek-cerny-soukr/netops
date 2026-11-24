@@ -274,7 +274,7 @@ Credentials and temporary workspaces keep the cleanup and interrupted-call bound
 ## Fortinet host key from enrollment
 
 The FortiOS and FortiADC [held session](session.md#fortinet-command-series) takes the public
-OpenSSH key from the optional inventory field `host_key` in `<type> <base64>` form. Core
+OpenSSH key from the required inventory field `host_key` in `<type> <base64>` form. Core
 validates its SHA-256 fingerprint against `host_key_fingerprint` and writes a 0600
 `known_hosts` in the private workspace for the address and port actually used. OpenSSH
 uses `StrictHostKeyChecking=yes`. A missing, malformed or mismatched key is rejected

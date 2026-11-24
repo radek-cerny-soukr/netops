@@ -1,0 +1,15 @@
+config firewall policy
+    edit 230363
+        set status disable
+        set name "netops-a3"
+        set uuid 00000000-0000-4000-8000-a30000000004
+        set srcintf "PVE-MGMT"
+        set dstintf "PVE-MGMT"
+        set action accept
+        set srcaddr6 "netops-a3-grp"
+        set dstaddr6 "netops-a3-net"
+        set schedule "always"
+        set service "ALL_TCP"
+        set logtraffic all
+    next
+end

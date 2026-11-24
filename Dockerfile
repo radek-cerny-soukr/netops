@@ -1,6 +1,6 @@
-FROM python:3.14.10-alpine3.24@sha256:5862d971d1f0ae26b258cefa4e893556b1d3aba81bd2ff30888704ad378bab67 AS base
+FROM python:3.15.2-alpine3.24@sha256:0f9552bb28711333da16915ec146f5e6bb44a7fdac9ced15dc17c2e0206346dd AS base
 LABEL org.opencontainers.image.title="netops" \
-      org.opencontainers.image.version="1.0.12" \
+      org.opencontainers.image.version="1.0.13" \
       org.opencontainers.image.licenses="MIT"
 ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 \
     SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
@@ -48,9 +48,10 @@ RUN cc -Os -static -s -Wall -Wextra -Werror -o /dist/netops-start /build/start.c
 
 FROM base AS runtime
 COPY --from=builder /dist /dist
-RUN umask 022 && python -m pip install --root-user-action=ignore --no-deps --no-index --no-compile /dist/netops-1.0.12-py3-none-any.whl \
+RUN umask 022 && python -m pip install --root-user-action=ignore --no-deps --no-index --no-compile /dist/netops-1.0.13-py3-none-any.whl \
     && python -m pip check \
-    && cp /usr/local/lib/python3.14/site-packages/netops_core/askpass.py /usr/local/bin/netops-askpass \
+    && askpass="$(python -c 'import sysconfig; print(sysconfig.get_path("purelib") + "/netops_core/askpass.py")')" \
+    && cp "$askpass" /usr/local/bin/netops-askpass \
     && cp /dist/netops-start /usr/local/bin/netops-start \
     && chmod 0755 /usr/local/bin/netops-askpass /usr/local/bin/netops-start \
     && python -m pip uninstall --root-user-action=ignore --yes pip \

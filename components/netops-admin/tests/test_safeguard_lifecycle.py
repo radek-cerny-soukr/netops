@@ -4,6 +4,7 @@ from netops_admin import fortios, exec_exos, exec_fortios, exos, execute
 from netops_core.fortios import parse
 from fake_fortios import FakeFortiOS
 from test_execute import make_runtime, request, audit_lines
+from approved_apply import approved_apply, preview_hash
 
 CHANGE = "ab12cd" + "0" * 26
 FIRE = "2026-10-13 12:00:00"
@@ -61,14 +62,14 @@ def test_installation_exception_never_applies_the_requested_change(tmp_path, mon
     def failed(*args):
         raise OSError("fixture install failed")
     monkeypatch.setattr(exec_fortios, "install_safeguard", failed)
-    record = execute.apply(runtime, "lab", request())
+    record = approved_apply(runtime, "lab", request())
     assert record["result"] != "confirmed"
     assert "new-host" not in device.addresses
 
 
 def test_start_audit_identifies_the_exact_change_device_and_plan(tmp_path):
     device = FakeFortiOS()
-    record = execute.apply(make_runtime(tmp_path, device), "lab", request())
+    record = approved_apply(make_runtime(tmp_path, device), "lab", request())
     start = next(event for event in audit_lines(tmp_path) if event["event"] == "start")
     assert start["change_id"] == record["change_id"]
     assert start["device"] == "lab"
@@ -94,7 +95,7 @@ def test_unverified_installation_blocks_if_cleanup_or_persistence_is_uncertain(t
     monkeypatch.setattr(exec_fortios, "install_safeguard", lambda *a: ["fixture mismatch"])
     monkeypatch.setattr(exec_fortios, "remove_safeguard", lambda *a: cleaned)
     monkeypatch.setattr(execute, "_persist", lambda *a: persisted)
-    record = execute.apply(runtime, "lab", request())
+    record = approved_apply(runtime, "lab", request())
     assert record["result"] == result
     assert runtime.store.blocked("lab") is not None
     assert "new-host" not in device.addresses
@@ -105,7 +106,7 @@ def test_expiry_with_an_unpersisted_return_blocks_the_device(tmp_path, monkeypat
     device.drop_comment = True
     runtime = make_runtime(tmp_path, device)
     monkeypatch.setattr(execute, "_persist", lambda *a: False)
-    record = execute.apply(runtime, "lab", request(op="update", key="spare-host", changes={"comment": "two words"}))
+    record = approved_apply(runtime, "lab", request(op="update", key="spare-host", changes={"comment": "two words"}))
     assert record["result"] == "reverted" and record["reason"] == "not persisted"
     assert runtime.store.blocked("lab") is not None
 
@@ -115,7 +116,7 @@ def test_expiry_with_an_unverified_cleanup_blocks_the_device(tmp_path, monkeypat
     device.drop_comment = True
     runtime = make_runtime(tmp_path, device)
     monkeypatch.setattr(exec_fortios, "remove_safeguard", lambda *a: False)
-    record = execute.apply(runtime, "lab", request(op="update", key="spare-host", changes={"comment": "two words"}))
+    record = approved_apply(runtime, "lab", request(op="update", key="spare-host", changes={"comment": "two words"}))
     assert record["result"] == "unknown"
     assert runtime.store.blocked("lab") is not None
 
@@ -126,12 +127,12 @@ def test_clock_forward_does_not_reset_budget_even_across_runtime_restart(tmp_pat
     from netops_admin.errors import BudgetExhausted
     device = FakeFortiOS()
     runtime = make_runtime(tmp_path, device, limits=limited(changes_per_device_per_hour=1))
-    execute.apply(runtime, "lab", request())
+    approved_apply(runtime, "lab", request())
     future = time.time() + 3700
     monkeypatch.setattr(execute.time, "time", lambda: future)
     restarted = make_runtime(tmp_path, device, limits=limited(changes_per_device_per_hour=1))
     with pytest.raises(BudgetExhausted):
-        execute.apply(restarted, "lab", request(key="second-host", request_id="req-second-clock"))
+        approved_apply(restarted, "lab", request(key="second-host", request_id="req-second-clock"))
 
 
 def test_transient_foreign_change_still_blocks_after_a_clean_return(tmp_path):
@@ -139,6 +140,7 @@ def test_transient_foreign_change_still_blocks_after_a_clean_return(tmp_path):
     device = FakeFortiOS()
     runtime = make_runtime(tmp_path, device)
     previous = device.addresses["srv-web"]["comment"]
+    approved = preview_hash(runtime, "lab", request())
     queries, query = [], device.check_query
     def checking(command):
         answer = query(command)
@@ -152,7 +154,7 @@ def test_transient_foreign_change_still_blocks_after_a_clean_return(tmp_path):
         device.addresses["srv-web"]["comment"] = previous
     device.check_query = checking
     runtime.sleep = returning
-    record = execute.apply(runtime, "lab", request())
+    record = execute.apply(runtime, "lab", request(), expected_plan_sha256=approved)
     assert record["result"] == "reverted" and record["reason"] == "foreign change"
     assert runtime.store.blocked("lab") is not None
     assert "new-host" not in device.addresses
@@ -169,7 +171,7 @@ def test_unreadable_final_snapshot_after_removal_finishes_unknown_and_blocks(tmp
             device.unreadable = True
         return answer
     device.apply = removing
-    record = execute.apply(runtime, "lab", request())
+    record = approved_apply(runtime, "lab", request())
     assert record["result"] == "unknown" and record["status"] == "finished"
     assert runtime.store.blocked("lab") is not None
 
@@ -182,7 +184,7 @@ def test_batch_start_audit_counts_operations_and_changed_attributes(tmp_path, mo
     value, device = runtime(tmp_path, monkeypatch)
     req = batch_request([op(changes={"comment": "intermediate"}),
                          op(changes={"comment": "final", "subnet": "192.0.2.32/27"})])
-    record = execute.apply(value, "lab", req)
+    record = approved_apply(value, "lab", req)
     assert record["result"] == "confirmed"
     events = [json.loads(line) for line in (tmp_path / "audit.jsonl").read_text().splitlines()]
     start = next(event for event in events if event["event"] == "start")

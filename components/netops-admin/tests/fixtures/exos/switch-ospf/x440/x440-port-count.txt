@@ -1,0 +1,5 @@
+Policy Name       Vlan Name        Port   Direction
+    Counter Name                   Packet Count         Byte Count
+==================================================================
+netops-switch-ospf-live   *                10     ingress
+    switch_ospf_live                       0

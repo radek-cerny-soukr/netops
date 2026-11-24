@@ -1,0 +1,16 @@
+config log syslogd setting
+    set status enable
+    set server "203.0.113.253"
+    set mode udp
+    set port 514
+    set facility local7
+    set source-ip-interface ''
+    set source-ip ''
+    set format default
+    set priority default
+    set max-log-rate 0
+    set interface-select-method auto
+    set vrf-select 0
+end
+
+

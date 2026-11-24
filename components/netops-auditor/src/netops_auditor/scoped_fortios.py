@@ -46,6 +46,12 @@ PRIMARY_PATHS = {
  "management_fortios_group_cycle":"firewall addrgrp",
  "management_fortios_dhcp_conflict":"system dhcp server",
  "management_fortios_dhcp_subnet":"system dhcp server",
+ "ssh_v1":"system global",
+ "external_login":"system admin",
+ "snmp_v3_auth_priv":"system snmp sysinfo",
+ "ntp_auth":"system ntp",
+ "syslog_level":"log syslogd setting",
+ "unused_up":"system interface",
 }
 INTERFACE_DEPENDENT = frozenset(("dangling_reference","management_fortios_dhcp_subnet"))
 

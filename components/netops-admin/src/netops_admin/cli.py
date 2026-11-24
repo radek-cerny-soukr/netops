@@ -78,9 +78,17 @@ def open_access(device):
     return DeviceAccess(device)
 
 
+def _approved_member(args) -> dict:
+    """--preview writes nothing; a write needs the plan_sha256 of that preview, checked before the device is contacted."""
+    if not args.preview:
+        fortiadc.member_plan_required(args.command, args.expect_plan_sha256)
+    return {"preview": args.preview, "expected_plan_sha256": args.expect_plan_sha256}
+
+
 def _pool_member(args) -> int:
     from netops_admin.config import load_config
 
+    approval = _approved_member(args)
     device = load_config(args.config).devices.get(args.device)
     if device is None or device.platform != "fortiadc":
         raise Rejected(["device %s is not a configured FortiADC" % shown(args.device)])
@@ -89,7 +97,8 @@ def _pool_member(args) -> int:
     except Exception as exc:
         raise Rejected(["the device cannot be reached (%s)" % type(exc).__name__]) from None
     with operation(access):
-        record = fortiadc.run(access, args.pool, args.member, args.status)
+        record = fortiadc.run(access, args.pool, args.member, args.status, target=fortiadc.member_target(device),
+                              **approval)
     _emit(dict(record, device=device.name))
     return fortiadc.exit_code(record)
 
@@ -109,9 +118,11 @@ def _member_access(args):
 def _pool_member_add(args) -> int:
     from netops_admin import fortiadc_member
 
+    approval = _approved_member(args)
     device, access = _member_access(args)
     with operation(access):
-        record = fortiadc_member.add(access, args.pool, args.member, args.real_server, args.service_port)
+        record = fortiadc_member.add(access, args.pool, args.member, args.real_server, args.service_port,
+                                     target=fortiadc.member_target(device), **approval)
     _emit(dict(record, device=device.name))
     return fortiadc.exit_code(record)
 
@@ -119,9 +130,11 @@ def _pool_member_add(args) -> int:
 def _pool_member_remove(args) -> int:
     from netops_admin import fortiadc_member
 
+    approval = _approved_member(args)
     device, access = _member_access(args)
     with operation(access):
-        record = fortiadc_member.remove(access, args.pool, args.member)
+        record = fortiadc_member.remove(access, args.pool, args.member, target=fortiadc.member_target(device),
+                                        **approval)
     _emit(dict(record, device=device.name))
     return fortiadc.exit_code(record)
 
@@ -282,8 +295,9 @@ def main(argv=None, *, require_export=True) -> int:
     run.add_argument("--config", required=True, type=Path)
     run.add_argument("--device", required=True)
     run.add_argument("--request", required=True, type=Path)
-    run.add_argument("--expect-plan-sha256", help="bind apply to the approved preview; required for operational clear")
-    look_ahead = commands.add_parser("preview", help="run the planning checks of apply against the device and print the plan, without applying it (a FortiOS sessions clear preview temporarily sets and resets the diagnostic session filter); apply checks the current state again; for a profile request, pass --expect-plan-sha256 to bind apply to the approved preview (schema transactions refuse it)")
+    run.add_argument("--expect-plan-sha256", help="plan_sha256 of the approved preview; required for every request, "
+                     "profile request or schema transaction (without it apply refuses before the device is contacted)")
+    look_ahead = commands.add_parser("preview", help="run the planning checks of apply against the device and print the plan, without applying it (a FortiOS sessions clear preview temporarily sets and resets the diagnostic session filter); apply checks the current state again; apply of every request, profile or schema transaction, requires its plan_sha256 as --expect-plan-sha256")
     look_ahead.add_argument("--config", required=True, type=Path)
     look_ahead.add_argument("--device", required=True)
     look_ahead.add_argument("--request", required=True, type=Path)
@@ -421,8 +435,7 @@ def main(argv=None, *, require_export=True) -> int:
         parser_.add_argument("--endpoint-impact", help="name the port again after the person accepted that the device on it (LLDP neighbor, "
                                                        "learned MAC or powered device) loses its link or power; when the preview requires it, "
                                                        "pass it identically with --preview and apply")
-        parser_.add_argument("--expect-plan-sha256", help="approved preview hash, required for every bounce and for every PoE cycle except "
-                                                          "on ExtremeXOS")
+        parser_.add_argument("--expect-plan-sha256", help="approved preview hash, required for every bounce and every PoE cycle")
         parser_.add_argument("--preview", action="store_true",
                              help="run the planning checks of the operation and print its plan, without any change; apply checks again")
     member = commands.add_parser("pool-member", help="FortiADC (deprecated, " + LEGACY + "): set the status of one real-server pool member and verify it")
@@ -437,6 +450,12 @@ def main(argv=None, *, require_export=True) -> int:
     removed = commands.add_parser("pool-member-remove", help="FortiADC (deprecated, " + LEGACY + "): remove one DISABLED or MAINTAIN pool member and verify it")
     for flag in ("--config", "--device", "--pool", "--member"):
         removed.add_argument(flag, required=True, type=Path if flag == "--config" else str)
+    for parser_ in (member, added, removed):
+        parser_.add_argument("--preview", action="store_true",
+                             help="read the device, run the checks and print the commands and plan_sha256, without any change")
+        parser_.add_argument("--expect-plan-sha256",
+                             help="plan_sha256 of the approved --preview of the same command; required for every change "
+                                  "(without it nothing is read or written)")
     cert_import = commands.add_parser("certificate-import", help="preview or import a new FortiADC PEM certificate from private files")
     cert_import.add_argument("--config", type=Path, required=True)
     cert_import.add_argument("--device", required=True)

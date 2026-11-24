@@ -36,13 +36,17 @@ class PrivateKeyRedaction(unittest.TestCase):
         header = "-----BEGIN A PRIVATE KEY-----"
         def elapsed(count):
             text = header * count
-            start = time.perf_counter()
-            self.assertEqual(private_keys(text), text)
-            return time.perf_counter() - start
+            best = None
+            for _ in range(3):  # the best of three is the least disturbed by a busy runner
+                start = time.perf_counter()
+                self.assertEqual(private_keys(text), text)
+                taken = time.perf_counter() - start
+                best = taken if best is None else min(best, taken)
+            return best
         small, large = elapsed(20000), elapsed(80000)
         self.assertLess(large, max(small, 0.01) * 8, (small, large))
         whole = elapsed(4194304 // len(header))
-        self.assertLess(whole, 10, whole)
+        self.assertLess(whole, 60, whole)  # hard stop; quadratic handling of 4 MiB needs hours
 
 
 if __name__ == "__main__":

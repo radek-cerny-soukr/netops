@@ -1,0 +1,3 @@
+set vlans junos-vlan-admin-data description "Data VLAN – Brno, kancelář 2.patro (test JUNOS-VLAN-ADMIN)"
+set vlans junos-vlan-admin-data vlan-id 3901
+set vlans junos-vlan-admin-data l3-interface irb.3901

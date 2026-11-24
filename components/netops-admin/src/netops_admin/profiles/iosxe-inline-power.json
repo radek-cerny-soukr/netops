@@ -1,6 +1,7 @@
 {
   "platform": "iosxe",
   "table": "inline-power",
+  "measured": false,
   "versions": [
     "17.18.2"
   ],
@@ -37,5 +38,5 @@
       "required_on_create": false
     }
   },
-  "rollback_evidence": "G79 (XE-M024): power inline auto, never or static max, with the prior mode and limit retained for undo. Running configuration verifies mode and the configured limit; the check account verifies the operational PoE admin mode. Syntax and output are documented by Cisco. The operation was not measured on PoE hardware; IOL XE refuses show power inline."
+  "rollback_evidence": "xe port maintenance (XE-M024): power inline auto, never or static max, with the prior mode and limit retained for undo. Running configuration verifies mode and the configured limit; the check account verifies the operational PoE admin mode. Syntax and output are documented by Cisco. The operation was not measured on PoE hardware; IOL XE refuses show power inline."
 }

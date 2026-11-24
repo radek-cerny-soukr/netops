@@ -13,7 +13,7 @@ from netops_auditor import cli
 from netops_auditor import sarif
 from netops_auditor.collect import ChannelEvent, CollectError, Snapshot
 from netops_auditor import l1_exos, l1_fortios
-from netops_auditor.engine import CATALOG_DIR, load_catalog
+from netops_auditor.engine import CATALOG_DIR, available_platforms, load_catalog
 from netops_auditor.store import Store
 from netops_auditor.findings import fingerprint_of
 from netops_auditor.suppressions import FILE_VERSION as SUPPRESSION_FILE_VERSION
@@ -1724,7 +1724,7 @@ def exos_inventory(directory, config, sections=EXOS_SECTIONS, name="exos-invento
 
 
 def test_both_platforms_are_offered_on_the_command_line():
-    assert sorted(cli.PLATFORMS) == ["exos", "fortiadc", "fortios"]
+    assert set(available_platforms()) <= cli.PLATFORMS.keys()
 
 
 def test_an_exos_configuration_is_audited_by_the_exos_catalog(tmp_path, capsys):
@@ -1735,7 +1735,25 @@ def test_an_exos_configuration_is_audited_by_the_exos_catalog(tmp_path, capsys):
     report = json.loads(out)
     assert report["platform"] == "exos"
     assert report["findings"] == []
-    assert report["rules_version"].startswith("exos:9:")
+    catalog = CATALOG_DIR / "exos.json"
+    count = len(json.loads(catalog.read_text())["rules"])
+    assert report["rules_version"] == f"exos:{count}:{hashlib.sha256(catalog.read_bytes()).hexdigest()}"
+
+
+def test_an_exos_file_cut_inside_a_quoted_value_is_refused_by_the_completeness_check(tmp_path, capsys):
+    # A file snapshot carries no proof of its end; one that ends inside a quoted value cannot be
+    # split into statements, so collect stops with the reason and records no run.
+    text = exos_clean_text().split('configure snmp sysLocation "')[0] + 'configure snmp sysLocation "Exam\n'
+    config = write_config(tmp_path, text, name="cut.conf")
+    database = tmp_path / "audit.sqlite"
+    code, out, err = gather(capsys, exos_inventory(tmp_path, config), device=EXOS_DEVICE, store=database,
+                            as_json=True)
+    assert (code, out) == (cli.EXIT_ERROR, "")
+    assert "completeness: the snapshot cannot be split into statements" in err
+    assert "unterminated quoted value" in err
+    if database.exists():
+        with Store(database) as store:
+            assert store.last_run(TENANT, EXOS_DEVICE) is None
 
 
 def test_a_platform_change_under_the_same_alias_is_refused_and_nothing_is_gone(tmp_path, capsys):

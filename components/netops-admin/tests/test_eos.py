@@ -13,12 +13,14 @@ from netops_admin.config import DEFAULT_LIMITS, Config, Device
 from netops_admin.engine import build_plan, verify
 from netops_admin.errors import Rejected, SnapshotRejected
 from netops_admin.request import parse_request
+from approved_apply import approved_apply
 
 ACCOUNTS = ("admin", "netops-admin", "netops-ro")
 SECRET_TEXT = "k7c Eos Vb8Wn"
 
 
-def make_runtime(tmp_path, device, accounts=ACCOUNTS, firmware=FIRMWARE, protected=None):
+def make_runtime(tmp_path, device, accounts=ACCOUNTS, firmware=FIRMWARE, protected=None,
+                 *, simulate_unmeasured_profiles=False):
     config = Config(
         state_dir=str(tmp_path / "state"), audit_file=str(tmp_path / "audit" / "audit.jsonl"),
         export_status_file=None, notify=None, limits=dict(DEFAULT_LIMITS),
@@ -30,7 +32,8 @@ def make_runtime(tmp_path, device, accounts=ACCOUNTS, firmware=FIRMWARE, protect
         )},
     )
     from enrollment_helpers import certify
-    runtime = execute.Runtime(config, lambda _device: device, sleep=device.advance, require_export=False)
+    runtime = execute.Runtime(config, lambda _device: device, sleep=device.advance, require_export=False,
+                              simulate_unmeasured_profiles=simulate_unmeasured_profiles)
     runtime.monotonic = lambda: device.uptime
     return certify(runtime, device, "lab-ceos")
 
@@ -62,7 +65,7 @@ def test_snapshot_of_the_measured_running_configuration():
 
 
 def test_exec_answer_of_show_running_config_parses_like_the_session_answer():
-    # measured in task 304: ssh exec answers with an empty line, the echo "> show running-config" and the header
+    # measured in verification: ssh exec answers with an empty line, the echo "> show running-config" and the header
     # "! Command: show running-config at line 1"
     exec_text = FakeEos().snapshot()
     assert exec_text.startswith("\n> show running-config\n! Command: show running-config at line 1\n")
@@ -193,7 +196,7 @@ def test_preview_reads_and_writes_nothing(tmp_path):
 def test_description_is_confirmed_saved_after_the_confirmation_and_undone(tmp_path):
     device = FakeEos()
     runtime = make_runtime(tmp_path, device)
-    record = execute.apply(runtime, "lab-ceos", request())
+    record = approved_apply(runtime, "lab-ceos", request())
     assert record["result"] == "confirmed", (record["reason"], steps(record))
     label = record["safeguard"]["name"]
     assert device.applied_blocks[0] == ["configure session %s" % label, "commit timer 00:03:00"]
@@ -214,9 +217,9 @@ def test_description_is_confirmed_saved_after_the_confirmation_and_undone(tmp_pa
 def test_shutdown_and_no_shutdown(tmp_path):
     device = FakeEos()
     runtime = make_runtime(tmp_path, device)
-    down = execute.apply(runtime, "lab-ceos", request(changes={"admin-state": "disabled"}, request_id="req-down-1"))
+    down = approved_apply(runtime, "lab-ceos", request(changes={"admin-state": "disabled"}, request_id="req-down-1"))
     assert down["result"] == "confirmed" and device.interface("Ethernet10") == ["shutdown"]
-    up = execute.apply(runtime, "lab-ceos", request(changes={"admin-state": "enabled"}, request_id="req-up-1"))
+    up = approved_apply(runtime, "lab-ceos", request(changes={"admin-state": "enabled"}, request_id="req-up-1"))
     assert up["result"] == "confirmed" and device.interface("Ethernet10") == []
     assert device.saves == 2 and device.saved_while_pending == 0
 
@@ -224,7 +227,7 @@ def test_shutdown_and_no_shutdown(tmp_path):
 def test_access_vlan_is_confirmed_and_undone(tmp_path):
     device = FakeEos()
     runtime = make_runtime(tmp_path, device)
-    record = execute.apply(runtime, "lab-ceos", request(table="vlan-membership", changes={"access-vlan": 10}))
+    record = approved_apply(runtime, "lab-ceos", request(table="vlan-membership", changes={"access-vlan": 10}))
     assert record["result"] == "confirmed", (record["reason"], steps(record))
     assert device.interface("Ethernet10") == ["switchport access vlan 10"]
     assert any("show interfaces Ethernet10 switchport" == query for query in device.check_queries)
@@ -240,7 +243,7 @@ def test_lost_check_account_leaves_the_change_unconfirmed_and_the_timer_reverts_
             fake.check_unreadable = True
 
     device.on_apply = lose_check_account
-    record = execute.apply(make_runtime(tmp_path, device), "lab-ceos",
+    record = approved_apply(make_runtime(tmp_path, device), "lab-ceos",
                            request(changes={"description": "netops-c7b-b", "admin-state": "disabled"}))
     assert record["result"] == "reverted" and record["reason"] == "check identity unavailable", steps(record)
     label = record["safeguard"]["name"]
@@ -262,7 +265,7 @@ def test_check_account_mismatch_is_reverted(tmp_path):
                 "show-interfaces-Ethernet10-description__baseline.txt")}
 
     device.on_apply = stale
-    record = execute.apply(make_runtime(tmp_path, device), "lab-ceos", request())
+    record = approved_apply(make_runtime(tmp_path, device), "lab-ceos", request())
     assert record["result"] == "reverted" and record["reason"] == "check identity mismatch"
     assert device.interface("Ethernet10") == []
 
@@ -270,7 +273,7 @@ def test_check_account_mismatch_is_reverted(tmp_path):
 def test_refused_commit_timer_aborts_the_uncommitted_session(tmp_path):
     device = FakeEos()
     device.refuse_commit_timer = True
-    record = execute.apply(make_runtime(tmp_path, device), "lab-ceos", request())
+    record = approved_apply(make_runtime(tmp_path, device), "lab-ceos", request())
     assert record["result"] == "reverted" and record["reason"] == "safeguard not verified"
     label = record["safeguard"]["name"]
     assert device.applied_blocks[-2] == ["configure session %s abort" % label]
@@ -281,7 +284,7 @@ def test_refused_commit_timer_aborts_the_uncommitted_session(tmp_path):
 def test_timer_at_another_time_is_confirmed_away_before_any_change(tmp_path):
     device = FakeEos()
     device.timer_shift = 120
-    record = execute.apply(make_runtime(tmp_path, device), "lab-ceos", request())
+    record = approved_apply(make_runtime(tmp_path, device), "lab-ceos", request())
     assert record["result"] == "reverted" and record["reason"] == "safeguard not verified"
     assert device.sessions == {} and device.timer is None
     assert not any(block[:1] == ["configure terminal"] for block in device.applied_blocks)
@@ -304,12 +307,12 @@ def test_port_in_use_is_refused_before_any_write(tmp_path, prepare, code):
     device = FakeEos()
     prepare(device)
     with pytest.raises(Rejected) as caught:
-        execute.apply(make_runtime(tmp_path, device), "lab-ceos", request(changes={"admin-state": "disabled"}))
+        approved_apply(make_runtime(tmp_path, device), "lab-ceos", request(changes={"admin-state": "disabled"}))
     assert caught.value.reason_codes == [code]
     assert device.applied_blocks == []
 
 
-# ---- task 304-r2: admin up gets the same port checks as admin down ----
+# ---- verification: admin up gets the same port checks as admin down ----
 
 def _shut(text: str, name: str, extra: str = "") -> str:
     return text.replace("interface %s\n" % name, "interface %s\n%s   shutdown\n" % (name, extra), 1)
@@ -357,7 +360,7 @@ def test_enabling_a_disabled_trunk_or_lag_member_is_refused_before_any_write(tmp
     preview = execute.preview(runtime, "lab-ceos", request(key=key, changes={"admin-state": "enabled"}))
     assert preview["result"] == "rejected" and preview["reason_codes"] == [code]
     with pytest.raises(Rejected) as caught:
-        execute.apply(runtime, "lab-ceos", request(key=key, changes={"admin-state": "enabled"}))
+        approved_apply(runtime, "lab-ceos", request(key=key, changes={"admin-state": "enabled"}))
     assert caught.value.reason_codes == [code]
     assert device.applied_blocks == [] and "shutdown" in device.interface(key)
 
@@ -371,7 +374,7 @@ def test_enabling_a_disabled_port_in_use_is_refused_before_any_write(tmp_path, p
     _shut_device(device, "Ethernet10")
     prepare(device)
     with pytest.raises(Rejected) as caught:
-        execute.apply(make_runtime(tmp_path, device), "lab-ceos", request(changes={"admin-state": "enabled"}))
+        approved_apply(make_runtime(tmp_path, device), "lab-ceos", request(changes={"admin-state": "enabled"}))
     assert caught.value.reason_codes == [code]
     assert device.applied_blocks == [] and device.interface("Ethernet10") == ["shutdown"]
 
@@ -379,7 +382,7 @@ def test_enabling_a_disabled_port_in_use_is_refused_before_any_write(tmp_path, p
 def test_enabling_a_disabled_access_port_is_confirmed(tmp_path):
     device = FakeEos()
     _shut_device(device, "Ethernet10")
-    record = execute.apply(make_runtime(tmp_path, device), "lab-ceos", request(changes={"admin-state": "enabled"}))
+    record = approved_apply(make_runtime(tmp_path, device), "lab-ceos", request(changes={"admin-state": "enabled"}))
     assert record["result"] == "confirmed", (record["reason"], steps(record))
     assert device.interface("Ethernet10") == [] and device.lines == device.saved
     assert "port Ethernet10 has no LLDP neighbor and no learned MAC address" in record["plan"]["prechecks"]
@@ -395,7 +398,7 @@ def test_missing_vlan_and_management_are_refused_with_zero_writes(tmp_path, fiel
     preview = execute.preview(runtime, "lab-ceos", request(**fields))
     assert preview["result"] == "rejected" and preview["reason_codes"] == [code]
     with pytest.raises(Rejected):
-        execute.apply(runtime, "lab-ceos", request(**fields))
+        approved_apply(runtime, "lab-ceos", request(**fields))
     assert device.applied_blocks == [] and "vlan 3999" not in device.lines
 
 
@@ -403,12 +406,12 @@ def test_foreign_pending_session_and_foreign_timer_are_refused(tmp_path):
     device = FakeEos()
     device.sessions["operator-work"] = {"state": "pending", "user": "admin"}
     with pytest.raises(Rejected) as caught:
-        execute.apply(make_runtime(tmp_path / "a", device), "lab-ceos", request())
+        approved_apply(make_runtime(tmp_path / "a", device), "lab-ceos", request())
     assert caught.value.reason_codes == ["foreign_config_session"]
     device.sessions["operator-work"]["state"] = "committed"
     device.timer = {"name": "operator-work", "checkpoint": list(device.lines), "expire": device.epoch + 600}
     with pytest.raises(Rejected) as caught:
-        execute.apply(make_runtime(tmp_path / "b", device), "lab-ceos", request(request_id="req-foreign-2"))
+        approved_apply(make_runtime(tmp_path / "b", device), "lab-ceos", request(request_id="req-foreign-2"))
     assert caught.value.reason_codes == ["foreign_config_session"]
     assert device.applied_blocks == []
 
@@ -417,7 +420,7 @@ def test_own_leftover_session_is_refused(tmp_path):
     device = FakeEos()
     device.sessions["netops-0123456789ab"] = {"state": "pending", "user": ""}
     with pytest.raises(Rejected) as caught:
-        execute.apply(make_runtime(tmp_path, device), "lab-ceos", request())
+        approved_apply(make_runtime(tmp_path, device), "lab-ceos", request())
     assert "netops-0123456789ab" in caught.value.reasons[0] and device.applied_blocks == []
 
 
@@ -425,12 +428,12 @@ def test_privilege_1_and_unsaved_changes_are_refused(tmp_path):
     device = FakeEos()
     device.privilege = 1
     with pytest.raises(Rejected) as caught:
-        execute.apply(make_runtime(tmp_path / "a", device), "lab-ceos", request())
+        approved_apply(make_runtime(tmp_path / "a", device), "lab-ceos", request())
     assert caught.value.reason_codes == ["write_account_privilege"]
     device = FakeEos()
     device.saved = device.saved[:-2] + ["end"]
     with pytest.raises(Rejected) as caught:
-        execute.apply(make_runtime(tmp_path / "b", device), "lab-ceos", request())
+        approved_apply(make_runtime(tmp_path / "b", device), "lab-ceos", request())
     assert "unsaved configuration changes" in caught.value.reasons[0]
     assert device.applied_blocks == []
 
@@ -439,7 +442,7 @@ def test_unexpected_account_blocks_the_device(tmp_path):
     device = FakeEos()
     runtime = make_runtime(tmp_path, device, accounts=("admin", "netops-admin"))
     with pytest.raises(Rejected) as caught:
-        execute.apply(runtime, "lab-ceos", request())
+        approved_apply(runtime, "lab-ceos", request())
     assert "accounts differ" in caught.value.reasons[0]
     assert runtime.store.blocked("lab-ceos")["reason"] == "administrator table"
 
@@ -447,7 +450,7 @@ def test_unexpected_account_blocks_the_device(tmp_path):
 def test_audit_log_holds_no_text_and_no_secret(tmp_path):
     device = FakeEos()
     runtime = make_runtime(tmp_path, device)
-    record = execute.apply(runtime, "lab-ceos", request(changes={"description": SECRET_TEXT}))
+    record = approved_apply(runtime, "lab-ceos", request(changes={"description": SECRET_TEXT}))
     assert record["result"] == "confirmed"
     log = (tmp_path / "audit" / "audit.jsonl").read_text()
     assert SECRET_TEXT not in log and "REDIGOVANO" not in log and "sha512" not in log
@@ -486,15 +489,15 @@ def test_doctor_is_ready_after_enrollment(tmp_path):
     statuses = {item["check"]: item["status"] for item in report["checks"]}
     assert statuses["check account"] == "ok" and statuses["leftover safeguards"] == "ok"
     assert statuses["device prechecks"] == "ok" and statuses["enrollment"] == "ok", report
-    # 1.0.12 G123: the EOS port bounce and PoE cycle are operations of their own tables
+    # 1.0.12 EOS-PORT-MAINTENANCE: the EOS port bounce and PoE cycle are operations of their own tables
     assert report["operations"] == {"interface": "update", "vlan-membership": "update", "vlan": "create update delete",
-                                    "port-bounce": "port-bounce", "inline-power": "poe-cycle",
+                                    "port-bounce": "port-bounce", "inline-power": readiness.unmeasured("poe-cycle"),
                                     "static-route": "create update delete", "l3-interface": "create update delete",
                                     "ip-routing": "update", "vrrp": "create update delete",
                                     "varp": "create update delete", "varp-mac": "update",
                                     "ip-access-list": "create update delete", "interface-access-group": "update",
                                     "port-channel": "create update delete", "port-channel-member": "update",
-                                    "mlag-port": "update", "mlag-peer": "update", "stp-port": "update", "stp-vlan": "update",
+                                    "mlag-port": "update", "mlag-peer": readiness.unmeasured("update"), "stp-port": "update", "stp-vlan": "update",
                                     "ospf-process": "create delete", "ospf-network": "create update delete",
                                     "ospf-interface": "update", "ip-prefix-list": "create update delete",
                                     "route-map": "create update delete", "bgp-neighbor": "create update delete",

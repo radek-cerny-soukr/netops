@@ -16,6 +16,7 @@ from netops_admin import engine, execute
 from netops_admin.errors import Rejected
 from netops_admin.request import parse_request
 from netops_admin.state import Store, read_json, write_atomic
+from approved_apply import approved_apply
 
 PROCESSES = 4
 ROUNDS = 100
@@ -26,7 +27,7 @@ def test_every_allowed_safeguard_time_ends_with_a_true_result(tmp_path, seconds)
     device = FakeFortiOS()
     device.drop_comment = True
     runtime = make_runtime(tmp_path, device, safeguard_seconds=seconds)
-    record = execute.apply(runtime, "lab", request(op="update", key="spare-host", changes={"comment": "two words"}))
+    record = approved_apply(runtime, "lab", request(op="update", key="spare-host", changes={"comment": "two words"}))
     assert record["result"] == "reverted", (record["result"], steps(record)[-3:])
     assert record["reason"] == "prediction mismatch"
     assert device.addresses["spare-host"]["comment"] == "unused"
@@ -63,6 +64,7 @@ def test_port_membership_in_a_protected_vlan_is_refused(changes):
 def test_request_for_another_device_is_refused_without_touching_the_device(tmp_path):
     device = FakeFortiOS()
     runtime = make_runtime(tmp_path, device)
+    # the device named in the request is checked before the plan hash, so no hash is needed for this refusal
     with pytest.raises(Rejected) as caught:
         execute.apply(runtime, "lab", request(device="fw-other"))
     assert any("fw-other" in reason for reason in caught.value.reasons)
@@ -80,7 +82,7 @@ def test_preview_for_another_device_is_refused(tmp_path):
 
 def test_request_naming_its_target_device_runs(tmp_path):
     device = FakeFortiOS()
-    record = execute.apply(make_runtime(tmp_path, device), "lab", request(device="lab"))
+    record = approved_apply(make_runtime(tmp_path, device), "lab", request(device="lab"))
     assert record["result"] == "confirmed"
 
 
@@ -146,11 +148,11 @@ def test_unreadable_rejection_count_refuses_the_request_in_order(tmp_path, conte
     runtime = make_runtime(tmp_path, device)
     (tmp_path / "state" / "rejections.json").write_bytes(content)
     with pytest.raises(Rejected) as caught:
-        execute.apply(runtime, "lab", request())
+        approved_apply(runtime, "lab", request())
     assert any("rejections.json" in reason for reason in caught.value.reasons)
     assert device.applied_blocks == [] and "new-host" not in device.addresses
     with pytest.raises(Rejected) as caught:
-        execute.apply(runtime, "lab", request(device="fw-other"))
+        approved_apply(runtime, "lab", request(device="fw-other"))
     assert any("fw-other" in reason for reason in caught.value.reasons)
     assert (tmp_path / "state" / "rejections.json").read_bytes() == content
 

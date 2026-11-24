@@ -35,5 +35,5 @@
   "volatile": [],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "Attaches an unused Ethernet port to a compatible, pre-existing port-channel with LACP. Unset group and mode together to detach. The inverse leaves the port-channel in place."
+  "rollback_evidence": "Live write and return on Nexus 9000v NX-OS 9.3(12) (2026-11-19): The VLAN, channel, LACP member or local vPC ID was changed, read back and undone. Attaches an unused Ethernet port to a compatible, pre-existing port-channel with LACP. Unset group and mode together to detach. The inverse leaves the port-channel in place."
 }

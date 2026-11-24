@@ -1,0 +1,127 @@
+{
+  "device": "iosv",
+  "profile": "cisco_ios",
+  "version": "15.9(3)M12",
+  "captures": [
+    {
+      "command": "show version",
+      "role": "RO",
+      "rc": 0,
+      "stdout": "Cisco IOS Software, IOSv Software (VIOS-ADVENTERPRISEK9-M), Version 15.9(3)M12, RELEASE SOFTWARE (fc1)\r\n"
+    },
+    {
+      "command": "show aaa servers",
+      "role": "RO",
+      "rc": 0,
+      "stdout": "\n\n"
+    },
+    {
+      "command": "show radius statistics",
+      "role": "RO",
+      "rc": 0,
+      "stdout": "\n\n                                  Auth.      Acct.       Both\n         Maximum inQ length:         NA         NA          0\n       Maximum waitQ length:         NA         NA          0\n       Maximum doneQ length:         NA         NA          0\n       Total responses seen:          0          0          0\n     Packets with responses:          0          0          0\n  Packets without responses:          0          0          0\n  Access Rejects           :          0\n Average response delay(ms):          0          0          0\n Maximum response delay(ms):          0          0          0\n  Number of Radius timeouts:          0          0          0\n       Duplicate ID detects:          0          0          0\n Buffer Allocation Failures:          0          0          0\nMaximum Buffer Size (bytes):          0          0          0\nMalformed Responses        :          0          0          0\nBad Authenticators         :          0          0          0\nUnknown Responses          :          0          0          0\n Source Port Range: (2 ports only)\n 1645 - 1646\n Last used Source Port/Identifier:\n 1645/0\n 1646/0\n\n  Elapsed time since counters last cleared: 1w4d5h22m\nRadius Latency Distribution:\n<= 2ms :          0          0\n3-5ms  :          0          0\n5-10ms :          0          0\n10-20ms:          0          0\n20-50ms:          0          0\n50-100m:          0          0\n>100ms :          0          0\n\nCurrent inQ length  : 0\nCurrent doneQ length: 0\n"
+    },
+    {
+      "command": "show tacacs",
+      "role": "RO",
+      "rc": 0,
+      "stdout": "\n\n"
+    },
+    {
+      "command": "show snmp",
+      "role": "RO",
+      "rc": 0,
+      "stdout": "\n\n\n%SNMP agent not enabled"
+    },
+    {
+      "command": "show snmp engineID",
+      "role": "RO",
+      "rc": 0,
+      "stdout": "\r\n\r\n\r\nLine has invalid autocommand \"show snmp engineID\""
+    },
+    {
+      "command": "show hosts",
+      "role": "RO",
+      "rc": 0,
+      "stdout": "\n\n\nDefault domain is host01\nName/address lookup uses static mappings\n\nCodes: UN - unknown, EX - expired, OK - OK, ?? - revalidate\n       temp - temporary, perm - permanent\n       NA - Not Applicable None - Not defined\n\nHost                      Port  Flags      Age Type   Address(es)"
+    },
+    {
+      "command": "show users",
+      "role": "RO",
+      "rc": 0,
+      "stdout": "\n\n\n    Line       User       Host(s)              Idle       Location\n*578 vty 0     user01     idle                 00:00:00 192.0.2.66\n\n  Interface    User               Mode         Idle     Peer Address\n"
+    },
+    {
+      "command": "show ssh",
+      "role": "RO",
+      "rc": 0,
+      "stdout": "\n\n\nConnection Version Mode  Encryption  Hmac\t   State\t        Username\n0          2.0     IN   aes128-ctr  hmac-sha2-256 Session started       user01\n0          2.0     OUT  aes128-ctr  hmac-sha2-256 Session started       user01"
+    },
+    {
+      "command": "show line",
+      "role": "RO",
+      "rc": 0,
+      "stdout": "\n\n\n   Tty Typ     Tx/Rx    A Modem  Roty AccO AccI   Uses   Noise  Overruns   Int\n      0 CTY              -    -      -    -    -      0       0     0/0       -\n      1 AUX   9600/9600  -    -      -    -    -      0       0     0/0       -\n*   578 VTY              -    -      -    -    -   8111       0     0/0       -\n    579 VTY              -    -      -    -    -   1195       0     0/0       -\n    580 VTY              -    -      -    -    -     45       0     0/0       -\n    581 VTY              -    -      -    -    -     28       0     0/0       -\n    582 VTY              -    -      -    -    -     15       0     0/0       -\n    583 VTY              -    -      -    -    -      5       0     0/0       -\n    584 VTY              -    -      -    -    -      1       0     0/0       -\n    585 VTY              -    -      -    -    -      1       0     0/0       -\n    586 VTY              -    -      -    -    -      1       0     0/0       -\n    587 VTY              -    -      -    -    -      1       0     0/0       -\n    588 VTY              -    -      -    -    -      0       0     0/0       -\n    589 VTY              -    -      -    -    -      0       0     0/0       -\n    590 VTY              -    -      -    -    -      0       0     0/0       -\n    591 VTY              -    -      -    -    -      0       0     0/0       -\n    592 VTY              -    -      -    -    -      0       0     0/0       -\n    593 VTY              -    -      -    -    -      0       0     0/0       -\n\nLine(s) not in async mode -or- with no hardware support: \n2-577\n "
+    },
+    {
+      "command": "show version",
+      "role": "ADMIN",
+      "rc": 0,
+      "stdout": "Cisco IOS Software, IOSv Software (VIOS-ADVENTERPRISEK9-M), Version 15.9(3)M12, RELEASE SOFTWARE (fc1)\r\n"
+    },
+    {
+      "command": "show aaa servers",
+      "role": "ADMIN",
+      "rc": 0,
+      "stdout": "\n\n"
+    },
+    {
+      "command": "show radius statistics",
+      "role": "ADMIN",
+      "rc": 0,
+      "stdout": "\n\n                                  Auth.      Acct.       Both\n         Maximum inQ length:         NA         NA          0\n       Maximum waitQ length:         NA         NA          0\n       Maximum doneQ length:         NA         NA          0\n       Total responses seen:          0          0          0\n     Packets with responses:          0          0          0\n  Packets without responses:          0          0          0\n  Access Rejects           :          0\n Average response delay(ms):          0          0          0\n Maximum response delay(ms):          0          0          0\n  Number of Radius timeouts:          0          0          0\n       Duplicate ID detects:          0          0          0\n Buffer Allocation Failures:          0          0          0\nMaximum Buffer Size (bytes):          0          0          0\nMalformed Responses        :          0          0          0\nBad Authenticators         :          0          0          0\nUnknown Responses          :          0          0          0\n Source Port Range: (2 ports only)\n 1645 - 1646\n Last used Source Port/Identifier:\n 1645/0\n 1646/0\n\n  Elapsed time since counters last cleared: 1w4d5h23m\nRadius Latency Distribution:\n<= 2ms :          0          0\n3-5ms  :          0          0\n5-10ms :          0          0\n10-20ms:          0          0\n20-50ms:          0          0\n50-100m:          0          0\n>100ms :          0          0\n\nCurrent inQ length  : 0\nCurrent doneQ length: 0\n"
+    },
+    {
+      "command": "show tacacs",
+      "role": "ADMIN",
+      "rc": 0,
+      "stdout": "\n\n"
+    },
+    {
+      "command": "show snmp",
+      "role": "ADMIN",
+      "rc": 0,
+      "stdout": "\n\n\n%SNMP agent not enabled"
+    },
+    {
+      "command": "show snmp engineID",
+      "role": "ADMIN",
+      "rc": 0,
+      "stdout": "\n\n\n%SNMP agent not enabled"
+    },
+    {
+      "command": "show hosts",
+      "role": "ADMIN",
+      "rc": 0,
+      "stdout": "\n\n\nDefault domain is host01\nName/address lookup uses static mappings\n\nCodes: UN - unknown, EX - expired, OK - OK, ?? - revalidate\n       temp - temporary, perm - permanent\n       NA - Not Applicable None - Not defined\n\nHost                      Port  Flags      Age Type   Address(es)"
+    },
+    {
+      "command": "show users",
+      "role": "ADMIN",
+      "rc": 0,
+      "stdout": "\n\n\n    Line       User       Host(s)              Idle       Location\n*578 vty 0     user02     idle                 00:00:00 192.0.2.66\n\n  Interface    User               Mode         Idle     Peer Address\n"
+    },
+    {
+      "command": "show ssh",
+      "role": "ADMIN",
+      "rc": 0,
+      "stdout": "\n\n\nConnection Version Mode  Encryption  Hmac\t   State\t        Username\n0          2.0     IN   aes128-ctr  hmac-sha2-256 Session started       user02\n0          2.0     OUT  aes128-ctr  hmac-sha2-256 Session started       user02"
+    },
+    {
+      "command": "show line",
+      "role": "ADMIN",
+      "rc": 0,
+      "stdout": "\n\n\n   Tty Typ     Tx/Rx    A Modem  Roty AccO AccI   Uses   Noise  Overruns   Int\n      0 CTY              -    -      -    -    -      0       0     0/0       -\n      1 AUX   9600/9600  -    -      -    -    -      0       0     0/0       -\n*   578 VTY              -    -      -    -    -   8121       0     0/0       -\n    579 VTY              -    -      -    -    -   1195       0     0/0       -\n    580 VTY              -    -      -    -    -     45       0     0/0       -\n    581 VTY              -    -      -    -    -     28       0     0/0       -\n    582 VTY              -    -      -    -    -     15       0     0/0       -\n    583 VTY              -    -      -    -    -      5       0     0/0       -\n    584 VTY              -    -      -    -    -      1       0     0/0       -\n    585 VTY              -    -      -    -    -      1       0     0/0       -\n    586 VTY              -    -      -    -    -      1       0     0/0       -\n    587 VTY              -    -      -    -    -      1       0     0/0       -\n    588 VTY              -    -      -    -    -      0       0     0/0       -\n    589 VTY              -    -      -    -    -      0       0     0/0       -\n    590 VTY              -    -      -    -    -      0       0     0/0       -\n    591 VTY              -    -      -    -    -      0       0     0/0       -\n    592 VTY              -    -      -    -    -      0       0     0/0       -\n    593 VTY              -    -      -    -    -      0       0     0/0       -\n\nLine(s) not in async mode -or- with no hardware support: \n2-577\n "
+    }
+  ]
+}

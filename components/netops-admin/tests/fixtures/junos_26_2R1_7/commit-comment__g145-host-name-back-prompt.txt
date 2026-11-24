@@ -1,5 +1,0 @@
-commit comment "g145-measure-back" 
-commit complete
-
-[edit]
-netops-admin@host01# 

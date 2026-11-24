@@ -39,5 +39,5 @@
   "volatile": [],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "NX-OS scheduler, configure replace and scoped inverse; G104 Nexus 9300v 9.3(12)."
+  "rollback_evidence": "Live write and return on Nexus 9000v NX-OS 9.3(12) (2026-11-19): The NTP, syslog or DNS configuration was read back after apply and after undo. NX-OS scheduler, configure replace and scoped inverse; nxos services admin Nexus 9300v 9.3(12)."
 }

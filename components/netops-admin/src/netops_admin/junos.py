@@ -2,15 +2,15 @@
 with tagged and native VLAN, voice VLAN) and VLANs (create, rename, description, delete) from the set-format
 configuration (show configuration | display set).
 
-Measured on vJunos-switch 26.2R1.7 (ELS, model ex9214; task netops-provoz-20261116-308, ref/mereni-c8; 1.0.12 G137,
-task-evidence/g137): the configuration is a flat list of "set ..." statements and starts with "set version <release>".
+Measured on vJunos-switch 26.2R1.7 (ELS, model ex9214; verification, private measurement record; 1.0.12 junos vlan admin,
+private measurement record): the configuration is a flat list of "set..." statements and starts with "set version <release>".
 A description with a space is quoted ("description \"a b\""), without a space it is shown bare. Junos accepts the
-configuration of an interface that does not exist (set interfaces ge-0/0/99 description ... is taken without an
+configuration of an interface that does not exist (set interfaces ge-0/0/99 description... is taken without an
 error) and checks a VLAN given by name only at commit time, so the plan relies on the device reads of the execution
 adapter for both. Interfaces are implicit keys: an unconfigured port is not in the configuration at all, its state is
 the default.
 
-1.0.12 G137 (JP12): a port takes configuration from its own statements, from an interface-range that lists it and from
+1.0.12 junos vlan admin (JP12): a port takes configuration from its own statements, from an interface-range that lists it and from
 configuration groups applied at the top level or at the port. The adapter evaluates these sources itself (the
 execution adapter compares the result with "show configuration interfaces <if> | display inheritance | display set"
 of the device) and edits a VLAN statement of the port where it is configured: in the port, in the interface-range or
@@ -77,7 +77,7 @@ CHANGE_COMMENT = "netops-change"
 CHANGE_COMMIT = 'commit confirmed %d comment "%s"' % (CONFIRM_MINUTES, CHANGE_COMMENT)
 # first line of every interactive session: without a terminal width (the pty of Admin has none, so Junos takes 80
 # columns) Junos scrolls a longer input line and redraws the prompt with the host name in the middle of the echo,
-# which ends the line early for a prompt reader (measured in task 319: the echo of a 96-character line holds three
+# which ends the line early for a prompt reader (measured in verification: the echo of a 96-character line holds three
 # redrawn prompts; with this session setting the echo stays one line). It sets the CLI session only, not the
 # configuration.
 SCREEN = "set cli screen-width 1024"
@@ -95,13 +95,13 @@ CATEGORIES = {
     "interface": {"description": re.compile(r"^description(?: |$)"), "admin-state": re.compile(r"^disable$"),
                   "speed": re.compile(r"^speed(?: |$)"), "mtu": re.compile(r"^mtu(?: |$)"),
                   "auto-negotiation": re.compile(r"^ether-options (?:no-)?auto-negotiation$")},
-    # 1.0.12 G138 (J11): the port bounce owns the disable statement of the port only
+    # 1.0.12 junos port maintenance (J11): the port bounce owns the disable statement of the port only
     "port-bounce": {"admin-state": re.compile(r"^disable$")},
     "vlan-membership": {"mode": re.compile(r"^" + re.escape(MODE) + r"(?: |$)"),
                         "members": re.compile(r"^" + re.escape(MEMBERS) + r"(?: |$)"),
                         "native": re.compile(r"^" + NATIVE + r"(?: |$)")},
 }
-# 1.0.12 G138: PoE is configured outside the interface (set poe interface <if> disable; J09 table poe, J10 table
+# 1.0.12 junos port maintenance: PoE is configured outside the interface (set poe interface <if> disable; J09 table poe, J10 table
 # inline-power of the poe-cycle operation) and the port bounce (J11) has its own action table
 POE_TABLE = "poe"
 POE_CYCLE_TABLE = "inline-power"
@@ -115,7 +115,7 @@ TRUNK = re.compile(r"^unit [0-9]+ family ethernet-switching interface-mode (?!ac
 LAG = re.compile(r"^(?:ether|gigether)-options 802\.3ad(?: |$)")
 ROUTED = re.compile(r"^unit [0-9]+ family (?:inet|inet6|mpls|iso)(?: |$)")
 INHERITANCE = re.compile(r"(?:^| )apply-groups(?:-except)?(?: |$)")
-# 1.0.12 G137 JP17: the longest description Admin writes (the interactive line stays far below the screen width)
+# 1.0.12 junos vlan admin JP17: the longest description Admin writes (the interactive line stays far below the screen width)
 DESCRIPTION_MAX = 240
 TRUNK_ATTRIBUTES = ("trunk-vlans", "native-vlan")
 ACCESS_ATTRIBUTES = ("access-vlan", "voice-vlan")
@@ -821,7 +821,7 @@ def render_delete(profile, key: str) -> list:
 
 
 def text_value(value: str) -> str:
-    """A description Junos stores and shows literally inside double quotes (1.0.12 G137 JP17, measured): any
+    """A description Junos stores and shows literally inside double quotes (1.0.12 junos vlan admin JP17, measured): any
     printable character of UTF-8 text, also diacritics, except the double quote and the backslash (Junos escapes
     them), the question mark (CLI help even inside quotes), control and format characters, the no-break space and
     leading or trailing blanks."""
@@ -932,7 +932,7 @@ def render_update(profile, key: str, assign: dict, remove: list) -> list:
     return _session(lines)
 
 
-# ---- tables rendered from the whole state before and after (1.0.12 G137) ----
+# ---- tables rendered from the whole state before and after (1.0.12 junos vlan admin) ----
 
 ROUTE_TABLE, IRB_TABLE, VRRP_TABLE = "static-route", "irb", "vrrp"
 G139_TABLES = (ROUTE_TABLE, IRB_TABLE, VRRP_TABLE)
@@ -1052,7 +1052,7 @@ def render_state(snapshot, table, key, before, after, restore=None, *, increment
     if table in routing.TABLES:
         return _session(routing.render(table, key, before, after))
     if table in fltr.TABLES:
-        # a filter with several terms prints more rows than one CLI screen: the unpaged compare of G140
+        # a filter with several terms prints more rows than one CLI screen: the unpaged compare of junos dynamic routing
         return _session(fltr.render(table, key, before, after), compare=junos_g140.COMPARE)
     if table in srx.TABLES:
         return _session(srx.render(snapshot, table, key, before, after, restore))
@@ -1096,7 +1096,7 @@ def disruptive(table: str, before, after) -> bool:
     if table in (BOUNCE_TABLE, *POE_TABLES):
         return True
     if table == "interface":
-        # 1.0.12 G138 (J23): speed, auto-negotiation and MTU restart the link of the port
+        # 1.0.12 junos port maintenance (J23): speed, auto-negotiation and MTU restart the link of the port
         return (after.get("admin-state", "enabled") != before.get("admin-state", "enabled")
                 or any(after.get(name) != before.get(name) for name in LINK_PARAMETERS))
     if table != "vlan-membership":
@@ -1293,8 +1293,8 @@ def snapshot_after(text: str, plan) -> str:
 
 
 AUTONEG = re.compile(r"^set (interfaces \S+) ether-options (?:no-)?auto-negotiation$")
-# 1.0.12 G145 r2: the message selectors "<facility> <severity>" of a remote host: the facilities of "set system syslog host <ip> ?"
-# (measured, task-evidence/g145/probe1/help.txt); "any" is the severity of all facilities, each other facility has an
+# 1.0.12 junos port ownership r2: the message selectors "<facility> <severity>" of a remote host: the facilities of "set system syslog host <ip> ?"
+# (measured, private measurement record); "any" is the severity of all facilities, each other facility has an
 # attribute "severity-<facility>"
 SYSLOG_FACILITIES = ("authorization", "change-log", "conflict-log", "daemon", "dfc", "external", "firewall", "ftp",
                      "interactive-commands", "kernel", "ntp", "pfe", "security", "user")
@@ -1317,7 +1317,7 @@ def _predict_set(lines, command) -> list:
         return lines if shown in lines else lines + [shown]
     toggle = AUTONEG.fullmatch(shown)
     if toggle is not None:
-        # measured (task netops-20261119-559): the two statements replace each other
+        # measured (verification): the two statements replace each other
         kept = [line for line in lines if not AUTONEG.fullmatch(line) or AUTONEG.fullmatch(line)[1] != toggle[1]]
         return kept + [shown]
     single = SINGLE.match(shown) or L3_SINGLE.match(shown)
@@ -1328,7 +1328,7 @@ def _predict_set(lines, command) -> list:
     return lines if shown in lines else lines + [shown]
 
 
-# ---- 1.0.12 G139: static routes, IRB and IPv4 VRRP on IRB ----
+# ---- 1.0.12 junos static routing: static routes, IRB and IPv4 VRRP on IRB ----
 
 ROUTE_ROW = re.compile(r"(routing-options (?:rib (inet6?\.0) )?static route) (\S+)(?: (.*))?")
 IRB_ROW = re.compile(r"interfaces irb unit ([0-9]+)(?: (.*))?")
@@ -1613,9 +1613,9 @@ def l3_prechecks(snapshot, table, key, after):
             raise Rejected(["the target VLAN already has a different L3 interface"], reason_codes=["junos_l3_scope"])
 
 
-# ---- 1.0.12 G145 (J31-J33): NTP servers, syslog hosts, DNS and the host name ----
+# ---- 1.0.12 junos port ownership (J31-J33): NTP servers, syslog hosts, DNS and the host name ----
 #
-# Measured on vJunos-switch 26.2R1.7 (d-vjunos, task-evidence/g145/probe1-3): every statement is one display set line,
+# Measured on vJunos-switch 26.2R1.7 (vJunos-switch, private measurement record): every statement is one display set line,
 # "set system ntp server <ip>" with "prefer" on the same line (no bare line beside it; deleting "prefer" leaves the
 # bare line), "set system ntp source-address <ip>" is a list (a second address is added, not replaced), "set system
 # syslog host <ip> any|port|facility-override <value>" are single values (a set replaces the old one), the
@@ -1632,7 +1632,7 @@ NTP_SOURCE = re.compile(r"^set system ntp source-address (\S+)(?: (.*))?$")
 SYSLOG_HOST = re.compile(r"^set system syslog host (\S+)(?: (.*))?$")
 NAME_SERVER = re.compile(r"^set system name-server (\S+)(?: (.*))?$")
 DOMAIN_NAME = re.compile(r"^set system domain-name (\S+)$")
-# 1.0.12 G145 r2: the pattern of the host-name attribute (profiles/junos-system.json); a configured name outside it is
+# 1.0.12 junos port ownership r2: the pattern of the host-name attribute (profiles/junos-system.json); a configured name outside it is
 # refused before a change, so the undo of a confirmed change can always return the name read from the device
 HOST_NAME_VALUE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?"
                              r"(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*$")
@@ -1668,7 +1668,7 @@ def canonical_addresses(value) -> str:
 
 
 def _g145_owner(line: str):
-    """(table, key) of a set line that a G145 object owns, or None."""
+    """(table, key) of a set line that a junos port ownership object owns, or None."""
     for pattern, table in ((NTP_SERVER, NTP_TABLE), (SYSLOG_HOST, SYSLOG_TABLE)):
         match = pattern.match(line)
         if match is not None:
@@ -1679,7 +1679,7 @@ def _g145_owner(line: str):
 
 
 def _g145_foreign(snapshot) -> list:
-    """Configuration that can reach the G145 statements in a way the adapter does not evaluate: groups that configure
+    """Configuration that can reach the junos port ownership statements in a way the adapter does not evaluate: groups that configure
     the system stanza, apply-groups inside it, and deactivated or protected system statements."""
     found = []
     if any("system" in parts for parts in snapshot.group_other.values()):
@@ -1820,7 +1820,7 @@ def g145_prechecks(snapshot, table, op, key, after) -> list:
         raise Rejected(["the key must be written as %s, the form Junos shows" % canonical_address(key)])
     if table == SYSLOG_TABLE and after is not None and not any(
             after.get(name) for name in SYSLOG_OWN.values() if name.startswith("severity")):
-        # 1.0.12 G145 r2: a remote host selects its messages by "any <severity>" or "<facility> <severity>"
+        # 1.0.12 junos port ownership r2: a remote host selects its messages by "any <severity>" or "<facility> <severity>"
         raise Rejected(["a syslog host %s needs severity or a severity-<facility> (one message selector at least)"
                         % ("create" if op == "create" else "update")])
     return []
@@ -1841,16 +1841,19 @@ def g145_notes(snapshot, table, op, key, before, after) -> list:
     return texts
 
 
-# ---- answers of the device (measured fixtures, ref/mereni-c8/fixtures) ----
+# ---- answers of the device (measured fixtures, private measurement record) ----
 
 BANNER = re.compile(r"^# commit confirmed will be rolled back in ")
 PROMPT_TAIL = re.compile(r"^\S+@\S+[>#] ?$")
 CONTEXT = re.compile(r"^\[edit(?: [^\]]*)?\]$")
-# 1.0.12 G145: a value outside its range ("Value 70000 is not within range (0..65535) at '70000'", measured)
+# 1.0.12 junos port ownership: a value outside its range ("Value 70000 is not within range (0..65535) at '70000'", measured)
 ERROR = re.compile(r"^(?:error:|syntax error|unknown command|missing argument|invalid |ambiguous "
                    r"|value \S+ is not within range)", re.IGNORECASE)
 DISCARD_WARNING = "warning: uncommitted changes will be discarded on exit"
 NOT_FOUND_WARNING = "warning: statement not found"
+# measured on vJunos-switch 26.2R1.7 (bgp-group commit): "warning: requires 'BGP' license" above "commit complete"; the
+# vendor deployment guide (Limitations) says to ignore it, the feature works. Only a commit that completed tolerates it.
+LICENSE_WARNING = re.compile(r"^warning: requires '[^']+' license$")
 FOREIGN_EDITORS = "Users currently editing the configuration"
 FOREIGN_CHANGES = "The configuration has been changed but not committed"
 
@@ -1870,20 +1873,26 @@ def cli_error(text: str):
 
     Measured: an error starts with "error:", "syntax error" or "unknown command" (an unknown word is marked by a
     caret row); a commit succeeded only with the row "commit complete" (a conflict answers with a warning and no
-    commit); configure exclusive enters with one known warning; the shared configure and configure exclusive list
-    other users in configuration mode and announce someone else's uncommitted change."""
+    commit); configure exclusive enters with one known warning; a completed commit of an unlicensed feature (vJunos
+    BGP) carries the license warning; the shared configure and configure exclusive list other users in configuration
+    mode and announce someone else's uncommitted change."""
     echo, body = _body(text)
     words = echo.split()
+    completed = words[:1] == ["commit"] and "commit complete" in [row.strip() for row in body]
     for row in body:
         stripped = row.strip()
         if ERROR.match(stripped) or set(stripped) == {"^"}:
             return stripped[:100]
         if stripped.startswith(FOREIGN_EDITORS) or stripped.startswith(FOREIGN_CHANGES):
             return stripped[:100]
-        if stripped.startswith("warning:"):
+        # a warning in either case ("warning:" of the commit, "Warning:" of the license rows) fails the line unless it
+        # is exactly one of the known ones above
+        if stripped.lower().startswith("warning:"):
             if words[:2] == ["configure", "exclusive"] and stripped == DISCARD_WARNING:
                 continue
             if words[:1] == ["delete"] and stripped == NOT_FOUND_WARNING:
+                continue
+            if completed and LICENSE_WARNING.match(stripped):
                 continue
             return stripped[:100]
     if words[:1] == ["commit"] and "commit complete" not in [row.strip() for row in body]:
@@ -1912,7 +1921,7 @@ def refused_answer(text: str):
 
 RUNNING = re.compile(r"^Junos: (\S+)\s*$", re.MULTILINE)
 CLI_USER = re.compile(r"^Current user: '([^']+)' class '([^']+)'\s*$", re.MULTILINE)
-# G136: after "request system configuration rescue save" the history lists the rescue configuration as a row of its
+# junos config: after "request system configuration rescue save" the history lists the rescue configuration as a row of its
 # own (measured on vJunos-switch 26.2R1.7: "rescue  2026-11-19 02:10:53 UTC by <user> via cli"); it is no commit
 RESCUE_ROW = re.compile(r"^rescue\s+[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2} UTC by \S+ via \S+\s*$")
 COMMIT_ROW = re.compile(r"^([0-9]+)\s+([0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}) UTC by (\S+) via (\S+)"
@@ -2125,7 +2134,7 @@ def users(text: str) -> int:
 SESSION_PREFIX = "netops-"
 
 
-# ---- 1.0.12 G138: PoE answer and the link of a port ----
+# ---- 1.0.12 junos port maintenance: PoE answer and the link of a port ----
 
 POE_ROW = re.compile(r"^(Administrative status|Operational status)\s*:\s*(\S+)\s*$")
 POE_POWERED = ("on", "powered-up")

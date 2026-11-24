@@ -1,0 +1,4 @@
+Peer: 192.0.2.141+179 AS 64512   Local: 192.0.2.56+55782 AS 64513
+  Group: transit                  Routing-Instance: master
+  Type: External    State: Established  Flags: <Sync>
+  Import: [ NETOPS-JUNOS-SYSTEM-SERVICES-POLICY ]

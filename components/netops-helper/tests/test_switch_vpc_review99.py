@@ -1,4 +1,4 @@
-"""Review99 finding 99-N1: a member row missing its Consistency value must not be filled from the Reason words.
+"""Review finding N1: a member row missing its Consistency value must not be filled from the Reason words.
 
 DERIVED from the DOC example of tests/test_switch_vpc.py (Cisco TechNote 218333): only the member row is replaced
 by ``20 Po20 down* Consistency Check Not Performed -`` - the supported multi-word Reason and ``-`` Active vlans

@@ -3,7 +3,7 @@
 Same shape as the Cisco IOS XE and IOS adapters.  The tested
 combination is model ``cEOSLab`` with EOS ``4.36.1F``
 (``tests/fixtures/real/arista_eos/ceos_4.36.1F/version.txt``); another model or release is read too and
-reported as ``firmware_support`` ``untested`` with a warning (G00, decision of 2026-11-17).  The model is read only from the
+reported as ``firmware_support`` ``untested`` with a warning (startup, decision of 2026-11-17).  The model is read only from the
 ``Arista <model>`` line and the release only from the ``Software image version:`` line of ``show
 version``, each of which must occur exactly once; never from image file names, serial numbers or host
 names.  The build suffix of the image version (e.g. ``-48405728.4361F (engineering build)``) is not
@@ -27,7 +27,7 @@ STARTUP_COMMAND = 'show startup-config'
 DIFF_COMMAND = 'show running-config diffs'
 LIVE_DIFF = ('startup', 'running')
 IDENTITY_COMMANDS = ('show version',)
-# The identity config_read was tested on (G00: a list of tested identities, not a gate).
+# The identity config_read was tested on (startup: a list of tested identities, not a gate).
 TESTED = ('cEOSLab', '4.36.1F')
 TESTED_NAME = 'Arista EOS'
 IDENTITY_MAX_BYTES = 65536

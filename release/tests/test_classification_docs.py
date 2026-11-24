@@ -11,7 +11,7 @@ class ClassificationDocumentation(unittest.TestCase):
     def test_fixed_boundaries_are_documented(self):
         for document in ('components/netops-helper/docs/tools.md',
                          'components/netops-helper/docs/normalization.md',
-                         'CHANGELOG.md', 'release/notes-1.0.7.md'):
+                         'docs/changelog-archive.md', 'release/notes-1.0.7.md'):
             text = (ROOT / document).read_text()
             with self.subTest(document=document):
                 for term in ('ReDoS', 'permission_denied', 'unsupported', 'not_applicable',
@@ -40,7 +40,7 @@ class ClassificationDocumentation(unittest.TestCase):
 
     def test_record_paging_has_a_distinct_continuation_name(self):
         for document in ('components/netops-helper/docs/tools.md',
-                         'CHANGELOG.md', 'release/notes-1.0.7.md'):
+                         'docs/changelog-archive.md', 'release/notes-1.0.7.md'):
             text = (ROOT / document).read_text()
             with self.subTest(document=document):
                 for term in ('has_more', 'next', 'status: "truncated"', '1.0.6'):

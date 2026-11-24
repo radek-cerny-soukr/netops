@@ -1,4 +1,4 @@
-"""Task 81: the public config_read path for one evidenced ExtremeXOS identity.
+"""verification: the public config_read path for one evidenced ExtremeXOS identity.
 
 A fresh read is driven through the real Proxy.request -> auth_context -> TargetAuth.decode ->
 engine.config_read -> read_from_device -> _exec_read -> _exec_command.  Only the physical core SSH
@@ -224,7 +224,7 @@ def test_fresh_public_read_redacts_stores_and_pages_without_more_ssh(env):
     assert first['redaction_profile'] == adapter.PROFILE
     assert re.fullmatch(r'extreme_exos-full-1:[0-9a-f]{64}', adapter.PROFILE)
     assert first['include_defaults'] is False
-    # The tested identity (G00): the reply is as before, without firmware_support or warnings.
+    # The tested identity (STARTUP): the reply is as before, without firmware_support or warnings.
     assert 'firmware_support' not in first and 'warnings' not in first
 
     # Paging by whole lines over the stored Content; continuations never touch SSH.
@@ -392,7 +392,7 @@ def test_engine_refuses_wrong_target_platform_access_and_port(env):
     ):
         with pytest.raises(ValueError, match=message):
             _read(changed)
-    # Task 157: config_diff is open for EXOS, but only with compare (next to read) in config_access.
+    # verification: config_diff is open for EXOS, but only with compare (next to read) in config_access.
     with pytest.raises(ValueError, match='not enabled'):
         engine.config_diff(auth, 'extreme_exos', 'cfg_' + '0' * 32, 'cfg_' + '1' * 32)
     compare = replace(auth, read_inventory={**auth.read_inventory, 'config_access': ('read', 'compare')})
@@ -407,7 +407,7 @@ def test_engine_refuses_wrong_target_platform_access_and_port(env):
 
 
 def test_config_diff_requires_compare_for_exos_and_reads_no_device(env):
-    # Task 157 (was: config_diff stays refused): refused without compare, forwarded with read+compare.
+    # verification (was: config_diff stays refused): refused without compare, forwarded with read+compare.
     wire = _wire(env, Wire())
     diff = {'target': 'device-a', 'platform': 'extreme_exos', 'base_snapshot': 'cfg_' + '0' * 32,
             'other_snapshot': 'cfg_' + '1' * 32}
@@ -459,7 +459,7 @@ X435 = FIXTURES / 'x435-8p-4s_33.7.1.6'
      ('X435-8P-4S', '33.7.1.6', 'patch1-11')),
 ], ids=['other-model', 'other-version', 'other-patch', 'real-x435'])
 def test_untested_consistent_firmware_reads_with_a_warning(env, wire, firmware):
-    """G00: another model, image or patch is read with the same redaction and an untested warning."""
+    """STARTUP: another model, image or patch is read with the same redaction and an untested warning."""
     auth = _auth(env)
     wire = _wire(env, wire())
     first = _read(auth, limit=200)
@@ -490,7 +490,7 @@ def test_untested_consistent_firmware_reads_with_a_warning(env, wire, firmware):
 
 
 def test_untested_and_tested_snapshots_are_not_compared(env):
-    """A firmware change between two captures stays a config_diff incomparable pair, as before G00."""
+    """A firmware change between two captures stays a config_diff incomparable pair, as before STARTUP."""
     auth = _auth(env)
     _wire(env, Wire())
     tested = _read(auth)
@@ -610,7 +610,7 @@ def test_cached_snapshot_refuses_other_target_credential_profile_and_platform(en
     configuration._SNAPSHOTS[identity] = replace(stored, profile='extreme_exos-full-1:' + '0' * 64)
     with pytest.raises(ValueError, match='policy mismatch'):
         _read(auth, snapshot_id=identity)
-    # G00: a stored untested identity pages with its warning; a record of another shape is refused.
+    # STARTUP: a stored untested identity pages with its warning; a record of another shape is refused.
     configuration._SNAPSHOTS[identity] = replace(stored, firmware=('X440G2-24p-10G4', '33.7.1.6', 'patch1-11'))
     page = _read(auth, snapshot_id=identity)
     assert page['firmware_support']['status'] == 'untested' and page['firmware_support']['model'] == 'X440G2-24p-10G4'
@@ -648,7 +648,7 @@ def test_touched_forti_and_adc_guards_are_unchanged(env):
     with pytest.raises(ValueError, match='outside target policy'):
         configuration.require(forti, 'extreme_exos', 'read')
     with pytest.raises(ValueError, match='not enabled'):
-        configuration.require(auth, 'extreme_exos', 'compare')   # task 157: open, but only with compare
+        configuration.require(auth, 'extreme_exos', 'compare')   # verification: open, but only with compare
     configuration.require(replace(auth, read_inventory={**auth.read_inventory, 'config_access': ('read', 'compare')}),
                           'extreme_exos', 'compare')
     with pytest.raises(ValueError, match='config_platform_not_supported'):
@@ -692,7 +692,7 @@ def test_forti_minimal_request_shape_is_still_validated_by_proxy(env):
     assert forwarded is None and emitted[-1]['error']['data']['field'] == 'redaction'
 
 
-# ------------------------------------------------- image without a patch (task 441, EXOS-VM 33.6.1.14)
+# ------------------------------------------------- image without a patch (verification, EXOS-VM 33.6.1.14)
 # Real anonymised captures of the GNS3 EXOS-VM; re-read live on 2026-11-17 with the same Image line and the
 # same show switch layout (no patch line after "Primary ver").
 EXOSVM_VERSION = (FIXTURES / 'exosvm_33.6.1.14' / 'version.txt').read_text()

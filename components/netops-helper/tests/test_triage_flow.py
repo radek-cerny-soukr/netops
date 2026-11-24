@@ -490,7 +490,7 @@ def test_a_destination_route_failure_does_not_hide_an_allowed_policy():
     "Version: FortiGate-80F v8.0.2,build0252,260928 (GA.F)\nVirtual domain configuration: disable\n",
 ])
 def test_untested_identity_runs_the_lookup_with_a_warning(status):
-    # G00 (2026-11-17): another model or build is looked up, not refused; the iprope parser still reports an
+    # STARTUP (2026-11-17): another model or build is looked up, not refused; the iprope parser still reports an
     # unknown reply shape as unparsed.
     result, calls, _ = run(outputs(system_status=status), sessions=NONE)
     assert [query for query, _ in calls][0] == "system_status" and len(calls) > 1

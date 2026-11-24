@@ -57,9 +57,9 @@ have one populated LACP row (`lacp.txt`), parsed as an `aggregate` record.
 X435 has no `show stacking`, `show mlag`; its outputs are stored as the switch
 printed them (`%% Unrecognized command`).
 
-## GNS3 lab (cisco_ios, arista_eos, exos/exosvm)
+## in the virtual topology (cisco_ios, arista_eos, exos/exosvm)
 
-Captured 2026-11-08 on a GNS3 lab project (IOSv router, IOSvL2 switch, cEOS, EXOS-VM; SSH exec, no pager),
+Captured 2026-11-08 on a in the virtual topology project (IOSv router, IOSvL2 switch, cEOS, EXOS-VM; SSH exec, no pager),
 every catalogue template of the profile plus the lookup variants `route_lookup_connected|ospf|none|default`, with the
 built-in read-only account (`netops-ro`: IOS privilege 1, EOS `network-operator`, EXOS `user`). `index.json` also names the
 account. Where privilege 1 refused an IOS read (`Line has invalid autocommand`), the same command run by the lab admin
@@ -81,7 +81,7 @@ What the virtual platforms cannot print (PoE, optics, environment, stack, err-di
 documentation fixtures; the per-template result is in the generated tables of `docs/vendor-cli-references/cisco.md` and
 `arista-eos.md`.
 
-## GNS3 lab, second capture (2026-11-09): cisco_xe, cisco_nxos, juniper_junos_els, lab_endpoints
+## in the virtual topology, second capture (2026-11-09): cisco_xe, cisco_nxos, juniper_junos_els, lab_endpoints
 
 Captured the same way (SSH exec, `netops-ro`, no pager; Junos with the fixed ` | no-more`) on the lab nodes IOL XE 17.18.2 (router),
 Nexus 9300v 9.3(12) (`network-operator`) and vJunos-switch 26.2R1.7 (`read-only`): every catalogue template of the profile plus the
@@ -171,11 +171,11 @@ ranges: the first three /24 networks, those of `wan1`, `wan2` and `internal4`, k
 addresses got free documentation addresses, so their subnet relation is not kept). The anonymiser widens the space after a replaced address; in this layout
 two spaces separate the `key: value` fields, so the single space between address and mask and inside
 `== [ name ]` was restored as the device printed it. The account name in `index.json` is anonymised too.
-The same-day `show ip interface brief`, `show ipconfig` and `show interfaces terse` outputs of the GNS3 lab and the
+The same-day `show ip interface brief`, `show ipconfig` and `show interfaces terse` outputs of the in the virtual topology and the
 EXOS switches repeat the stored outputs above and were not stored again.
 
 
-## Parser follow-up (2026-11-10, task 81)
+## Parser follow-up (2026-11-10, verification)
 
 `arista_eos/ceos_4.36.1F/lldp_neighbors_detail_task81.txt` is the full new
 read-only `show lldp neighbors detail`: nine neighbors, seven with day-old ages.

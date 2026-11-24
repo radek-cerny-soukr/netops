@@ -1,4 +1,4 @@
-"""Cisco NX-OS execution adapter (measured on Nexus 9000v N9K-C9300v, NX-OS 9.3(12), ref/mereni-c6).
+"""Cisco NX-OS execution adapter (measured on Nexus 9000v N9K-C9300v, NX-OS 9.3(12), private measurement record).
 
 NX-OS 9.3(12) has no commit timer and no EEM timer event; the only session-independent timed return is a one-time
 job of `feature scheduler` that rolls the running configuration back to a checkpoint ("variant 3" of the
@@ -12,7 +12,7 @@ measurement). The safeguard is installed before the change, in one interactive s
    `no feature scheduler`, measured as variant 1);
 4. `copy running-config bootflash:L-pred.cfg`, the file of the immediate return (`configure replace` of it).
 
-Ownership (review 318, finding 2): the name L must be free of every object right before the installation, and an
+Ownership (review finding 2): the name L must be free of every object right before the installation, and an
 object is the own one only when the line that creates it was answered without an error in the own session. Admin
 notes that line by line in record["safeguard"]["own"] and the journal saves each note at once (INSTALL_JOURNAL);
 every removal touches only own objects, so a foreign object of the same name is never deleted.
@@ -35,7 +35,7 @@ margin; every line is sent only while LINE_MARGIN_SECONDS are left. A failed wri
 `configure replace bootflash:L-pred.cfg` (measured Success, also for the access VLAN) while REVERT_NOW_SECONDS of
 the timer are left; otherwise, and for the enrollment self-test and recover, the job is awaited by reading the
 scheduler, and when the object is still not in its state before after the job ran (a late line, or a change of
-someone else after the return), the same replace is tried before giving up. `configure replace ... commit-timeout`
+someone else after the return), the same replace is tried before giving up. `configure replace... commit-timeout`
 is never used, because its automatic return leaves a changed access VLAN in place (measured).
 
 Recover (finding 4) decides by the state of the scheduler (`show scheduler schedule name L`, `show scheduler
@@ -75,7 +75,7 @@ INSTALL_JOURNAL = True
 REVERT_NOW_KEEPS_SAFEGUARD = True
 # after the job ran, an object that is not in its state before is returned by the same configure replace
 REVERT_AFTER_EXPIRY = True
-# configure replace took 13-15 s measured (19 s in the E2E of task 318), with login, the snapshot and the readback
+# configure replace took 13-15 s measured (19 s in the E2E of verification), with login, the snapshot and the readback
 # of the result about 30 s; with less than this of the own timer left the job is awaited instead
 REVERT_NOW_SECONDS = 60
 # the device clock drift was not measured on NX-OS; the allowance of the IOS adapter (1.7 % measured on IOSv) is used
@@ -137,9 +137,8 @@ def _read(access, command: str) -> str:
 
 
 def prompt_spec(hostname: str) -> PromptSpec:
-    # measured prompts: "d-nxos# ", "d-nxos(config)# ", "d-nxos(config-if)# ", "d-nxos(config-job)# ",
-    # "d-nxos(config-schedule)# " (a space after "#"); in the interactive session NX-OS 9.3(12) writes a carriage
-    # return before every prompt ("...\r\n\rd-nxos# ", read in task 318), so the anchor is "\r" and the host name
+    # NX-OS 9.3(12) on Nexus 9300v writes a carriage return before the hostname in
+    # each interactive prompt. Configuration modes append a suffix before "# ".
     return PromptSpec(anchor=("\r%s" % hostname).encode("ascii"), ends=(b"# ",), continuation=None,
                       error=nxos.cli_error)
 
@@ -429,11 +428,15 @@ def _vpc_summary(access):
                 or re.search(r"--More--|(?m:^[ \t]*[0-9]+[ \t]+Po[0-9]+)", plain)):
             raise nxos.unreadable("absence of a vPC domain")
         return {"domain": None, "assignments": {}, "peer_link": None, "healthy": False, "keepalive": None}
+    # NX-OS 9.3(12) closes the peer-link and vPC tables with "vpc-end"; a domain without a peer-link and without vPC
+    # rows (an unpaired domain, or a pair before its peer-link is assigned) has neither the tables nor "vpc-end"
+    # (measured), so the end marker is required only when a table is present
+    tables = {"TABLE_vpc", "TABLE_peerlink"}.intersection(data)
     if (not _number(domain, 1000)
             or not isinstance(count, str) or not re.fullmatch(r"[0-9]{1,4}", count)
             or not isinstance(data.get("vpc-peer-status"), str)
             or not isinstance(data.get("vpc-peer-keepalive-status"), str)
-            or "vpc-end" not in data):
+            or tables and "vpc-end" not in data):
         raise nxos.unreadable("vPC status summary")
     rows = _rows(data, "vpc", optional=True)
     links = _rows(data, "peerlink", optional=True)
@@ -654,7 +657,7 @@ def state_prechecks(access, plan, snapshot_text):
             raise nxos.unreadable("DHCP relay state before the change")
     elif table == nxos.L3_TABLE and nxos.ETHERNET.fullmatch(key):
         before, after = (plan["predicted"][side] for side in ("before", "after"))
-        # any change of a physical port (mode, admin state, address, VRF) interrupts its traffic (G102 r3)
+        # any change of a physical port (mode, admin state, address, VRF) interrupts its traffic (nxos routing admin r3)
         if before != after:
             status = nxos.status_row(access.query("show interface %s status" % key), key)
             if status is None:
@@ -1904,7 +1907,7 @@ def recover_bounce(runtime, adapter, access, record, plan, restored):
     return execute._finish(runtime, record, "confirmed", "confirmed before the interruption" if saved else "not persisted")
 
 
-# ---- 1.0.12 G105: targeted clear of counters, MAC and ARP/ND entries (nxos_clear) ----
+# ---- 1.0.12 nxos targeted clear: targeted clear of counters, MAC and ARP/ND entries (nxos_clear) ----
 
 def clear_device_prechecks(access, device, snapshot_text) -> str:
     """What a clear needs from the switch: the running version (for firmware_support, never a block). The safeguard
@@ -1932,7 +1935,7 @@ def _refuse_clear(why):
 
 
 def _lldp_neighbors(access) -> set:
-    """Ports with an LLDP neighbor; a switch with `feature lldp` disabled (measured on the B04 nodes: `show lldp
+    """Ports with an LLDP neighbor; a switch with `feature lldp` disabled (measured on the switch-pair nodes: `show lldp
     neighbors` is a syntax error there) has none; an unknown feature state is unreadable."""
     state = nxos.feature_state(access.query(QUERY_FEATURE), "lldp")
     if state == "disabled":

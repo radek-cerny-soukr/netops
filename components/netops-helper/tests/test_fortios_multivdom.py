@@ -1,7 +1,7 @@
-"""Multi-VDOM FortiOS reads on the measured FortiGate-60F 7.6.8 (task 175, 1.0.9 item 11).
+"""Multi-VDOM FortiOS reads on the measured FortiGate-60F 7.6.8 (verification, 1.0.9 item 11).
 
 The fixtures in fixtures/real/fortinet/fortigate60f_7.6.8_multivdom/transcripts.json are anonymised interactive transcripts of
-the 60F in multi-VDOM mode (measurement task 172): `A` is a super_admin session (prompt `#`), `G` a
+the 60F in multi-VDOM mode (measurement verification): `A` is a super_admin session (prompt `#`), `G` a
 super_admin_readonly session (prompt `$`); `root` / `vd1` / `noctx` name the VDOM context the commands ran in.
 The 514/523 `show system interface` captures were filtered on the device side to the `edit` and `set vdom` lines.
 
@@ -29,13 +29,13 @@ from netops_helper import triage_health, triage_routing, triage_vpn
 
 FIXTURES = Path(__file__).parent / "fixtures/real/fortinet/fortigate60f_7.6.8_multivdom"
 TRANSCRIPTS = json.loads((FIXTURES / "transcripts.json").read_text())
-# Excerpts of the task 197 CLI evidence (`config global`, `edit root` refusing a global command), see README.
+# Excerpts of the verification CLI evidence (`config global`, `edit root` refusing a global command), see README.
 TRANSCRIPTS.update(json.loads((FIXTURES / "context-197.json").read_text()))
-# The per-VDOM administrator of task 197 (`44-vd1acct-exec-run2`, one exec call per capture), see README (task 206).
+# The per-VDOM administrator of verification (`44-vd1acct-exec-run2`, one exec call per capture), see README (verification).
 TRANSCRIPTS.update(json.loads((FIXTURES / "vdom-admin-197.json").read_text()))
 PROMPT = re.compile(r"^(FortiGate-60F(?: \([A-Za-z0-9_.+-]+\))? [#$] )(.*)$")
 VD1 = "nops172-vd1"
-# The no-VDOM status of the same 60F (task 158 capture), between its two `FortiGate-60F # ` prompts.
+# The no-VDOM status of the same 60F (verification capture), between its two `FortiGate-60F # ` prompts.
 DISABLE_STATUS = (Path(__file__).parent / "fixtures/real/fortios/fg60f_7.6.8_ipv6_20261114/01-version.txt").read_text(
 ).split("FortiGate-60F # ")[1]
 
@@ -61,7 +61,7 @@ def answer(name, command):
 
 ROOT_STATUS = answer("511-A-noctx-status", "get system status")
 VD1_STATUS = answer("529-A-vd1-status", "get system status")
-# Task 197 `21-status-multivdom` (see README): multi-VDOM right after `set vdom-mode multi-vdom`, only `root` exists.
+# verification `21-status-multivdom` (see README): multi-VDOM right after `set vdom-mode multi-vdom`, only `root` exists.
 TRANSCRIPTS.update(json.loads((FIXTURES / "status-197.json").read_text()))
 ONE_VDOM_STATUS = answer("197-21-A-noctx-status-one-vdom", "get system status")
 MISSING = "nops197-xx"
@@ -165,7 +165,7 @@ def test_the_measured_status_names_the_mode_and_the_session_vdom():
     assert vdom.scope(DISABLE_STATUS) == {"vdom_mode": "disable", "vdom": "root"}
 
 
-# Review 175-rv finding 1: an accepted product status without the VDOM mode line (the measured status with the
+# Review finding 1: an accepted product status without the VDOM mode line (the measured status with the
 # `Virtual domain configuration` line removed, or only the version line) is unverified, never no-VDOM.
 WITHOUT_MODE = re.sub(r"(?m)^Virtual domain configuration: multiple\n", "", ROOT_STATUS)
 VERSION_ONLY = "Version: FortiGate-60F v7.6.8,build3744,260929 (GA.M)\n"
@@ -205,7 +205,7 @@ def test_a_multi_vdom_session_reads_only_an_enrolled_vdom():
     assert vdom.require(vdom.scope(DISABLE_STATUS), {}) == {"vdom_mode": "disable", "vdom": "root"}
 
 
-# Task 212 (live check 197 S5): a VDOM that the device provably does not have gets its own code.
+# verification (live check 197 S5): a VDOM that the device provably does not have gets its own code.
 
 
 def test_the_vdom_count_of_the_status_proves_only_a_device_with_one_vdom():
@@ -469,7 +469,7 @@ def _vlan_device(device, configuration, status=ROOT_STATUS, context="root"):
 
 
 def test_the_vlan_table_keeps_only_vlans_whose_own_set_vdom_names_the_session_vdom(device):
-    # Review 175-rv finding 2: 514 (root context) lists the interfaces of every VDOM.
+    # The root-context show system interface capture lists interfaces from every VDOM.
     replay = _vlan_device(device, _full_interface_configuration("514-A-root-intfshow", ROOT_VLAN, VD1_VLAN))
     result = engine.switch_read(fortigate("interface_vlan_ids"), "vlan")
     assert result["ok"] is True, result
@@ -603,7 +603,7 @@ def test_a_table_read_of_a_vdom_the_device_does_not_have_is_refused_as_not_found
     assert replay.sessions == 0
 
 
-# --- triage_health: scope of every part, physical ports assigned to their VDOM (review 175-rv finding 3) -----
+# --- triage_health: scope of every part, physical ports assigned to their VDOM (review finding 3) -----
 
 
 def _health_device(device, physical, intfshow, status=ROOT_STATUS, context="root"):
@@ -664,7 +664,7 @@ def test_triage_health_refuses_ports_the_membership_does_not_name():
     assert {"step": "physical_interfaces", "reason": "vdom_membership_unverified"} in result["missing"]
 
 
-# --- triage_health: the global system state is read in `config global` (task 202, finding N2 of task 197) -----
+# --- triage_health: the global system state is read in `config global` (verification, finding N2 of verification) -----
 
 GLOBAL_STEPS = {"conserve_state": "diagnose hardware sysinfo conserve", "performance": "get system performance status",
                 "ha_status": "get system ha status", "ha_checksum": "diagnose sys ha checksum cluster",
@@ -715,7 +715,7 @@ def test_multi_vdom_triage_health_reads_the_global_parts_in_config_global_with_d
 
 
 def test_a_read_only_diag_session_reads_global_parts_in_global_and_sessions_in_its_vdom(device):
-    # The task 197 diag account (prompt `$`): 35 for the VDOM context, `(global) $` for the global context.
+    # The verification diag account (prompt `$`): 35 for the VDOM context, `(global) $` for the global context.
     login, context = "FortiGate-60F $ ", "FortiGate-60F (global) $ "
     replay = device("197-35-diag-root", override={(login, "config global"): ("", context),
                                                   (context, "end"): ("", login),
@@ -810,7 +810,7 @@ def test_triage_vpn_reports_a_vd1_tunnel_only_from_reads_in_that_vdom():
     texts = {"system_status": VD1_STATUS, "ipsec_summary": summary,
              "routing_table": answer("527-A-vd1-rt", "get router info routing-table all"),
              "ike_errors": "no ike errors\n"}
-    # G14 detail reads: DERIVED minimal answers (no IKE SA, header only), not a VDOM measurement
+    # IPSEC-STATUS detail reads: DERIVED minimal answers (no IKE SA, header only), not a VDOM measurement
     texts.update(ike_gateway_detail="", ipsec_tunnel_detail="list ipsec tunnel by names in vd 1\n")
     result = triage_vpn.run(lambda query, parameters=None: _answer(texts[query], VD1), _clock(), "netops-172-p1")
     assert (result["vdom_mode"], result["vdom"], result["current_vdom"]) == ("multiple", VD1, VD1)
@@ -987,7 +987,7 @@ def test_the_release_gate_admits_only_the_verified_sessions_context(old, new):
     assert not gate._diagnostic_vdom_allowed(ast.parse(text.replace(old, new, 1)))
 
 
-# --- per-VDOM administrator (task 206, finding N1 of task 197) -----------------------------------------------
+# --- per-VDOM administrator (verification, finding N1 of verification) -----------------------------------------------
 # The account `set vdom "nops172-vd1"` logged in through an interface of its VDOM: `config vdom` answers
 # `Unknown action 0`, the status names its VDOM and `get system arp` answers right after the login (44-run2).
 
@@ -1092,7 +1092,7 @@ def test_an_interface_table_of_a_per_vdom_administrator_is_refused_with_the_new_
 
 
 def test_a_per_vdom_administrator_lldp_read_with_the_all_vdom_join_is_refused_before_any_command(device):
-    # Review 206-rv finding 1: the membership join `show system interface` (extra) lists every VDOM; the whole
+    # Review finding 1: the membership join `show system interface` (extra) lists every VDOM; the whole
     # read is refused with the new code before the LLDP command or the join is sent.
     replay = _vdom_admin(device, override={(LOGIN, "diagnose lldp rx neighbor summary"): (
         LLDP_DMZ + "\n" + LLDP_WAN1, LOGIN)})
@@ -1181,7 +1181,7 @@ def test_triage_health_of_a_per_vdom_administrator_names_the_new_code_for_every_
         assert reasons[step]["reason"] == "vdom_admin_global_scope_unavailable", reasons[step]
     assert reasons["performance"]["error_code"] == "vdom_admin_global_scope_unavailable"
     assert reasons["performance"]["error"] == vdom.ADVICE["vdom_admin_global_scope_unavailable"]
-    # ha_checksum follows the refused ha_status with its code and advice (review 206-rv note).
+    # ha_checksum follows the refused ha_status with its code and advice (review note).
     assert {key: reasons["ha_checksum"].get(key) for key in ("reason", "error_code", "error")} == {
         key: reasons["ha_status"].get(key) for key in ("reason", "error_code", "error")}
     assert reasons["ha_checksum"]["error_code"] == "vdom_admin_global_scope_unavailable"

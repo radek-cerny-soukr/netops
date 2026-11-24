@@ -271,6 +271,24 @@ class ReportGate(unittest.TestCase):
         rc, out = self.run_gate(files)
         self.assertEqual(rc, 0, out)
 
+    def test_alpine_runtime_package_metadata_passes_the_vendor_gate(self):
+        packages = (
+            ("libgcc", ("dereferenced", "org"), ("gcc", "gnu", "org")),
+            ("libstdc++", ("dereferenced", "org"), ("gcc", "gnu", "org")),
+            ("mpdecimal", ("pm", "me"), ("www", "bytereef", "org")),
+        )
+        files = self.clean()
+        files["netops-1.0.0-linux-amd64.cdx.json"] = {
+            "bomFormat": "CycloneDX",
+            "components": [
+                {"name": name, "publisher": "Maintainer <packager@" + DOT.join(publisher) + ">",
+                 "externalReferences": [{"url": "https://" + DOT.join(homepage) + "/"}]}
+                for name, publisher, homepage in packages
+            ],
+        }
+        rc, out = self.run_gate(files)
+        self.assertEqual(rc, 0, out)
+
     def test_escapes_in_plain_text_files_are_decoded(self):
         files = self.clean()
         files["env.example"] = files["env.example"] + "VALUE=gh\\u0070_" + "A" * 36 + "\n"

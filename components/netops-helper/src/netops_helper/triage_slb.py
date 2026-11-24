@@ -18,7 +18,7 @@ MAX_REAL_SERVERS = 4
 # config_read each) and at most as many distinct schedule groups; further entries are missing as truncated.
 MAX_SCHEDULE_ENTRIES = 4
 # A virtual server with content-routing enable: at most this many content-routing entries are read (one config_read
-# each); further entries are missing as truncated (G28 ADC-C04).
+# each); further entries are missing as truncated (adc statistics ADC-C04).
 MAX_CONTENT_ROUTES = 4
 RATE_COST = 21
 # Worst cases of the three read plans; all must fit the reserved RATE_COST. With content routing the single
@@ -26,7 +26,7 @@ RATE_COST = 21
 STATIC_PLAN = 1 + 1 + 1 + MAX_HEALTH_CHECKS + 2 + 2 + 1 + 3 + 1 + 1 + MAX_REAL_SERVERS
 SCHEDULE_PLAN = 1 + 1 + 2 * MAX_SCHEDULE_ENTRIES + 2 + 2 + 1 + 3 + 1 + 1
 CONTENT_ROUTING_PLAN = 1 + 1 + MAX_CONTENT_ROUTES + 1 + MAX_HEALTH_CHECKS + 2 + 2 + 1 + 3 + 1 + 1
-# Measured on FortiADC-KVM 7.6.7 build 0676 (VM220, 2026-11-17, task 445-r2: show full-configuration load-balance
+# Measured on FortiADC-KVM 7.6.7 build 0676 (FortiADC-KVM 7.6.7, 2026-11-17, verification: show full-configuration load-balance
 # content-routing, CLI help of config match-condition).
 CONTENT_ROUTING_TYPES = frozenset(("l4-content-routing", "l7-content-routing"))
 CONTENT_ROUTING_FIELDS = frozenset(("type", "persistence-inherit", "method-inherit", "connection-pool",
@@ -434,7 +434,7 @@ def pool_runtime_members(runtime_pools: list[dict[str, Any]] | None,
     """Runtime members of one pool, joined by pool name AND member id; None when the output does not print the pool.
 
     A member id belongs to its pool (two pools commonly both have ids 1 and 2). With content routing vs_stat prints
-    the hidden stored pool, not necessarily the candidate (task 445-r3): its members never stand for the candidate's.
+    the hidden stored pool, not necessarily the candidate (verification): its members never stand for the candidate's.
     """
     if runtime_pools is None or pool_name is None:
         return None
@@ -566,7 +566,7 @@ def _schedule_findings(chain: dict[str, Any], sources: dict[str, dict[str, Any]]
                        runtime_pools: list[dict[str, Any]] | None) -> None:
     """Pool selection by schedule: name the configured candidates, never an active pool.
 
-    Measured on FortiADC-KVM 7.6.7 build 0676 (VM220, 2026-11-14, task 173): vs_stat and slb_load of such a virtual server print
+    Measured on FortiADC-KVM 7.6.7 build 0676 (FortiADC-KVM 7.6.7, 2026-11-14, verification): vs_stat and slb_load of such a virtual server print
     `no rs for this vs`, or the pool of a load-balance-pool stored before schedule-list was enabled (hidden
     in the CLI configuration and not the pool the schedule selects); availability is DEAD outside every window.
     """
@@ -599,7 +599,7 @@ def _content_routing_findings(chain: dict[str, Any], sources: dict[str, dict[str
                               runtime_pools: list[dict[str, Any]] | None) -> None:
     """Pool selection per request by content routing: name the entries and their candidate pools.
 
-    Measured on FortiADC-KVM 7.6.7 build 0676 (VM220, 2026-11-17, task 445-r2): the CLI configuration of such a virtual
+    Measured on FortiADC-KVM 7.6.7 build 0676 (FortiADC-KVM 7.6.7, 2026-11-17, verification): the CLI configuration of such a virtual
     server shows no load-balance-pool, yet vs_stat and slb_load print the pool stored before content-routing was
     enabled (there the same pool as both entries named), so `reported_by_vs_stat` is not evidence of the pool in use.
     """

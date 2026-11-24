@@ -37,7 +37,7 @@ LIST_HEADERS = {
                    "virtual-server-name real-server-name",
 }
 VIRTUAL_SERVER = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,62}")
-# Columns of one list row, measured on FortiADC-KVM 7.6.7 build0676 (VM220, 2026-11-17, task 445-r2) with HTTP, UDP
+# Columns of one list row, measured on FortiADC-KVM 7.6.7 build0676 (FortiADC-KVM 7.6.7, 2026-11-17, verification) with HTTP, UDP
 # DNS and source-address persistence traffic: the header names "protocol service" and every row prints the protocol
 # number and the service name; a session row has 16 words, a persistence row 13 (no state and byte counters).
 ROW_FIELDS = {
@@ -99,7 +99,7 @@ SLB_CONFIG_OBJECT = re.compile(
     r" action=(?:add|del) cfgpath=load-balance (?:virtual-server|pool|content-routing)"
     r" cfgobj=name cfgattr=([A-Za-z0-9][A-Za-z0-9_.-]{0,62})(?= logdesc=|$)"
 )
-# Measured on FortiADC-KVM 7.6.7 build0676 (VM220, 2026-11-17, task 445-r2): a read profile (all six areas read)
+# Measured on FortiADC-KVM 7.6.7 build0676 (FortiADC-KVM 7.6.7, 2026-11-17, verification): a read profile (all six areas read)
 # has no diagnose subtree at all (`diagnose ?` lists only <Enter>); every catalogue `diagnose server-load-balance ...`
 # answers `Parsing error at 'server-load-balance'. err=1` and `Return code is -284`. A system administrator answers an
 # unknown argument with the parsing error at that argument (`slb_load extra` -> `Parsing error at 'extra'`).
@@ -113,6 +113,7 @@ INTERFACE_EXEC_WORDS = {
     "get system interface": "interface",
     "diagnose hardware get deviceinfo nic-detail": "hardware",
     "diagnose netlink interface list": "netlink",
+    "diagnose netlink device": "netlink",
 }
 INTERFACE_EXEC_QUERIES = frozenset({"interface_list", "nic_detail_all", "interface_state_all", "interface_summary"})
 
@@ -526,7 +527,7 @@ def run(shell, count, timeout, *, recipe=RECIPE, reconnect=None, start_line=0,
 
     log_type, log_subtype = RECIPES[recipe]
     admin_log = recipe == "admin_event_logs"
-    # G00 (H12): verify_identity refuses only an unreadable identity or another product; the caller reports a model
+    # startup (H12): verify_identity refuses only an unreadable identity or another product; the caller reports a model
     # or build outside config_fortiadc.TESTED in firmware_support with a warning.
     identity = verify_identity(shell.command(GET_STATUS))[0]
     baseline_show = _clean(shell.command(SHOW))
@@ -668,7 +669,7 @@ def run_state_list(shell, recipe, virtual_server, count, timeout, *, reconnect=N
         expected = _state_filter(family, FLAG_VIRTUAL_SERVER_SOURCE, virtual_server, client)
     listing = f"{prefix} list"
     clear = f"{prefix} filter clear"
-    identity = verify_identity(shell.command(GET_STATUS))[0]  # G00: untested builds are reported, not refused
+    identity = verify_identity(shell.command(GET_STATUS))[0]  # startup: untested builds are reported, not refused
     baseline_show = _clean(shell.command(show))
     if _filter_values(baseline_show) != _state_filter(family, "0"):
         raise ValueError(f"an existing FortiADC {family} filter is set; it is not replaced")
@@ -751,8 +752,8 @@ def standby_status(text, *, complete=True):
     return {"status": "complete", "forced_standby": match.group(1) == "set"}
 
 
-# --- G32 ADC-G11: bounded packet capture (`diagnose sniffer packet`) ----------------------------------------------
-# Measured on FortiADC-KVM 7.6.7 build0676 (VM220, 2026-11-17, task 485): the syntax is
+# --- adc objects ADC-firewall routing: bounded packet capture (`diagnose sniffer packet`) ----------------------------------------------
+# Measured on FortiADC-KVM 7.6.7 build0676 (FortiADC-KVM 7.6.7, 2026-11-17, verification): the syntax is
 # `diagnose sniffer packet <interface> '<filter>' <verbose> <count> [a]`. Verbose 4 prints one header line per packet
 # with the interface name and no payload; `a` prints absolute UTC time. The answer starts with `interfaces=[...]` and
 # `filters=[...]`; when the count is reached the capture ends without a summary, an interrupt (Ctrl-C) ends it with

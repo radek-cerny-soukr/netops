@@ -1,1 +1,0 @@
-configure ports 10 description-string "G42 Room 210 Test Desk"

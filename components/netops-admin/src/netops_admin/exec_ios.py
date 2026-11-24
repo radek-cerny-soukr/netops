@@ -1,5 +1,5 @@
 """Cisco IOS and IOS XE execution adapter (measured on IOSv 15.9(3)M12, IOSvL2 15.2(20200924:215240), IOL XE 17.18.2
-and IOL-L2 XE 17.18.2, ref/mereni-c4c5).
+and IOL-L2 XE 17.18.2, private measurement record).
 
 Safeguard first, as execute.py needs it: ``configure terminal revert timer N`` followed by ``end`` saves the running
 configuration to a new archive file and starts an absolute timer of N minutes (the granularity is one minute, so
@@ -44,7 +44,7 @@ from netops_admin.exec_fortios import PromptSpec
 # the safeguard is watched on the monotonic clock of Admin, not on the device clock (execute.py: TIMER_WATCH)
 TIMER_WATCH = True
 FIRE_AT_TEXT = "device revert timer"
-# The shortest timer is 2 minutes (the device has whole minutes, 1-120). Measured (ref/mereni-c4c5/ops.log, max of
+# The shortest timer is 2 minutes (the device has whole minutes, 1-120). Measured (private measurement record, max of
 # 4 nodes): "configure terminal revert timer" 5.8 s, PTY login 1.6 s (2.9 s with the IOSv banner), an exec read
 # 1.1 s, show running-config 6.1 s, a configuration line 1.0 s, configure confirm 0.2 s. Until the change is written
 # Admin spends about 13 s (install 9 s, three timer and archive reads); then it needs WRITE_BUDGET_SECONDS for the
@@ -121,7 +121,7 @@ def parse_timer(text: str):
 
 
 def prompt_spec(hostname: str) -> PromptSpec:
-    # measured prompts: "d-iosv#", "d-iosv(config)#", "d-iosv(config-if)#"; the read-only account has "d-iosv>"
+    # measured prompts: "Cisco IOSv 15.9(3)M12#", "Cisco IOSv 15.9(3)M12(config)#", "Cisco IOSv 15.9(3)M12(config-if)#"; the read-only account has "Cisco IOSv 15.9(3)M12>"
     return PromptSpec(anchor=("\n%s" % hostname).encode("ascii"), ends=(b"#", b">"), continuation=None,
                       error=ios.cli_error)
 
@@ -410,7 +410,7 @@ def _inventory_management_vlans(device) -> set[str]:
 
 
 def _read(access, command: str, what: str) -> str:
-    """A read of the G62 usage checks: a refused read is an unreadable usage (port_usage_unreadable)."""
+    """A read of the ios static routing usage checks: a refused read is an unreadable usage (port_usage_unreadable)."""
     text = access.query(command)
     if ios.refused(text):
         raise ios.unreadable(what)
@@ -418,7 +418,7 @@ def _read(access, command: str, what: str) -> str:
 
 
 def _in_use_prechecks(access, snapshot, plan, management_vlans, undo) -> None:
-    """1.0.12 G62 (IOS): an L3 interface that carries traffic of connected devices is not changed blindly.
+    """1.0.12 ios static routing (IOS): an L3 interface that carries traffic of connected devices is not changed blindly.
 
     A new subinterface or SVI only adds a VLAN tag or a gateway address. Disruptive changes to an existing VLAN with
     learned MACs or a subinterface with a known neighbor are refused. An active parent without discovery neighbors
@@ -488,10 +488,10 @@ def _in_use_prechecks(access, snapshot, plan, management_vlans, undo) -> None:
 
 
 def _state_prechecks(access, device, plan, snapshot_text, undo=False) -> list:
-    """1.0.12 G80: a static route or an L3 interface never touches the management path: the management interface
+    """1.0.12 xe static routing: a static route or an L3 interface never touches the management path: the management interface
     (local address of the SSH session) and its subinterfaces are refused, and in the VRF of the management interface
     a destination or an interface address may not overlap the management subnet or the SSH client address. A default
-    route through the management interface does not refuse other routes (G19 lesson); default routes themselves are
+    route through the management interface does not refuse other routes (firewall routing admin lesson); default routes themselves are
     refused by the plan."""
     key, table = plan["key"], plan["table"]
     snapshot = ios.load(snapshot_text, device.firmware)
@@ -554,7 +554,7 @@ def _loopback_management_egress(access, snapshot, tcp, management):
 
 
 def _acl_checks(access, device, plan, snapshot_text, pending_interfaces=()) -> list:
-    """1.0.12 G64: an ACL rule list or an interface attachment never cuts the management path blindly.
+    """1.0.12 ios access control: an ACL rule list or an interface attachment never cuts the management path blindly.
 
     The interfaces concerned are those the ACL is attached to (or the attachment itself). An interface that carries
     the SSH sessions (or is in a management VRF) takes the change only when the inbound ACL still permits SSH from
@@ -721,7 +721,7 @@ def _member_prechecks(access, device, plan, snapshot_text) -> list:
         raise ios.unreadable("LACP protocol of " + key)
     if before != (None if lacp is None else {attr: lacp[attr] for attr in ("channel-group", "mode")}):
         raise ios.unreadable("EtherChannel membership of " + key)
-    # IOS XE prints "Down Not-in-Bndl" for a port without a link; IOS 15.2 prints "Up Mstr Not-in-Bndl" (measured G63),
+    # IOS XE prints "Down Not-in-Bndl" for a port without a link; IOS 15.2 prints "Up Mstr Not-in-Bndl" (measured ios etherchannel),
     # so the bundle state decides: only a port that is not part of a bundle is changed
     if lacp is not None and "Not-in-Bndl" not in lacp["state"].split():
         raise Rejected(["port %s is %s in channel-group %s; a port-channel member in use is not changed"
@@ -806,7 +806,7 @@ def _port_read(read, command, what, code="port_usage_unreadable", *, xe=False):
 
 
 def poe_answer(access, key: str, *, check=False) -> dict:
-    """1.0.12 G61: the row of port N in show power inline N (Cisco Catalyst manual layout: Interface, Admin, Oper, Power,
+    """1.0.12 ios port maintenance: the row of port N in show power inline N (Cisco Catalyst manual layout: Interface, Admin, Oper, Power,
     Device, Class, Max). The write account reads it before a PoE change; the check account (operational commands only,
     `netops-ro` does not read the configuration) reads it for the readback. A switch without PoE refuses the command
     (measured on IOSvL2: 'Line has invalid autocommand'); a port without a row has no PoE: poe_not_capable."""
@@ -828,7 +828,7 @@ def poe_answer(access, key: str, *, check=False) -> dict:
 
 
 def link_state(access, key: str) -> str:
-    """1.0.12 G61: the Status column of show interfaces N status of the check account."""
+    """1.0.12 ios port maintenance: the Status column of show interfaces N status of the check account."""
     xe = getattr(getattr(access, "device", access), "platform", None) == "iosxe"
     text = _port_read(access.check_query, "show interfaces %s status" % key, "link status of " + key, xe=xe)
     status = ios.status_row(text, key)
@@ -838,8 +838,8 @@ def link_state(access, key: str) -> str:
 
 
 def _port_action_prechecks(access, device, plan, snapshot_text) -> list:
-    """1.0.12 G61: port bounce (IOS-C021), PoE change (IOS-M023) and PoE cycle (IOS-M024) of one Ethernet port with the
-    protections of G60: the management interface and VLAN and a port-channel member are never changed; a trunk or
+    """1.0.12 ios port maintenance: port bounce (IOS-C021), PoE change (IOS-M023) and PoE cycle (IOS-M024) of one Ethernet port with the
+    protections of ios switchports: the management interface and VLAN and a port-channel member are never changed; a trunk or
     dynamic port, an LLDP/CDP neighbor, learned MAC addresses or a connected bounce port need endpoint_impact naming the
     port. A switch is recognised by the answer of show interfaces N switchport, not by the name of its image."""
     key, table = plan["key"], plan["table"]

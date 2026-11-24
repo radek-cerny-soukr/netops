@@ -77,5 +77,5 @@
   "volatile": [],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "G78 measured on IOL-L2 IOS XE 17.18.2: access/trunk mode (dot1q encapsulation before trunk), allowed/native and voice VLAN; write and check accounts independently read state. Existing device revert timer, readback and undo apply. Occupied access ports require endpoint_impact naming the exact port; trunks and mode changes also require it. Management interfaces/VLANs, routed ports and port-channel members stay protected. Allowed VLANs use canonical full sets; the caller adds/removes a VLAN from the desired set."
+  "rollback_evidence": "xe switchports measured on IOL-L2 IOS XE 17.18.2: access/trunk mode (dot1q encapsulation before trunk), allowed/native and voice VLAN; write and check accounts independently read state. Existing device revert timer, readback and undo apply. Occupied access ports require endpoint_impact naming the exact port; trunks and mode changes also require it. Management interfaces/VLANs, routed ports and port-channel members stay protected. Allowed VLANs use canonical full sets; the caller adds/removes a VLAN from the desired set."
 }

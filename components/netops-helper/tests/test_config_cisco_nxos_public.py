@@ -1,9 +1,9 @@
-"""Task 153: the public config_read path for the Cisco NX-OS profile (G00: other identities read with a warning).
+"""verification: the public config_read path for the Cisco NX-OS profile (STARTUP: other identities read with a warning).
 
 ``cisco_nxos`` / ``cisco Nexus9000 C9300v Chassis`` with ``NXOS: version 9.3(12)`` is the tested identity
-(``config_cisco_nxos_adapter``), the same pattern as the cisco_xe path (task 140), the arista_eos path
-(tasks 143/153) and the accepted ``cisco_ios`` path (task 128).  The capture goes through the
-indentation-based ``config_indented.NxosStreamRedactor`` (task 147).
+(``config_cisco_nxos_adapter``), the same pattern as the cisco_xe path (verification), the arista_eos path
+(tasks 143/153) and the accepted ``cisco_ios`` path (verification).  The capture goes through the
+indentation-based ``config_indented.NxosStreamRedactor`` (verification).
 The positive reads run through the real root ``netops.worker.HelperBridge.call`` -> ``Proxy.request`` ->
 FastMCP ``server.config_read`` (``_paged_auth``) -> ``TargetAuth.decode`` -> ``engine.config_read`` ->
 ``read_from_device`` -> ``_exec_read`` -> the real unchanged ``config_indented.NxosStreamRedactor`` /
@@ -16,7 +16,7 @@ Identity: ``show version`` is the immutable REAL capture
 ``fixtures/real/cisco_nxos/nexus9300v_9.3.12/version.txt``; the foreign-vendor cases use the REAL
 ``fixtures/real/cisco_xe/iolxe_17.18.2/version.txt`` and ``fixtures/real/arista_eos/ceos_4.36.1F/version.txt``.
 Other identity texts are DERIVED by editing those captures.  Every ``show running-config`` text below is
-SYNTHETIC: the NX-OS configuration of ``tests/test_config_indented.py`` (task 142 gate + task 147 rows,
+SYNTHETIC: the NX-OS configuration of ``tests/test_config_indented.py`` (verification gate + verification rows,
 Cisco Nexus 9000 NX-OS 9.3(x) configuration guides) with its secrets replaced by sentinels and a few added
 rows (banner, caller credential), not a live capture.  Nothing here measures account rights, the
 full-config format or any hardware/firmware.
@@ -152,7 +152,7 @@ ROWS = (
     ('h', '      send-community'),
 )
 CONFIG = ''.join(text + '\n' for _, text in ROWS)
-# Readable statements of the SYNTHETIC configuration (task 153 goal): verbatim in every fresh read.
+# Readable statements of the SYNTHETIC configuration (verification goal): verbatim in every fresh read.
 READABLE = ('!Command: show running-config', 'hostname lab-n9k1', 'feature ospf', 'vlan 10', '  name USERS',
             '  name SERVERS', 'interface Ethernet1/1', '  description uplink-core', '  ip address 198.51.100.1/30',
             '  ip address 203.0.113.1/24', '  ip route 0.0.0.0/0 192.0.2.1', 'ip route 198.51.100.0/24 192.0.2.1',
@@ -404,7 +404,7 @@ def test_fresh_public_read_pages_and_continues_without_more_ssh(env):
     assert first['include_defaults'] is False
     assert first['redaction_profile'] == adapter.PROFILE
     assert first['firmware'] == {'model': 'Nexus9000 C9300v', 'version': '9.3(12)'}
-    # The tested identity (G00): the reply is as before, without firmware_support or warnings.
+    # The tested identity (STARTUP): the reply is as before, without firmware_support or warnings.
     assert 'firmware_support' not in first and 'warnings' not in first
     assert first['capture_complete'] is True and first['configuration_complete'] is False
     assert first['identity_scope_verified'] is False and first['config_scope'] == 'device-account-visible'
@@ -561,7 +561,7 @@ def test_proxy_refuses_unsupported_options_before_ssh(env, options, field):
 
 
 def test_proxy_refuses_config_diff_without_compare_and_forwards_it_with_compare(env):
-    # Task 157 (was: config_diff refused for NX-OS): read alone refuses it before the engine, read+compare
+    # verification (was: config_diff refused for NX-OS): read alone refuses it before the engine, read+compare
     # forwards it through _paged_auth; an unknown snapshot pair then fails in the engine, never over SSH.
     diff = {'target': 'router-b', 'platform': 'cisco_nxos',
             'base_snapshot': 'cfg_' + '0' * 32, 'other_snapshot': 'cfg_' + '1' * 32}
@@ -586,7 +586,7 @@ def test_engine_refuses_options_access_and_platform_before_ssh(env):
             _read(replace(auth, ssh_platform=platform))
     with pytest.raises(ValueError, match='not enabled'):
         _read(replace(auth, read_inventory={**auth.read_inventory, 'config_access': ()}))
-    # Task 157: config_diff is open for cisco_nxos, but only with compare (next to read) in config_access.
+    # verification: config_diff is open for cisco_nxos, but only with compare (next to read) in config_access.
     with pytest.raises(ValueError, match='not enabled'):
         engine.config_diff(auth, 'cisco_nxos', 'cfg_' + '0' * 32, 'cfg_' + '1' * 32)
     compare = replace(auth, read_inventory={**auth.read_inventory, 'config_access': ('read', 'compare')})
@@ -604,7 +604,7 @@ def test_engine_refuses_options_access_and_platform_before_ssh(env):
     (VERSION.replace(RELEASE, ' NXOS: version 10.3(4a)'), {'model': 'Nexus9000 C9300v', 'version': '10.3(4a)'}),
 ], ids=['derived-other-model', 'derived-other-release'])
 def test_untested_identity_is_read_with_a_warning_through_the_public_chain(env, version, firmware):
-    """G00: an untested identity is read through worker, proxy and engine; same redaction, plus a warning."""
+    """STARTUP: an untested identity is read through worker, proxy and engine; same redaction, plus a warning."""
     wire = _rewire(env, Wire(version=version))
     first = _page(_call(env, 'config_read', _b(limit=200)))
     assert wire.commands() == ['show version', 'show running-config']
@@ -715,7 +715,7 @@ def test_cached_snapshot_keeps_profile_and_platform_binding(env):
         configuration._SNAPSHOTS[identity] = replace(stored, profile=profile)
         with pytest.raises(ValueError, match='invalid configuration profile|capture options mismatch'):
             _read(auth, snapshot_id=identity)
-    # G00: a stored untested record pages with its warning; a record of another shape is refused.
+    # STARTUP: a stored untested record pages with its warning; a record of another shape is refused.
     for firmware in (('Nexus9000 C9300v', '9.3(11)'), ('Nexus9000 C9500v', '9.3(12)')):
         configuration._SNAPSHOTS[identity] = replace(stored, firmware=firmware)
         page = _read(auth, snapshot_id=identity)

@@ -1,0 +1,14 @@
+
+Routing instance: default-switch
+VLAN Name: junos-vlan-admin-voice                     State: Active
+Tag: 3902                               
+Internal index: 6, Generation Index: 10, Origin: Static
+Mac aging: Enabled
+MAC aging time: 300 seconds
+Mac-IP-Snooping Enabled : No
+Activate-On-Local-Ports Enabled : No
+VXLAN Enabled : No  
+Interfaces:
+    ge-0/0/2.0,tagged,access
+Number of interfaces: Tagged 1    , Untagged 0    
+Total MAC count: 0 

@@ -63,5 +63,5 @@
   "volatile": [],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "G102 NX-M017, Nexus 9000v NX-OS 9.3(12). Vlan<ID> and loopback<ID> accept create, update and delete. Ethernet takes updates only. Mode conversion on an unused port resets its administrative state to the destination mode default and erases L2 access VLAN settings. Ports with potentially lost configuration are refused. The VLAN and a named VRF must already exist. An SVI is enabled by default on create. NX-OS scheduler and configure replace protect the change."
+  "rollback_evidence": "Live write and return on Nexus 9000v NX-OS 9.3(12) (2026-11-18): The route, L3 interface or relay address was changed, read back and undone. nxos routing admin NX-M017, Nexus 9000v NX-OS 9.3(12). Vlan<ID> and loopback<ID> accept create, update and delete. Ethernet takes updates only. Mode conversion on an unused port resets its administrative state to the destination mode default and erases L2 access VLAN settings. Ports with potentially lost configuration are refused. The VLAN and a named VRF must already exist. An SVI is enabled by default on create. NX-OS scheduler and configure replace protect the change."
 }

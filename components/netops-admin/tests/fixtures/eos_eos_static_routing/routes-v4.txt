@@ -1,0 +1,11 @@
+{
+    "vrfs": {
+        "eos-static-routing-route": {
+            "routingDisabled": false,
+            "allRoutesProgrammedHardware": true,
+            "allRoutesProgrammedKernel": true,
+            "defaultRouteState": "notSet",
+            "routes": {}
+        }
+    }
+}

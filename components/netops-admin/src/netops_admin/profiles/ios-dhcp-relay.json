@@ -17,5 +17,5 @@
   "volatile": [],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "G65, GNS3 d-iosv IOSv 15.9(3)M12. One unqualified IPv4 helper address keyed interface:address. Other helpers and interface settings are preserved. Uses the IOS confirmed revert timer and exact running-configuration readback of the affected object."
+  "rollback_evidence": "Live write and return on Cisco IOS 15.9(3)M12 (2026-11-19): The DHCP configuration was applied and its original state restored. ios dhcp, Cisco IOSv 15.9(3)M12 IOSv 15.9(3)M12. One unqualified IPv4 helper address keyed interface:address. Other helpers and interface settings are preserved. Uses the IOS confirmed revert timer and exact running-configuration readback of the affected object."
 }

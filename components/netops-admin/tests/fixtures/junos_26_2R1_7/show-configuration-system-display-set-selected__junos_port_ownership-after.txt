@@ -1,0 +1,9 @@
+set system host-name host02
+set system domain-name junos-port-ownership.example
+set system name-server 192.0.2.53
+set system syslog host 192.0.2.10 any notice
+set system syslog host 192.0.2.10 port 5514
+set system syslog host 192.0.2.10 facility-override local7
+set system ntp server 192.0.2.1
+set system ntp server 2001:db8:1::123
+set system ntp source-address 192.0.2.9

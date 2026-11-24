@@ -1,6 +1,6 @@
-"""Simulated IOL XE 17.18.2 router (d-iolxe) for the G82 tests (ACL rules and their attachment).
+"""Simulated IOL XE 17.18.2 router (iol-xe-router) for the XE-ACCESS-CONTROL tests (ACL rules and their attachment).
 
-Every answer comes from the anonymised measurements of task netops-20261119-639 (fixtures/iosxe_g82): the running
+Every answer comes from the anonymised measurements of verification (fixtures/iosxe_xe_access_control): the running
 configuration is the measured one and its ACL and interface lines change the way the measured device changes them
 (sequence order, printed port names, the refusals of a duplicate number or rule body, an IPv6 ACL that exists only while it
 has a rule, the replacement of the ACL of the same direction). The answers of the check account (show ip access-lists,
@@ -14,7 +14,7 @@ from pathlib import Path
 
 from fake_ios import FakeIos, short
 
-F = Path(__file__).parent / "fixtures" / "iosxe_g82"
+F = Path(__file__).parent / "fixtures" / "iosxe_xe_access_control"
 MEASURED = json.loads((F / "ports-measured.json").read_text())
 PRINT = {(family, protocol): {number: name for name, number in MEASURED["%s-%s" % (family, protocol)].items()}
          for family in ("v4", "v6") for protocol in ("tcp", "udp")}
@@ -63,7 +63,7 @@ class G82Ios(FakeIos):
         return header if header in self.lines else None
 
     def _insert_acl(self, family, name):
-        """A new ACL block stands among the blocks of its type in the order of the names (measured on d-iolxe)."""
+        """A new ACL block stands among the blocks of its type in the order of the names (measured on iol-xe-router)."""
         prefix = "ip access-list extended " if family == "v4" else "ipv6 access-list "
         header = prefix + name
         same = [line for line in self.lines if line.startswith(prefix)]

@@ -7,7 +7,7 @@ from .triage_health import (REASONS, firmware_fields, firmware_support, missing_
                             _lines, _utc)
 from .triage_routing import _INTERFACE_NAME, route_lookup, vdom_mode
 
-# Tested identity (G00): not a gate; another model or build runs with firmware_support "untested" and a warning
+# Tested identity (startup): not a gate; another model or build runs with firmware_support "untested" and a warning
 # (the iprope lookup parser reports an unknown shape as unparsed). VDOMs disabled stays a real scope limit.
 IDENTITIES = frozenset({("FortiGate-80F", "8.0.2", "0251")})
 STEPS = ("system_status", "route_dst", "route_src", "policy_lookup", "session")

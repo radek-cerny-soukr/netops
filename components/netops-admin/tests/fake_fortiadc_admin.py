@@ -83,7 +83,7 @@ class FakeADC(FakeFortiADC):
             for pool, members in self.pools.items():
                 for number, member in members.items():
                     if (pool, number) not in known:
-                        # a new member without a cookie gets rsN (measured 7.6.7 build0676, task 306)
+                        # a new member without a cookie gets rsN (measured 7.6.7 build0676, verification)
                         member.setdefault("pool_member_cookie", "rs%d" % number)
 
     def check_query(self, command):

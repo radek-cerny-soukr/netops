@@ -1,0 +1,3 @@
+set forwarding-options dhcp-relay server-group NETOPS-JUNOS-DHCP-SG 198.51.100.250
+set forwarding-options dhcp-relay group NETOPS-JUNOS-DHCP-RG active-server-group NETOPS-JUNOS-DHCP-SG
+set forwarding-options dhcp-relay group NETOPS-JUNOS-DHCP-RG interface irb.3922

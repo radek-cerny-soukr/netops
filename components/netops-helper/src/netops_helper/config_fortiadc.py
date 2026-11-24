@@ -8,13 +8,13 @@ from .config_buffers import Content
 from .read_policy import SAFE_FORTIADC_OBJECT
 from .configuration import FullConfigPolicy, UnsupportedConfigurationFirmware, ConfigurationRedactionError
 
-# Tested identity (G00, decision of 2026-11-17): not a gate. Every FortiADC configuration read, triage_slb and the
+# Tested identity (startup, decision of 2026-11-17): not a gate. Every FortiADC configuration read, triage_slb and the
 # FortiADC diagnostics run on another model or build with firmware_support "untested" and a warning; the field
 # policy of the tested version (config-fortiadc-7.6.7.json, the only one) is the nearest policy for every build
 # and stays fail-closed: a field outside it is hidden.
 SUPPORTED = ('FortiADC-KVM', '7.6.7', '0676')
 TESTED = (SUPPORTED,)
-# Top-level evidence from the VM220 show full-configuration capture. The final two blocks
+# Top-level evidence from the FortiADC-KVM 7.6.7 show full-configuration capture. The final two blocks
 # must immediately precede the closing prompt. Partial output can still have balanced CLI syntax.
 _FULL_CAPTURE_SYSTEM = frozenset((b'config system global\n', b'config system interface\n',
                                   b'config system admin\n', b'config system vdom\n'))
@@ -156,10 +156,10 @@ def verify_identity(status):
         raise ValueError('configuration identity could not be verified') from None
     if (len(identity[0]) > 64 or not re.fullmatch(r'[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,4}', identity[1]) or
             not re.fullmatch(r'[0-9]{4,6}', identity[2])):
-        # Every model and build may be read since G00, so a malformed or oversized record is unreadable.
+        # Every model and build may be read since startup, so a malformed or oversized record is unreadable.
         raise ValueError('configuration identity could not be verified')
     if not identity[0].startswith(platforms.PRODUCT_HARDWARE['fortiadc']):
-        # The product kind is a real boundary (G00 §2.4); the model and build are not.
+        # The product kind is a real boundary (startup §2.4); the model and build are not.
         raise UnsupportedConfigurationFirmware('config_platform_not_supported: the device is not a FortiADC product')
     return identity, {'product': identity[0], 'version': identity[1], 'build': identity[2]}
 
@@ -185,7 +185,7 @@ OBJECT_SECTIONS = DEFAULT_OBJECT_SECTIONS | frozenset(('load-balance virtual-ser
                              'load-balance schedule-pool', 'system schedule-group',
                              'load-balance content-routing', 'system interface', 'system certificate local'))
 
-# Measured on FortiADC-KVM 7.6.7 build 0676 (VM220, 2026-11-14, task 173; show full-configuration system
+# Measured on FortiADC-KVM 7.6.7 build 0676 (FortiADC-KVM 7.6.7, 2026-11-14, verification; show full-configuration system
 # schedule-group, CLI help of schedule-member): the schedule fields live in the member table, which the schema lists one level higher.
 SCHEDULE_MEMBER = ('system schedule-group', 'schedule-member')
 SCHEDULE_MEMBER_FIELDS = ('type', 'startdate', 'enddate', 'starttime-of-startdate', 'endtime-of-enddate',

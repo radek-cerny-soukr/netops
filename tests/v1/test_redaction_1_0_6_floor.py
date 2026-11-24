@@ -127,13 +127,13 @@ class Generator:
         if kind == 12:
             return self.pick(("unencrypted", "xset", "un", "\\n")) + self.case("set") + " password " + self.value()
         if kind == 13:
-            # Task 302-r3: a typed `secret|password` line (type word, level or algorithm-type),
+            # verification: a typed `secret|password` line (type word, level or algorithm-type),
             # an anchor of a later rule at the end of the line (or as the value itself) and the
-            # continuation of that rule on the next line; task 302-r4: also a value that holds an
-            # anchor word as its suffix or prefix; task 302-r5: also a long gap before the continuation.
+            # continuation of that rule on the next line; verification: also a value that holds an
+            # anchor word as its suffix or prefix; verification: also a long gap before the continuation.
             value = self.pick(("$6$s$" + self.canary() + " ", self.canary() + " ", ""))
             if self.random.randrange(3) == 0:
-                # Task 302-r4: a secret value with a random suffix / prefix from the anchor set.
+                # verification: a secret value with a random suffix / prefix from the anchor set.
                 anchor = self.case(self.pick(("set", "unset", "token", "encrypted", "md5", "-----BEGIN", "password",
                                               "passwd", "community", "x:", "x=", "password:", "token=")))
                 value = self.pick(("$6$s$" + self.canary() + anchor, self.canary() + anchor, anchor + self.canary(),
@@ -144,7 +144,7 @@ class Generator:
                     + value + self.case(self.pick(("set", "encrypted", "token", "password", "xset", "community"))))
             gap = self.pick(("\n", "\r\n", " ", "\n "))
             if self.random.randrange(10) == 0:
-                # Task 302-r5: a long gap between the anchor and its continuation, below, at and
+                # verification: a long gap between the anchor and its continuation, below, at and
                 # above the 4096-character window in which the continuation is recognized.
                 gap = self.pick(("\n", " ", "\r\n", "\n\t")) * self.pick((1, 2040, 4085, 4093, 4097, 4200, 5000))
             return (line + gap + self.case(self.pick(("password", "passwd", "=", ":")))

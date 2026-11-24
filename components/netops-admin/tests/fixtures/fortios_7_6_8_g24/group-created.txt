@@ -1,7 +1,0 @@
-config firewall addrgrp
-    edit "NETOPS-G24-GROUP"
-        set member "NETOPS-G24-HOST"
-        set comment "G24 group"
-        set uuid 00000000-0000-4000-8000-0000000000a2
-    next
-end

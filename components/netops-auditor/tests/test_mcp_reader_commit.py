@@ -1,11 +1,11 @@
-"""A long read-only MCP call must not hold up the COMMIT of a concurrent collect (task 1010-B3).
+"""A long read-only MCP call must not hold up the COMMIT of a concurrent collect (verification-B3).
 
 Real SQLite concurrency on one store file: the MCP reader (ReadOnlyStore) and the Auditor
 writer (Store.record_run) use their own connections; nothing mocks COMMIT. Only the busy
 timeout is lowered through the existing constant, so that a blocked COMMIT fails quickly
-(the RED of task 297). No test asserts an absolute duration: the condition is that the
+(the RED of verification). No test asserts an absolute duration: the condition is that the
 COMMIT finishes while the reader is still inside its tool call and still holds its read
-transaction (task 297-r2: WAL, no copy of the store).
+transaction (verification: WAL, no copy of the store).
 """
 import threading
 

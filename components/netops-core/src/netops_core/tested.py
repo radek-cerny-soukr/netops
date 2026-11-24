@@ -1,11 +1,11 @@
-"""Tested versions: one rule for "tested" and "untested" firmware (G00, decision of 2026-11-17).
+"""Tested versions: one rule for "tested" and "untested" firmware (startup, decision of 2026-11-17).
 
 NetOps does not refuse an OS version, build or model only because a function was not tested on it. Each function
 keeps the list of the versions it was tested on where it is today (Admin profiles, Helper and Auditor modules);
 this module compares the device against that list in one way and returns the same structure everywhere:
 
-    {"status": "tested" | "untested" | "unknown", "platform": ..., "device_version": ..., "model": ...,
-     "tested_versions": [...], "message": ...}
+    {"status": "tested" | "untested" | "unknown", "platform":..., "device_version":..., "model":...,
+     "tested_versions": [...], "message":...}
 
 - tested: the version of the device is exactly one of the listed versions (plain string comparison, no ranges and
   no families), and when the list names a model, the model of the device is the listed one;

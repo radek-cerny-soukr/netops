@@ -409,7 +409,7 @@ class ResponseDisconnectSocket(unittest.IsolatedAsyncioTestCase):
         from uvicorn.protocols.http.h11_impl import H11Protocol
         from test_admission_uvicorn import Probe, certificate, TOKEN as SOCKET_TOKEN
 
-        self.assertEqual(importlib.metadata.version("uvicorn"), "0.53.0")
+        self.assertEqual(importlib.metadata.version("uvicorn"), "0.54.0")
         with tempfile.TemporaryDirectory() as directory:
             cert, key = certificate(directory)
             audit = Audit(Path(directory) / "audit", {"mode": "local"})

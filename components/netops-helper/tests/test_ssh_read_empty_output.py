@@ -13,10 +13,10 @@ from netops_helper.read_policy import READ_QUERIES
 ADC_PROMPT = b"FortiADC-VM # "
 SLB = "diagnose server-load-balance slb_load"
 INVENTORY = {"vrfs": ("default",), "interfaces": ("port1", "Vlan10", "Ethernet2", "irb.20", "GigabitEthernet1/0", "Ethernet0/1"), "config_access": ("read",),
-             "vlans": ("default",), "adc_virtual_servers": ("VS_APP_HTTP",), "routing_instances": ("g132",), "addresses": ("192.0.2.1",),
-             "ipsec_tunnels": ("netops-g14",)}
+             "vlans": ("default",), "adc_virtual_servers": ("VS_APP_HTTP",), "routing_instances": ("junos-routing",), "addresses": ("192.0.2.1",),
+             "ipsec_tunnels": ("netops-ipsec",)}
 LEGAL_EMPTY = {
-    # G57: these four commands returned blank successful replies on IOSv and IOL XE.
+    # ROUTER-DIAGNOSTICS: these four commands returned blank successful replies on IOSv and IOL XE.
     **{(profile, name): parameters for profile in ("cisco_ios", "cisco_xe") for name, parameters in (
         ("qos_policy", {"interface": "Vlan10"}), ("nat_translations", {}), ("nat_statistics", {}), ("ikev2_sa", {}),
     )},
@@ -31,7 +31,7 @@ LEGAL_EMPTY = {
     ("fortinet", "ipv6_bgp_neighbor_detail"): {},
     ("fortinet", "local_stp_ports"): {},
     ("fortinet", "dhcp_leases_all"): {},
-    ("fortinet", "ike_gateway_detail"): {"tunnel": "netops-g14"},
+    ("fortinet", "ike_gateway_detail"): {"tunnel": "netops-ipsec"},
     ("cisco_nxos", "log_messages"): {},
     ("cisco_nxos", "log_history"): {"count": "40"},
     ("cisco_nxos", "ntp_associations"): {},
@@ -146,7 +146,7 @@ LEGAL_EMPTY = {
     ("arista_eos", 'dot1x_interface'): {'interface': 'Ethernet2'},
     ("arista_eos", 'dot1x_clients'): {'interface': 'Ethernet2'},
     ("arista_eos", 'dhcp_server_leases'): {},
-    # G120: a log window without a matching message is empty (measured on cEOS 4.36.1F).
+    # EOS-HEALTH: a log window without a matching message is empty (measured on cEOS 4.36.1F).
     ("arista_eos", "log_messages_last"): {"minutes": "10", "severity": "emergencies"},
     ("arista_eos", "log_messages_range"): {"begin_date": "2026-11-18", "begin_time": "03:00:00",
                                            "end_date": "2026-11-18", "end_time": "03:00:01", "severity": "emergencies"},
@@ -157,7 +157,7 @@ LEGAL_EMPTY = {
     ("fortiadc", "traffic_group_status"): {},
     ("fortinet", "crash_log"): {},
     ("fortinet", "config_error_log"): {},
-    # G132: empty Junos protocol/instance answers measured on vJunos-switch 26.2R1.7.
+    # JUNOS-ROUTING: empty Junos protocol/instance answers measured on vJunos-switch 26.2R1.7.
     ('juniper_junos', 'bgp_peer_received_routes'): {'address': '192.0.2.1'},
     ('juniper_junos', 'bgp_peer_advertised_routes'): {'address': '192.0.2.1'},
     ('juniper_junos', 'ospf_neighbors_detail'): {},
@@ -166,8 +166,8 @@ LEGAL_EMPTY = {
     ('juniper_junos', 'ospfv3_neighbors_detail'): {},
     ('juniper_junos', 'ospfv3_interface_detail'): {'interface': 'irb.20'},
     ('juniper_junos', 'ospfv3_database'): {},
-    ('juniper_junos', 'arp_table_instance'): {'instance': 'g132'},
-    ('juniper_junos', 'ipv6_neighbors_instance'): {'instance': 'g132'},
+    ('juniper_junos', 'arp_table_instance'): {'instance': 'junos-routing'},
+    ('juniper_junos', 'ipv6_neighbors_instance'): {'instance': 'junos-routing'},
     ('juniper_junos_els', 'bgp_peer_received_routes'): {'address': '192.0.2.1'},
     ('juniper_junos_els', 'bgp_peer_advertised_routes'): {'address': '192.0.2.1'},
     ('juniper_junos_els', 'ospf_neighbors_detail'): {},
@@ -176,8 +176,8 @@ LEGAL_EMPTY = {
     ('juniper_junos_els', 'ospfv3_neighbors_detail'): {},
     ('juniper_junos_els', 'ospfv3_interface_detail'): {'interface': 'irb.20'},
     ('juniper_junos_els', 'ospfv3_database'): {},
-    ('juniper_junos_els', 'arp_table_instance'): {'instance': 'g132'},
-    ('juniper_junos_els', 'ipv6_neighbors_instance'): {'instance': 'g132'},
+    ('juniper_junos_els', 'arp_table_instance'): {'instance': 'junos-routing'},
+    ('juniper_junos_els', 'ipv6_neighbors_instance'): {'instance': 'junos-routing'},
     ('juniper_junos_els', 'mac_table_vlan'): {'vlan': 'default'},
     ('juniper_junos', 'interface_firewall_filter'): {'interface': 'irb.20'},
     ('juniper_junos_els', 'interface_firewall_filter'): {'interface': 'irb.20'},
@@ -264,7 +264,7 @@ def test_catalogue_legal_empty_output_stays_success(wire, monkeypatch, platform,
 
 @pytest.mark.parametrize("diagnostic", [b"", b"Unexpected device diagnostic\n", b"Command authorization failed.\n"])
 def test_classic_ios_empty_table_ignores_login_banner_but_keeps_command_errors(wire, monkeypatch, diagnostic):
-    fixtures = Path(__file__).parent / 'fixtures/real/cisco_ios/iosv_15.9.3M12_g51'
+    fixtures = Path(__file__).parent / 'fixtures/real/cisco_ios/iosv_15.9.3M12_router_routing'
     calls = []
 
     def transport(_address, _port, _login, _credential, _host_key, command, **options):
@@ -287,7 +287,7 @@ def test_classic_ios_empty_table_ignores_login_banner_but_keeps_command_errors(w
 
 
 IOS_XE_BLANK_CAPTURES = [
-    ("ntp_associations", "iolxe_17.18.2_g72/d-iolxe-l2-ro-ntp_associations.out"),
+    ("ntp_associations", "iolxe_17.18.2_xe_health/iol-xe-switch-ro-ntp_associations.out"),
     ("lacp_neighbors", "iolxe_17.18.2/lacp_neighbors.txt"),
     ("hsrp_summary", "iolxe_17.18.2/hsrp_summary.txt"),
     ("stp_root", "iolxe_17.18.2/stp_root.txt"),
@@ -327,7 +327,7 @@ def test_ios_xe_empty_tables_and_failed_reads_are_distinct(wire, monkeypatch, qu
     (0, f"Connection to {LOOPBACK} closed by remote host.\n% Invalid input detected at '^' marker.", False),
 ])
 def test_ios_xe_empty_tables_accept_only_the_successful_peer_close(wire, monkeypatch, query, capture, rc, notice, allowed):
-    # DERIVED: replay the captured empty body with the IOL OpenSSH close framing also measured in G71.
+    # DERIVED: replay the captured empty body with the IOL OpenSSH close framing also measured in XE-PORTS.
     stdout = _ios_xe_blank_capture(capture).encode() or b"\r\n\r\n"
     real_run = engine.core_ssh.run_command
     expected = READ_QUERIES["cisco_xe"][query].command

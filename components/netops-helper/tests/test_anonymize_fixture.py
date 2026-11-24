@@ -188,8 +188,8 @@ def test_fortios_serial_number_label_with_hyphen(tmp_path):
 
 
 def test_truncated_display_strings_are_mapped_consistently():
-    text = "Uplink-S>VR-Default E A\n3 Uplink-SW3 x\n"
-    result, _ = run(text, descriptions=["Uplink-SW3"])
+    text = "Uplink-S>VR-Default E A\n3 Uplink-SWB x\n"
+    result, _ = run(text, descriptions=["Uplink-SWB"])
     first, second = result.splitlines()
     assert first.startswith("port-des>VR-Default") and "Uplink" not in result
     assert second.split()[1].startswith("port-des")
@@ -317,7 +317,7 @@ def _fixture_residuals(root):
 # placeholders of the anonymised FortiGate captures. They name no site; each is listed so that any other name fails.
 SYNTHETIC_NAMES = frozenset((
     "leaf2", "core-sw", "SEP00005E0053B0.example.net", "phone-1", "lab-ios", "lab-xe", "lab-isr", "lab-ios-router",
-    "lab-mx480", "lab-junos", "lab-els", "lab-vc", "FGT80FTK00000000", "FGT80F0000001111", "FGT80F0000002222"))
+    "lab-mx480", "lab-junos", "lab-els", "lab-vc", "FGTEXAMPLE0000000", "FGTEXAMPLE0001111", "FGTEXAMPLE0002222"))
 NAME_FINDINGS = ("name ", "SysName ", "System Name ", "Hostname ", "IOS hostname ", "Device ID ", "FQDN ", "prompt ")
 
 

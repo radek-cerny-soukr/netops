@@ -1,1 +1,0 @@
-sftp> rename netops-g47-stage.pol netops-g47-capture.pol

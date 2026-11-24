@@ -8,6 +8,7 @@ from test_execute_exos import make_runtime as make_exos_runtime
 from test_execute_exos import request as exos_request
 
 from netops_admin import exec_exos, execute, exos
+from approved_apply import approved_apply
 
 GARBLED = "Unknown action 0\n"
 UNPARSABLE = 'config system automation-action\n    edit "netops\n'
@@ -55,7 +56,7 @@ class StuckExos(FakeExos):
 def test_fortios_unreadable_removal_check_does_not_confirm(tmp_path, answer):
     device = StuckFortiOS(answer)
     runtime = make_runtime(tmp_path, device)
-    record = execute.apply(runtime, "lab", request())
+    record = approved_apply(runtime, "lab", request())
     assert device.removal_attempted
     assert record["result"] != "confirmed" or not device.stitches
     device.advance(3600)
@@ -66,7 +67,7 @@ def test_fortios_unreadable_removal_check_does_not_confirm(tmp_path, answer):
 def test_fortios_normal_removal_confirms_and_keeps_the_change(tmp_path):
     device = FakeFortiOS()
     runtime = make_runtime(tmp_path, device)
-    record = execute.apply(runtime, "lab", request())
+    record = approved_apply(runtime, "lab", request())
     assert record["result"] == "confirmed" and not device.stitches
     device.advance(3600)
     assert "new-host" in device.addresses
@@ -75,7 +76,7 @@ def test_fortios_normal_removal_confirms_and_keeps_the_change(tmp_path):
 def test_exos_unreadable_removal_check_does_not_confirm(tmp_path):
     device = StuckExos()
     runtime = make_exos_runtime(tmp_path, device)
-    record = execute.apply(runtime, "sw", exos_request())
+    record = approved_apply(runtime, "sw", exos_request())
     assert device.removal_attempted
     assert record["result"] != "confirmed" or not device.timers
 
@@ -213,6 +214,6 @@ def test_exos_counts_without_rows_are_not_an_absent_safeguard():
 
 def test_exos_counts_without_rows_after_a_failed_removal_do_not_confirm(tmp_path):
     device = CountOnlyExos()
-    record = execute.apply(make_exos_runtime(tmp_path, device), "sw", exos_request())
+    record = approved_apply(make_exos_runtime(tmp_path, device), "sw", exos_request())
     assert device.removal_attempted and device.timers
     assert record["result"] != "confirmed"

@@ -40,7 +40,7 @@ Model: FortiGate-80F
 Mode: HA A-P
 Group Name: Branch1-HA
 Configuration Status:
-    FGT80FTK22023xxx(updated 1 seconds ago): in-sync
+    FGTEXAMPLE0000003(updated 1 seconds ago): in-sync
 """
 HA_WARNING = """HA Health Status:
     WARNING: FG101FTK19xxxxx7 has hbdev down;
@@ -192,7 +192,7 @@ def test_clean_standalone_device_is_never_called_healthy():
     ({"conserve_state": CONSERVE.replace("173 MB   17%", "224 MB   22%")}, "F-MEM-EXTREME"),
     ({"ha_status": HA_WARNING, "ha_checksum": checksum()}, "F-HA-STATUS"),
     ({"ha_status": HA_AP.replace("HA Health Status: OK", "HA Health Status: WARNING"), "ha_checksum": checksum()}, "F-HA-STATUS"),
-    ({"ha_status": HA_AP.replace("HA Health Status: OK\n", "HA Health Status: OK\n    WARNING: FGT80FTK22023xxx has hbdev down;\n"), "ha_checksum": checksum()}, "F-HA-STATUS"),
+    ({"ha_status": HA_AP.replace("HA Health Status: OK\n", "HA Health Status: OK\n    WARNING: FGTEXAMPLE0000003 has hbdev down;\n"), "ha_checksum": checksum()}, "F-HA-STATUS"),
     ({"ha_status": HA_AP, "ha_checksum": checksum(SUM_C)}, "F-HA-CHECKSUM"),
     ({"ntp_status": NTP.replace("synchronized: yes", "synchronized: no")}, "F-NTP-UNSYNC"),
     ({"autoupdate_versions": UPDATES.replace("Wed Jan 1 2031", "Thu Oct 30 2026")}, "F-UPDATE-EXPIRED"),
@@ -262,7 +262,7 @@ def test_refusal_is_never_read_as_zero_or_ok_and_findings_survive():
 
 
 def test_a_skipped_ha_checksum_keeps_the_code_and_advice_of_the_refused_ha_status():
-    # Review 206-rv note: the skipped checksum carries the error_code and error of the ha_status refusal.
+    # Review note: the skipped checksum carries the error_code and error of the ha_status refusal.
     advice = "Use a target with a global account"
     calls = []
 
@@ -321,7 +321,7 @@ def test_cluster_checksum_with_one_member_is_unparsed():
     "Version: FortiGate-VM64 v7.6.8,build3744,260115 (GA.M)\n",
 ])
 def test_untested_identity_runs_every_read_with_a_warning(status):
-    # G00 (2026-11-17): a model or build outside the tested identities is triaged, not refused.
+    # STARTUP (2026-11-17): a model or build outside the tested identities is triaged, not refused.
     result, calls = run(outputs(system_status=status + "Virtual domain configuration: disable\n"))
     assert calls[0] == "system_status" and set(calls) == {query for _, query in t.STEPS} - {"ha_checksum"}
     assert result["ok"] is True and result["verdict"] == "no_fault_in_checked_data"

@@ -341,347 +341,17 @@
       "baseline": "Catalyst IOS 15.2(7)E; IOS-XE 17.15.x; Nexus 9000 NX-OS 10.5(x)",
       "url": "https://www.cisco.com/c/en/us/td/docs/switches/lan/catalyst2960x/software/15-2_7_e/command_reference/b_1527_2960x_cr.html"
     },
-    "C-G51-BGP": {
-      "vendor": "Cisco",
-      "title": "IOS BGP command reference",
-      "baseline": "IOS 15.x; IOSv 15.9(3)M12 lab",
-      "url": "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/iproute_bgp/command/irg-cr-book/bgp-s1.html"
-    },
-    "C-G51-BGPV6": {
-      "vendor": "Cisco",
-      "title": "IOS IPv6 BGP reference",
-      "baseline": "IOS 15.x; IOSv 15.9(3)M12 lab",
-      "url": "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/ipv6/command/ipv6-cr-book/ipv6-s1.html"
-    },
-    "C-G51-CEF": {
-      "vendor": "Cisco",
-      "title": "IOS CEF and adjacency command reference",
-      "baseline": "IOS 15.x; IOSv 15.9(3)M12 lab",
-      "url": "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/ipswitch/command/isw-cr-book/isw-s1.html"
-    },
-    "C-G51-IP": {
-      "vendor": "Cisco",
-      "title": "IOS IP addressing reference",
-      "baseline": "IOS 15.x; IOSv 15.9(3)M12 lab",
-      "url": "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/ipaddr/command/ipaddr-cr-book/ipaddr-r1.html"
-    },
-    "C-G51-IPV6-IF": {
-      "vendor": "Cisco",
-      "title": "IOS IPv6 interface reference",
-      "baseline": "IOS 15.x; IOSv 15.9(3)M12 lab",
-      "url": "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/ipv6/command/ipv6-cr-book/ipv6-s2.html"
-    },
-    "C-G51-IPV6-RIB": {
-      "vendor": "Cisco",
-      "title": "IOS IPv6 RIB reference",
-      "baseline": "IOS 15.x; IOSv 15.9(3)M12 lab",
-      "url": "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/ipv6/command/ipv6-cr-book/ipv6-s5.html"
-    },
-    "C-G51-OSPF": {
-      "vendor": "Cisco",
-      "title": "IOS OSPF command reference",
-      "baseline": "IOS 15.x; IOSv 15.9(3)M12 lab",
-      "url": "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/iproute_ospf/command/iro-cr-book/ospf-s1.html"
-    },
-    "C-G51-OSPFV3": {
-      "vendor": "Cisco",
-      "title": "IOS OSPFv3 reference",
-      "baseline": "IOS 15.x; IOSv 15.9(3)M12 lab",
-      "url": "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/ipv6/command/ipv6-cr-book/ipv6-s4.html"
-    },
-    "C-G51-ROUTING": {
-      "vendor": "Cisco",
-      "title": "IOS protocol-independent routing reference",
-      "baseline": "IOS 15.x; IOSv 15.9(3)M12 lab",
-      "url": "https://www.cisco.com/c/en/us/td/docs/ios/iproute_pi/command/reference/iri_book/iri_pi2.html"
-    },
-    "C-G51-VRF": {
-      "vendor": "Cisco",
-      "title": "IOS show ip vrf reference",
-      "baseline": "IOS 15.x; IOSv 15.9(3)M12 lab",
-      "url": "https://www.cisco.com/c/en/us/td/docs/ios/qos/command/reference/qos_book/qos_s3.html"
-    },
-    "C-G53-IOS-IFHW": {
-      "vendor": "Cisco",
-      "title": "Cisco IOS interface and hardware command reference",
-      "baseline": "IOS 15.x; IOSvL2 15.2 lab",
-      "url": "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/interface/command/ir-cr-book/ir-s5.html"
-    },
-    "C-G54-FHRP": {
-      "vendor": "Cisco",
-      "title": "Cisco IOS First Hop Redundancy Protocols Command Reference",
-      "baseline": "Cisco IOS 15.x",
-      "url": "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/ipapp_fhrp/command/fhp-cr-book.pdf"
-    },
-    "C-G54-TRACK": {
-      "vendor": "Cisco",
-      "title": "Cisco IOS 15M&T Enhanced Object Tracking",
-      "baseline": "Cisco IOS 15.x",
-      "url": "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/ipapp/configuration/15-mt/iap-15-mt-book/iap-eot.pdf"
-    },
-    "C-G55-ACL": {
-      "vendor": "Cisco",
-      "title": "Cisco IOS ACL counters and IPv4/IPv6 examples",
-      "baseline": "Cisco IOS",
-      "url": "https://www.cisco.com/c/en/us/td/docs/switches/lan/catalyst2960/software/release/15-0_2_se/configuration/guide/scg2960/swv6acl.html"
-    },
-    "C-G55-AUTH": {
-      "vendor": "Cisco",
-      "title": "Cisco IOS authentication session commands",
-      "baseline": "IOS 15.2(2)T and later",
-      "url": "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/security/s1/sec-s1-cr-book/sec-cr-s2.html"
-    },
-    "C-G55-DHCP": {
-      "vendor": "Cisco",
-      "title": "Cisco IOS DHCP server verification",
-      "baseline": "IOS 15M&T",
-      "url": "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/ipaddr_dhcp/configuration/15-mt/dhcp-15-mt-book.pdf"
-    },
-    "C-G55-DOT1X": {
-      "vendor": "Cisco",
-      "title": "Catalyst 2960-L 802.1X command reference",
-      "baseline": "Catalyst IOS 15.2(7)E",
-      "url": "https://www.cisco.com/c/en/us/td/docs/switches/lan/catalyst2960l/software/15-2_7_e/command_reference/b_1527_2960l_cr/security_commands.html"
-    },
-    "C-G55-L2": {
-      "vendor": "Cisco",
-      "title": "Catalyst 3750-X and 3560-X IOS security and MAC commands",
-      "baseline": "Catalyst IOS 15.2(4)E",
-      "url": "https://www.cisco.com/c/en/us/td/docs/switches/lan/catalyst3750x_3560x/software/release/15-2_4_e/command/reference/CR_3750X/cli2.html"
-    },
-    "C-G57-IOS-MLS": {
-      "vendor": "Cisco",
-      "title": "Catalyst 2960-X QoS command reference",
-      "baseline": "Catalyst 2960-X IOS 15.2(6)E",
-      "url": "https://www.cisco.com/c/en/us/td/docs/switches/lan/catalyst2960x/software/15_2_6_e/command_reference/b_1526_2960x_cr/qos_commands.html"
-    },
-    "C-G57-IOS-NAT": {
-      "vendor": "Cisco",
-      "title": "IOS monitoring and maintaining NAT",
-      "baseline": "Cisco IOS 15.2S",
-      "url": "https://www.cisco.com/en/US/docs/ios-xml/ios/ipaddr_nat/configuration/15-2s/iadnat-monmain.html"
-    },
-    "C-G57-IOS-QOS": {
-      "vendor": "Cisco",
-      "title": "IOS modular QoS command reference",
-      "baseline": "Cisco IOS 15.x",
-      "url": "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/qos/command/qos-cr-book/qos-s4.html"
-    },
-    "C-G57-IOS-SA": {
-      "vendor": "Cisco",
-      "title": "IOS security command reference for IKE and IPsec",
-      "baseline": "Cisco IOS 15.x",
-      "url": "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/security/s1/sec-s1-cr-book/sec-cr-s3.html"
-    },
-    "C-G57-XE-NAT": {
-      "vendor": "Cisco",
-      "title": "Catalyst 8000 NAT troubleshooting and exhaustion example",
-      "baseline": "Cisco IOS XE on Catalyst 8000",
-      "url": "https://www.cisco.com/c/en/us/support/docs/ip/network-address-translation-nat/226027-troubleshoot-nat-on-cat8000-platforms.html"
-    },
-    "C-G72-HSRP": {
-      "vendor": "Cisco",
-      "title": "IOS XE 17.x HSRP guide",
-      "baseline": "Cisco IOS XE 17.x",
-      "url": "https://www.cisco.com/c/en/us/td/docs/routers/ios/config/17-x/ntw-servs/b-network-services/m_fhp-hsrp-0.html"
-    },
-    "C-G72-SLA": {
-      "vendor": "Cisco",
-      "title": "Cisco IOS IP SLAs show commands reference",
-      "baseline": "Cisco IOS 15.x and IOS XE 17.x",
-      "url": "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/ipsla/command/sla-cr-book/sla_s1.html"
-    },
-    "C-G72-TRACK": {
-      "vendor": "Cisco",
-      "title": "IOS XE Enhanced Object Tracking guide",
-      "baseline": "Cisco IOS XE 17.x",
-      "url": "https://www.cisco.com/c/en/us/td/docs/routers/ios-xe/ip-addressing/ip-addressing/m_iap-eot-xe.html"
-    },
-    "C-G72-VRRP": {
-      "vendor": "Cisco",
-      "title": "IOS XE 17.x VRRP guide",
-      "baseline": "Cisco IOS XE 17.x",
-      "url": "https://www.cisco.com/c/en/us/td/docs/routers/ios/config/17-x/ntw-servs/b-network-services/m_fhp-vrrp-0.html"
-    },
-    "C-G73-ACCESS": {
-      "vendor": "Cisco",
-      "title": "IOS XE 17.18 access sessions and 802.1X",
-      "baseline": "Catalyst 9300 IOS XE 17.18.x",
-      "url": "https://www.cisco.com/c/en/us/td/docs/switches/lan/catalyst9300/software/release/17-18/command_reference/b_1718_9300_cr/security_commands.html"
-    },
-    "C-G73-ACL4": {
-      "vendor": "Cisco",
-      "title": "IOS XE 17 IPv4 ACLs and interface attachment",
-      "baseline": "IOS XE 17.x",
-      "url": "https://www.cisco.com/c/en/us/td/docs/switches/lan/c9000/security/acls/acls-configuration-guide/access-control-lists.html"
-    },
-    "C-G73-ACL6": {
-      "vendor": "Cisco",
-      "title": "IOS XE 17 IPv6 ACLs",
-      "baseline": "IOS XE 17.x",
-      "url": "https://www.cisco.com/c/en/us/td/docs/routers/ios/config/17-x/sec-vpn/b-security-vpn/m_ip6-acls-xe.html"
-    },
-    "C-G73-DAI": {
-      "vendor": "Cisco",
-      "title": "IOS XE 17.18 dynamic ARP inspection",
-      "baseline": "Catalyst 9200 IOS XE 17.18.x",
-      "url": "https://www.cisco.com/c/en/us/td/docs/switches/lan/catalyst9200/software/release/17-18/configuration_guide/sec/b_1718_sec_9200_cg.pdf"
-    },
-    "C-G73-DHCP": {
-      "vendor": "Cisco",
-      "title": "IOS XE 17 DHCP server verification",
-      "baseline": "IOS XE 17.x",
-      "url": "https://www.cisco.com/c/en/us/td/docs/routers/ios/config/17-x/ip-addressing/b-ip-addressing/m_config-dhcp-server-xe.html"
-    },
-    "C-G73-IPSG": {
-      "vendor": "Cisco",
-      "title": "IOS XE 17.18 IP Source Guard",
-      "baseline": "Catalyst 9300 IOS XE 17.18.x",
-      "url": "https://www.cisco.com/c/en/us/td/docs/switches/lan/catalyst9300/software/release/17-18/configuration_guide/sec/b_1718_sec_9300_cg/configuring_ip_source_guard.html"
-    },
-    "C-G73-MAC": {
-      "vendor": "Cisco",
-      "title": "IOS XE 17 MAC forwarding and port security",
-      "baseline": "Catalyst 9000 IOS XE 17.18.1",
-      "url": "https://www.cisco.com/c/en/us/td/docs/switches/lan/c9000/lyr2-fwd/cdp-lldp-mac-udld/cdp-lldp-mac-udld-configuration-guide/c-configure-mac.html"
-    },
-    "C-G73-SNOOP": {
-      "vendor": "Cisco",
-      "title": "IOS XE 17 DHCP snooping",
-      "baseline": "IOS XE 17.x",
-      "url": "https://www.cisco.com/c/en/us/td/docs/switches/lan/c9000/sec-crypto/fhs-sisf/fhs-and-sisf-configuration-guide/dhcp-snooping.html"
-    },
-    "C-G75-XE-FED": {
-      "vendor": "Cisco",
-      "title": "Catalyst 9300 hardware QoS command reference",
-      "baseline": "Catalyst 9300 IOS XE 17.15.x",
-      "url": "https://www.cisco.com/c/en/us/td/docs/switches/lan/catalyst9300/software/release/17-15/command_reference/b_1715_9300_cr/qos_commands.html"
-    },
-    "C-G75-XE-FED-AVB": {
-      "vendor": "Cisco",
-      "title": "Catalyst 9300 AVB hardware QoS examples",
-      "baseline": "Catalyst 9300 IOS XE 17.12.x",
-      "url": "https://www.cisco.com/c/en/us/td/docs/switches/lan/catalyst9300/software/release/17-12/configuration_guide/lyr2/b_1712_lyr2_9300_cg/audio_video_bridging.html"
-    },
-    "C-G75-XE-IKEV1": {
-      "vendor": "Cisco",
-      "title": "IOS XE DMVPN verification",
-      "baseline": "IOS XE 17.x",
-      "url": "https://www.cisco.com/c/en/us/td/docs/routers/ios/config/17-x/sec-vpn/b-security-vpn/m_sec-conn-dmvpn-dmvpn-0.html"
-    },
-    "C-G75-XE-IKEV2": {
-      "vendor": "Cisco",
-      "title": "IOS XE IKEv2 HSRP verification",
-      "baseline": "Cisco IOS XE",
-      "url": "https://www.cisco.com/c/en/us/support/docs/ip/hot-standby-router-protocol-hsrp/222200-configure-ipsec-redundancy-with-hsrp-for.html"
-    },
-    "C-G75-XE-IPSEC": {
-      "vendor": "Cisco",
-      "title": "IOS XE GRE over IPsec verification",
-      "baseline": "IOS XE 17.x",
-      "url": "https://www.cisco.com/c/en/us/td/docs/routers/sdwan/configuration/security/ios-xe-17/security-book-xe/m-gre-over-ipsec-tunnels.html"
-    },
-    "C-G75-XE-POLICING": {
-      "vendor": "Cisco",
-      "title": "IOS XE QoS packet policing",
-      "baseline": "IOS XE 17.x",
-      "url": "https://www.cisco.com/c/en/us/td/docs/routers/ios/config/17-x/qos/b-quality-of-service/m_qos-policing.html"
-    },
-    "C-G87-AP-TAG": {
-      "vendor": "Cisco",
-      "title": "Catalyst 9800 AP Tag Detail",
-      "baseline": "Catalyst 9800 configuration model",
-      "url": "https://www.cisco.com/c/en/us/support/docs/wireless/catalyst-9800-series-wireless-controllers/213911-understand-catalyst-9800-wireless-contro.html"
-    },
-    "C-G87-CLIENT": {
-      "vendor": "Cisco",
-      "title": "Catalyst 9800 AP Configuration",
-      "baseline": "Catalyst 9800 IOS XE 17.15.x",
-      "url": "https://www.cisco.com/c/en/us/td/docs/wireless/controller/9800/17-15/config-guide/b_wl_17_15_cg/m_enabling_ap_console.html"
-    },
-    "C-G87-CMD": {
-      "vendor": "Cisco",
-      "title": "Catalyst 9800 Show Commands",
-      "baseline": "Catalyst 9800 Command Reference",
-      "url": "https://www.cisco.com/c/en/us/td/docs/wireless/controller/9800/command-reference/b_wireless_cr/show-commands.html"
-    },
-    "C-G87-HA": {
-      "vendor": "Cisco",
-      "title": "Catalyst 9800 HA SSO",
-      "baseline": "Catalyst 9800-CL IOS XE 17.9.2",
-      "url": "https://www.cisco.com/c/en/us/support/docs/wireless/catalyst-9800-series-wireless-controllers/220277-configure-high-availability-sso-on-catal.html"
-    },
-    "C-G87-MODEL": {
-      "vendor": "Cisco",
-      "title": "Catalyst 9800 Configuration Model",
-      "baseline": "Catalyst 9800 Configuration Guide",
-      "url": "https://www.cisco.com/c/en/us/td/docs/wireless/controller/9800/config-guide/newconfigmodel/b_catalyst-9800-configuration-model/m_validating_configuration.html"
-    },
-    "C-G87-POLICY": {
-      "vendor": "Cisco",
-      "title": "Catalyst 9800 Policy Profiles",
-      "baseline": "Catalyst 9800 IRCM Configuration Guide",
-      "url": "https://www.cisco.com/c/en/us/td/docs/wireless/controller/9800/config-guide/ConfiguringIRCM/b-configuring-inter-release-controller-mobility-in-wireless-deployments-supporting-aireos-and-catalyst-9800-controllers/m-troubleshooting-ircm-configuration.html"
-    },
-    "C-G87-ROGUE": {
-      "vendor": "Cisco",
-      "title": "Catalyst 9800 rogue AP and client location",
-      "baseline": "Catalyst 9800-L IOS XE 17.12.1",
-      "url": "https://www.cisco.com/c/en/us/support/docs/wireless/catalyst-9800-series-wireless-controllers/221688-identify-and-locate-a-rogue-ap-client-on.html"
-    },
-    "C-G89-DROPS": {
+    "C-FORWARDING-PROCESSOR-DROPS": {
       "vendor": "Cisco",
       "title": "Troubleshoot Interface Packet Drops on IOS XE Routers",
       "baseline": "ISR 4000 and ASR 1000 IOS XE",
       "url": "https://www.cisco.com/c/en/us/support/docs/routers/asr-1000-series-ios-xe-sd-wan/224129-troubleshoot-interface-packet-drops-in.html"
     },
-    "C-G89-UTIL": {
+    "C-FORWARDING-PROCESSOR-UTIL": {
       "vendor": "Cisco",
       "title": "Throughput Issues on ASR 1000 Series Router",
       "baseline": "ASR 1000 IOS XE",
       "url": "https://www.cisco.com/c/en/us/support/docs/routers/asr-1000-series-aggregation-services-routers/200674-Throughput-issues-on-ASR1000-Series-rout.html"
-    },
-    "C-G91-NXOS-PROBES": {
-      "vendor": "Cisco",
-      "title": "NX-OS 9.3(x) Troubleshooting Tools and Methodology",
-      "baseline": "Nexus 9000 NX-OS 9.3(x)",
-      "url": "https://www.cisco.com/c/en/us/td/docs/switches/datacenter/nexus9000/sw/93x/troubleshooting/guide/b-cisco-nexus-9000-nx-os-troubleshooting-guide-93x/b-cisco-nexus-9000-nx-os-troubleshooting-guide-93x_chapter_010001.html"
-    },
-    "C-G93-NXOS-SHOW": {
-      "vendor": "Cisco",
-      "title": "Nexus 9000 NX-OS 9.3(x) show command reference",
-      "baseline": "Nexus 9000 NX-OS 9.3(x)",
-      "url": "https://www.cisco.com/c/en/us/td/docs/switches/datacenter/nexus9000/sw/93x/command/reference/show/b_N9K_Show_Commands_93x/b_N9K_Show_Commands_93x.pdf"
-    },
-    "C-G97-NXOS-B": {
-      "vendor": "Cisco",
-      "title": "Nexus 9000 NX-OS: B Show Commands",
-      "baseline": "Nexus 9000 NX-OS 9.3(x)",
-      "url": "https://www.cisco.com/c/en/us/td/docs/switches/datacenter/nexus9000/sw/93x/command/reference/show/b_N9K_Show_Commands_93x/b_N9K_Show_Commands_93x_chapter_010.html"
-    },
-    "C-G97-NXOS-BGP": {
-      "vendor": "Cisco",
-      "title": "Nexus 9000 NX-OS: Configuring Segment Routing",
-      "baseline": "Nexus 9000 NX-OS 9.3(x)",
-      "url": "https://www.cisco.com/c/en/us/td/docs/switches/datacenter/nexus9000/sw/93x/label-switching/b-cisco-nexus-9000-series-nx-os-label-switching-configuration-guide-93x/b-cisco-nexus-9000-series-nx-os-label-switching-configuration-guide-93x_chapter_01000.html"
-    },
-    "C-G97-NXOS-L": {
-      "vendor": "Cisco",
-      "title": "Nexus 9000 NX-OS: L Show Commands",
-      "baseline": "Nexus 9000 NX-OS 9.3(x)",
-      "url": "https://www.cisco.com/c/en/us/td/docs/switches/datacenter/nexus9000/sw/93x/command/reference/show/b_N9K_Show_Commands_93x/b_N9K_Show_Commands_93x_chapter_01011.html"
-    },
-    "C-G97-NXOS-VXLAN": {
-      "vendor": "Cisco",
-      "title": "Nexus 9000 NX-OS: Configure VXLAN BGP EVPN",
-      "baseline": "Nexus 9000 NX-OS 10.3(x)",
-      "url": "https://www.cisco.com/c/en/us/td/docs/dcn/nx-os/nexus9000/103x/configuration/vxlan/cisco-nexus-9000-series-nx-os-vxlan-configuration-guide-release-103x/m-configuring-vxlan-bbgp-evpn.html"
-    },
-    "C-G97-NXOS-VXLANV6": {
-      "vendor": "Cisco",
-      "title": "Nexus 9000 NX-OS: Configure VXLAN with IPv6 in the Underlay",
-      "baseline": "Nexus 9000 NX-OS 9.3(x)",
-      "url": "https://www.cisco.com/c/en/us/td/docs/switches/datacenter/nexus9000/sw/93x/vxlan/configuration/guide/b-cisco-nexus-9000-series-nx-os-vxlan-configuration-guide-93x/b-cisco-nexus-9000-series-nx-os-vxlan-configuration-guide-93x_chapter_010011.html"
     },
     "C-IOS-1527-CONFIG": {
       "vendor": "Cisco",
@@ -743,6 +413,228 @@
       "baseline": "Nexus 9000 NX-OS 9.3(x)",
       "url": "https://www.cisco.com/c/en/us/td/docs/switches/datacenter/nexus9000/sw/93x/qos/configuration/guide/b-cisco-nexus-9000-nx-os-quality-of-service-configuration-guide-93x/b-cisco-nexus-9000-nx-os-quality-of-service-configuration-guide-93x_chapter_01100.html"
     },
+    "C-NXOS-HEALTH-NXOS-SHOW": {
+      "vendor": "Cisco",
+      "title": "Nexus 9000 NX-OS 9.3(x) show command reference",
+      "baseline": "Nexus 9000 NX-OS 9.3(x)",
+      "url": "https://www.cisco.com/c/en/us/td/docs/switches/datacenter/nexus9000/sw/93x/command/reference/show/b_N9K_Show_Commands_93x/b_N9K_Show_Commands_93x.pdf"
+    },
+    "C-NXOS-OVERLAY-NXOS-B": {
+      "vendor": "Cisco",
+      "title": "Nexus 9000 NX-OS: B Show Commands",
+      "baseline": "Nexus 9000 NX-OS 9.3(x)",
+      "url": "https://www.cisco.com/c/en/us/td/docs/switches/datacenter/nexus9000/sw/93x/command/reference/show/b_N9K_Show_Commands_93x/b_N9K_Show_Commands_93x_chapter_010.html"
+    },
+    "C-NXOS-OVERLAY-NXOS-BGP": {
+      "vendor": "Cisco",
+      "title": "Nexus 9000 NX-OS: Configuring Segment Routing",
+      "baseline": "Nexus 9000 NX-OS 9.3(x)",
+      "url": "https://www.cisco.com/c/en/us/td/docs/switches/datacenter/nexus9000/sw/93x/label-switching/b-cisco-nexus-9000-series-nx-os-label-switching-configuration-guide-93x/b-cisco-nexus-9000-series-nx-os-label-switching-configuration-guide-93x_chapter_01000.html"
+    },
+    "C-NXOS-OVERLAY-NXOS-L": {
+      "vendor": "Cisco",
+      "title": "Nexus 9000 NX-OS: L Show Commands",
+      "baseline": "Nexus 9000 NX-OS 9.3(x)",
+      "url": "https://www.cisco.com/c/en/us/td/docs/switches/datacenter/nexus9000/sw/93x/command/reference/show/b_N9K_Show_Commands_93x/b_N9K_Show_Commands_93x_chapter_01011.html"
+    },
+    "C-NXOS-OVERLAY-NXOS-VXLAN": {
+      "vendor": "Cisco",
+      "title": "Nexus 9000 NX-OS: Configure VXLAN BGP EVPN",
+      "baseline": "Nexus 9000 NX-OS 10.3(x)",
+      "url": "https://www.cisco.com/c/en/us/td/docs/dcn/nx-os/nexus9000/103x/configuration/vxlan/cisco-nexus-9000-series-nx-os-vxlan-configuration-guide-release-103x/m-configuring-vxlan-bbgp-evpn.html"
+    },
+    "C-NXOS-OVERLAY-NXOS-VXLANV6": {
+      "vendor": "Cisco",
+      "title": "Nexus 9000 NX-OS: Configure VXLAN with IPv6 in the Underlay",
+      "baseline": "Nexus 9000 NX-OS 9.3(x)",
+      "url": "https://www.cisco.com/c/en/us/td/docs/switches/datacenter/nexus9000/sw/93x/vxlan/configuration/guide/b-cisco-nexus-9000-series-nx-os-vxlan-configuration-guide-93x/b-cisco-nexus-9000-series-nx-os-vxlan-configuration-guide-93x_chapter_010011.html"
+    },
+    "C-NXOS-PROBES-NXOS-PROBES": {
+      "vendor": "Cisco",
+      "title": "NX-OS 9.3(x) Troubleshooting Tools and Methodology",
+      "baseline": "Nexus 9000 NX-OS 9.3(x)",
+      "url": "https://www.cisco.com/c/en/us/td/docs/switches/datacenter/nexus9000/sw/93x/troubleshooting/guide/b-cisco-nexus-9000-nx-os-troubleshooting-guide-93x/b-cisco-nexus-9000-nx-os-troubleshooting-guide-93x_chapter_010001.html"
+    },
+    "C-ROUTER-DIAGNOSTICS-IOS-MLS": {
+      "vendor": "Cisco",
+      "title": "Catalyst 2960-X QoS command reference",
+      "baseline": "Catalyst 2960-X IOS 15.2(6)E",
+      "url": "https://www.cisco.com/c/en/us/td/docs/switches/lan/catalyst2960x/software/15_2_6_e/command_reference/b_1526_2960x_cr/qos_commands.html"
+    },
+    "C-ROUTER-DIAGNOSTICS-IOS-NAT": {
+      "vendor": "Cisco",
+      "title": "IOS monitoring and maintaining NAT",
+      "baseline": "Cisco IOS 15.2S",
+      "url": "https://www.cisco.com/en/US/docs/ios-xml/ios/ipaddr_nat/configuration/15-2s/iadnat-monmain.html"
+    },
+    "C-ROUTER-DIAGNOSTICS-IOS-QOS": {
+      "vendor": "Cisco",
+      "title": "IOS modular QoS command reference",
+      "baseline": "Cisco IOS 15.x",
+      "url": "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/qos/command/qos-cr-book/qos-s4.html"
+    },
+    "C-ROUTER-DIAGNOSTICS-IOS-SA": {
+      "vendor": "Cisco",
+      "title": "IOS security command reference for IKE and IPsec",
+      "baseline": "Cisco IOS 15.x",
+      "url": "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/security/s1/sec-s1-cr-book/sec-cr-s3.html"
+    },
+    "C-ROUTER-DIAGNOSTICS-XE-NAT": {
+      "vendor": "Cisco",
+      "title": "Catalyst 8000 NAT troubleshooting and exhaustion example",
+      "baseline": "Cisco IOS XE on Catalyst 8000",
+      "url": "https://www.cisco.com/c/en/us/support/docs/ip/network-address-translation-nat/226027-troubleshoot-nat-on-cat8000-platforms.html"
+    },
+    "C-ROUTER-HEALTH-FHRP": {
+      "vendor": "Cisco",
+      "title": "Cisco IOS First Hop Redundancy Protocols Command Reference",
+      "baseline": "Cisco IOS 15.x",
+      "url": "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/ipapp_fhrp/command/fhp-cr-book.pdf"
+    },
+    "C-ROUTER-HEALTH-TRACK": {
+      "vendor": "Cisco",
+      "title": "Cisco IOS 15M&T Enhanced Object Tracking",
+      "baseline": "Cisco IOS 15.x",
+      "url": "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/ipapp/configuration/15-mt/iap-15-mt-book/iap-eot.pdf"
+    },
+    "C-ROUTER-PORTS-IOS-IFHW": {
+      "vendor": "Cisco",
+      "title": "Cisco IOS interface and hardware command reference",
+      "baseline": "IOS 15.x; IOSvL2 15.2 lab",
+      "url": "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/interface/command/ir-cr-book/ir-s5.html"
+    },
+    "C-ROUTER-ROUTING-BGP": {
+      "vendor": "Cisco",
+      "title": "IOS BGP command reference",
+      "baseline": "IOS 15.x; IOSv 15.9(3)M12 lab",
+      "url": "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/iproute_bgp/command/irg-cr-book/bgp-s1.html"
+    },
+    "C-ROUTER-ROUTING-BGPV6": {
+      "vendor": "Cisco",
+      "title": "IOS IPv6 BGP reference",
+      "baseline": "IOS 15.x; IOSv 15.9(3)M12 lab",
+      "url": "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/ipv6/command/ipv6-cr-book/ipv6-s1.html"
+    },
+    "C-ROUTER-ROUTING-CEF": {
+      "vendor": "Cisco",
+      "title": "IOS CEF and adjacency command reference",
+      "baseline": "IOS 15.x; IOSv 15.9(3)M12 lab",
+      "url": "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/ipswitch/command/isw-cr-book/isw-s1.html"
+    },
+    "C-ROUTER-ROUTING-IP": {
+      "vendor": "Cisco",
+      "title": "IOS IP addressing reference",
+      "baseline": "IOS 15.x; IOSv 15.9(3)M12 lab",
+      "url": "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/ipaddr/command/ipaddr-cr-book/ipaddr-r1.html"
+    },
+    "C-ROUTER-ROUTING-IPV6-IF": {
+      "vendor": "Cisco",
+      "title": "IOS IPv6 interface reference",
+      "baseline": "IOS 15.x; IOSv 15.9(3)M12 lab",
+      "url": "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/ipv6/command/ipv6-cr-book/ipv6-s2.html"
+    },
+    "C-ROUTER-ROUTING-IPV6-RIB": {
+      "vendor": "Cisco",
+      "title": "IOS IPv6 RIB reference",
+      "baseline": "IOS 15.x; IOSv 15.9(3)M12 lab",
+      "url": "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/ipv6/command/ipv6-cr-book/ipv6-s5.html"
+    },
+    "C-ROUTER-ROUTING-OSPF": {
+      "vendor": "Cisco",
+      "title": "IOS OSPF command reference",
+      "baseline": "IOS 15.x; IOSv 15.9(3)M12 lab",
+      "url": "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/iproute_ospf/command/iro-cr-book/ospf-s1.html"
+    },
+    "C-ROUTER-ROUTING-OSPFV3": {
+      "vendor": "Cisco",
+      "title": "IOS OSPFv3 reference",
+      "baseline": "IOS 15.x; IOSv 15.9(3)M12 lab",
+      "url": "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/ipv6/command/ipv6-cr-book/ipv6-s4.html"
+    },
+    "C-ROUTER-ROUTING-ROUTING": {
+      "vendor": "Cisco",
+      "title": "IOS protocol-independent routing reference",
+      "baseline": "IOS 15.x; IOSv 15.9(3)M12 lab",
+      "url": "https://www.cisco.com/c/en/us/td/docs/ios/iproute_pi/command/reference/iri_book/iri_pi2.html"
+    },
+    "C-ROUTER-ROUTING-VRF": {
+      "vendor": "Cisco",
+      "title": "IOS show ip vrf reference",
+      "baseline": "IOS 15.x; IOSv 15.9(3)M12 lab",
+      "url": "https://www.cisco.com/c/en/us/td/docs/ios/qos/command/reference/qos_book/qos_s3.html"
+    },
+    "C-ROUTER-SECURITY-ACL": {
+      "vendor": "Cisco",
+      "title": "Cisco IOS ACL counters and IPv4/IPv6 examples",
+      "baseline": "Cisco IOS",
+      "url": "https://www.cisco.com/c/en/us/td/docs/switches/lan/catalyst2960/software/release/15-0_2_se/configuration/guide/scg2960/swv6acl.html"
+    },
+    "C-ROUTER-SECURITY-AUTH": {
+      "vendor": "Cisco",
+      "title": "Cisco IOS authentication session commands",
+      "baseline": "IOS 15.2(2)T and later",
+      "url": "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/security/s1/sec-s1-cr-book/sec-cr-s2.html"
+    },
+    "C-ROUTER-SECURITY-DHCP": {
+      "vendor": "Cisco",
+      "title": "Cisco IOS DHCP server verification",
+      "baseline": "IOS 15M&T",
+      "url": "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/ipaddr_dhcp/configuration/15-mt/dhcp-15-mt-book.pdf"
+    },
+    "C-ROUTER-SECURITY-DOT1X": {
+      "vendor": "Cisco",
+      "title": "Catalyst 2960-L 802.1X command reference",
+      "baseline": "Catalyst IOS 15.2(7)E",
+      "url": "https://www.cisco.com/c/en/us/td/docs/switches/lan/catalyst2960l/software/15-2_7_e/command_reference/b_1527_2960l_cr/security_commands.html"
+    },
+    "C-ROUTER-SECURITY-L2": {
+      "vendor": "Cisco",
+      "title": "Catalyst 3750-X and 3560-X IOS security and MAC commands",
+      "baseline": "Catalyst IOS 15.2(4)E",
+      "url": "https://www.cisco.com/c/en/us/td/docs/switches/lan/catalyst3750x_3560x/software/release/15-2_4_e/command/reference/CR_3750X/cli2.html"
+    },
+    "C-WIRELESS-CONTROLLER-AP-TAG": {
+      "vendor": "Cisco",
+      "title": "Catalyst 9800 AP Tag Detail",
+      "baseline": "Catalyst 9800 configuration model",
+      "url": "https://www.cisco.com/c/en/us/support/docs/wireless/catalyst-9800-series-wireless-controllers/213911-understand-catalyst-9800-wireless-contro.html"
+    },
+    "C-WIRELESS-CONTROLLER-CLIENT": {
+      "vendor": "Cisco",
+      "title": "Catalyst 9800 AP Configuration",
+      "baseline": "Catalyst 9800 IOS XE 17.15.x",
+      "url": "https://www.cisco.com/c/en/us/td/docs/wireless/controller/9800/17-15/config-guide/b_wl_17_15_cg/m_enabling_ap_console.html"
+    },
+    "C-WIRELESS-CONTROLLER-CMD": {
+      "vendor": "Cisco",
+      "title": "Catalyst 9800 Show Commands",
+      "baseline": "Catalyst 9800 Command Reference",
+      "url": "https://www.cisco.com/c/en/us/td/docs/wireless/controller/9800/command-reference/b_wireless_cr/show-commands.html"
+    },
+    "C-WIRELESS-CONTROLLER-HA": {
+      "vendor": "Cisco",
+      "title": "Catalyst 9800 HA SSO",
+      "baseline": "Catalyst 9800-CL IOS XE 17.9.2",
+      "url": "https://www.cisco.com/c/en/us/support/docs/wireless/catalyst-9800-series-wireless-controllers/220277-configure-high-availability-sso-on-catal.html"
+    },
+    "C-WIRELESS-CONTROLLER-MODEL": {
+      "vendor": "Cisco",
+      "title": "Catalyst 9800 Configuration Model",
+      "baseline": "Catalyst 9800 Configuration Guide",
+      "url": "https://www.cisco.com/c/en/us/td/docs/wireless/controller/9800/config-guide/newconfigmodel/b_catalyst-9800-configuration-model/m_validating_configuration.html"
+    },
+    "C-WIRELESS-CONTROLLER-POLICY": {
+      "vendor": "Cisco",
+      "title": "Catalyst 9800 Policy Profiles",
+      "baseline": "Catalyst 9800 IRCM Configuration Guide",
+      "url": "https://www.cisco.com/c/en/us/td/docs/wireless/controller/9800/config-guide/ConfiguringIRCM/b-configuring-inter-release-controller-mobility-in-wireless-deployments-supporting-aireos-and-catalyst-9800-controllers/m-troubleshooting-ircm-configuration.html"
+    },
+    "C-WIRELESS-CONTROLLER-ROGUE": {
+      "vendor": "Cisco",
+      "title": "Catalyst 9800 rogue AP and client location",
+      "baseline": "Catalyst 9800-L IOS XE 17.12.1",
+      "url": "https://www.cisco.com/c/en/us/support/docs/wireless/catalyst-9800-series-wireless-controllers/221688-identify-and-locate-a-rogue-ap-client-on.html"
+    },
     "C-XE-1714-POE": {
       "vendor": "Cisco",
       "title": "Catalyst 9300 IOS XE Power over Ethernet",
@@ -773,6 +665,114 @@
       "baseline": "Catalyst IOS-XE 17.6.x",
       "url": "https://www.cisco.com/c/en/us/td/docs/switches/lan/catalyst9300/software/release/17-6/command_reference/b_176_9300_cr/layer_2_3_commands.html"
     },
+    "C-XE-DIAGNOSTICS-XE-FED": {
+      "vendor": "Cisco",
+      "title": "Catalyst 9300 hardware QoS command reference",
+      "baseline": "Catalyst 9300 IOS XE 17.15.x",
+      "url": "https://www.cisco.com/c/en/us/td/docs/switches/lan/catalyst9300/software/release/17-15/command_reference/b_1715_9300_cr/qos_commands.html"
+    },
+    "C-XE-DIAGNOSTICS-XE-FED-AVB": {
+      "vendor": "Cisco",
+      "title": "Catalyst 9300 AVB hardware QoS examples",
+      "baseline": "Catalyst 9300 IOS XE 17.12.x",
+      "url": "https://www.cisco.com/c/en/us/td/docs/switches/lan/catalyst9300/software/release/17-12/configuration_guide/lyr2/b_1712_lyr2_9300_cg/audio_video_bridging.html"
+    },
+    "C-XE-DIAGNOSTICS-XE-IKEV1": {
+      "vendor": "Cisco",
+      "title": "IOS XE DMVPN verification",
+      "baseline": "IOS XE 17.x",
+      "url": "https://www.cisco.com/c/en/us/td/docs/routers/ios/config/17-x/sec-vpn/b-security-vpn/m_sec-conn-dmvpn-dmvpn-0.html"
+    },
+    "C-XE-DIAGNOSTICS-XE-IKEV2": {
+      "vendor": "Cisco",
+      "title": "IOS XE IKEv2 HSRP verification",
+      "baseline": "Cisco IOS XE",
+      "url": "https://www.cisco.com/c/en/us/support/docs/ip/hot-standby-router-protocol-hsrp/222200-configure-ipsec-redundancy-with-hsrp-for.html"
+    },
+    "C-XE-DIAGNOSTICS-XE-IPSEC": {
+      "vendor": "Cisco",
+      "title": "IOS XE GRE over IPsec verification",
+      "baseline": "IOS XE 17.x",
+      "url": "https://www.cisco.com/c/en/us/td/docs/routers/sdwan/configuration/security/ios-xe-17/security-book-xe/m-gre-over-ipsec-tunnels.html"
+    },
+    "C-XE-DIAGNOSTICS-XE-POLICING": {
+      "vendor": "Cisco",
+      "title": "IOS XE QoS packet policing",
+      "baseline": "IOS XE 17.x",
+      "url": "https://www.cisco.com/c/en/us/td/docs/routers/ios/config/17-x/qos/b-quality-of-service/m_qos-policing.html"
+    },
+    "C-XE-HEALTH-HSRP": {
+      "vendor": "Cisco",
+      "title": "IOS XE 17.x HSRP guide",
+      "baseline": "Cisco IOS XE 17.x",
+      "url": "https://www.cisco.com/c/en/us/td/docs/routers/ios/config/17-x/ntw-servs/b-network-services/m_fhp-hsrp-0.html"
+    },
+    "C-XE-HEALTH-SLA": {
+      "vendor": "Cisco",
+      "title": "Cisco IOS IP SLAs show commands reference",
+      "baseline": "Cisco IOS 15.x and IOS XE 17.x",
+      "url": "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/ipsla/command/sla-cr-book/sla_s1.html"
+    },
+    "C-XE-HEALTH-TRACK": {
+      "vendor": "Cisco",
+      "title": "IOS XE Enhanced Object Tracking guide",
+      "baseline": "Cisco IOS XE 17.x",
+      "url": "https://www.cisco.com/c/en/us/td/docs/routers/ios-xe/ip-addressing/ip-addressing/m_iap-eot-xe.html"
+    },
+    "C-XE-HEALTH-VRRP": {
+      "vendor": "Cisco",
+      "title": "IOS XE 17.x VRRP guide",
+      "baseline": "Cisco IOS XE 17.x",
+      "url": "https://www.cisco.com/c/en/us/td/docs/routers/ios/config/17-x/ntw-servs/b-network-services/m_fhp-vrrp-0.html"
+    },
+    "C-XE-SECURITY-ACCESS": {
+      "vendor": "Cisco",
+      "title": "IOS XE 17.18 access sessions and 802.1X",
+      "baseline": "Catalyst 9300 IOS XE 17.18.x",
+      "url": "https://www.cisco.com/c/en/us/td/docs/switches/lan/catalyst9300/software/release/17-18/command_reference/b_1718_9300_cr/security_commands.html"
+    },
+    "C-XE-SECURITY-ACL4": {
+      "vendor": "Cisco",
+      "title": "IOS XE 17 IPv4 ACLs and interface attachment",
+      "baseline": "IOS XE 17.x",
+      "url": "https://www.cisco.com/c/en/us/td/docs/switches/lan/c9000/security/acls/acls-configuration-guide/access-control-lists.html"
+    },
+    "C-XE-SECURITY-ACL6": {
+      "vendor": "Cisco",
+      "title": "IOS XE 17 IPv6 ACLs",
+      "baseline": "IOS XE 17.x",
+      "url": "https://www.cisco.com/c/en/us/td/docs/routers/ios/config/17-x/sec-vpn/b-security-vpn/m_ip6-acls-xe.html"
+    },
+    "C-XE-SECURITY-DAI": {
+      "vendor": "Cisco",
+      "title": "IOS XE 17.18 dynamic ARP inspection",
+      "baseline": "Catalyst 9200 IOS XE 17.18.x",
+      "url": "https://www.cisco.com/c/en/us/td/docs/switches/lan/catalyst9200/software/release/17-18/configuration_guide/sec/b_1718_sec_9200_cg.pdf"
+    },
+    "C-XE-SECURITY-DHCP": {
+      "vendor": "Cisco",
+      "title": "IOS XE 17 DHCP server verification",
+      "baseline": "IOS XE 17.x",
+      "url": "https://www.cisco.com/c/en/us/td/docs/routers/ios/config/17-x/ip-addressing/b-ip-addressing/m_config-dhcp-server-xe.html"
+    },
+    "C-XE-SECURITY-IPSG": {
+      "vendor": "Cisco",
+      "title": "IOS XE 17.18 IP Source Guard",
+      "baseline": "Catalyst 9300 IOS XE 17.18.x",
+      "url": "https://www.cisco.com/c/en/us/td/docs/switches/lan/catalyst9300/software/release/17-18/configuration_guide/sec/b_1718_sec_9300_cg/configuring_ip_source_guard.html"
+    },
+    "C-XE-SECURITY-MAC": {
+      "vendor": "Cisco",
+      "title": "IOS XE 17 MAC forwarding and port security",
+      "baseline": "Catalyst 9000 IOS XE 17.18.1",
+      "url": "https://www.cisco.com/c/en/us/td/docs/switches/lan/c9000/lyr2-fwd/cdp-lldp-mac-udld/cdp-lldp-mac-udld-configuration-guide/c-configure-mac.html"
+    },
+    "C-XE-SECURITY-SNOOP": {
+      "vendor": "Cisco",
+      "title": "IOS XE 17 DHCP snooping",
+      "baseline": "IOS XE 17.x",
+      "url": "https://www.cisco.com/c/en/us/td/docs/switches/lan/c9000/sec-crypto/fhs-sisf/fhs-and-sisf-configuration-guide/dhcp-snooping.html"
+    },
     "E-CPU": {
       "vendor": "Extreme Networks",
       "title": "Switch Engine v33.7.1 Command References: show cpu-monitoring",
@@ -796,72 +796,6 @@
       "title": "Switch Engine v33.7.1 Command References: show fdb",
       "baseline": "Switch Engine 33.7.1",
       "url": "https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_fdb.shtml"
-    },
-    "E-G37-BFD": {
-      "vendor": "Extreme Networks",
-      "title": "Switch Engine v33.7.1 Command References: show bfd session vr all",
-      "baseline": "Switch Engine 33.7.1",
-      "url": "https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_bfd_session_vr_all.shtml"
-    },
-    "E-G37-BGP-NEIGHBOR": {
-      "vendor": "Extreme Networks",
-      "title": "Switch Engine v33.7.1 Command References: show bgp neighbor",
-      "baseline": "Switch Engine 33.7.1",
-      "url": "https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_bgp_neighbor.shtml"
-    },
-    "E-G37-BGP-ROUTES": {
-      "vendor": "Extreme Networks",
-      "title": "Switch Engine v33.7.1 Command References: show bgp routes",
-      "baseline": "Switch Engine 33.7.1",
-      "url": "https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_bgp_routes.shtml"
-    },
-    "E-G37-OSPF-INTERFACES": {
-      "vendor": "Extreme Networks",
-      "title": "Switch Engine v33.7.1 Command References: show ospf interfaces",
-      "baseline": "Switch Engine 33.7.1",
-      "url": "https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_ospf_interfaces.shtml"
-    },
-    "E-G37-OSPF-LSDB": {
-      "vendor": "Extreme Networks",
-      "title": "Switch Engine v33.7.1 Command References: show ospf lsdb",
-      "baseline": "Switch Engine 33.7.1",
-      "url": "https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_ospf_lsdb.shtml"
-    },
-    "E-G37-OSPF-NEIGHBOR": {
-      "vendor": "Extreme Networks",
-      "title": "Switch Engine v33.7.1 Command References: show ospf neighbor",
-      "baseline": "Switch Engine 33.7.1",
-      "url": "https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_ospf_neighbor.shtml"
-    },
-    "E-G37-OSPFV3-INTERFACES": {
-      "vendor": "Extreme Networks",
-      "title": "Switch Engine v33.7.1 Command References: show ospfv3 interfaces",
-      "baseline": "Switch Engine 33.7.1",
-      "url": "https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_ospfv3_interfaces.shtml"
-    },
-    "E-G37-OSPFV3-NEIGHBOR": {
-      "vendor": "Extreme Networks",
-      "title": "Switch Engine v33.7.1 Command References: show ospfv3 neighbor",
-      "baseline": "Switch Engine 33.7.1",
-      "url": "https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_ospfv3_neighbor.shtml"
-    },
-    "E-G37-PING": {
-      "vendor": "Extreme Networks",
-      "title": "Switch Engine v33.7.1 Command References: ping",
-      "baseline": "Switch Engine 33.7.1",
-      "url": "https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/ping.shtml"
-    },
-    "E-G37-TRACE": {
-      "vendor": "Extreme Networks",
-      "title": "Switch Engine v33.7.1 Command References: traceroute",
-      "baseline": "Switch Engine 33.7.1",
-      "url": "https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/traceroute.shtml"
-    },
-    "E-G37-VRRP": {
-      "vendor": "Extreme Networks",
-      "title": "Switch Engine v33.7.1 Command References: show vrrp",
-      "baseline": "Switch Engine 33.7.1",
-      "url": "https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_vrrp.shtml"
     },
     "E-INDEX": {
       "vendor": "Extreme Networks",
@@ -982,6 +916,72 @@
       "title": "Switch Engine v33.7.1 Command References: show switch",
       "baseline": "Switch Engine 33.7.1",
       "url": "https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_switch.shtml"
+    },
+    "E-SWITCH-ROUTING-BFD": {
+      "vendor": "Extreme Networks",
+      "title": "Switch Engine v33.7.1 Command References: show bfd session vr all",
+      "baseline": "Switch Engine 33.7.1",
+      "url": "https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_bfd_session_vr_all.shtml"
+    },
+    "E-SWITCH-ROUTING-BGP-NEIGHBOR": {
+      "vendor": "Extreme Networks",
+      "title": "Switch Engine v33.7.1 Command References: show bgp neighbor",
+      "baseline": "Switch Engine 33.7.1",
+      "url": "https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_bgp_neighbor.shtml"
+    },
+    "E-SWITCH-ROUTING-BGP-ROUTES": {
+      "vendor": "Extreme Networks",
+      "title": "Switch Engine v33.7.1 Command References: show bgp routes",
+      "baseline": "Switch Engine 33.7.1",
+      "url": "https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_bgp_routes.shtml"
+    },
+    "E-SWITCH-ROUTING-OSPF-INTERFACES": {
+      "vendor": "Extreme Networks",
+      "title": "Switch Engine v33.7.1 Command References: show ospf interfaces",
+      "baseline": "Switch Engine 33.7.1",
+      "url": "https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_ospf_interfaces.shtml"
+    },
+    "E-SWITCH-ROUTING-OSPF-LSDB": {
+      "vendor": "Extreme Networks",
+      "title": "Switch Engine v33.7.1 Command References: show ospf lsdb",
+      "baseline": "Switch Engine 33.7.1",
+      "url": "https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_ospf_lsdb.shtml"
+    },
+    "E-SWITCH-ROUTING-OSPF-NEIGHBOR": {
+      "vendor": "Extreme Networks",
+      "title": "Switch Engine v33.7.1 Command References: show ospf neighbor",
+      "baseline": "Switch Engine 33.7.1",
+      "url": "https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_ospf_neighbor.shtml"
+    },
+    "E-SWITCH-ROUTING-OSPFV3-INTERFACES": {
+      "vendor": "Extreme Networks",
+      "title": "Switch Engine v33.7.1 Command References: show ospfv3 interfaces",
+      "baseline": "Switch Engine 33.7.1",
+      "url": "https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_ospfv3_interfaces.shtml"
+    },
+    "E-SWITCH-ROUTING-OSPFV3-NEIGHBOR": {
+      "vendor": "Extreme Networks",
+      "title": "Switch Engine v33.7.1 Command References: show ospfv3 neighbor",
+      "baseline": "Switch Engine 33.7.1",
+      "url": "https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_ospfv3_neighbor.shtml"
+    },
+    "E-SWITCH-ROUTING-PING": {
+      "vendor": "Extreme Networks",
+      "title": "Switch Engine v33.7.1 Command References: ping",
+      "baseline": "Switch Engine 33.7.1",
+      "url": "https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/ping.shtml"
+    },
+    "E-SWITCH-ROUTING-TRACE": {
+      "vendor": "Extreme Networks",
+      "title": "Switch Engine v33.7.1 Command References: traceroute",
+      "baseline": "Switch Engine 33.7.1",
+      "url": "https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/traceroute.shtml"
+    },
+    "E-SWITCH-ROUTING-VRRP": {
+      "vendor": "Extreme Networks",
+      "title": "Switch Engine v33.7.1 Command References: show vrrp",
+      "baseline": "Switch Engine 33.7.1",
+      "url": "https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_vrrp.shtml"
     },
     "E-TEMPERATURE": {
       "vendor": "Extreme Networks",
@@ -3065,7 +3065,7 @@
       "query": "adjacency_details",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G51-CEF"
+        "C-ROUTER-ROUTING-CEF"
       ]
     },
     "cisco_ios/arp_inspection_statistics": {
@@ -3073,7 +3073,7 @@
       "query": "arp_inspection_statistics",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G55-L2"
+        "C-ROUTER-SECURITY-L2"
       ]
     },
     "cisco_ios/arp_lookup": {
@@ -3081,7 +3081,7 @@
       "query": "arp_lookup",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G51-IP"
+        "C-ROUTER-ROUTING-IP"
       ]
     },
     "cisco_ios/arp_lookup_vrf": {
@@ -3089,7 +3089,7 @@
       "query": "arp_lookup_vrf",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G51-IP"
+        "C-ROUTER-ROUTING-IP"
       ]
     },
     "cisco_ios/arp_table": {
@@ -3106,7 +3106,7 @@
       "query": "arp_table_vrf",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G51-IP"
+        "C-ROUTER-ROUTING-IP"
       ]
     },
     "cisco_ios/authentication_sessions_interface": {
@@ -3114,7 +3114,7 @@
       "query": "authentication_sessions_interface",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G55-AUTH"
+        "C-ROUTER-SECURITY-AUTH"
       ]
     },
     "cisco_ios/bfd_neighbors": {
@@ -3122,7 +3122,7 @@
       "query": "bfd_neighbors",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G51-ROUTING"
+        "C-ROUTER-ROUTING-ROUTING"
       ]
     },
     "cisco_ios/bgp_advertised_routes": {
@@ -3130,7 +3130,7 @@
       "query": "bgp_advertised_routes",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G51-BGP"
+        "C-ROUTER-ROUTING-BGP"
       ]
     },
     "cisco_ios/bgp_ipv6_summary": {
@@ -3138,7 +3138,7 @@
       "query": "bgp_ipv6_summary",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G51-BGPV6"
+        "C-ROUTER-ROUTING-BGPV6"
       ]
     },
     "cisco_ios/bgp_neighbor": {
@@ -3146,7 +3146,7 @@
       "query": "bgp_neighbor",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G51-BGP"
+        "C-ROUTER-ROUTING-BGP"
       ]
     },
     "cisco_ios/bgp_prefix": {
@@ -3154,7 +3154,7 @@
       "query": "bgp_prefix",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G51-BGP"
+        "C-ROUTER-ROUTING-BGP"
       ]
     },
     "cisco_ios/bgp_routes": {
@@ -3162,7 +3162,7 @@
       "query": "bgp_routes",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G51-BGP"
+        "C-ROUTER-ROUTING-BGP"
       ]
     },
     "cisco_ios/bgp_summary": {
@@ -3196,7 +3196,7 @@
       "query": "cef_lookup",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G51-CEF"
+        "C-ROUTER-ROUTING-CEF"
       ]
     },
     "cisco_ios/clock": {
@@ -3222,7 +3222,7 @@
       "query": "dhcp_server_binding_address",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G55-DHCP"
+        "C-ROUTER-SECURITY-DHCP"
       ]
     },
     "cisco_ios/dhcp_server_bindings": {
@@ -3230,7 +3230,7 @@
       "query": "dhcp_server_bindings",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G55-DHCP"
+        "C-ROUTER-SECURITY-DHCP"
       ]
     },
     "cisco_ios/dhcp_server_conflicts": {
@@ -3238,7 +3238,7 @@
       "query": "dhcp_server_conflicts",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G55-DHCP"
+        "C-ROUTER-SECURITY-DHCP"
       ]
     },
     "cisco_ios/dhcp_server_pools": {
@@ -3246,7 +3246,7 @@
       "query": "dhcp_server_pools",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G55-DHCP"
+        "C-ROUTER-SECURITY-DHCP"
       ]
     },
     "cisco_ios/dhcp_server_statistics": {
@@ -3254,7 +3254,7 @@
       "query": "dhcp_server_statistics",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G55-DHCP"
+        "C-ROUTER-SECURITY-DHCP"
       ]
     },
     "cisco_ios/dhcp_snooping_binding": {
@@ -3262,7 +3262,7 @@
       "query": "dhcp_snooping_binding",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G55-L2"
+        "C-ROUTER-SECURITY-L2"
       ]
     },
     "cisco_ios/dhcp_snooping_statistics": {
@@ -3270,7 +3270,7 @@
       "query": "dhcp_snooping_statistics",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G55-L2"
+        "C-ROUTER-SECURITY-L2"
       ]
     },
     "cisco_ios/dhcp_snooping_status": {
@@ -3278,7 +3278,7 @@
       "query": "dhcp_snooping_status",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G55-L2"
+        "C-ROUTER-SECURITY-L2"
       ]
     },
     "cisco_ios/dns_hosts": {
@@ -3294,7 +3294,7 @@
       "query": "dot1x_interface",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G55-DOT1X"
+        "C-ROUTER-SECURITY-DOT1X"
       ]
     },
     "cisco_ios/environment": {
@@ -3344,7 +3344,7 @@
       "query": "hsrp_detail",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G54-FHRP"
+        "C-ROUTER-HEALTH-FHRP"
       ]
     },
     "cisco_ios/hsrp_summary": {
@@ -3360,7 +3360,7 @@
       "query": "ikev1_sa",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G57-IOS-SA"
+        "C-ROUTER-DIAGNOSTICS-IOS-SA"
       ]
     },
     "cisco_ios/ikev2_sa": {
@@ -3368,7 +3368,7 @@
       "query": "ikev2_sa",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G57-IOS-SA"
+        "C-ROUTER-DIAGNOSTICS-IOS-SA"
       ]
     },
     "cisco_ios/interface_details": {
@@ -3468,7 +3468,7 @@
       "query": "ip_interface_details",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G51-IP"
+        "C-ROUTER-ROUTING-IP"
       ]
     },
     "cisco_ios/ip_interfaces": {
@@ -3486,7 +3486,7 @@
       "query": "ip_policy",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G51-ROUTING"
+        "C-ROUTER-ROUTING-ROUTING"
       ]
     },
     "cisco_ios/ip_protocols": {
@@ -3494,7 +3494,7 @@
       "query": "ip_protocols",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G51-ROUTING"
+        "C-ROUTER-ROUTING-ROUTING"
       ]
     },
     "cisco_ios/ip_sla_statistics": {
@@ -3502,7 +3502,7 @@
       "query": "ip_sla_statistics",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G72-SLA"
+        "C-XE-HEALTH-SLA"
       ]
     },
     "cisco_ios/ip_source_guard": {
@@ -3510,7 +3510,7 @@
       "query": "ip_source_guard",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G55-L2"
+        "C-ROUTER-SECURITY-L2"
       ]
     },
     "cisco_ios/ipsec_sa": {
@@ -3518,7 +3518,7 @@
       "query": "ipsec_sa",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G57-IOS-SA"
+        "C-ROUTER-DIAGNOSTICS-IOS-SA"
       ]
     },
     "cisco_ios/ipv4_access_lists": {
@@ -3526,8 +3526,8 @@
       "query": "ipv4_access_lists",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G55-ACL",
-        "C-G55-L2"
+        "C-ROUTER-SECURITY-ACL",
+        "C-ROUTER-SECURITY-L2"
       ]
     },
     "cisco_ios/ipv6_access_lists": {
@@ -3535,7 +3535,7 @@
       "query": "ipv6_access_lists",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G55-ACL"
+        "C-ROUTER-SECURITY-ACL"
       ]
     },
     "cisco_ios/ipv6_interface_details": {
@@ -3543,7 +3543,7 @@
       "query": "ipv6_interface_details",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G51-IPV6-IF"
+        "C-ROUTER-ROUTING-IPV6-IF"
       ]
     },
     "cisco_ios/ipv6_interfaces": {
@@ -3570,7 +3570,7 @@
       "query": "ipv6_neighbors_interface",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G51-IPV6-IF"
+        "C-ROUTER-ROUTING-IPV6-IF"
       ]
     },
     "cisco_ios/ipv6_neighbors_interface_vrf": {
@@ -3578,7 +3578,7 @@
       "query": "ipv6_neighbors_interface_vrf",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G51-IPV6-IF"
+        "C-ROUTER-ROUTING-IPV6-IF"
       ]
     },
     "cisco_ios/ipv6_neighbors_vrf": {
@@ -3586,7 +3586,7 @@
       "query": "ipv6_neighbors_vrf",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G51-IPV6-IF"
+        "C-ROUTER-ROUTING-IPV6-IF"
       ]
     },
     "cisco_ios/ipv6_route_lookup": {
@@ -3603,7 +3603,7 @@
       "query": "ipv6_route_table",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G51-IPV6-RIB"
+        "C-ROUTER-ROUTING-IPV6-RIB"
       ]
     },
     "cisco_ios/lacp_internal": {
@@ -3612,7 +3612,7 @@
       "source_type": "official_vendor",
       "source_ids": [
         "C-FFD149196371",
-        "C-G53-IOS-IFHW"
+        "C-ROUTER-PORTS-IOS-IFHW"
       ]
     },
     "cisco_ios/lacp_neighbors": {
@@ -3689,7 +3689,7 @@
       "query": "mac_table_address",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G55-L2"
+        "C-ROUTER-SECURITY-L2"
       ]
     },
     "cisco_ios/mac_table_interface": {
@@ -3697,7 +3697,7 @@
       "query": "mac_table_interface",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G55-L2"
+        "C-ROUTER-SECURITY-L2"
       ]
     },
     "cisco_ios/mac_table_vlan": {
@@ -3705,7 +3705,7 @@
       "query": "mac_table_vlan",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G55-L2"
+        "C-ROUTER-SECURITY-L2"
       ]
     },
     "cisco_ios/memory": {
@@ -3721,7 +3721,7 @@
       "query": "nat_statistics",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G57-IOS-NAT"
+        "C-ROUTER-DIAGNOSTICS-IOS-NAT"
       ]
     },
     "cisco_ios/nat_translations": {
@@ -3729,7 +3729,7 @@
       "query": "nat_translations",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G57-IOS-NAT"
+        "C-ROUTER-DIAGNOSTICS-IOS-NAT"
       ]
     },
     "cisco_ios/ntp_associations": {
@@ -3753,7 +3753,7 @@
       "query": "object_tracking",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G54-TRACK"
+        "C-ROUTER-HEALTH-TRACK"
       ]
     },
     "cisco_ios/ospf_database": {
@@ -3761,7 +3761,7 @@
       "query": "ospf_database",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G51-OSPF"
+        "C-ROUTER-ROUTING-OSPF"
       ]
     },
     "cisco_ios/ospf_interface": {
@@ -3769,7 +3769,7 @@
       "query": "ospf_interface",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G51-OSPF"
+        "C-ROUTER-ROUTING-OSPF"
       ]
     },
     "cisco_ios/ospf_interfaces": {
@@ -3785,7 +3785,7 @@
       "query": "ospf_neighbor_detail",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G51-OSPF"
+        "C-ROUTER-ROUTING-OSPF"
       ]
     },
     "cisco_ios/ospf_neighbors": {
@@ -3801,7 +3801,7 @@
       "query": "ospfv3_neighbors",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G51-OSPFV3"
+        "C-ROUTER-ROUTING-OSPFV3"
       ]
     },
     "cisco_ios/ping": {
@@ -3857,7 +3857,7 @@
       "query": "port_security_addresses",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G55-L2"
+        "C-ROUTER-SECURITY-L2"
       ]
     },
     "cisco_ios/port_security_interface": {
@@ -3865,7 +3865,7 @@
       "query": "port_security_interface",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G55-L2"
+        "C-ROUTER-SECURITY-L2"
       ]
     },
     "cisco_ios/power_inline": {
@@ -3881,7 +3881,7 @@
       "query": "power_inline_detail",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G53-IOS-IFHW"
+        "C-ROUTER-PORTS-IOS-IFHW"
       ]
     },
     "cisco_ios/qos_policy": {
@@ -3889,7 +3889,7 @@
       "query": "qos_policy",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G57-IOS-QOS"
+        "C-ROUTER-DIAGNOSTICS-IOS-QOS"
       ]
     },
     "cisco_ios/qos_queues": {
@@ -3897,7 +3897,7 @@
       "query": "qos_queues",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G57-IOS-MLS"
+        "C-ROUTER-DIAGNOSTICS-IOS-MLS"
       ]
     },
     "cisco_ios/radius_statistics": {
@@ -3922,7 +3922,7 @@
       "query": "route_maps",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G51-ROUTING"
+        "C-ROUTER-ROUTING-ROUTING"
       ]
     },
     "cisco_ios/route_summary": {
@@ -4127,7 +4127,7 @@
       "query": "vrf_arp_table",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G51-IP"
+        "C-ROUTER-ROUTING-IP"
       ]
     },
     "cisco_ios/vrf_cef_lookup": {
@@ -4135,7 +4135,7 @@
       "query": "vrf_cef_lookup",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G51-CEF"
+        "C-ROUTER-ROUTING-CEF"
       ]
     },
     "cisco_ios/vrf_ip_interfaces": {
@@ -4143,7 +4143,7 @@
       "query": "vrf_ip_interfaces",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G51-VRF"
+        "C-ROUTER-ROUTING-VRF"
       ]
     },
     "cisco_ios/vrf_route_lookup": {
@@ -4151,7 +4151,7 @@
       "query": "vrf_route_lookup",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G51-ROUTING"
+        "C-ROUTER-ROUTING-ROUTING"
       ]
     },
     "cisco_ios/vrfs": {
@@ -4159,7 +4159,7 @@
       "query": "vrfs",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G51-VRF"
+        "C-ROUTER-ROUTING-VRF"
       ]
     },
     "cisco_ios/vrrp_detail": {
@@ -4167,7 +4167,7 @@
       "query": "vrrp_detail",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G54-FHRP"
+        "C-ROUTER-HEALTH-FHRP"
       ]
     },
     "cisco_ios/vrrp_summary": {
@@ -4459,8 +4459,8 @@
       "query": "evpn_bgp_prefix",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G97-NXOS-BGP",
-        "C-G97-NXOS-B"
+        "C-NXOS-OVERLAY-NXOS-BGP",
+        "C-NXOS-OVERLAY-NXOS-B"
       ]
     },
     "cisco_nxos/evpn_bgp_summary": {
@@ -4468,7 +4468,7 @@
       "query": "evpn_bgp_summary",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G97-NXOS-BGP"
+        "C-NXOS-OVERLAY-NXOS-BGP"
       ]
     },
     "cisco_nxos/evpn_mac_ip": {
@@ -4476,8 +4476,8 @@
       "query": "evpn_mac_ip",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G97-NXOS-L",
-        "C-G97-NXOS-VXLAN"
+        "C-NXOS-OVERLAY-NXOS-L",
+        "C-NXOS-OVERLAY-NXOS-VXLAN"
       ]
     },
     "cisco_nxos/features": {
@@ -4509,7 +4509,7 @@
       "query": "hsrp_detail",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G93-NXOS-SHOW"
+        "C-NXOS-HEALTH-NXOS-SHOW"
       ]
     },
     "cisco_nxos/hsrp_summary": {
@@ -4816,7 +4816,7 @@
       "query": "log_history",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G93-NXOS-SHOW"
+        "C-NXOS-HEALTH-NXOS-SHOW"
       ]
     },
     "cisco_nxos/log_messages": {
@@ -4832,7 +4832,7 @@
       "query": "logging_info",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G93-NXOS-SHOW"
+        "C-NXOS-HEALTH-NXOS-SHOW"
       ]
     },
     "cisco_nxos/mac_access_lists": {
@@ -4914,8 +4914,8 @@
       "query": "nve_interface_detail",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G97-NXOS-VXLAN",
-        "C-G97-NXOS-VXLANV6"
+        "C-NXOS-OVERLAY-NXOS-VXLAN",
+        "C-NXOS-OVERLAY-NXOS-VXLANV6"
       ]
     },
     "cisco_nxos/nve_peers": {
@@ -4923,8 +4923,8 @@
       "query": "nve_peers",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G97-NXOS-VXLAN",
-        "C-G97-NXOS-VXLANV6"
+        "C-NXOS-OVERLAY-NXOS-VXLAN",
+        "C-NXOS-OVERLAY-NXOS-VXLANV6"
       ]
     },
     "cisco_nxos/nve_vni": {
@@ -4932,7 +4932,7 @@
       "query": "nve_vni",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G97-NXOS-VXLAN"
+        "C-NXOS-OVERLAY-NXOS-VXLAN"
       ]
     },
     "cisco_nxos/object_tracking": {
@@ -4940,7 +4940,7 @@
       "query": "object_tracking",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G93-NXOS-SHOW"
+        "C-NXOS-HEALTH-NXOS-SHOW"
       ]
     },
     "cisco_nxos/ospf_database": {
@@ -5028,7 +5028,7 @@
       "query": "ping",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G91-NXOS-PROBES"
+        "C-NXOS-PROBES-NXOS-PROBES"
       ]
     },
     "cisco_nxos/ping6": {
@@ -5036,7 +5036,7 @@
       "query": "ping6",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G91-NXOS-PROBES"
+        "C-NXOS-PROBES-NXOS-PROBES"
       ]
     },
     "cisco_nxos/ping6_source": {
@@ -5044,7 +5044,7 @@
       "query": "ping6_source",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G91-NXOS-PROBES"
+        "C-NXOS-PROBES-NXOS-PROBES"
       ]
     },
     "cisco_nxos/ping_source": {
@@ -5052,7 +5052,7 @@
       "query": "ping_source",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G91-NXOS-PROBES"
+        "C-NXOS-PROBES-NXOS-PROBES"
       ]
     },
     "cisco_nxos/port_channel_database": {
@@ -5084,7 +5084,7 @@
       "query": "processes_cpu",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G93-NXOS-SHOW"
+        "C-NXOS-HEALTH-NXOS-SHOW"
       ]
     },
     "cisco_nxos/qos_policy": {
@@ -5324,7 +5324,7 @@
       "query": "traceroute",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G91-NXOS-PROBES"
+        "C-NXOS-PROBES-NXOS-PROBES"
       ]
     },
     "cisco_nxos/traceroute6": {
@@ -5332,7 +5332,7 @@
       "query": "traceroute6",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G91-NXOS-PROBES"
+        "C-NXOS-PROBES-NXOS-PROBES"
       ]
     },
     "cisco_nxos/traceroute6_source": {
@@ -5340,7 +5340,7 @@
       "query": "traceroute6_source",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G91-NXOS-PROBES"
+        "C-NXOS-PROBES-NXOS-PROBES"
       ]
     },
     "cisco_nxos/traceroute_source": {
@@ -5348,7 +5348,7 @@
       "query": "traceroute_source",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G91-NXOS-PROBES"
+        "C-NXOS-PROBES-NXOS-PROBES"
       ]
     },
     "cisco_nxos/users": {
@@ -5457,7 +5457,7 @@
       "query": "vrrp_detail",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G93-NXOS-SHOW"
+        "C-NXOS-HEALTH-NXOS-SHOW"
       ]
     },
     "cisco_nxos/vrrp_summary": {
@@ -5473,7 +5473,7 @@
       "query": "vrrpv3_detail",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G93-NXOS-SHOW"
+        "C-NXOS-HEALTH-NXOS-SHOW"
       ]
     },
     "cisco_xe/aaa_servers": {
@@ -5489,7 +5489,7 @@
       "query": "adjacency_details",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G51-CEF"
+        "C-ROUTER-ROUTING-CEF"
       ]
     },
     "cisco_xe/arp_inspection_statistics": {
@@ -5497,7 +5497,7 @@
       "query": "arp_inspection_statistics",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G73-DAI"
+        "C-XE-SECURITY-DAI"
       ]
     },
     "cisco_xe/arp_lookup": {
@@ -5505,7 +5505,7 @@
       "query": "arp_lookup",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G51-IP"
+        "C-ROUTER-ROUTING-IP"
       ]
     },
     "cisco_xe/arp_lookup_vrf": {
@@ -5513,7 +5513,7 @@
       "query": "arp_lookup_vrf",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G51-IP"
+        "C-ROUTER-ROUTING-IP"
       ]
     },
     "cisco_xe/arp_table": {
@@ -5532,7 +5532,7 @@
       "query": "arp_table_vrf",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G51-IP"
+        "C-ROUTER-ROUTING-IP"
       ]
     },
     "cisco_xe/authentication_sessions_interface": {
@@ -5540,7 +5540,7 @@
       "query": "authentication_sessions_interface",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G73-ACCESS"
+        "C-XE-SECURITY-ACCESS"
       ]
     },
     "cisco_xe/bfd_neighbors": {
@@ -5548,7 +5548,7 @@
       "query": "bfd_neighbors",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G51-ROUTING"
+        "C-ROUTER-ROUTING-ROUTING"
       ]
     },
     "cisco_xe/bgp_advertised_routes": {
@@ -5556,7 +5556,7 @@
       "query": "bgp_advertised_routes",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G51-BGP"
+        "C-ROUTER-ROUTING-BGP"
       ]
     },
     "cisco_xe/bgp_ipv6_summary": {
@@ -5564,7 +5564,7 @@
       "query": "bgp_ipv6_summary",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G51-BGPV6"
+        "C-ROUTER-ROUTING-BGPV6"
       ]
     },
     "cisco_xe/bgp_neighbor": {
@@ -5572,7 +5572,7 @@
       "query": "bgp_neighbor",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G51-BGP"
+        "C-ROUTER-ROUTING-BGP"
       ]
     },
     "cisco_xe/bgp_prefix": {
@@ -5580,7 +5580,7 @@
       "query": "bgp_prefix",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G51-BGP"
+        "C-ROUTER-ROUTING-BGP"
       ]
     },
     "cisco_xe/bgp_routes": {
@@ -5588,7 +5588,7 @@
       "query": "bgp_routes",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G51-BGP"
+        "C-ROUTER-ROUTING-BGP"
       ]
     },
     "cisco_xe/bgp_summary": {
@@ -5607,7 +5607,7 @@
       "query": "c9800_ap_joins",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G87-CMD"
+        "C-WIRELESS-CONTROLLER-CMD"
       ]
     },
     "cisco_xe/c9800_ap_load": {
@@ -5615,7 +5615,7 @@
       "query": "c9800_ap_load",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G87-CMD"
+        "C-WIRELESS-CONTROLLER-CMD"
       ]
     },
     "cisco_xe/c9800_ap_tag_detail": {
@@ -5623,7 +5623,7 @@
       "query": "c9800_ap_tag_detail",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G87-AP-TAG"
+        "C-WIRELESS-CONTROLLER-AP-TAG"
       ]
     },
     "cisco_xe/c9800_ap_tags": {
@@ -5631,7 +5631,7 @@
       "query": "c9800_ap_tags",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G87-MODEL"
+        "C-WIRELESS-CONTROLLER-MODEL"
       ]
     },
     "cisco_xe/c9800_aps": {
@@ -5639,7 +5639,7 @@
       "query": "c9800_aps",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G87-CMD"
+        "C-WIRELESS-CONTROLLER-CMD"
       ]
     },
     "cisco_xe/c9800_chassis_rmi": {
@@ -5647,7 +5647,7 @@
       "query": "c9800_chassis_rmi",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G87-HA"
+        "C-WIRELESS-CONTROLLER-HA"
       ]
     },
     "cisco_xe/c9800_client_deletes": {
@@ -5655,7 +5655,7 @@
       "query": "c9800_client_deletes",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G87-CMD"
+        "C-WIRELESS-CONTROLLER-CMD"
       ]
     },
     "cisco_xe/c9800_client_detail": {
@@ -5663,7 +5663,7 @@
       "query": "c9800_client_detail",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G87-CLIENT"
+        "C-WIRELESS-CONTROLLER-CLIENT"
       ]
     },
     "cisco_xe/c9800_client_stats": {
@@ -5671,7 +5671,7 @@
       "query": "c9800_client_stats",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G87-CLIENT"
+        "C-WIRELESS-CONTROLLER-CLIENT"
       ]
     },
     "cisco_xe/c9800_clients": {
@@ -5679,7 +5679,7 @@
       "query": "c9800_clients",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G87-CMD"
+        "C-WIRELESS-CONTROLLER-CMD"
       ]
     },
     "cisco_xe/c9800_exclusions": {
@@ -5687,7 +5687,7 @@
       "query": "c9800_exclusions",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G87-CMD"
+        "C-WIRELESS-CONTROLLER-CMD"
       ]
     },
     "cisco_xe/c9800_policy_profiles": {
@@ -5695,7 +5695,7 @@
       "query": "c9800_policy_profiles",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G87-POLICY"
+        "C-WIRELESS-CONTROLLER-POLICY"
       ]
     },
     "cisco_xe/c9800_radio_24": {
@@ -5703,7 +5703,7 @@
       "query": "c9800_radio_24",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G87-CMD"
+        "C-WIRELESS-CONTROLLER-CMD"
       ]
     },
     "cisco_xe/c9800_radio_5": {
@@ -5711,7 +5711,7 @@
       "query": "c9800_radio_5",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G87-CMD"
+        "C-WIRELESS-CONTROLLER-CMD"
       ]
     },
     "cisco_xe/c9800_redundancy": {
@@ -5719,7 +5719,7 @@
       "query": "c9800_redundancy",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G87-HA"
+        "C-WIRELESS-CONTROLLER-HA"
       ]
     },
     "cisco_xe/c9800_rogue_aps": {
@@ -5727,7 +5727,7 @@
       "query": "c9800_rogue_aps",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G87-ROGUE"
+        "C-WIRELESS-CONTROLLER-ROGUE"
       ]
     },
     "cisco_xe/c9800_wlans": {
@@ -5735,7 +5735,7 @@
       "query": "c9800_wlans",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G87-MODEL"
+        "C-WIRELESS-CONTROLLER-MODEL"
       ]
     },
     "cisco_xe/cdp_neighbor_interface": {
@@ -5765,7 +5765,7 @@
       "query": "cef_lookup",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G51-CEF"
+        "C-ROUTER-ROUTING-CEF"
       ]
     },
     "cisco_xe/clock": {
@@ -5795,7 +5795,7 @@
       "query": "dhcp_server_binding_address",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G73-DHCP"
+        "C-XE-SECURITY-DHCP"
       ]
     },
     "cisco_xe/dhcp_server_bindings": {
@@ -5803,7 +5803,7 @@
       "query": "dhcp_server_bindings",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G73-DHCP"
+        "C-XE-SECURITY-DHCP"
       ]
     },
     "cisco_xe/dhcp_server_conflicts": {
@@ -5811,7 +5811,7 @@
       "query": "dhcp_server_conflicts",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G73-DHCP"
+        "C-XE-SECURITY-DHCP"
       ]
     },
     "cisco_xe/dhcp_server_pools": {
@@ -5819,7 +5819,7 @@
       "query": "dhcp_server_pools",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G73-DHCP"
+        "C-XE-SECURITY-DHCP"
       ]
     },
     "cisco_xe/dhcp_server_statistics": {
@@ -5827,7 +5827,7 @@
       "query": "dhcp_server_statistics",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G73-DHCP"
+        "C-XE-SECURITY-DHCP"
       ]
     },
     "cisco_xe/dhcp_snooping_binding": {
@@ -5835,7 +5835,7 @@
       "query": "dhcp_snooping_binding",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G73-SNOOP"
+        "C-XE-SECURITY-SNOOP"
       ]
     },
     "cisco_xe/dhcp_snooping_statistics": {
@@ -5843,7 +5843,7 @@
       "query": "dhcp_snooping_statistics",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G73-SNOOP"
+        "C-XE-SECURITY-SNOOP"
       ]
     },
     "cisco_xe/dhcp_snooping_status": {
@@ -5851,7 +5851,7 @@
       "query": "dhcp_snooping_status",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G73-SNOOP"
+        "C-XE-SECURITY-SNOOP"
       ]
     },
     "cisco_xe/dns_hosts": {
@@ -5867,7 +5867,7 @@
       "query": "dot1x_interface",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G73-ACCESS"
+        "C-XE-SECURITY-ACCESS"
       ]
     },
     "cisco_xe/environment": {
@@ -5918,7 +5918,7 @@
       "query": "hsrp_detail",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G72-HSRP"
+        "C-XE-HEALTH-HSRP"
       ]
     },
     "cisco_xe/hsrp_summary": {
@@ -5937,8 +5937,8 @@
       "query": "ikev1_sa",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G57-IOS-SA",
-        "C-G75-XE-IKEV1"
+        "C-ROUTER-DIAGNOSTICS-IOS-SA",
+        "C-XE-DIAGNOSTICS-XE-IKEV1"
       ]
     },
     "cisco_xe/ikev2_sa": {
@@ -5946,8 +5946,8 @@
       "query": "ikev2_sa",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G57-IOS-SA",
-        "C-G75-XE-IKEV2"
+        "C-ROUTER-DIAGNOSTICS-IOS-SA",
+        "C-XE-DIAGNOSTICS-XE-IKEV2"
       ]
     },
     "cisco_xe/interface_details": {
@@ -6063,7 +6063,7 @@
       "query": "ip_interface_details",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G73-ACL4"
+        "C-XE-SECURITY-ACL4"
       ]
     },
     "cisco_xe/ip_interfaces": {
@@ -6084,7 +6084,7 @@
       "query": "ip_policy",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G51-ROUTING"
+        "C-ROUTER-ROUTING-ROUTING"
       ]
     },
     "cisco_xe/ip_protocols": {
@@ -6092,7 +6092,7 @@
       "query": "ip_protocols",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G51-ROUTING"
+        "C-ROUTER-ROUTING-ROUTING"
       ]
     },
     "cisco_xe/ip_sla_statistics": {
@@ -6100,7 +6100,7 @@
       "query": "ip_sla_statistics",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G72-SLA"
+        "C-XE-HEALTH-SLA"
       ]
     },
     "cisco_xe/ip_source_guard": {
@@ -6108,7 +6108,7 @@
       "query": "ip_source_guard",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G73-IPSG"
+        "C-XE-SECURITY-IPSG"
       ]
     },
     "cisco_xe/ipsec_sa": {
@@ -6116,8 +6116,8 @@
       "query": "ipsec_sa",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G57-IOS-SA",
-        "C-G75-XE-IPSEC"
+        "C-ROUTER-DIAGNOSTICS-IOS-SA",
+        "C-XE-DIAGNOSTICS-XE-IPSEC"
       ]
     },
     "cisco_xe/ipv4_access_lists": {
@@ -6125,7 +6125,7 @@
       "query": "ipv4_access_lists",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G73-ACL4"
+        "C-XE-SECURITY-ACL4"
       ]
     },
     "cisco_xe/ipv6_access_lists": {
@@ -6133,7 +6133,7 @@
       "query": "ipv6_access_lists",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G73-ACL6"
+        "C-XE-SECURITY-ACL6"
       ]
     },
     "cisco_xe/ipv6_interface_details": {
@@ -6141,7 +6141,7 @@
       "query": "ipv6_interface_details",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G51-IPV6-IF"
+        "C-ROUTER-ROUTING-IPV6-IF"
       ]
     },
     "cisco_xe/ipv6_interfaces": {
@@ -6173,7 +6173,7 @@
       "query": "ipv6_neighbors_interface",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G51-IPV6-IF"
+        "C-ROUTER-ROUTING-IPV6-IF"
       ]
     },
     "cisco_xe/ipv6_neighbors_interface_vrf": {
@@ -6181,7 +6181,7 @@
       "query": "ipv6_neighbors_interface_vrf",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G51-IPV6-IF"
+        "C-ROUTER-ROUTING-IPV6-IF"
       ]
     },
     "cisco_xe/ipv6_neighbors_vrf": {
@@ -6189,7 +6189,7 @@
       "query": "ipv6_neighbors_vrf",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G51-IPV6-IF"
+        "C-ROUTER-ROUTING-IPV6-IF"
       ]
     },
     "cisco_xe/ipv6_route_lookup": {
@@ -6208,7 +6208,7 @@
       "query": "ipv6_route_table",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G51-IPV6-RIB"
+        "C-ROUTER-ROUTING-IPV6-RIB"
       ]
     },
     "cisco_xe/lacp_internal": {
@@ -6300,7 +6300,7 @@
       "query": "mac_table_address",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G73-MAC"
+        "C-XE-SECURITY-MAC"
       ]
     },
     "cisco_xe/mac_table_interface": {
@@ -6308,7 +6308,7 @@
       "query": "mac_table_interface",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G73-MAC"
+        "C-XE-SECURITY-MAC"
       ]
     },
     "cisco_xe/mac_table_vlan": {
@@ -6316,7 +6316,7 @@
       "query": "mac_table_vlan",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G73-MAC"
+        "C-XE-SECURITY-MAC"
       ]
     },
     "cisco_xe/memory": {
@@ -6335,8 +6335,8 @@
       "query": "nat_statistics",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G57-IOS-NAT",
-        "C-G57-XE-NAT"
+        "C-ROUTER-DIAGNOSTICS-IOS-NAT",
+        "C-ROUTER-DIAGNOSTICS-XE-NAT"
       ]
     },
     "cisco_xe/nat_translations": {
@@ -6344,8 +6344,8 @@
       "query": "nat_translations",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G57-IOS-NAT",
-        "C-G57-XE-NAT"
+        "C-ROUTER-DIAGNOSTICS-IOS-NAT",
+        "C-ROUTER-DIAGNOSTICS-XE-NAT"
       ]
     },
     "cisco_xe/ntp_associations": {
@@ -6369,7 +6369,7 @@
       "query": "object_tracking",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G72-TRACK"
+        "C-XE-HEALTH-TRACK"
       ]
     },
     "cisco_xe/ospf_database": {
@@ -6377,7 +6377,7 @@
       "query": "ospf_database",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G51-OSPF"
+        "C-ROUTER-ROUTING-OSPF"
       ]
     },
     "cisco_xe/ospf_interface": {
@@ -6385,7 +6385,7 @@
       "query": "ospf_interface",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G51-OSPF"
+        "C-ROUTER-ROUTING-OSPF"
       ]
     },
     "cisco_xe/ospf_interfaces": {
@@ -6401,7 +6401,7 @@
       "query": "ospf_neighbor_detail",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G51-OSPF"
+        "C-ROUTER-ROUTING-OSPF"
       ]
     },
     "cisco_xe/ospf_neighbors": {
@@ -6420,7 +6420,7 @@
       "query": "ospfv3_neighbors",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G51-OSPFV3"
+        "C-ROUTER-ROUTING-OSPFV3"
       ]
     },
     "cisco_xe/ping": {
@@ -6500,7 +6500,7 @@
       "query": "port_security_addresses",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G73-MAC"
+        "C-XE-SECURITY-MAC"
       ]
     },
     "cisco_xe/port_security_interface": {
@@ -6508,7 +6508,7 @@
       "query": "port_security_interface",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G73-MAC"
+        "C-XE-SECURITY-MAC"
       ]
     },
     "cisco_xe/power_inline": {
@@ -6532,7 +6532,7 @@
       "query": "qfp_drops",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G89-DROPS"
+        "C-FORWARDING-PROCESSOR-DROPS"
       ]
     },
     "cisco_xe/qfp_utilization": {
@@ -6540,7 +6540,7 @@
       "query": "qfp_utilization",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G89-UTIL"
+        "C-FORWARDING-PROCESSOR-UTIL"
       ]
     },
     "cisco_xe/qos_policy": {
@@ -6548,8 +6548,8 @@
       "query": "qos_policy",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G57-IOS-QOS",
-        "C-G75-XE-POLICING"
+        "C-ROUTER-DIAGNOSTICS-IOS-QOS",
+        "C-XE-DIAGNOSTICS-XE-POLICING"
       ]
     },
     "cisco_xe/qos_queues": {
@@ -6557,8 +6557,8 @@
       "query": "qos_queues",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G75-XE-FED",
-        "C-G75-XE-FED-AVB"
+        "C-XE-DIAGNOSTICS-XE-FED",
+        "C-XE-DIAGNOSTICS-XE-FED-AVB"
       ]
     },
     "cisco_xe/radius_statistics": {
@@ -6585,7 +6585,7 @@
       "query": "route_maps",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G51-ROUTING"
+        "C-ROUTER-ROUTING-ROUTING"
       ]
     },
     "cisco_xe/route_summary": {
@@ -6829,7 +6829,7 @@
       "query": "vrf_arp_table",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G51-IP"
+        "C-ROUTER-ROUTING-IP"
       ]
     },
     "cisco_xe/vrf_cef_lookup": {
@@ -6837,7 +6837,7 @@
       "query": "vrf_cef_lookup",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G51-CEF"
+        "C-ROUTER-ROUTING-CEF"
       ]
     },
     "cisco_xe/vrf_ip_interfaces": {
@@ -6845,7 +6845,7 @@
       "query": "vrf_ip_interfaces",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G51-VRF"
+        "C-ROUTER-ROUTING-VRF"
       ]
     },
     "cisco_xe/vrf_route_lookup": {
@@ -6853,7 +6853,7 @@
       "query": "vrf_route_lookup",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G51-ROUTING"
+        "C-ROUTER-ROUTING-ROUTING"
       ]
     },
     "cisco_xe/vrfs": {
@@ -6861,7 +6861,7 @@
       "query": "vrfs",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G51-VRF"
+        "C-ROUTER-ROUTING-VRF"
       ]
     },
     "cisco_xe/vrrp_detail": {
@@ -6869,7 +6869,7 @@
       "query": "vrrp_detail",
       "source_type": "official_vendor",
       "source_ids": [
-        "C-G72-VRRP"
+        "C-XE-HEALTH-VRRP"
       ]
     },
     "cisco_xe/vrrp_summary": {
@@ -6960,7 +6960,7 @@
       "query": "bfd_sessions",
       "source_type": "official_vendor",
       "source_ids": [
-        "E-G37-BFD"
+        "E-SWITCH-ROUTING-BFD"
       ]
     },
     "extreme_exos/bgp_neighbor": {
@@ -6968,7 +6968,7 @@
       "query": "bgp_neighbor",
       "source_type": "official_vendor",
       "source_ids": [
-        "E-G37-BGP-NEIGHBOR"
+        "E-SWITCH-ROUTING-BGP-NEIGHBOR"
       ]
     },
     "extreme_exos/bgp_routes": {
@@ -6976,7 +6976,7 @@
       "query": "bgp_routes",
       "source_type": "official_vendor",
       "source_ids": [
-        "E-G37-BGP-ROUTES"
+        "E-SWITCH-ROUTING-BGP-ROUTES"
       ]
     },
     "extreme_exos/bgp_summary": {
@@ -6984,7 +6984,7 @@
       "query": "bgp_summary",
       "source_type": "official_vendor",
       "source_ids": [
-        "E-G37-BGP-NEIGHBOR"
+        "E-SWITCH-ROUTING-BGP-NEIGHBOR"
       ]
     },
     "extreme_exos/bootprelay": {
@@ -7448,7 +7448,7 @@
       "query": "ospf_interfaces",
       "source_type": "official_vendor",
       "source_ids": [
-        "E-G37-OSPF-INTERFACES"
+        "E-SWITCH-ROUTING-OSPF-INTERFACES"
       ]
     },
     "extreme_exos/ospf_lsdb": {
@@ -7456,7 +7456,7 @@
       "query": "ospf_lsdb",
       "source_type": "official_vendor",
       "source_ids": [
-        "E-G37-OSPF-LSDB"
+        "E-SWITCH-ROUTING-OSPF-LSDB"
       ]
     },
     "extreme_exos/ospf_neighbors": {
@@ -7464,7 +7464,7 @@
       "query": "ospf_neighbors",
       "source_type": "official_vendor",
       "source_ids": [
-        "E-G37-OSPF-NEIGHBOR"
+        "E-SWITCH-ROUTING-OSPF-NEIGHBOR"
       ]
     },
     "extreme_exos/ospfv3_interfaces": {
@@ -7472,7 +7472,7 @@
       "query": "ospfv3_interfaces",
       "source_type": "official_vendor",
       "source_ids": [
-        "E-G37-OSPFV3-INTERFACES"
+        "E-SWITCH-ROUTING-OSPFV3-INTERFACES"
       ]
     },
     "extreme_exos/ospfv3_neighbors": {
@@ -7480,7 +7480,7 @@
       "query": "ospfv3_neighbors",
       "source_type": "official_vendor",
       "source_ids": [
-        "E-G37-OSPFV3-NEIGHBOR"
+        "E-SWITCH-ROUTING-OSPFV3-NEIGHBOR"
       ]
     },
     "extreme_exos/ping": {
@@ -7488,7 +7488,7 @@
       "query": "ping",
       "source_type": "official_vendor",
       "source_ids": [
-        "E-G37-PING"
+        "E-SWITCH-ROUTING-PING"
       ]
     },
     "extreme_exos/ping_source": {
@@ -7496,7 +7496,7 @@
       "query": "ping_source",
       "source_type": "official_vendor",
       "source_ids": [
-        "E-G37-PING"
+        "E-SWITCH-ROUTING-PING"
       ]
     },
     "extreme_exos/policies": {
@@ -7760,7 +7760,7 @@
       "query": "traceroute",
       "source_type": "official_vendor",
       "source_ids": [
-        "E-G37-TRACE"
+        "E-SWITCH-ROUTING-TRACE"
       ]
     },
     "extreme_exos/traceroute_source": {
@@ -7768,7 +7768,7 @@
       "query": "traceroute_source",
       "source_type": "official_vendor",
       "source_ids": [
-        "E-G37-TRACE"
+        "E-SWITCH-ROUTING-TRACE"
       ]
     },
     "extreme_exos/version": {
@@ -7808,7 +7808,7 @@
       "query": "vrrp",
       "source_type": "official_vendor",
       "source_ids": [
-        "E-G37-VRRP"
+        "E-SWITCH-ROUTING-VRRP"
       ]
     },
     "fortiadc/arp_table": {

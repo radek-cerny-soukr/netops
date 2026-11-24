@@ -74,6 +74,9 @@ from netops_helper import legacy_configuration
 from netops_helper.page_metadata import PAGED_TOOLS, page_metadata, strip_page_metadata
 from netops_helper.proxy_sanitize import sanitize_object, sanitize_text
 from netops_helper import progress as progress_module
+from netops_helper.overview import adapter as overview_adapter
+from netops_helper.overview import model as overview
+from netops_helper.read_policy import overview_read_cost
 
 
 def _configured_path(variable: str, default: Path) -> Path:
@@ -98,7 +101,8 @@ HOST_KEY_SCAN_TIMEOUT_SECONDS = 10
 IDENTITY_NAME = "runner-identity"
 AUTH_FIELD = "auth_context"
 REDACTION_FIELD = "redaction_context"
-PRIVATE_ARGUMENTS = frozenset((AUTH_FIELD, REDACTION_FIELD))
+OVERVIEW_FIELD = "overview_plan"
+PRIVATE_ARGUMENTS = frozenset((AUTH_FIELD, REDACTION_FIELD, OVERVIEW_FIELD))
 DEFAULT_RATE_REQUESTS = helper_inventory.DEFAULT_RATE_REQUESTS
 DEFAULT_RATE_WINDOW_SECONDS = helper_inventory.DEFAULT_RATE_WINDOW_SECONDS
 MAX_REQUEST_BYTES = 1_048_576
@@ -117,11 +121,14 @@ CONTINUATION_TOOLS = {"ssh_read", "schema_read"}
 CONTINUATION_TTL_SECONDS = 120.0
 CONTINUATION_MAX_ENTRIES = 8
 SESSION_START_TIMEOUT_SECONDS = 30.0
+# The server stops starting reads at the overview deadline, but it answers only after the
+# reads already on the wire end. Wait this long past the deadline for its partial page.
+OVERVIEW_RESPONSE_GRACE_SECONDS = 5.0
 WITHHELD_CLIENT_CAPABILITIES = ("sampling", "elicitation", "roots")
 CLIENT_CAPABILITIES_META_KEY = "io.modelcontextprotocol/clientCapabilities"
 SSH_TRANSPORT_FAILURE_MESSAGE = "The remote MCP SSH transport failed."
 SSH_HOST_KEY_FAILURE_MESSAGE = "SSH host-key verification failed."
-SSH_TOOLS = {"triage_port", "locate_endpoint", "vpc_compare", "switch_read", "ssh_read", "sftp_stat", "schema_read", "fortios_diagnostics", "triage_health",
+SSH_TOOLS = {"network_overview", "triage_port", "locate_endpoint", "vpc_compare", "switch_read", "ssh_read", "sftp_stat", "schema_read", "fortios_diagnostics", "triage_health",
              "triage_routing", "triage_vpn", "config_read", "config_diff", "triage_slb", "wifi_triage", "triage_flow", "triage_nxos_path"}
 TRIAGE_SLB_REQUIRED_QUERIES = ("slb_vs_stat", "slb_load", "system_performance")
 # A triage reserves its planned device reads on acceptance. They count against the target's total
@@ -1341,7 +1348,7 @@ READ_QUERY_SLOTS = {
         'traceroute_source': {'address': {'inventory': 'addresses', 'kind': 'ipv4_address'}, 'source': {'inventory': 'interfaces', 'kind': 'interface'}},
         'traceroute_vrf': {'vrf': {'inventory': 'vrfs', 'kind': 'vrf'}, 'address': {'inventory': 'addresses', 'kind': 'ipv4_address'}},
         'traceroute_vrf_source': {'vrf': {'inventory': 'vrfs', 'kind': 'vrf'}, 'address': {'inventory': 'addresses', 'kind': 'ipv4_address'}, 'source': {'inventory': 'interfaces', 'kind': 'interface'}},
-        # G53 per-port detail reads.
+        # router ports per-port detail reads.
         'stp_interface_detail': {'interface': {'inventory': 'interfaces', 'kind': 'cisco_ios_physical_interface'}},
         'power_inline_detail': {'interface': {'inventory': 'interfaces', 'kind': 'cisco_ios_physical_interface'}},
         'lldp_neighbor_interface': {'interface': {'inventory': 'interfaces', 'kind': 'cisco_ios_physical_interface'}},
@@ -2477,7 +2484,7 @@ _VENDOR_INTERFACE_CANONICALIZERS = {
 }
 
 
-# The short and the full IOS name of one port are the same enrolled port (G53 r3): both sides are
+# The short and the full IOS name of one port are the same enrolled port (router ports r3): both sides are
 # canonicalized by the slot's own validator; other kinds keep the exact comparison.
 _CANONICAL_MEMBERSHIP_KINDS = frozenset({"cisco_ios_interface", "cisco_ios_physical_interface", "cisco_ios_switchport", "cisco_xe_switchport"})
 
@@ -2551,7 +2558,7 @@ GENERIC_INVENTORY_KINDS = {
     "addresses": "address",
     "switches": "switch",
 }
-DEVICE_TOOLS = {"triage_port",
+DEVICE_TOOLS = {"network_overview", "triage_port",
     "locate_endpoint", "vpc_compare", "switch_read",
     "dns_probe", "tcp_probe", "icmp_probe", "tls_probe", "ssh_read",
     "snmp_get", "sftp_stat", "ftp_list", "schema_read", "fortios_diagnostics", "triage_health", "triage_routing",
@@ -2559,6 +2566,7 @@ DEVICE_TOOLS = {"triage_port",
     "triage_flow", "triage_nxos_path", "fortiswitch_overview", "firewall_policy_hits",
 }
 TOOL_ARGUMENT_SCHEMAS = {
+    "network_overview": (frozenset(), overview.ARGUMENTS),
     "helper_status": (frozenset(), frozenset()),
     "read_query_catalog": (frozenset(), frozenset({"platform", "query_prefix", "offset", "limit"})),
     "target_scope": (frozenset({"target"}), frozenset()),
@@ -2637,7 +2645,7 @@ def _lookup_enrolled(value: object, version: int, inventory: Any) -> bool:
 
 
 def _probe_target_kind(value: object) -> object:
-    """A FortiOS ping/traceroute target (G09 FP-04): 6 for a canonical unicast IPv6 address, "name" for a DNS name in
+    """A FortiOS ping/traceroute target (firewall health FP-04): 6 for a canonical unicast IPv6 address, "name" for a DNS name in
     the diagnostic_names syntax, 4 for a unicast IPv4 address; None otherwise."""
     if isinstance(value, str) and ":" in value:
         try:
@@ -2863,6 +2871,11 @@ ARGUMENT_HINTS = {
     "managed_switch": "managed_switch is an enrolled FortiSwitch serial: S followed by 11 to 15 upper-case letters or digits",
     "filter": "vlan_id filters interface, vlan, mac_entry and neighbor_l3; mac filters mac_entry and neighbor_l3; ip filters neighbor_l3 and route; interface filters port_vlan and ip_interface and selects the interface_errors port",
     "targets": "targets lists 1 to 64 distinct enrolled target aliases",
+    "groups": "Choose distinct groups from switch, router and firewall",
+    "after": "Copy selection.next_after from the previous overview page",
+    "limit": "Choose a whole page size from 1 to 64",
+    "timeout_seconds": "Choose a whole number of seconds from 5 to 120",
+    "id": "Send overview as a JSON-RPC request with a string or integer id",
     "endpoint": "endpoint is one IPv4 or IPv6 address or MAC address literal, not a host name",
     "baseline": "baseline is the unchanged counter_baseline of an earlier interface_errors result of the same target, profile, interface selection and managed_switch",
     "summary": "summary is counts or changes and applies only to table interface_errors",
@@ -2932,6 +2945,8 @@ class Proxy:
         self.pending_continuations: dict[Any, str] = {}
         self.server_writer: Any = None
         self.pending_deadlines: dict[Any, float] = {}
+        self.overview_deadlines: dict[Any, float] = {}
+        self.cancelled_overviews: dict[Any, float] = {}
         self.internal_requests: dict[Any, dict[str, Any]] = {}
         self.session_epoch = 0
         self.session_open = True
@@ -3185,6 +3200,22 @@ class Proxy:
                                           "hint": "Provide required fields only, plus documented optional fields"})
 
         normalized = dict(args)
+        if tool == "network_overview":
+            for field, validator, maximum in (
+                ("targets", cls._valid_alias, overview.MAX_TARGETS),
+                ("groups", lambda value: isinstance(value, str) and value in {"switch", "router", "firewall"}, 3),
+            ):
+                if field in args:
+                    values = args[field]
+                    if (not isinstance(values, list) or not 1 <= len(values) <= maximum
+                            or not all(map(validator, values)) or len(set(values)) != len(values)):
+                        raise argument_error(field)
+            if "after" in args and not cls._valid_alias(args["after"]):
+                raise argument_error("after")
+            for field, lower, upper in (("limit", 1, overview.MAX_TARGETS), ("timeout_seconds", 5, 120)):
+                if field in args and (type(args[field]) is not int or not lower <= args[field] <= upper):
+                    raise argument_error(field)
+            return normalized
         if tool == "read_query_catalog":
             if (not isinstance(normalized.get("platform", ""), str)
                     or not re.fullmatch(r"[A-Za-z0-9_.-]{0,64}", normalized.get("platform", ""))
@@ -3336,7 +3367,7 @@ class Proxy:
             elif tool == "config_diff" and normalized.get("platform") in ("extreme_exos", "cisco_ios", "cisco_xe",
                                                                          "cisco_nxos", "arista_eos", "juniper_junos",
                                                                          "juniper_junos_els", "ruckus_unleashed"):
-                # config_diff compares two stored snapshots (task 157); only the page and snapshot arguments below apply.
+                # config_diff compares two stored snapshots (verification); only the page and snapshot arguments below apply.
                 pass
             elif normalized.get("platform") not in ("fortios", "fortinet", "fortiadc"):
                 raise argument_error("platform", "config_read/config_diff supports fortios, fortinet and fortiadc")
@@ -3544,7 +3575,7 @@ class Proxy:
                                            ("max_bytes", 16000, 1000, 16384)))
                 return normalized
             if normalized["recipe"] == fortiadc_diagnostics.PACKET_CAPTURE:
-                # G32 ADC-G11: FortiADC capture on one enrolled interface with a fixed host/port filter.
+                # adc objects ADC-firewall routing: FortiADC capture on one enrolled interface with a fixed host/port filter.
                 if any(normalized.get(name) is not None for name in
                        ("vdom", "since", "until", "health_check", "source_port", "protocol")):
                     raise argument_error('recipe', 'packet_capture takes no VDOM, timestamps, health check, source port or protocol')
@@ -3581,7 +3612,7 @@ class Proxy:
                 raise argument_error('recipe', 'Use a diagnostic recipe listed in the tool schema')
             adc = normalized["interface"] == ""
             verify = normalized["recipe"] == "health_check_verify"
-            # G10 (FP-01, FP-05, FP-06): FortiOS log category, session and sniffer filters, as the Helper checks them.
+            # firewall resources (FP-01, FP-05, FP-06): FortiOS log category, session and sniffer filters, as the Helper checks them.
             from netops_helper import fortios_diagnostics as fortios_recipes
             g10 = {name: normalized.get(name) for name in
                    ("log_category", "log_subtype", "log_action", "policy_id", "sniffer_filter")}
@@ -3754,7 +3785,7 @@ class Proxy:
                            else 'arista_eos' if eos
                            else 'cisco_nxos' if table == 'dhcp_binding' or normalized.get('vrf') is not None or normalized.get('address_family') is not None else 'cisco_ios')
                 from netops_helper.ios_ports import TABLES as IOS_TABLES
-                # G53: the same tables exist for IOS with IOS interface names; either profile's rules may accept.
+                # router ports: the same tables exist for IOS with IOS interface names; either profile's rules may accept.
                 candidates = [guessed] + (['cisco_ios'] if table in IOS_TABLES | {'mac_entry', 'neighbor_l3', 'dhcp_binding'} and guessed != 'cisco_ios' else [])
                 if table in IOS_TABLES and 'cisco_nxos' not in candidates:
                     candidates.append('cisco_nxos')
@@ -3947,8 +3978,8 @@ class Proxy:
 
             require(args["recipe"] in listed("diagnostic_recipes"), "diagnostic_recipes")
             enrolled_address("address")
-            # G10 FP-06: the sniffer on the interface any runs only when the target enrolls `any` in interfaces, like
-            # a named interface (review 471-r2-rv finding 1); its host or ARP-only form is validated above. An
+            # firewall resources FP-06: the sniffer on the interface any runs only when the target enrolls `any` in interfaces, like
+            # a named interface (review finding 1); its host or ARP-only form is validated above. An
             # enrolled any scopes only the sniffer.
             require(args["interface"] in listed("interfaces")
                     and (args["interface"] != "any" or args["recipe"] == "sniffer"), "interfaces")
@@ -4420,7 +4451,7 @@ class Proxy:
                                                                                    "juniper_junos_els"):
             from .config_junos_adapter import live_comparison
             if live_comparison(args.get("base_snapshot"), args.get("other_snapshot")):
-                # show version, the visibility probe and show configuration | compare rollback <n> (G136).
+                # show version, the visibility probe and show configuration | compare rollback <n> (junos config).
                 return 3
         if tool == "config_read" and args is not None and args.get("platform") == "ruckus_unleashed":
             if args.get("snapshot_id"):
@@ -4439,14 +4470,185 @@ class Proxy:
                 return 7  # Identical plan plus a device line count for each capture.
         return TRIAGE_READS.get(tool, 1) + (8 if tool == "wifi_triage" and rest_token else 0)
 
+    def _overview_cost(self, spec, entry, section, token):
+        if spec.transport == "https":
+            self._authorize_tool(overview.REST_TOOLS[spec.query], {}, entry, section)
+            if token is None or section.fortios_rest_certificate_sha256 is None:
+                raise AuthenticationMaterialError()
+            return spec.cost
+        platform = section.catalog_platform()
+        if platform == "fortinet" and not section.fortios_output_standard_verified:
+            raise PolicyScopeError()
+        parameters = dict(spec.parameters)
+        self._authorize_tool("ssh_read", {"platform": platform, "query": spec.query,
+                                          "parameters": parameters}, entry, section)
+        if not self._port_allowed(entry.port, section.egress, "tcp"):
+            raise PolicyScopeError()
+        cost = overview_read_cost(platform, spec.query, parameters, section.read_inventory)
+        if platform == "fortinet" and spec.query != "system_status":
+            from netops_helper import fortios_vdom
+            # A contextual read can prove the login VDOM after global navigation
+            # is refused. Reserve both scope proof commands and any membership read.
+            if section.read_inventory.get("diagnostic_vdoms"):
+                cost += 2
+                cost += (spec.query in fortios_vdom.MEMBERSHIP_READS
+                         and fortios_vdom.MEMBERSHIP_QUERY in section.enabled_queries)
+        return max(spec.cost, cost)
+
+    def _overview_target(self, item, entry, section, policy):
+        platform = section.catalog_platform()
+        try:
+            module = overview_adapter(platform)
+        except Exception:
+            item["reason"] = "internal_error"
+            return (), ()
+        if module is None:
+            item["reason"] = "unsupported_platform"
+            return (), ()
+        try:
+            self._check_resolvers(section, policy)
+        except ProxyError:
+            item["reason"] = "policy_scope"
+            return (), ()
+        try:
+            vault = self._vault((entry.credential,))
+            helper_inventory._checked_credential("overview target", entry, self._credential_kinds(vault))
+            credential = self._credential(vault, entry.credential)
+        except (ProxyError, helper_inventory.InventoryError, core_vault.VaultError, OSError):
+            item["reason"] = "auth_failed"
+            return (), ()
+        token = None
+        if (name := section.fortios_rest_credential):
+            from netops_helper.wifi_rest import checked_token
+            try:
+                monitor = self._credential(self._vault((name,)), name)
+                if monitor.kind == "api-token":
+                    token = checked_token(monitor.use())
+            except (ValueError, OSError):
+                pass  # The optional HTTPS credential cannot block independent SSH reads.
+        scope = overview.Scope(platform, section.enabled_queries, section.read_inventory,
+                               section.device_types, token is not None)
+        specs = overview.with_identity(scope, module.plan(scope))
+        costs = []
+        accepted = set()
+        for spec in specs:
+            reason = None
+            try:
+                cost = self._overview_cost(spec, entry, section, token)
+                if any(requirement not in accepted for requirement in spec.requires):
+                    raise PolicyScopeError()
+                if spec.transport == "ssh" and spec is not specs[0] and specs[0].id not in accepted:
+                    raise PolicyScopeError()
+            except AuthenticationMaterialError:
+                reason = "rest_unavailable"
+            except (ValueError, KeyError):
+                reason = "policy_scope"
+            else:
+                costs.append(cost)
+                accepted.add(spec.id)
+            item["steps"].append({"spec": spec.wire(), "reason": reason})
+        item["context"] = self._auth_context(entry, section, credential, None, "network_overview", token)
+        materials = (*self._session_secrets(credential, None), *((token,) if token else ()), item["context"])
+        return tuple(costs), materials
+
+    def _overview_page(self, message, args, deadline):
+        started_at = overview.utc_now()
+        entries = self._load_inventory()
+        policy = self._load_egress_policy()
+        enrolled = {entry.name: entry for entry in helper_inventory.devices(entries)}
+        all_aliases = {entry.name for entry in entries}
+        explicit = "targets" in args
+        groups = set(args.get("groups", ()))
+        candidates = []
+        unverified = 0
+        for alias in sorted(args.get("targets", enrolled)):
+            if not self._valid_alias(alias):
+                continue
+            entry = enrolled.get(alias)
+            section = None
+            if entry is None:
+                reason = "not_enrolled" if alias in all_aliases else "unknown_target"
+            else:
+                reason = None
+                if groups:
+                    try:
+                        types = helper_inventory._checked_device_types(
+                            "overview group", entry.helper.get("device_types", []))
+                    except (AttributeError, helper_inventory.InventoryError):
+                        unverified += 1
+                        if not explicit:
+                            continue
+                        reason = "group_unverified"
+                    else:
+                        if not groups.intersection(types):
+                            continue
+                if reason is None:
+                    try:
+                        section = self._section(entry, None)
+                    except ProxyError:
+                        reason = "policy_scope"
+            item = {"target": alias, "platform": section.catalog_platform() if section else None,
+                    "reason": reason, "context": None, "steps": []}
+            candidates.append((item, entry, section))
+
+        matched = len(candidates)
+        candidates = [row for row in candidates if row[0]["target"] > args.get("after", "")]
+        rows, scopes, materials = [], [], []
+        selection = {"matched": matched, "returned": 0, "remaining": 0, "next_after": None,
+                     "unverified": unverified}
+        plan = {"remaining_ms": 120_000, "started_at": started_at, "rows": rows,
+                "selection": selection, "secrets": list(self.transport_secrets)}
+        args[OVERVIEW_FIELD] = plan
+        # Reserve the largest cursor and the extra JSON members that a
+        # rate-limited step can acquire after the prefix has been charged.
+        envelope_margin = 2048
+        annotation_size = overview.encoded_size({"reason": "rate_limited", "retry_after_seconds": 3600})
+        for item, entry, section in candidates[:args.get("limit", overview.DEFAULT_LIMIT)]:
+            if section is None:
+                costs, secrets = (), ()
+            else:
+                try:
+                    costs, secrets = self._overview_target(item, entry, section, policy)
+                except Exception:
+                    item.update(reason="internal_error", context=None, steps=[])
+                    costs, secrets = (), ()
+            rows.append(item)
+            secret_offset = len(plan["secrets"])
+            plan["secrets"].extend(secrets[:-1])
+            margin = envelope_margin + annotation_size * len(costs)
+            if overview.encoded_size(message) + margin + 1 > overview.MAX_MESSAGE:
+                rows.pop()
+                del plan["secrets"][secret_offset:]
+                if rows:
+                    break
+                item.update(reason="output_limit", context=None, steps=[])
+                rows.append(item)
+                break
+            envelope_margin = margin
+            materials.extend(secrets)
+            if costs and time.monotonic() < deadline:
+                scopes.append((item, section.rate_limit, costs))
+        remaining = len(candidates) - len(rows)
+        selection.update(returned=len(rows), remaining=remaining,
+                         next_after=rows[-1]["target"] if remaining else None)
+        for item, limit, costs in scopes:
+            count, reason, retry = self._consume_rate_limits(
+                ((item["target"], limit, costs),), triage=True, prefix=True,
+            )[0]
+            eligible = [step for step in item["steps"] if step["reason"] is None]
+            for step in eligible[count:]:
+                step.update(reason=reason, retry_after_seconds=retry)
+        plan["remaining_ms"] = max(0, int((deadline - time.monotonic()) * 1000))
+        return tuple(materials)
+
     def _consume_rate_limit(self, alias: str, limit: dict[str, int], cost: int = 1, *, triage: bool = False) -> None:
         self._consume_rate_limits(((alias, limit, cost),), triage=triage)
 
-    def _consume_rate_limits(self, scopes: Any, *, triage: bool = False) -> None:
+    def _consume_rate_limits(self, scopes: Any, *, triage: bool = False, prefix: bool = False):
         """Charge each (alias, limit, cost) to its own target, or charge none of them."""
         now = time.monotonic()
         with self.rate_lock:
-            charges = []
+            charges, reservations = [], []
             for alias, limit, cost in scopes:
                 window = float(limit["window_seconds"])
                 total = self.rate_history.setdefault(alias, deque())
@@ -4458,17 +4660,35 @@ class Proxy:
                 for history in histories:
                     while history and history[0] <= now - window:
                         history.popleft()
-                    if len(history) + cost > limit["requests"]:
+                    if not prefix and len(history) + cost > limit["requests"]:
                         if not history:
                             raise RateLimitError(data={"retry_after_seconds": max(1, math.ceil(window))})
                         index = min(len(history) - 1, max(0, len(history) + cost - limit["requests"] - 1))
                         raise RateLimitError(data={
                             "retry_after_seconds": max(1, math.ceil(history[index] + window - now)),
                         })
+                if prefix:
+                    used = max(map(len, histories))
+                    cap = min(limit["requests"], TRIAGE_READS["network_overview"])
+                    available = min(cap, max(0, limit["requests"] - used))
+                    count = spent = 0
+                    for step_cost in cost:
+                        if spent + step_cost > available:
+                            break
+                        spent += step_cost
+                        count += 1
+                    limited = count < len(cost) and available < cap and spent + cost[count] <= cap
+                    retry = None
+                    if limited:
+                        index = used + spent + cost[count] - limit["requests"] - 1
+                        retry = max(1, math.ceil(total[index] + window - now))
+                    reservations.append((count, "rate_limited" if limited else "read_limit", retry))
+                    cost = spent
                 charges.append((histories, cost))
             for histories, cost in charges:
                 for history in histories:
                     history.extend([now] * cost)
+            return reservations
 
     def _rate_status(self, alias: str, limit: dict[str, int], *, triage: bool = False) -> dict[str, int]:
         now, window = time.monotonic(), float(limit["window_seconds"])
@@ -4544,13 +4764,24 @@ class Proxy:
             sys.stdout.buffer.write(encoded)
             sys.stdout.buffer.flush()
 
+    def _forget_pending(self, request_id: Any) -> None:
+        for mapping in (
+            self.pending, self.pending_deadlines, self.overview_deadlines, self.pending_tools,
+            self.response_secrets, self.control_payloads, self.pending_continuations,
+        ):
+            mapping.pop(request_id, None)
+
     def _clear_pending(self, request_id: Any) -> None:
         with self.pending_lock:
-            for mapping in (
-                self.pending, self.pending_deadlines, self.pending_tools,
-                self.response_secrets, self.control_payloads, self.pending_continuations,
-            ):
-                mapping.pop(request_id, None)
+            self._forget_pending(request_id)
+
+    def _cancel_overview(self, request_id: Any, now: float) -> None:
+        # Called under pending_lock. The cancelled tool might have already
+        # written one final answer to the active transport.
+        if len(self.cancelled_overviews) >= 2 * MAX_PENDING_REQUESTS:
+            del self.cancelled_overviews[next(iter(self.cancelled_overviews))]
+        self.cancelled_overviews[request_id] = now + 10
+        self._forget_pending(request_id)
 
     def _accepting(self, epoch: int | None) -> bool:
         return self.session_open and (epoch is None or epoch == self.session_epoch)
@@ -4603,8 +4834,8 @@ class Proxy:
         with self.pending_lock:
             waiting = list(self.pending)
             for mapping in (
-                self.pending, self.pending_deadlines, self.pending_tools,
-                self.response_secrets, self.control_payloads, self.internal_requests,
+                self.pending, self.pending_deadlines, self.pending_tools, self.overview_deadlines,
+                self.cancelled_overviews, self.response_secrets, self.control_payloads, self.internal_requests,
                 self.pending_continuations,
             ):
                 mapping.clear()
@@ -4687,7 +4918,10 @@ class Proxy:
             self._withhold_client_capabilities(message)
         if has_id and isinstance(method, str):
             with self.pending_lock:
-                duplicate = request_id in self.pending
+                now = time.monotonic()
+                for expired in [key for key, until in self.cancelled_overviews.items() if until <= now]:
+                    del self.cancelled_overviews[expired]
+                duplicate = request_id in self.pending or request_id in self.cancelled_overviews
                 full = not duplicate and len(self.pending) >= MAX_PENDING_REQUESTS
                 if not duplicate and not full:
                     self.pending[request_id] = method
@@ -4708,6 +4942,16 @@ class Proxy:
                 self.initialize_message = json.loads(json.dumps(message))
         elif method == "notifications/initialized":
             self.client_initialized = True
+        if method == "notifications/cancelled":
+            params = message.get("params")
+            cancelled = params.get("requestId") if isinstance(params, dict) else None
+            if type(cancelled) not in (str, int):
+                return None
+            with self.pending_lock:
+                if cancelled not in self.pending or not self.session_open:
+                    return None
+                if cancelled in self.overview_deadlines:
+                    self._cancel_overview(cancelled, time.monotonic())
         if method != "tools/call":
             return json.dumps(message, separators=(",", ":")).encode() + b"\n"
         params = message.get("params")
@@ -4729,6 +4973,11 @@ class Proxy:
                 self._clear_pending(request_id)
             return None
         params["arguments"] = args
+        if tool == "network_overview" and (not has_id or request_id is None):
+            if has_id:
+                self._clear_pending(request_id)
+                self._emit_proxy_error(request_id, argument_error("id"), False)
+            return None
         if has_id:
             with self.pending_lock:
                 self.pending_tools[request_id] = tool
@@ -4761,6 +5010,12 @@ class Proxy:
                 payload = self._helper_status_payload()
                 if has_id:
                     self.control_payloads[request_id] = payload
+            elif tool == "network_overview":
+                deadline = time.monotonic() + args.get("timeout_seconds", overview.DEFAULT_TIMEOUT)
+                secrets = self._overview_page(message, args, deadline)
+                with self.pending_lock:
+                    self.overview_deadlines[request_id] = deadline + OVERVIEW_RESPONSE_GRACE_SECONDS
+                    self.pending_deadlines[request_id] = deadline + OVERVIEW_RESPONSE_GRACE_SECONDS + 10
             elif tool in {"locate_endpoint", "vpc_compare"}:
                 contexts, materials, scopes = {}, [], []
                 wifi_endpoint = False
@@ -4861,8 +5116,8 @@ class Proxy:
             # Separate from auth_context to avoid recursively growing session envelopes.
             # EXOS config_read stores and hashes its text with the same session secrets that the
             # final reply redacts (84-N1); its page metadata stays the configuration kind.
-            # Cisco IOS config_read takes the same private handoff (task 128), Cisco IOS XE too (task 140),
-            # Arista EOS too (task 143), Cisco NX-OS too (task 153); config_diff of these platforms too (task 157),
+            # Cisco IOS config_read takes the same private handoff (verification), Cisco IOS XE too (verification),
+            # Arista EOS too (verification), Cisco NX-OS too (verification); config_diff of these platforms too (verification),
             # whose engine applies the config_read snapshot guard to both snapshots. FortiOS and FortiADC
             # also use this private handoff when persisting redacted configuration history.
             args[REDACTION_FIELD] = list(dict.fromkeys((*secrets, *self.session_secrets, *self.transport_secrets)))
@@ -5028,7 +5283,8 @@ class Proxy:
                     continue
                 request_id = message.get("id")
                 try:
-                    known = request_id in self.pending or request_id in self.internal_requests
+                    known = (request_id in self.pending or request_id in self.internal_requests
+                             or request_id in self.cancelled_overviews)
                 except TypeError:
                     return False
                 if not known or request_id in seen:
@@ -5085,6 +5341,8 @@ class Proxy:
                 if not self._accepting(epoch):
                     return None
                 try:
+                    if request_id in self.cancelled_overviews:
+                        return None
                     internal = self.internal_requests.pop(request_id, None)
                     paired = internal is None and request_id in self.pending
                 except TypeError:
@@ -5092,6 +5350,7 @@ class Proxy:
                 if paired:
                     method = self.pending.pop(request_id)
                     self.pending_deadlines.pop(request_id, None)
+                    self.overview_deadlines.pop(request_id, None)
                     tool = self.pending_tools.pop(request_id, None)
                     secrets = self.response_secrets.pop(request_id, ())
                     control = self.control_payloads.pop(request_id, None)
@@ -5161,6 +5420,8 @@ class Proxy:
                     required = schema.get("required") or []
                     if isinstance(required, list):
                         schema["required"] = [name for name in required if name not in PRIVATE_ARGUMENTS]
+                    if name == "network_overview":
+                        schema["additionalProperties"] = False
                     seen.add(name)
                     filtered.append(item)
                 filtered.append(self._target_scope_tool())
@@ -5643,6 +5904,23 @@ class _SessionController:
                 if self.stopped.is_set():
                     return
                 connection = self.connection
+                if connection is not None and self.proxy.accepting(connection.epoch):
+                    with self.proxy.pending_lock:
+                        now = time.monotonic()
+                        expired = [request_id for request_id, deadline in self.proxy.overview_deadlines.items()
+                                   if deadline <= now]
+                        for request_id in expired:
+                            self.proxy._cancel_overview(request_id, now)
+                    for request_id in expired:
+                        self.proxy._emit_proxy_error(request_id, SessionTerminatedError(data={
+                            "reason": "response_timeout",
+                        }), False)
+                        try:
+                            connection.write(_encoded({"jsonrpc": "2.0", "method": "notifications/cancelled",
+                                                       "params": {"requestId": request_id}}))
+                        except (OSError, ValueError):
+                            self.proxy.close_session("transport_closed", connection.epoch)
+                            break
                 if connection is not None and self.proxy.overdue():
                     self.proxy.close_session("response_timeout", connection.epoch)
                 self._reap()

@@ -1,0 +1,5 @@
+interface Vlan3984
+   description Brána skladu
+   vrf eos-static-routing-route
+   ip address 192.0.2.2/24
+   ipv6 address 2001:db8:1::2/64

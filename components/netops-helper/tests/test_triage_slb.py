@@ -360,7 +360,7 @@ def test_synthetic_all_down_and_availability_are_reported_literally():
 
 
 def test_member_states_are_joined_by_pool_and_id():
-    # DERIVED: the measured vs_stat with DOWN states printing another pool that also has ids 1/2 (task 445-r3).
+    # DERIVED: the measured vs_stat with DOWN states printing another pool that also has ids 1/2 (verification).
     other = vs_stat(("DOWN", "DOWN")).replace("real-server-pool: POOL_APP", "real-server-pool: POOL_OLD")
     result = run(Device(queries={"slb_vs_stat": other}))
     assert [member["runtime"] for member in result["chain"]["members"]] == [None, None]
@@ -942,8 +942,8 @@ def test_schedule_without_entries_and_content_routing_are_explicitly_missing(sch
     assert result["missing"] == [{"step": "schedule_pool", "reason": "empty",
                                   "detail": "schedule-list enable without schedule-pool-list"}]
     assert result["chain"]["schedule"] == [] and result["verdict"] == "incomplete"
-    # DERIVED: content-routing enabled in the real view without a content-routing-list (G28 r2 ADC-C04: content
-    # routing is followed through its entries, tests/test_g28r2_adc.py; an empty list is reported as missing).
+    # DERIVED: content-routing enabled in the real view without a content-routing-list (ADC-STATISTICS r2 ADC-C04: content
+    # routing is followed through its entries, tests/test_adc_content_routing_adc.py; an empty list is reported as missing).
     schedule_wire.views["load-balance virtual-server " + SVS] = vs.replace(
         "set content-routing disable", "set content-routing enable")
     schedule_wire.calls.clear()

@@ -1,0 +1,5 @@
+ip route 198.51.100.0/24 192.0.2.250 19
+ipv6 route 2001:db8::/32 2001:db8:ffff::fe    21
+vrf context nxos-routing-admin
+  ip route 198.51.100.0/24 192.0.2.250
+  ipv6 route 2001:db8::/32 2001:db8:ffff::fe    23

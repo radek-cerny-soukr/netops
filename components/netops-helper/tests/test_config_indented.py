@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Private indentation-based running-config consumers for NX-OS and EOS (task 147, 1.0.9 bod 06).
+"""Private indentation-based running-config consumers for NX-OS and EOS (verification, 1.0.9 bod 06).
 
 The module under test, ``netops_helper.config_indented``, is an internal consumer that the public NX-OS and
 EOS ``config_read`` uses through their adapters and the engine; it adds no SSH command.  These tests drive the
@@ -8,7 +8,7 @@ redactor, section ``all``, ``ConfigurationLimits``, bytes fed through ``configur
 ``finish()``) with the real shared ``ContentBuilder``/``Content``/``HiddenRecords``.  Nothing is mocked.
 
 All configurations are SYNTHETIC, invented for these tests; none is a capture of any device.
-* NX-OS: taken over from the task 142 gate (``ref/gate142_test_config_cisco_nxos_redaction.py``), whose
+* NX-OS: taken over from the verification gate (``ref/gate142_test_config_cisco_nxos_redaction.py``), whose
   shape follows the Cisco Nexus 9000 Series NX-OS 9.3(x) Fundamentals, Security, System Management and
   Unicast Routing Configuration Guides (``!Command:``/``!Time:`` header, two-space indentation, no
   ``!`` separators and no ``end``; ``username ... password 5``, ``tacacs-server key 7 "..."``,
@@ -16,7 +16,7 @@ All configurations are SYNTHETIC, invented for these tests; none is a capture of
   ``ip ospf message-digest-key ... md5 3``, ``key chain`` / ``key-string 7``).  The appended BGP /
   spanning-tree / static route rows follow the Unicast Routing (BGP ``neighbor`` block with
   ``remote-as`` and ``password 3``) and Layer 2 Switching (``spanning-tree``) guides of the same release.
-* EOS: taken over from the task 143 gate (``ref/gate143_test_config_arista_eos_redaction.py``), built
+* EOS: taken over from the verification gate (``ref/gate143_test_config_arista_eos_redaction.py``), built
   from the Arista EOS User Manual (https://www.arista.com/en/um-eos): ``username ... secret sha512``,
   ``enable password sha512``, ``tacacs-server host ... key 7``, ``snmp-server user ... v3 auth sha ...
   priv aes``, ``router bgp`` / ``neighbor ... password 7``, ``ip ospf authentication-key 7``,
@@ -399,7 +399,7 @@ def test_api_matches_the_ios_consumer_and_shares_building_blocks():
 
 
 def test_module_is_used_only_by_the_nxos_and_eos_config_read_path():
-    # G136: the Junos display-set redactor reuses the bounded scaffolding and the secret checks.
+    # JUNOS-CONFIG: the Junos display-set redactor reuses the bounded scaffolding and the secret checks.
     users = {path.name for path in SOURCE.glob("*.py")
              if path.name != "config_indented.py" and "config_indented" in path.read_text()}
     assert users == {"config_arista_eos_adapter.py", "config_cisco_nxos_adapter.py", "config_junos_adapter.py",
@@ -479,12 +479,12 @@ def test_forbidden_value_or_secret_keyword_hides_an_allowed_line(dialect):
                 "interface Ethernet1/10\n" + tail)
     assert text == expected
     assert_no_secret(rendered, (session, "FAKEdescrNOTREAL", "FAKEtokenNOTREAL", "FAKEcryptNOTREAL"))
-    # '$6$...' is a recognizable password hash (task 147-r2): a credential redaction, not a reserved marker.
+    # '$6$...' is a recognizable password hash (verification): a credential redaction, not a reserved marker.
     assert summary["credential_redactions"] == 4 and count == 4
     assert summary["unverified_count"] == 0
 
 
-# Review 147-rv finding 2: a recognizable password hash in an allowed line (description) is hidden
+# Review finding 2: a recognizable password hash in an allowed line (description) is hidden
 # whole even with an empty ``forbidden``; the shared ContentBuilder markers only know '$6$' / '$9$'.
 REVIEW_HASH = "$5$saltsalt$0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefg"
 HASH_VARIANTS = (
@@ -542,7 +542,7 @@ def test_password_hash_in_an_allowed_line_is_hidden_whatever_forbidden_holds(dia
         assert_no_secret(rendered, (value,))
 
 
-# Review 147-r2rv (task 219): a type 7 value followed by punctuation must not escape, a plain number
+# Review finding: a type 7 value followed by punctuation must not escape, a plain number
 # after '7' (seed outside 00-15, too short) stays readable.
 TYPE7_VALUE = "0822455D0A165B1E0A1F1C"
 TYPE7_LEAKS = (
@@ -588,7 +588,7 @@ def test_review_type7_with_trailing_punctuation_in_description_is_hidden(dialect
     assert_no_secret(rendered, (TYPE7_VALUE,))
 
 
-# Review 219-rv (task 219-r2): a one-character password is a single encrypted byte ('7 0005': seed 00,
+# Review (verification): a one-character password is a single encrypted byte ('7 0005': seed 00,
 # byte 05); it must be hidden with or without trailing punctuation, '7 2026' (seed 20) stays readable.
 @pytest.mark.parametrize("size", [None, 1, 7])
 @pytest.mark.parametrize("dialect", ["nxos", "eos"])
@@ -756,7 +756,7 @@ def test_pem_block_with_end_is_hidden_and_without_end_refused(dialect):
     assert_no_secret(rendered, ("MIIFAKEpemBodyNOTREAL",))
 
 
-# Review 147-rv finding 1: a PEM block ends only on the exact '-----END <same label>-----' line (after
+# Review finding 1: a PEM block ends only on the exact '-----END <same label>-----' line (after
 # the indentation); a foreign or malformed boundary refuses the whole stream, so no body line is
 # ever read as configuration.
 REVIEW_PEM = ("-----BEGIN CERTIFICATE-----\n-----END PRIVATE KEY-----\nhostname CERTBODY123\n"

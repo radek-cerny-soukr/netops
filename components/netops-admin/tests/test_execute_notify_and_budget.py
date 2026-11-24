@@ -23,6 +23,7 @@ from test_admin_wait_and_recovery_regressions import (DeviceTime, changed_back_b
 from netops_admin import enrollment, exec_schema_fortios, execute, schema_runtime
 from netops_admin.config import DEFAULT_LIMITS, Config
 from netops_admin.errors import BudgetExhausted, Rejected
+from approved_apply import approved_apply, preview_hash
 
 UNDELIVERED = ("the notification of operation %s was not delivered; run notify-retry, or a person"
                " unblocks the device after checking the notification channel")
@@ -50,7 +51,7 @@ def test_the_notifier_given_to_the_runtime_runs_once_the_stored_operation_says_s
         return "sent"
 
     runtime = notified_runtime(tmp_path, device, notifier)
-    record = execute.apply(runtime, "lab", request())
+    record = approved_apply(runtime, "lab", request())
     assert seen == [("confirmed", "sending")]
     assert record["notification"] == "sent"
     assert runtime.store.operation(record["change_id"])["notification"] == "sent"
@@ -65,17 +66,17 @@ def test_a_crash_inside_the_notifier_keeps_the_device_refusing_changes_until_the
 
     runtime = notified_runtime(tmp_path, device, crash)
     with pytest.raises(Crash):
-        execute.apply(runtime, "lab", request())
+        approved_apply(runtime, "lab", request())
     (change,) = [record["change_id"] for record in runtime.store.records()]
     assert runtime.store.operation(change)["notification"] == "sending"
     blocks = len(device.applied_blocks)
     with pytest.raises(Rejected) as caught:
-        execute.apply(runtime, "lab", request(key="other-host", request_id="req-0002-example"))
+        approved_apply(runtime, "lab", request(key="other-host", request_id="req-0002-example"))
     assert caught.value.reasons == [UNDELIVERED % change]
     assert len(device.applied_blocks) == blocks
     runtime.notifier = lambda record: "sent"
     assert execute.notify_retry(runtime, change)["notification"] == "sent"
-    again = execute.apply(runtime, "lab", request(key="other-host", request_id="req-0002-example"))
+    again = approved_apply(runtime, "lab", request(key="other-host", request_id="req-0002-example"))
     assert again["result"] == "confirmed"
 
 
@@ -87,7 +88,7 @@ def test_the_audit_delivery_of_a_result_waits_for_an_export_after_the_result(tmp
         status = tmp_path / "export-status.json"
         status.write_text(json.dumps({"updated_at": time.time(), "pending": pending}))
     runtime = make_runtime(tmp_path, device, export_status=None if status is None else str(status))
-    record = execute.apply(runtime, "lab", request())
+    record = approved_apply(runtime, "lab", request())
     assert record["audit_delivery"] == expected
     assert runtime.store.operation(record["change_id"])["audit_delivery"] == expected
     assert [event["audit_delivery"] for event in result_events(tmp_path)] == [expected]
@@ -130,7 +131,7 @@ def test_a_new_operation_takes_its_budget_moment_from_the_budget_clock(tmp_path,
     running = []
     device.on_apply = lambda fake, lines: running.extend(runtime.store.running("lab"))
     started = time.time()
-    record = execute.apply(runtime, "lab", request())
+    record = approved_apply(runtime, "lab", request())
     assert record["budget_at_epoch"] == 4242.5
     assert runtime.store.operation(record["change_id"])["budget_at_epoch"] == 4242.5
     assert started <= record["created_at_epoch"] <= time.time()
@@ -148,10 +149,10 @@ def test_a_plan_is_refused_when_either_side_holds_more_commands_than_the_limit(t
     assert sizes[0] != sizes[1]
     narrow = make_runtime(tmp_path / "narrow", FakeFortiOS(), limits=dict(DEFAULT_LIMITS, plan_commands=min(sizes)))
     with pytest.raises(Rejected) as caught:
-        execute.apply(narrow, "lab", request(**fields))
+        approved_apply(narrow, "lab", request(**fields))
     assert caught.value.reasons == ["the plan holds more than %d commands" % min(sizes)]
     exact = make_runtime(tmp_path / "exact", FakeFortiOS(), limits=dict(DEFAULT_LIMITS, plan_commands=max(sizes)))
-    assert execute.apply(exact, "lab", request(**fields))["result"] == "confirmed"
+    assert approved_apply(exact, "lab", request(**fields))["result"] == "confirmed"
 
 
 @pytest.mark.parametrize("notifier,pending,refused", [
@@ -183,7 +184,7 @@ def test_a_mandatory_rule_of_the_planned_table_is_required_before_the_change_wit
     shown = execute.preview(runtime, "sw", exos_request(**fields))
     assert (shown["result"], shown["reasons"]) == ("rejected", ["mandatory audit rules were not evaluated: port-policy"])
     with pytest.raises(Rejected) as caught:
-        execute.apply(runtime, "sw", exos_request(**fields))
+        approved_apply(runtime, "sw", exos_request(**fields))
     assert caught.value.reasons == ["mandatory audit rules were not evaluated: port-policy"]
     assert device.applied_blocks == []
 
@@ -346,8 +347,9 @@ def test_each_way_out_of_a_change_records_its_steps_and_its_reason(tmp_path, mon
     arrange, expected, result, reason = EXECUTE_CASES[case]
     device = FakeFortiOS()
     runtime = make_runtime(tmp_path, device)
+    approved = preview_hash(runtime, "lab", request())
     arrange(monkeypatch, device)
-    record = execute.apply(runtime, "lab", request())
+    record = execute.apply(runtime, "lab", request(), expected_plan_sha256=approved)
     assert trail(record) == expected
     assert (record["result"], record["reason"]) == (result, reason)
     assert runtime.store.operation(record["change_id"])["steps"] == record["steps"]
@@ -379,7 +381,7 @@ def test_the_confirmation_needs_the_margin_left_on_the_device_clock(tmp_path, mo
 
     device.safeguard_seconds = runtime.config.devices["lab"].safeguard_seconds
     monkeypatch.setattr(execute.exec_fortios, "clock", scripted)
-    record = execute.apply(runtime, "lab", request())
+    record = approved_apply(runtime, "lab", request())
     assert (record["result"], record["reason"]) == result
     assert trail(record) == CHECKED + [audit_passed(), ("check_identity_passed", None)] + tail
 
@@ -387,7 +389,7 @@ def test_the_confirmation_needs_the_margin_left_on_the_device_clock(tmp_path, mo
 def test_the_result_event_carries_the_whole_outcome_of_the_operation(tmp_path, monkeypatch):
     after_check(monkeypatch, 3, ["first"])
     runtime = make_runtime(tmp_path, FakeFortiOS())
-    record = execute.apply(runtime, "lab", request())
+    record = approved_apply(runtime, "lab", request())
     [event] = result_events(tmp_path)
     assert event == {
         "event": "result", "at": event["at"], "change_id": record["change_id"], "request_id": "req-0001-example",
@@ -400,7 +402,7 @@ def test_the_result_event_carries_the_whole_outcome_of_the_operation(tmp_path, m
 
 
 def test_each_step_is_stamped_with_its_time(tmp_path):
-    record = execute.apply(make_runtime(tmp_path, FakeFortiOS()), "lab", request())
+    record = approved_apply(make_runtime(tmp_path, FakeFortiOS()), "lab", request())
     assert all(sorted(step) == ["at", "detail", "step"] for step in record["steps"])
     assert all(step["at"].endswith("Z") and step["at"][4] == "-" and step["at"][10] == "T" for step in record["steps"])
 
@@ -408,7 +410,7 @@ def test_each_step_is_stamped_with_its_time(tmp_path):
 def test_unreadable_foreign_sessions_do_not_stop_the_change(tmp_path, monkeypatch):
     nth_call(monkeypatch, "foreign_sessions", 1, RuntimeError)
     runtime = make_runtime(tmp_path, FakeFortiOS())
-    record = execute.apply(runtime, "lab", request())
+    record = approved_apply(runtime, "lab", request())
     assert record["foreign_sessions"] is None
     assert trail(record)[:2] == [("foreign_sessions_unreadable", "RuntimeError"), ("safeguard_install", None)]
     assert (record["result"], record["reason"]) == ("confirmed", None)
@@ -455,8 +457,9 @@ def test_settling_after_the_safeguard_expiry_records_how_it_ended(tmp_path, monk
     arrange, expected, outcome = SETTLED[case]
     device = FakeFortiOS()
     runtime = make_runtime(tmp_path, device)
+    approved = preview_hash(runtime, "lab", request())
     arrange(monkeypatch, device)
-    record = execute.apply(runtime, "lab", request())
+    record = execute.apply(runtime, "lab", request(), expected_plan_sha256=approved)
     assert trail(record) == expected
     assert (record["result"], record["reason"]) == outcome
     assert (record["differences"] != []) == (outcome[0] == "revert-failed")
@@ -466,7 +469,7 @@ def test_settling_after_the_safeguard_expiry_records_how_it_ended(tmp_path, monk
 def interrupted(tmp_path, device, crash, twice=True, safeguard=True):
     device.on_apply = crash
     with pytest.raises(KeyboardInterrupt):
-        execute.apply(make_runtime(tmp_path, device), "lab", request())
+        approved_apply(make_runtime(tmp_path, device), "lab", request())
     device.on_apply = None
     runtime = make_runtime(tmp_path, device)
     [running] = runtime.store.running("lab")
@@ -563,7 +566,7 @@ def test_recover_names_a_device_that_is_not_configured(tmp_path):
 
 
 def confirmed_before(runtime, device):
-    assert execute.apply(runtime, "lab", request(key="first-host", request_id="req-0003-example"))["result"] == "confirmed"
+    assert approved_apply(runtime, "lab", request(key="first-host", request_id="req-0003-example"))["result"] == "confirmed"
 
 
 def stale_export(runtime):
@@ -610,10 +613,11 @@ def test_each_refusal_before_a_change_names_its_reason(tmp_path, monkeypatch, ca
     status = tmp_path / "export-status.json"
     status.write_text(json.dumps({"updated_at": time.time(), "pending": 0}))
     runtime = make_runtime(tmp_path, device, export_status=str(status))
+    approved = preview_hash(runtime, "lab", request())
     arrange(monkeypatch, runtime, device)
     blocks = len(device.applied_blocks)
     with pytest.raises(Rejected) as caught:
-        execute.apply(runtime, "lab", request())
+        execute.apply(runtime, "lab", request(), expected_plan_sha256=approved)
     assert caught.value.reasons == reasons
     assert len(device.applied_blocks) == blocks
 
@@ -622,14 +626,14 @@ def test_an_interrupted_operation_refuses_new_changes_until_recover(tmp_path):
     device = FakeFortiOS()
     runtime = interrupted(tmp_path, device, killed_after_the_change(), twice=False)
     with pytest.raises(Rejected) as caught:
-        execute.apply(runtime, "lab", request(key="other-host", request_id="req-0002-example"))
+        approved_apply(runtime, "lab", request(key="other-host", request_id="req-0002-example"))
     assert caught.value.reasons == ["an unfinished operation exists on this device; run recover first"]
 
 
 def test_an_undo_is_refused_when_the_object_moved_on_since_the_change(tmp_path):
     device = FakeFortiOS()
     runtime = make_runtime(tmp_path, device)
-    record = execute.apply(runtime, "lab", request())
+    record = approved_apply(runtime, "lab", request())
     device.addresses["new-host"]["comment"] = "edited by hand"
     blocks = len(device.applied_blocks)
     with pytest.raises(Rejected) as caught:
@@ -641,17 +645,17 @@ def test_an_undo_is_refused_when_the_object_moved_on_since_the_change(tmp_path):
 def test_a_request_for_an_unknown_or_another_device_is_refused_by_name(tmp_path):
     runtime = make_runtime(tmp_path, FakeFortiOS())
     with pytest.raises(Rejected) as caught:
-        execute.apply(runtime, "ghost", request())
+        approved_apply(runtime, "ghost", request())
     assert caught.value.reasons == ["device %s is not configured" % execute.shown("ghost")]
     with pytest.raises(Rejected) as caught:
-        execute.apply(runtime, "lab", request(device="other"))
+        approved_apply(runtime, "lab", request(device="other"))
     assert caught.value.reasons == ["the request names device 'other', but it was sent to device 'lab'"]
 
 
 def test_preview_shows_the_plan_the_apply_will_run(tmp_path):
     runtime = make_runtime(tmp_path, FakeFortiOS())
     shown = execute.preview(runtime, "lab", request())
-    record = execute.apply(runtime, "lab", request())
+    record = approved_apply(runtime, "lab", request())
     plan = record["plan"]
     assert shown == {
         "result": "ready", "reasons": [], "reason_codes": [], "reason_details": [], "device": "lab", "platform": "fortios", "firmware": plan["firmware"],
@@ -677,7 +681,7 @@ def test_unblock_and_notify_retry_name_what_they_refuse(tmp_path):
     with pytest.raises(Rejected) as caught:
         execute.notify_retry(runtime, "a" * 32)
     assert caught.value.reasons == ["no finished operation matches"]
-    record = execute.apply(runtime, "lab", request())
+    record = approved_apply(runtime, "lab", request())
     with pytest.raises(Rejected) as caught:
         execute.notify_retry(runtime, record["change_id"])
     assert caught.value.reasons == ["notification is not configured"]
@@ -688,7 +692,7 @@ def test_the_administrator_table_block_is_audited_with_its_action(tmp_path):
     device.admins.append("persisted-account")
     runtime = make_runtime(tmp_path, device)
     with pytest.raises(Rejected):
-        execute.apply(runtime, "lab", request())
+        approved_apply(runtime, "lab", request())
     [event] = [event for event in audit_lines(tmp_path) if event["event"] == "administrative"]
     assert event == {"event": "administrative", "at": event["at"], "device": "lab",
                      "action": "blocked: administrator table", "reason_characters": 0, "change_id": None}
@@ -698,7 +702,7 @@ def test_an_undo_of_an_operation_with_an_unreadable_plan_names_its_state_file(tm
     from netops_admin.errors import StateUnreadable
 
     runtime = make_runtime(tmp_path, FakeFortiOS())
-    record = execute.apply(runtime, "lab", request())
+    record = approved_apply(runtime, "lab", request())
     stored = runtime.store.operation(record["change_id"])
     stored["plan"]["commands"].append("set comment \"other\"")
     runtime.store.save(stored)
@@ -714,7 +718,7 @@ def test_only_a_confirmed_operation_is_undone_and_the_undo_names_it(tmp_path):
     with pytest.raises(Rejected) as caught:
         execute.undo(runtime, "a" * 32, "restore")
     assert caught.value.reasons == ["only a confirmed operation can be undone"]
-    record = execute.apply(runtime, "lab", request())
+    record = approved_apply(runtime, "lab", request())
     undone = execute.undo(runtime, record["change_id"], "restore")
     assert (undone["result"], undone["request_id"]) == ("confirmed", "undo-%s" % record["change_id"])
     assert undone["plan"]["user_request_characters"] == len("undo of operation %s" % record["change_id"])
@@ -783,7 +787,9 @@ def test_a_schema_transaction_hands_the_auditor_its_plan_snapshots_and_policy(tm
     shown = execute.preview(runtime, "lab", schema_request([schema_op(changes={"comment": "final"})]))
     assert (shown["result"], shown["reasons"], shown["audit_coverage"]) == ("ready", [], {"phase": "after 1"})
     calls["access"].clear(), calls["before"].clear(), calls["after"].clear()
-    record = execute.apply(runtime, "lab", schema_request([schema_op(changes={"comment": "final"})]))
+    # the apply carries the plan_sha256 of the preview above, which the person approved
+    record = execute.apply(runtime, "lab", schema_request([schema_op(changes={"comment": "final"})]),
+                           expected_plan_sha256=shown["plan_sha256"])
     assert (record["result"], record["reason"]) == ("confirmed", None)
     assert record["audit_coverage"] == {"phase": "after 2"}
     assert calls["access"] == [device]
@@ -804,7 +810,7 @@ def test_recover_of_a_schema_transaction_reads_through_the_schema_adapter(tmp_pa
 
     fake.on_apply = interrupt
     with pytest.raises(KeyboardInterrupt):
-        execute.apply(runtime, "lab", schema_request([schema_op(changes={"comment": "final"})]))
+        approved_apply(runtime, "lab", schema_request([schema_op(changes={"comment": "final"})]))
     fake.on_apply = None
     calls["access"].clear(), calls["absent"].clear(), calls["removed"].clear()
     [settled] = execute.recover(runtime, "lab")
@@ -863,7 +869,7 @@ def numeric_comment(plan):
 def test_an_undo_refuses_a_plan_it_cannot_turn_back_into_a_request(tmp_path, edit, reasons):
     device = FakeFortiOS()
     runtime = make_runtime(tmp_path, device)
-    record = execute.apply(runtime, "lab", request(op="update", key="spare-host", changes={"comment": "two words"}))
+    record = approved_apply(runtime, "lab", request(op="update", key="spare-host", changes={"comment": "two words"}))
     stored_plan_edit(runtime, record["change_id"], edit)
     blocks = len(device.applied_blocks)
     with pytest.raises(Rejected) as caught:
@@ -909,7 +915,7 @@ def transaction(operations, request_id):
 def test_admission_counts_every_operation_of_a_transaction_against_the_budget_once_more(tmp_path, monkeypatch):
     runtime, fake, device, calls, _audit_before = schema_bench(tmp_path, monkeypatch)
     runtime.config = replace(runtime.config, limits=dict(DEFAULT_LIMITS, changes_per_device_per_hour=4))
-    first = execute.apply(runtime, "lab", transaction([schema_op(changes={"comment": "first"})], "schema-req-00001"))
+    first = approved_apply(runtime, "lab", transaction([schema_op(changes={"comment": "first"})], "schema-req-00001"))
     assert first["result"] == "confirmed"
     admission = runtime.store.admission
 
@@ -923,7 +929,7 @@ def test_admission_counts_every_operation_of_a_transaction_against_the_budget_on
     blocks = len(fake.applied_blocks)
     operations = [schema_op(changes={"comment": word}) for word in ("second", "third", "fourth")]
     with pytest.raises(BudgetExhausted) as caught:
-        execute.apply(runtime, "lab", transaction(operations, "schema-req-00003"))
+        approved_apply(runtime, "lab", transaction(operations, "schema-req-00003"))
     assert caught.value.reasons == [HOUR_EXHAUSTED]
     assert len(fake.applied_blocks) == blocks
 
@@ -931,7 +937,7 @@ def test_admission_counts_every_operation_of_a_transaction_against_the_budget_on
 def test_a_schema_create_binds_the_generated_identity_it_saw_after_the_change(tmp_path, monkeypatch):
     runtime, fake, device, calls, _audit_before = schema_bench(tmp_path, monkeypatch)
     operation = schema_op(owners=["new"], mode="create", changes={"subnet": "192.0.2.183/32", "comment": "created"})
-    record = execute.apply(runtime, "lab", schema_request([operation]))
+    record = approved_apply(runtime, "lab", schema_request([operation]))
     assert (record["result"], record["reason"]) == ("confirmed", None)
     assert fake.addresses["new"]["uuid"] in json.dumps(record["plan"]["generated_bindings"])
     assert runtime.store.operation(record["change_id"])["plan"]["generated_bindings"] == record["plan"]["generated_bindings"]
@@ -966,7 +972,7 @@ RECORD_FIELDS = sorted([
 
 def test_a_confirmed_operation_journals_exactly_its_fields(tmp_path):
     runtime = make_runtime(tmp_path, FakeFortiOS())
-    record = execute.apply(runtime, "lab", request())
+    record = approved_apply(runtime, "lab", request())
     assert sorted(record) == RECORD_FIELDS
     assert sorted(runtime.store.operation(record["change_id"])) == RECORD_FIELDS
     assert record["kind"] == "change" and record["budget_changes"] == 1
@@ -977,7 +983,7 @@ def test_a_second_refresh_of_an_acknowledged_delivery_returns_the_same_record(tm
     status = tmp_path / "export-status.json"
     status.write_text(json.dumps({"updated_at": time.time(), "pending": 1}))
     runtime = make_runtime(tmp_path, device, export_status=str(status))
-    record = execute.apply(runtime, "lab", request())
+    record = approved_apply(runtime, "lab", request())
     status.write_text(json.dumps({"updated_at": time.time() + 1, "pending": 0}))
     shown = execute.refresh_delivery(runtime, record)
     assert shown["audit_delivery"] == "acknowledged"

@@ -53,7 +53,7 @@ def _campus_queries(physical_interface) -> dict[str, Query]:
     }
 
 
-# G56 / G74: IOS and IOS XE use the same independent management reads.
+# router management / xe management: IOS and IOS XE use the same independent management reads.
 IOS_MANAGEMENT_QUERIES = {
     "aaa_servers": Query("show aaa servers", NO_SLOTS, "Show AAA server availability and request counters.", empty_allowed=True),
     "radius_statistics": Query("show radius statistics", NO_SLOTS, "Show RADIUS authentication, accounting, timeout and error counters."),
@@ -103,7 +103,7 @@ IOS_QUERIES: dict[str, Query] = {
 }
 
 
-# G51: IOS router diagnostics. Logical/subinterfaces use the existing enrolled
+# router routing: IOS router diagnostics. Logical/subinterfaces use the existing enrolled
 # interface slot; the campus physical-port validator excludes Lo0 and subinterfaces.
 _ROUTING_INTERFACE = {"interface": Slot("interfaces", "interface")}
 _VRF = {"vrf": Slot("vrfs", "vrf")}
@@ -135,7 +135,7 @@ IOS_QUERIES.update({
 })
 
 
-# G52: bounded device-originated probes, only enrolled destinations/source interfaces/VRFs.
+# router probes: bounded device-originated probes, only enrolled destinations/source interfaces/VRFs.
 _IOS_PROBE_QUERIES = {
     "ping": Query('ping {address} repeat 5 timeout 1', {'address': Slot('addresses', 'ipv4_address')}, 'Send five ICMP echo requests with a one-second timeout per request.', pty=True),
     "ping_source": Query('ping {address} source {source} repeat 5 timeout 1', {'address': Slot('addresses', 'ipv4_address'), 'source': Slot('interfaces', 'interface')}, 'Send five ICMP echo requests with a one-second timeout per request from an enrolled source interface.', pty=True),
@@ -151,7 +151,7 @@ _IOS_PROBE_QUERIES = {
 IOS_QUERIES.update(_IOS_PROBE_QUERIES)
 
 
-# G53: port, STP, EtherChannel, PoE and neighbor detail; syntax verified on IOSvL2 15.2 (PoE detail from
+# router ports: port, STP, EtherChannel, PoE and neighbor detail; syntax verified on IOSvL2 15.2 (PoE detail from
 # the Cisco IOS command reference: the lab image has no PoE). Interface slots use the physical-port kind.
 _IOS_PORT_QUERIES = {
     "stp_detail": Query("show spanning-tree detail", NO_SLOTS, "Show spanning-tree instances with topology change history and per-port BPDU counters.", high_volume=True),
@@ -167,7 +167,7 @@ _IOS_PORT_QUERIES = {
 IOS_QUERIES.update(_IOS_PORT_QUERIES)
 
 
-# G55: scoped forwarding lookups and operational security reads on classic IOS.
+# router security: scoped forwarding lookups and operational security reads on classic IOS.
 _G55_MAC = {"mac": Slot(None, "mac_literal")}
 _G55_HOST = {"address": Slot(None, "ipv4_neighbor")}
 IOS_G55_QUERIES = {
@@ -282,7 +282,7 @@ IOS_G54_QUERIES = {
 IOS_QUERIES.update(IOS_G54_QUERIES)
 
 
-# G69: verified read-only IOS XE routing diagnostics.
+# xe routing: verified read-only IOS XE routing diagnostics.
 IOS_XE_QUERIES.update({
     "vrfs": Query("show ip vrf", NO_SLOTS, "List IPv4 VRFs and their interfaces.", high_volume=True, empty_allowed=True),
     "vrf_route_lookup": Query("show ip route vrf {vrf} {address}", {**_VRF, **_DESTINATION}, "Look up an enrolled IPv4 destination in one enrolled VRF."),
@@ -309,7 +309,7 @@ IOS_XE_QUERIES.update({
     "ip_policy": Query("show ip policy", NO_SLOTS, "Show interfaces with policy routing and their route maps.", high_volume=True),
 })
 
-# G70: IOS XE also accepts bounded IPv6 probes inside a VRF and bounded IPv6 traceroute.
+# xe probes: IOS XE also accepts bounded IPv6 probes inside a VRF and bounded IPv6 traceroute.
 _PROBE_SOURCE = {"source": Slot("interfaces", "interface")}
 IOS_XE_PROBE_QUERIES = {
     **{name: replace(query) for name, query in _IOS_PROBE_QUERIES.items()},
@@ -322,7 +322,7 @@ IOS_XE_PROBE_QUERIES = {
 }
 IOS_XE_QUERIES.update(IOS_XE_PROBE_QUERIES)
 
-# G57: operational QoS, NAT, and VPN. Catalyst MLS counters are a separate IOS read.
+# router diagnostics: operational QoS, NAT, and VPN. Catalyst MLS counters are a separate IOS read.
 IOS_G57_SHARED = {
     "qos_policy": Query("show policy-map interface {interface}", _ROUTING_INTERFACE,
                         "Show per-class QoS traffic, queue depth and drops on one enrolled interface. An empty output means no attached policy.",
@@ -348,7 +348,7 @@ IOS_G57_QUERIES = {
 }
 IOS_QUERIES.update(IOS_G57_QUERIES)
 IOS_XE_QUERIES.update({name: replace(query) for name, query in IOS_G57_SHARED.items()})
-# G75: Catalyst IOS XE reports hardware queue statistics through FED.
+# xe diagnostics: Catalyst IOS XE reports hardware queue statistics through FED.
 IOS_XE_QUERIES["qos_queues"] = Query(
     "show platform hardware fed switch active qos queue stats interface {interface}",
     CISCO_XE_PHYSICAL_INTERFACE,
@@ -356,7 +356,7 @@ IOS_XE_QUERIES["qos_queues"] = Query(
     high_volume=True,
 )
 
-# G71: IOS XE shares the IOS show commands with XE-specific physical ports and a scoped channel group.
+# xe ports: IOS XE shares the IOS show commands with XE-specific physical ports and a scoped channel group.
 IOS_XE_PORT_QUERIES = {
     name: replace(query, slots=CISCO_XE_PHYSICAL_INTERFACE if query.slots else NO_SLOTS)
     for name, query in _IOS_PORT_QUERIES.items()
@@ -368,7 +368,7 @@ IOS_XE_PORT_QUERIES["etherchannel_detail"] = Query(
 )
 IOS_XE_QUERIES.update(IOS_XE_PORT_QUERIES)
 
-# G73 shares the IOS forwarding and security commands except for IOS XE access sessions.
+# xe security shares the IOS forwarding and security commands except for IOS XE access sessions.
 IOS_XE_G73_QUERIES = {
     **{name: replace(query) for name, query in IOS_G55_QUERIES.items()},
     "mac_table_interface": replace(IOS_G55_QUERIES["mac_table_interface"], slots=CISCO_XE_SWITCHPORT),
@@ -390,7 +390,7 @@ NXOS_G95_QUERIES = frozenset({
 
 
 NXOS_QUERIES: dict[str, Query] = {
-    # G95: independently enrolled management diagnostics.
+    # nxos management: independently enrolled management diagnostics.
     "dns_hosts": Query("show hosts", NO_SLOTS, "Show the switch DNS resolver settings and host cache.", high_volume=True),
     "snmp_statistics": Query("show snmp", NO_SLOTS, "Show SNMP agent request and notification counters with credential sections redacted."),
     "snmp_engine_id": Query("show snmp engineID", NO_SLOTS, "Show the local SNMP engine identifier."),
@@ -503,7 +503,7 @@ def nxos_log_window(parameters):
     return start, end
 
 
-# G92: NX-OS port and peer diagnostics, verified on NX-OS 9.3(12).
+# nxos ports: NX-OS port and peer diagnostics, verified on NX-OS 9.3(12).
 NXOS_QUERIES.update({
     "stp_detail": Query("show spanning-tree detail", NO_SLOTS, "Show STP topology changes and per-port counters.", high_volume=True),
     "stp_interface_detail": Query("show spanning-tree interface {interface} detail", CISCO_NXOS_INTERFACE, "Show STP BPDU and transition counters for one enrolled port."),
@@ -517,7 +517,7 @@ NXOS_QUERIES.update({
     "cdp_neighbor_interface": Query("show cdp neighbors interface {interface} detail", CISCO_NXOS_INTERFACE, "Show detailed CDP neighbors of one enrolled interface."),
 })
 
-# G90: protocol details remain sourced CLI text (including timers, reset reasons,
+# nxos routing: protocol details remain sourced CLI text (including timers, reset reasons,
 # path attributes and policy counters); they do not infer a forwarding decision.
 NXOS_QUERIES.update({
     "route_prefix_lookup": Query("show ip route {prefix}", {"prefix": Slot("lookup_prefixes", "ipv4_prefix")}, "Look up one enrolled IPv4 prefix in the RIB."),
@@ -553,7 +553,7 @@ for _name in (
     )
 
 
-# G91: fixed packet count; all destinations, sources and VRFs must be enrolled.
+# nxos probes: fixed packet count; all destinations, sources and VRFs must be enrolled.
 _NX_PROBE_VRF = {"vrf": Slot("vrfs", "vrf")}
 NXOS_QUERIES.update({
     "ping": Query("ping {address} vrf {vrf} count 5", {"vrf": Slot("vrfs", "vrf"), "address": Slot("addresses", "ipv4_address")}, "Run a bounded IPv4 ping from an enrolled VRF."),
@@ -567,7 +567,7 @@ NXOS_QUERIES.update({
 })
 
 
-# G94: focused L2/L3 lookups, ACLs and first-hop security diagnostics.
+# nxos security: focused L2/L3 lookups, ACLs and first-hop security diagnostics.
 _NX_IPV4_NEIGHBOR = {"address": Slot(None, "ipv4_neighbor")}
 _NX_IPV6_NEIGHBOR = {"address": Slot(None, "ipv6_neighbor")}
 _NX_ACL_NAME = {"name": Slot(None, "nxos_acl_name")}
@@ -621,7 +621,7 @@ IOS_ADMIN_READS = frozenset({XE_LOG_HISTORY, "clock", "snmp_engine_id"})
 IOS_XE_ADMIN_READS = frozenset(IOS_XE_PROBE_QUERIES) | IOS_XE_G73_QUERIES.keys() | {XE_LOG_HISTORY, "clock", "ip_interface_details", "snmp_engine_id"}
 
 
-# G87: Catalyst 9800 operational reads. Other IOS XE products may reject them.
+# wireless controller: Catalyst 9800 operational reads. Other IOS XE products may reject them.
 C9800_QUERIES = {
     "c9800_aps": Query("show ap summary", NO_SLOTS, "List the APs reported by the wireless controller and their state.", high_volume=True),
     "c9800_ap_joins": Query("show wireless stats ap join summary", NO_SLOTS, "Show controller-observed APs that joined or failed to join and the last disconnect reason.", high_volume=True),
@@ -644,7 +644,7 @@ C9800_QUERIES = {
 IOS_XE_QUERIES.update(C9800_QUERIES)
 
 
-# G89: fixed read-only commands for hardware QFP dataplanes.
+# forwarding processor: fixed read-only commands for hardware QFP dataplanes.
 QFP_QUERIES = {
     "qfp_drops": Query("show platform hardware qfp active statistics drop", NO_SLOTS,
                        "Show hardware QFP drop reasons and packet and octet counts.", high_volume=True),

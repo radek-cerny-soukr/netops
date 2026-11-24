@@ -78,7 +78,7 @@ def test_profiles_list_the_webhook_build():
     assert "webhook" in policy_profile.rollback_evidence
     address = profiles.find_profile("fortios", "firewall address", "8.0.2 build0251")
     assert profiles.firmware_support(address, "8.0.2 build0251")["status"] == "tested"
-    # G00-1: the group is untested on 8.0.2 (a warning); 1.0.12 G20: DHCP has a REST inverse (nested path) there
+    # STARTUP-1: the group is untested on 8.0.2 (a warning); 1.0.12 DHCP-DNS: DHCP has a REST inverse (nested path) there
     group = profiles.find_profile("fortios", "firewall addrgrp", "8.0.2 build0251")
     assert profiles.firmware_support(group, "8.0.2 build0251")["status"] == "untested"
     assert fortios.webhook_refusal(group, "8.0.2 build0251") is None
@@ -302,7 +302,7 @@ def test_rest_inverse_shapes_and_limits():
     with pytest.raises(Rejected) as caught:
         fortios.rest_inverse(policy_profile, "update", "7", big, "192.0.2.1")
     assert "request body limit" in " ".join(caught.value.reasons)
-    # 1.0.12 G20: a nested table is reached under its parent (paths read with GET on 7.6.8 and 8.0.2)
+    # 1.0.12 DHCP-DNS: a nested table is reached under its parent (paths read with GET on 7.6.8 and 8.0.2)
     dhcp = profiles.load_profiles()[("fortios", "system dhcp server/reserved-address")]
     assert fortios.rest_inverse(dhcp, "create", "3:2", fortios.render_delete(dhcp, "3:2"), "192.0.2.1") == {
         "method": "delete", "uri": "192.0.2.1/api/v2/cmdb/system.dhcp/server/3/reserved-address/2", "body": ""}
@@ -315,10 +315,10 @@ def test_rest_inverse_shapes_and_limits():
         "method": "post", "uri": "192.0.2.1/api/v2/cmdb/system.dhcp/server/3/reserved-address",
         "body": '{"id":2,"ip":"192.0.2.50","mac":"00:00:5e:00:53:02"}'}
     dns = profiles.load_profiles()[("fortios", "system dns-database/dns-entry")]
-    assert fortios.rest_inverse(dns, "create", "netops-g20.test:4", fortios.render_delete(dns, "netops-g20.test:4"),
-                                "192.0.2.1")["uri"] == "192.0.2.1/api/v2/cmdb/system/dns-database/netops-g20.test/dns-entry/4"
-    ttl = fortios.render_update(dns, "netops-g20.test:4", {"ttl": "300"}, [])
-    assert fortios.rest_inverse(dns, "update", "netops-g20.test:4", ttl, "192.0.2.1")["body"] == '{"ttl":300}'
+    assert fortios.rest_inverse(dns, "create", "netops-dhcp-dns.test:4", fortios.render_delete(dns, "netops-dhcp-dns.test:4"),
+                                "192.0.2.1")["uri"] == "192.0.2.1/api/v2/cmdb/system/dns-database/netops-dhcp-dns.test/dns-entry/4"
+    ttl = fortios.render_update(dns, "netops-dhcp-dns.test:4", {"ttl": "300"}, [])
+    assert fortios.rest_inverse(dns, "update", "netops-dhcp-dns.test:4", ttl, "192.0.2.1")["body"] == '{"ttl":300}'
 
 
 def step_text(step):
@@ -699,8 +699,8 @@ def test_service_firing_reverts_a_delete_with_post(tmp_path):
     ("vpn ipsec phase2-interface", "/api/v2/cmdb/vpn.ipsec/phase2-interface/", "vpngrp"),
 ])
 def test_webhook_identity_grants_only_the_group_for_the_measured_table(tmp_path, table, rest_table, group):
-    from test_fortios_g20 import FortiOSG20, ZONE, ask
-    from test_fortios_g26 import FortiOSG26, create
+    from test_fortios_dhcp_dns import FortiOSG20, ZONE, ask
+    from test_fortios_firewall_cleanup import FortiOSG26, create
 
     if table == fortios.DNS_TABLE:
         measured = FortiOSG20()

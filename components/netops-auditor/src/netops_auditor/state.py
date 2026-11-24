@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from .engine import EVALUATED
+from .engine import EVALUATED, RULE_STATES
+from .platforms import PLATFORMS, is_snapshot_marker
 
 STATE_NEW = "new"
 STATE_OPEN_KNOWN = "open-known"
@@ -34,9 +35,8 @@ class Classification:
     not_evaluated: tuple = ()
 
 
-UNEVALUATED_RULES = frozenset((
-    "fortios.snapshot.incomplete", "exos.snapshot.incomplete", "fortios.scope.vdom-unsupported",
-))
+SCOPE_MARKER = "fortios.scope.vdom-unsupported"
+UNEVALUATED_RULES = frozenset({SCOPE_MARKER, *(key + ".snapshot.incomplete" for key in PLATFORMS)})
 
 
 def suppressions_for_device(suppressions, device) -> tuple:
@@ -50,14 +50,20 @@ def coverage(findings, statuses=None) -> dict:
     inherent, actionable = [], []
     for item in findings:
         rule = item["rule_id"] if hasattr(item, "keys") else getattr(item, "rule_id", None)
-        if rule in UNEVALUATED_RULES:
+        if rule == SCOPE_MARKER or is_snapshot_marker(rule):
             actionable.append({"rule_id": rule, "reason": "snapshot-incomplete"})
     for rule, item in sorted((statuses or {}).items()):
         if item["required"] and item["status"] != EVALUATED:
             reason = item.get("reason", "")
             gap = {"rule_id": rule, "reason": reason}
             (inherent if inherent_gap(rule, reason) and item["status"] == "not-evaluated" else actionable).append(gap)
-    return {"complete": not inherent and not actionable, "inherent_gaps": inherent, "actionable_gaps": actionable}
+    counts = None
+    if statuses:
+        counts = {name.replace("-", "_"): 0 for name in RULE_STATES}
+        for item in statuses.values():
+            counts[item["status"].replace("-", "_")] += 1
+    return {"complete": not inherent and not actionable, "inherent_gaps": inherent,
+            "actionable_gaps": actionable, "counts": counts}
 
 
 def evaluation_complete(findings, statuses=None) -> bool:

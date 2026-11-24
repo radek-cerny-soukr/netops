@@ -397,7 +397,7 @@ def run(auths, endpoint, read, budget=None, progress=lambda result: None, identi
         progress(result)
     budget.on_read = count_read
     macs = {value} if kind == 'mac' else set()
-    # G108: an enrolled Ruckus Unleashed controller is itself an AP; its address in an LLDP neighbour is not a switch.
+    # wireless path: an enrolled Ruckus Unleashed controller is itself an AP; its address in an LLDP neighbour is not a switch.
     aliases = {a.alias for a in auths if profile_of(a) != 'ruckus_unleashed'}
     hosts = {a.host for a in auths if profile_of(a) != 'ruckus_unleashed'}
     host_names = {}

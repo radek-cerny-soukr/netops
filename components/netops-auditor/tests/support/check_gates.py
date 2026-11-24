@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import ast
 import importlib
+import hashlib
 import ipaddress
 import json
 import os
@@ -59,6 +60,45 @@ REQUIRED_RULE_FIELDS = (
 )
 
 FIXTURE_NAMES = ("positive.conf", "negative.conf")
+TAXONOMY_AREAS = frozenset({"mgmt", "aaa", "snmp", "time", "logging", "services", "l2", "ports"})
+LEGACY_TAXONOMY_IDS = frozenset({
+    'fortios.mgmt.wan-admin-access',
+    'fortios.logging.no-syslog-target',
+    'fortios.time.no-ntp-sync',
+    'fortios.mgmt.gui-legacy-tls',
+    'fortios.mgmt.idle-timeout',
+    'fortios.mgmt.lockout-threshold',
+    'fortios.mgmt.default-admin-account',
+    'fortios.mgmt.plaintext-admin-access',
+    'fortios.snmp.v1v2c-community',
+    'fortios.mgmt.netops-safeguard-leftover',
+    'fortios.mgmt.password-policy',
+    'fortios.logging.single-cpu-high',
+    'fortios.mgmt.gui-display-hostname',
+    'fortios.mgmt.admin-no-trusthost',
+    'fortios.logging.event-disabled',
+    'fortios.logging.faz-unencrypted',
+    'exos.snmp.default-community',
+    'exos.mgmt.telnet-enabled',
+    'exos.logging.no-syslog-target',
+    'exos.time.no-sntp-client',
+})
+LEGACY_IDENTITIES = {
+    "fortios": "efd14d5a79cc4364bd40505ccf31fbb4bc304ee01feed3b2d7917b11889a6059",
+    "exos": "a07bd1e22504171a139e49973d8a672b52602a9b85c82a92af87e92fe9953e99",
+    "fortiadc": "297aee87f5092fad2b304e5e0059951bbd3d2b786ef7964db5e06f93f1b5ed55",
+}
+FINAL_COUNTS = {"fortios": 43, "exos": 24, "cisco-ios": 22, "cisco-nxos": 19,
+                "arista-eos": 20, "juniper-junos": 19, "fortiadc": 9}
+
+
+def fixture_names(identifier):
+    path = identifier.split(".")
+    if (len(path) == 3 and path[0] != "fortiadc" and path[1] in TAXONOMY_AREAS
+            and identifier not in LEGACY_TAXONOMY_IDS):
+        return (*FIXTURE_NAMES, "not-evaluated.conf")
+    return FIXTURE_NAMES
+
 FIXTURE_ROOT = ("tests", "fixtures")
 RULE_FIXTURE_ROOT = ("tests", "fixtures", "rules")
 
@@ -174,7 +214,7 @@ def gate_fixtures_per_rule(root: Path) -> list:
     identifiers, errors = _rule_identifiers(root)
     directory = root.joinpath(*RULE_FIXTURE_ROOT)
     for identifier in sorted(set(identifiers)):
-        for name in FIXTURE_NAMES:
+        for name in fixture_names(identifier):
             path = directory / identifier / name
             relative = "%s/%s/%s" % ("/".join(RULE_FIXTURE_ROOT), identifier, name)
             if not path.is_file():
@@ -302,8 +342,6 @@ def _loaded_package(root: Path):
     sys.path.insert(0, source)
     engine = importlib.import_module("%s.engine" % PACKAGE)
     findings = importlib.import_module("%s.findings" % PACKAGE)
-    for path in sorted((root / "src" / PACKAGE).glob("checks_*.py")):
-        importlib.import_module("%s.%s" % (PACKAGE, path.stem))
     return engine, findings
 
 
@@ -378,6 +416,7 @@ def gate_catalog(root: Path) -> list:
             "findings.SEVERITIES is %r, the gate expects %r"
             % (tuple(getattr(findings, "SEVERITIES", ())), SEVERITIES)
         )
+    declared_checks = set()
     for relative, platform, document in documents:
         seen = set()
         for index, item in enumerate(document["rules"]):
@@ -396,11 +435,20 @@ def gate_catalog(root: Path) -> list:
                 % (relative, platform, type(error).__name__, error)
             )
             continue
+        declared_checks.update(rule.check for rule in rules)
+        if platform in LEGACY_IDENTITIES:
+            identities = sorted((rule.id, rule.version) for rule in rules if fixture_names(rule.id) == FIXTURE_NAMES)
+            digest = hashlib.sha256(json.dumps(identities, separators=(",", ":")).encode()).hexdigest()
+            if digest != LEGACY_IDENTITIES[platform]:
+                errors.append("%s changed legacy rule IDs or versions" % relative)
         if len(rules) != len(document["rules"]):
             errors.append(
                 "%s declares %d rules but engine.load_catalog(%r) returned %d"
                 % (relative, len(document["rules"]), platform, len(rules))
             )
+    if not errors:
+        for name in sorted(set(engine.registered_checks()) - declared_checks):
+            errors.append("registered check %s belongs to no catalog" % name)
     return errors
 
 
@@ -457,6 +505,7 @@ def check(root: Path) -> dict:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", type=Path, default=ROOT)
+    parser.add_argument("--require-all-platforms", action="store_true")
     arguments = parser.parse_args()
     root = arguments.root.resolve()
     if not root.is_dir():
@@ -464,6 +513,13 @@ def main() -> int:
         print("auditor_gates=failed")
         return 2
     results = check(root)
+    if arguments.require_all_platforms:
+        documents, _ = _catalog_documents(root)
+        counts = {platform: len(doc["rules"]) for _, platform, doc in documents}
+        for platform, expected in FINAL_COUNTS.items():
+            if counts.get(platform) != expected:
+                results["catalog"].append("%s: expected %d definitions, found %d"
+                                          % (platform, expected, counts.get(platform, 0)))
     failed = False
     for name in GATE_ORDER:
         errors = results[name]

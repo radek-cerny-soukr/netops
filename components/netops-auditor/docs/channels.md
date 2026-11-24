@@ -116,20 +116,23 @@ The transport is `netops_core.ssh`, shared with the rest of the family: the clie
 the hardening options, the workspace and the two kinds of authentication are described in
 [`../../netops-core/docs/ssh.md`](../../netops-core/docs/ssh.md) and measured there against real
 devices.
-What the auditor adds is the step table of the platform, the preflight and the `ChannelEvent` of
+What the auditor adds is the step table of the platform, the platform framing checks and the `ChannelEvent` of
 every command; the prompt cleaning is `netops_core.prompt`. It adds **nothing** to the options of
 the client.
 
 ### What it does
 
-- Runs OpenSSH as a subprocess (no paramiko, no netmiko), sends the commands of its platform and
-  takes the answer of the last one as the configuration text.
-- Takes the commands from a table, one entry per platform, not from a chain of conditions:
+- Uses pinned, encrypted SSH. The primary response supplies the configuration. Supplemental
+  commands provide evidence for specific rules.
 
-  | platform | first command | what it is for | second command |
-  |---|---|---|---|
-  | `fortios` | `get system console` | read-only check, must answer `output ... standard` | `show` |
-  | `exos` | *(none)* | no preamble is sent - see below | `show configuration` |
+  | Catalog | Primary read | Supplemental reads |
+  |---|---|---|
+  | `fortios` | `show` in one retained session | `get system status`, diagnostic `get system console`, targeted `show system admin` and `show log syslogd setting`, and targeted `show full-configuration <section>` |
+  | `exos` | `show configuration` | `show version` and, if needed, `show switch` identify the model for the completeness proof. Both commands are read-only. If a required supplemental read fails, the snapshot remains incomplete and findings do not advance. |
+  | `cisco-ios` | `show running-config` | `show privilege`, `show parser view` after the privilege read, `show snmp user`, and `show ip ssh` when `ip ssh version` is absent |
+  | `cisco-nxos` | `show running-config` | `show snmp user`, `show user-account`, and `show nxapi` when NX-API is enabled with an unspecified HTTP listener |
+  | `arista-eos` | `show running-config` | `show users detail \| json`, and `show snmp user` when an SNMP user or group is configured |
+  | `juniper-junos` | `show configuration \| display set \| no-more` | `show cli authorization`, and `show configuration \| display inheritance \| display set \| no-more` when configuration groups are present |
 
 - Cleans the device prompt out of the answer with `netops_core.prompt`, the rule the family
   shares - see below.
@@ -140,7 +143,7 @@ the client.
   leash. The child gets a minimal environment (`PATH`, `HOME`, `LC_ALL`) with no agent socket.
 - Adds the options of a named legacy profile, and only for the device whose inventory entry names
   one - see below.
-- Checks the enrolled FortiOS public key `host_key` against `host_key_fingerprint` before connecting. For ExtremeXOS, the SSH key probe supplies the key to compare with the fingerprint. OpenSSH uses a temporary `known_hosts` and `StrictHostKeyChecking=yes` for the authenticated connection.
+- Checks the enrolled FortiOS public key `host_key` against `host_key_fingerprint` before connecting. For exec platforms, the SSH key probe supplies the key to compare with the fingerprint. OpenSSH uses a temporary `known_hosts` and `StrictHostKeyChecking=yes` for the authenticated connection.
 - **Authenticates with a key or with a password.** A record of kind `ssh-key` is written into a file
   with mode 0600 in a private temporary directory and passed as `-i <path>`; a record of kind
   `password` is written into a file of the same mode that an askpass script reads, and the client is
@@ -219,7 +222,7 @@ device and says how the exception is written down - the field, the profile names
 no global switch. With a profile already named the remedy is not repeated, and it never appears for
 a failure that is not a negotiation, such as a rejected credential.
 
-### Why `show` and not `show full-configuration`
+### Primary FortiOS snapshot and targeted readbacks
 
 The two commands, measured over this channel
 (FortiOS v8.0.0 build0167):
@@ -231,24 +234,22 @@ The two commands, measured over this channel
 | `set private-key` | **0** | **22** |
 | `set certificate` | **0** | **14** |
 
-`show full-configuration` writes out the default values as well - that is where the extra 36 thousand
-lines come from - but it also writes out **private key material**. Taking it would throw away exactly
-the property this channel was chosen for: the smallest possible amount of secrets inside the tool.
-`show` has neither the defaults nor the keys, and it is the shape the current rules are tuned on.
-So the auditor asks for `show`.
+The unqualified `show full-configuration` includes defaults and can expose private key
+material. The Auditor hashes the cleaned output of the primary `show` snapshot.
+It requests `show full-configuration <section>` only for a fixed list of sections
+used by the FortiOS rules, to establish effective values and compare table coverage.
+Readbacks can contain sensitive fields. Channel events retain response sizes and hashes.
 
 ### The pager, and why it is not one universal command
 
 FortiOS pages long output over this channel, and EXOS does not, which is where the two platforms
 differ in a way the tool has to respect:
 
-- **FortiOS**: turning the pager off means `config system console` / `set output standard`, which is
-  **a write into the device configuration**. The auditor must not do that, so it only asks
-  `get system console` and reads `output`. Anything other than `standard` and the collection is
-  refused with a message that says what to set. The message names the value only when it is the
-  known `more`; any other value is written by the device, so the message gives its length in bytes
-  and the first 16 hexadecimal digits of its sha256 instead of repeating it. The auditor would rather not run than change a
-  device for its own convenience.
+- **FortiOS** uses a bounded pager in the pinned interactive SSH session. The Auditor
+  reads `get system console` for diagnostics. With `output: more`, it advances the
+  pager in the existing session. A missing or refused console diagnostic allows the
+  primary read to proceed. Collection issues a configuration read only after the prompt
+  is established, and leaves the device's console settings unchanged.
 - **EXOS**: no pager command is sent, and none is needed. Measured on
   19 September 2026 against ExtremeXOS 33.7.1: `show configuration` returned 10,728 bytes with zero
   `--More--` markers and a complete final module, and the byte count was identical across three
@@ -347,17 +348,16 @@ When the device prints no prompt the cleaner does nothing and both hashes are eq
   the snapshot lists a `super_admin` administrator, and the run ends with exit code 3. **The auditor account on
   FortiOS is therefore a `super_admin` administrator** (decision of 17 September 2026): it is the
   only profile whose `show` carries every administrator, API user and access profile, and rules
-  over `system admin` need exactly those. The auditor then holds an account that could write; the
-  read-only boundary is the step table above (`get system console`, `show`), the pinned host key
-  and the absence of any other command in this channel - not the profile. Restrict the account
-  with `trusthost` to the collector and log its sessions on the device. The accounts of all roles
+  over `system admin` need exactly those. The auditor then holds an account that could write.
+  The channel limits the pinned session to the fixed `get` and `show` steps in the table
+  above. Restrict the account with `trusthost` to the collector and log its sessions on the
+  device. The accounts of all roles
   are compared in the [device account model](../../../docs/account-model.md).
 - **An EXOS snapshot is audited by four base rules and five configuration-management rules.** The
   catalogue `exos.json` exists, `run --platform exos` and `collect` over an `exos` entry both work;
   what the four base rules do and do not see is [below](#what-the-exos-catalogue-reads), and the five
   `exos.management.*` rules are described in [`management-policy.md`](management-policy.md).
-- **Unverified:** the behaviour when FortiOS reports `output: more`. Switching a production device
-  to the pager would have been a write, so the refusal path was proven in tests, not on a device.
+- Terminal replay tests exercise `output: more` and the bounded pager in the retained session.
 - **EXOS prints no prompt into the answer.** Measured over the
   exec channel: 0 occurrences in the dump. The same cleaning stays declared for `exos` in the step
   table - it is a no-op there, and it keeps one path for both platforms.
@@ -381,7 +381,12 @@ auditor binds it with arguments instead of trusting a configuration file.
 
 ### SSH collection and command boundaries
 
-FortiOS reads `get system console` and `show` in one pinned interactive SSH session. The pager preflight requires `output: standard`. ExtremeXOS uses one-shot SSH exec for `show configuration` and sends no paging command. Prompt cleaning runs before snapshot hashing.
+FortiOS reads `get system status`, diagnostic `get system console`, and the primary
+`show` in one pinned interactive SSH session. It then reads `show system admin`,
+`show log syslogd setting`, and targeted `show full-configuration <section>`. The
+terminal advances pagination within configured limits without changing the device
+configuration. ExtremeXOS uses one-shot SSH exec for `show configuration` and sends
+no paging command. Prompt cleaning runs before snapshot hashing.
 
 Full EXOS configuration collection requires administrator privilege. When a target offers only `ssh-rsa`, configure the explicit per-target legacy profile. Sequential host-key-type probing follows the same configured timeout and host-key pin policy. Apply configured input and response-size limits; no measured collection duration is a product guarantee. Documented ExtremeXOS examples include firmware `33.7.1.6`, `33.6.1.14`.
 
@@ -493,3 +498,46 @@ These finding rules and unit fixtures describe parsing supplied configuration. T
 Neither remote channel is a fallback for the other. Pick one per device and pin it.
 
 Compatibility is limited to the documented protocol, platform, and configuration boundaries; validate each target independently. See [compatibility boundaries](../../../docs/compatibility-boundaries.md#deployment-verification).
+
+## Section visibility
+
+IOS, NX-OS and EOS configuration families use command tokens and indentation. Junos uses
+`display set` paths and excludes deactivated statements. A usable complete frame can still cover
+only part of the configuration. An observed section is `visible`. A positive privilege and root
+view check can also prove visibility of an empty IOS section. A complete SSH snapshot proves its
+families as `verified-profile`, so that a rule can apply a documented default the device does
+not print, only when three facts are read. The software version is known from the NX-OS `version`
+line, the EOS `! device:` header and the Junos `set version` line, and for EXOS the
+`ExtremeXOS version` of one extra `show version` read. The end of the output is printed. NX-OS
+ends with at least two empty lines after `line vty` and the sections behind it. EOS ends with
+`end`. A Junos switch ends with the `vlans` hierarchy. Junos output with any `ACCESS-DENIED`
+mark gives no proof, and a cut inside `vlans` can still look complete, so that hierarchy stays
+without the proof.
+
+The EXOS collector reads module headers outside UPM profiles. It expects a terminal `upm`
+header on X435 models and `vpex` on X440-G2 and EXOS-VM. It reads the model from `show version`
+when available and uses `show switch` when the version output omits the model. The dump must
+start with `devmgr` and carry no stray, error, pager or control output. Only modules before the
+terminal header are proven. A missing expected terminal header yields `truncated`. A sound
+configuration frame with a failed or unreadable version read or an unknown model yields
+`unknown-end-format`. Both reasons mark the snapshot incomplete and leave the rules
+`not-evaluated`.
+
+The device also reports the full role of the session. NX-OS `show user-account` lists
+`network-admin` or `vdc-admin` for the login, and Junos `show cli authorization` gives the
+login class `super-user`. EOS `show users detail | json` must identify a unique SSH virtual
+terminal record for the login with state `established` and role `network-admin`. If that record
+is missing, ambiguous or reports a restricted role, the collector leaves EOS families
+`content` or `unproven`. A session authorised through AAA can have a narrower role than the
+local account under the same name. A file snapshot never carries this proof.
+
+Explicit permission failures are `hidden`. An inconclusive view or unresolved group inheritance
+is `unproven`. Pager output, timeouts, byte limits, malformed framing and invalid UTF-8 give an
+`incomplete` read. Explicitly unavailable supplemental commands are `not-supported`. A failed
+supplemental command changes coverage for the rules that need it. A primary refusal stops
+collection. The exec collector reports `permission-denied` for command authorization failures
+and `authentication-failed` when OpenSSH rejects the login credential.
+A truncated or paginated primary exec produces the platform's incomplete snapshot
+marker. `ACCESS-DENIED` identifies a hidden Junos path. `SECRET-DATA` identifies a masked value.
+The SSH response body stays in memory during the audit. Events and findings carry only bounded
+metadata and evidence.

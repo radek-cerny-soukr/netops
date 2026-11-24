@@ -18,6 +18,7 @@ from netops_admin.config import DEFAULT_LIMITS, Config, Device
 from netops_admin.engine import build_plan, verify
 from netops_admin.errors import Rejected, SnapshotRejected
 from netops_admin.request import parse_request
+from approved_apply import approved_apply
 
 ACCOUNTS = ("admin", "user01", "user02")
 SECRET_TEXT = "k7c Nx Vb8Wn"
@@ -31,7 +32,8 @@ def device(monkeypatch):
     return fake
 
 
-def make_runtime(tmp_path, device, accounts=ACCOUNTS, firmware=FIRMWARE, safeguard=180):
+def make_runtime(tmp_path, device, accounts=ACCOUNTS, firmware=FIRMWARE, safeguard=180,
+                 *, simulate_unmeasured_profiles=False):
     config = Config(
         state_dir=str(tmp_path / "state"), audit_file=str(tmp_path / "audit" / "audit.jsonl"),
         export_status_file=None, notify=None, limits=dict(DEFAULT_LIMITS),
@@ -43,7 +45,8 @@ def make_runtime(tmp_path, device, accounts=ACCOUNTS, firmware=FIRMWARE, safegua
         )},
     )
     from enrollment_helpers import certify
-    runtime = execute.Runtime(config, lambda _device: device, sleep=device.advance, require_export=False)
+    runtime = execute.Runtime(config, lambda _device: device, sleep=device.advance, require_export=False,
+                              simulate_unmeasured_profiles=simulate_unmeasured_profiles)
     runtime.monotonic = lambda: device.uptime
     return certify(runtime, device, "lab-nxos")
 
@@ -223,7 +226,7 @@ def test_measured_scheduler_checkpoint_and_session_answers():
 
 
 def test_the_prompt_anchor_matches_the_carriage_return_before_every_prompt():
-    # bytes of the interactive session read on the lab node in task 318 (login banner end and three commands)
+    # bytes of the interactive session read on the lab node in verification (login banner end and three commands)
     spec = exec_nxos.prompt_spec("host05")
     for data in (b"*  Cisco in writing.   *\r\n****\r\n\rhost05# ", b"end\r\r\n\rhost05# ",
                  b"configure terminal\r\r\nEnter configuration commands, one per line. End with CNTL/Z.\r\n\rhost05(config)# ",
@@ -253,7 +256,7 @@ def test_preview_reads_and_writes_nothing(tmp_path, device):
 
 def test_description_is_confirmed_saved_after_the_confirmation_and_undone(tmp_path, device):
     runtime = make_runtime(tmp_path, device)
-    record = execute.apply(runtime, "lab-nxos", request())
+    record = approved_apply(runtime, "lab-nxos", request())
     assert record["result"] == "confirmed", (record["reason"], steps(record))
     label = record["safeguard"]["name"]
     assert device.applied_blocks[0] == exec_nxos.install_lines(label, 180)
@@ -282,9 +285,9 @@ def test_description_is_confirmed_saved_after_the_confirmation_and_undone(tmp_pa
 
 def test_shutdown_and_no_shutdown(tmp_path, device):
     runtime = make_runtime(tmp_path, device)
-    down = execute.apply(runtime, "lab-nxos", request(changes={"admin-state": "disabled"}, request_id="req-down-1"))
+    down = approved_apply(runtime, "lab-nxos", request(changes={"admin-state": "disabled"}, request_id="req-down-1"))
     assert down["result"] == "confirmed" and device.interface(KEY) == ["shutdown"]
-    up = execute.apply(runtime, "lab-nxos", request(changes={"admin-state": "enabled"}, request_id="req-up-1"))
+    up = approved_apply(runtime, "lab-nxos", request(changes={"admin-state": "enabled"}, request_id="req-up-1"))
     assert up["result"] == "confirmed" and device.interface(KEY) == []
     assert device.saves == 2 and device.saved_while_armed == 0
     assert "port Ethernet1/48: 0 learned MAC entries, no LLDP neighbor" in up["plan"]["prechecks"]
@@ -292,7 +295,7 @@ def test_shutdown_and_no_shutdown(tmp_path, device):
 
 def test_access_vlan_is_confirmed_and_undone(tmp_path, device):
     runtime = make_runtime(tmp_path, device)
-    record = execute.apply(runtime, "lab-nxos", request(table="vlan-membership", changes={"access-vlan": 10}))
+    record = approved_apply(runtime, "lab-nxos", request(table="vlan-membership", changes={"access-vlan": 10}))
     assert record["result"] == "confirmed", (record["reason"], steps(record))
     assert device.interface(KEY) == ["switchport access vlan 10"]
     assert "show interface Ethernet1/48 switchport" in device.check_queries
@@ -308,7 +311,7 @@ def test_lost_check_account_is_returned_at_once_by_configure_replace(tmp_path, d
             fake.check_unreadable = True
 
     device.on_apply = lose_check_account
-    record = execute.apply(make_runtime(tmp_path, device), "lab-nxos",
+    record = approved_apply(make_runtime(tmp_path, device), "lab-nxos",
                            request(changes={"description": "netops-c6b-b", "admin-state": "disabled"}))
     assert record["result"] == "reverted" and record["reason"] == "check identity unavailable", steps(record)
     label = record["safeguard"]["name"]
@@ -327,7 +330,7 @@ def test_check_account_mismatch_is_returned_at_once(tmp_path, device):
             fake.check_override = {"show interface description": fixture("show-interface-description__baseline.txt")}
 
     device.on_apply = stale
-    record = execute.apply(make_runtime(tmp_path, device), "lab-nxos", request())
+    record = approved_apply(make_runtime(tmp_path, device), "lab-nxos", request())
     assert record["result"] == "reverted" and record["reason"] == "check identity mismatch"
     assert device.interface(KEY) == [] and device.clean() and device.replaces == 1
 
@@ -336,7 +339,7 @@ def test_a_refused_replace_waits_for_the_job_which_returns_the_change(tmp_path, 
     device.refuse_replace = True
     device.on_apply = lambda fake, block: setattr(fake, "check_unreadable", block[:2] == [
         "configure terminal", "interface Ethernet1/48"] or fake.check_unreadable)
-    record = execute.apply(make_runtime(tmp_path, device), "lab-nxos",
+    record = approved_apply(make_runtime(tmp_path, device), "lab-nxos",
                            request(table="vlan-membership", changes={"access-vlan": 10}))
     assert record["result"] == "reverted", (record["reason"], steps(record))
     assert "revert_now_unverified" in steps(record) and "safeguard_removed" in steps(record)
@@ -363,6 +366,29 @@ def test_enrollment_self_test_waits_for_the_job(tmp_path, device):
     assert device.interface(KEY) == [] and device.clean()
 
 
+def test_restart_header_is_volatile():
+    # measured header of a Nexus 9000v 9.3(12) without any configuration change since its reload
+    restarted = BASELINE.replace(BASELINE.split("\n")[2], "!No configuration change since last restart", 1)
+    assert "!No configuration change since last restart" in restarted.split("\n")[:4]
+    assert nxos.load(restarted, FIRMWARE).rest_digest("interface", KEY) == \
+        nxos.load(BASELINE, FIRMWARE).rest_digest("interface", KEY)
+
+
+def test_first_change_after_a_restart_is_not_a_foreign_change(tmp_path, device):
+    from netops_admin import enrollment
+
+    device.since_restart = True
+    assert "!No configuration change since last restart" in device.running().split("\n")[:4]
+    runtime = make_runtime(tmp_path, device)
+    runtime.notifier = lambda record: "sent"
+    runtime.store.clear_enrollment("lab-nxos")
+    record = enrollment.run(runtime, "lab-nxos", KEY)
+    assert record["result"] == "reverted" and record["reason"] == "enrollment self-test", steps(record)
+    assert record.get("enrollment") == "valid", steps(record)
+    assert not device.since_restart
+    assert device.interface(KEY) == [] and device.clean()
+
+
 def test_interrupted_change_is_recovered_by_the_job(tmp_path, device):
     runtime = make_runtime(tmp_path, device)
 
@@ -374,7 +400,7 @@ def test_interrupted_change_is_recovered_by_the_job(tmp_path, device):
 
     device.on_apply = killed
     with pytest.raises(KeyboardInterrupt):
-        execute.apply(runtime, "lab-nxos", request(changes={"description": "netops-c6b-kill"},
+        approved_apply(runtime, "lab-nxos", request(changes={"description": "netops-c6b-kill"},
                                                     request_id="req-kill-1"))
     assert device.interface(KEY) == ["description netops-c6b-kill"]
     settled = execute.recover(make_runtime(tmp_path, device), "lab-nxos")
@@ -394,7 +420,7 @@ def test_interrupted_confirmation_is_recovered_as_confirmed(tmp_path, device):
 
     device.on_apply = killed
     with pytest.raises(KeyboardInterrupt):
-        execute.apply(runtime, "lab-nxos", request(request_id="req-kill-2"))
+        approved_apply(runtime, "lab-nxos", request(request_id="req-kill-2"))
     assert device.checkpoints and not device.schedules
     settled = execute.recover(make_runtime(tmp_path, device), "lab-nxos")
     assert [record["result"] for record in settled] == ["confirmed"], [steps(record) for record in settled]
@@ -404,7 +430,7 @@ def test_interrupted_confirmation_is_recovered_as_confirmed(tmp_path, device):
 
 def test_safeguard_at_another_time_is_removed_before_any_change(tmp_path, device):
     device.time_shift_minutes = 5
-    record = execute.apply(make_runtime(tmp_path, device), "lab-nxos", request())
+    record = approved_apply(make_runtime(tmp_path, device), "lab-nxos", request())
     assert record["result"] == "reverted" and record["reason"] == "safeguard not verified"
     assert device.clean() and device.interface(KEY) == []
     assert not any(block[:2] == ["configure terminal", "interface Ethernet1/48"] for block in device.applied_blocks)
@@ -438,7 +464,7 @@ def test_a_job_created_after_its_checkpoint_fails_its_rollback():
 def test_port_in_use_and_switch_state_are_refused_before_any_write(tmp_path, device, prepare, fields, code):
     prepare(device)
     with pytest.raises(Rejected) as caught:
-        execute.apply(make_runtime(tmp_path, device), "lab-nxos", request(**fields))
+        approved_apply(make_runtime(tmp_path, device), "lab-nxos", request(**fields))
     assert caught.value.reason_codes == [code]
     assert device.applied_blocks == []
 
@@ -453,38 +479,38 @@ def test_missing_vlan_management_and_trunk_are_refused_with_zero_writes(tmp_path
     preview = execute.preview(runtime, "lab-nxos", request(**fields))
     assert preview["result"] == "rejected" and preview["reason_codes"] == [code]
     with pytest.raises(Rejected):
-        execute.apply(runtime, "lab-nxos", request(**fields))
+        approved_apply(runtime, "lab-nxos", request(**fields))
     assert device.applied_blocks == []
 
 
 def test_leftover_unsaved_changes_and_other_firmware_are_refused(tmp_path, device):
     device.checkpoints["netops-0123456789ab"] = device._config()
     with pytest.raises(Rejected) as caught:
-        execute.apply(make_runtime(tmp_path / "a", device), "lab-nxos", request())
+        approved_apply(make_runtime(tmp_path / "a", device), "lab-nxos", request())
     assert "checkpoint netops-0123456789ab" in caught.value.reasons[0]
     device.checkpoints.clear()
     device.body = lines_with("\n".join(device.body) + "\n", "Ethernet1/47", "description foreign").split("\n")[:-1]
     with pytest.raises(Rejected) as caught:
-        execute.apply(make_runtime(tmp_path / "b", device), "lab-nxos", request(request_id="req-unsaved"))
+        approved_apply(make_runtime(tmp_path / "b", device), "lab-nxos", request(request_id="req-unsaved"))
     assert "unsaved configuration changes" in caught.value.reasons[0]
     device.saved = device._config()
     device.firmware = "10.3(4a)"
     with pytest.raises(Rejected):
-        execute.apply(make_runtime(tmp_path / "c", device), "lab-nxos", request(request_id="req-firmware"))
+        approved_apply(make_runtime(tmp_path / "c", device), "lab-nxos", request(request_id="req-firmware"))
     assert device.applied_blocks == []
 
 
 def test_unexpected_account_blocks_the_device(tmp_path, device):
     runtime = make_runtime(tmp_path, device, accounts=("admin", "user01"))
     with pytest.raises(Rejected) as caught:
-        execute.apply(runtime, "lab-nxos", request())
+        approved_apply(runtime, "lab-nxos", request())
     assert "accounts differ" in caught.value.reasons[0]
     assert runtime.store.blocked("lab-nxos")["reason"] == "administrator table"
 
 
 def test_audit_log_holds_no_text_and_no_secret(tmp_path, device):
     runtime = make_runtime(tmp_path, device)
-    record = execute.apply(runtime, "lab-nxos", request(changes={"description": SECRET_TEXT}))
+    record = approved_apply(runtime, "lab-nxos", request(changes={"description": SECRET_TEXT}))
     assert record["result"] == "confirmed"
     log = (tmp_path / "audit" / "audit.jsonl").read_text()
     assert SECRET_TEXT not in log and "SECRET-PASSWORD-SENTINEL" not in log
@@ -513,7 +539,8 @@ def test_doctor_is_ready_after_enrollment(tmp_path, device):
         "static-route": "create update delete", "l3-interface": "create update delete",
         "dhcp-relay": "create update delete",
         "port-bounce": "port-bounce", "port-channel": "create delete", "port-channel-member": "update",
-        "vpc-domain": "create update delete", "vpc-peer-link": "update", "vpc-port": "update",
+        "vpc-domain": "create update delete",
+        "vpc-peer-link": "update", "vpc-port": "update",
         "ip-access-list": "create update delete", "interface-access-group": "update",
         "ntp-server": "create update delete", "ntp-source": "update",
         "syslog-server": "create update delete", "syslog-source": "update",
@@ -531,7 +558,7 @@ def test_doctor_reports_the_missing_scheduler_feature(tmp_path, device):
     assert report["ready"] is False
 
 
-# ---- review 318: interrupted installation, ownership, protection of the whole change, recover by state ----
+# ---- review: interrupted installation, ownership, protection of the whole change, recover by state ----
 
 def test_measured_checkpoint_creation_time():
     text = fixture("show-checkpoint-summary-user__one.txt")
@@ -558,7 +585,7 @@ def install_killed(tmp_path, device, prefix, occurrence=1):
     runtime = make_runtime(tmp_path, device)
     killed_before(device, prefix, occurrence)
     with pytest.raises(KeyboardInterrupt):
-        execute.apply(runtime, "lab-nxos", request(request_id="req-install-kill"))
+        approved_apply(runtime, "lab-nxos", request(request_id="req-install-kill"))
     record = runtime.store.running("lab-nxos")[0]
     assert "change_start" not in steps(record)
     return record
@@ -672,7 +699,7 @@ def test_an_object_whose_creation_answer_was_lost_is_not_removed(tmp_path, devic
 
     device.on_apply = lose_answer
     with pytest.raises(KeyboardInterrupt):
-        execute.apply(runtime, "lab-nxos", request(request_id="req-lost-answer"))
+        approved_apply(runtime, "lab-nxos", request(request_id="req-lost-answer"))
     record = runtime.store.running("lab-nxos")[0]
     label = record["safeguard"]["name"]
     assert record["safeguard"]["own"] == {"checkpoint": True, "job": True, "schedule": False, "file": False}
@@ -696,7 +723,7 @@ def test_a_foreign_object_of_the_same_name_before_the_installation_is_left_alone
             foreign[label] = fake.checkpoints[label] = fake._config()
 
     device.on_query = appear
-    record = execute.apply(runtime, "lab-nxos", request(request_id="req-foreign"))
+    record = approved_apply(runtime, "lab-nxos", request(request_id="req-foreign"))
     assert foreign, "the foreign checkpoint was not created"
     assert record["result"] == "unknown" and record["reason"] == "safeguard not verified", steps(record)
     assert record["safeguard"]["own"] == dict.fromkeys(exec_nxos.KINDS, False)
@@ -715,7 +742,7 @@ def test_a_collision_on_the_first_checkpoint_removes_nothing(tmp_path, device):
             fake.checkpoints[step.split()[1]] = fake._config()
 
     device.on_line = collide
-    record = execute.apply(runtime, "lab-nxos", request(request_id="req-collision"))
+    record = approved_apply(runtime, "lab-nxos", request(request_id="req-collision"))
     assert record["result"] == "unknown" and record["reason"] == "safeguard not verified", steps(record)
     assert record["safeguard"]["own"] == dict.fromkeys(exec_nxos.KINDS, False)
     assert len(device.applied_blocks) == 1 and len(device.checkpoints) == 1 and not device.jobs
@@ -727,7 +754,7 @@ def test_a_slow_installation_leaves_the_change_unwritten(tmp_path, device):
     written and the safeguard is removed at once (configure replace of the unchanged state, then the cleanup)."""
     device.on_apply = lambda fake, block: setattr(fake, "line_seconds", 8 if block[:1] and block[0].startswith(
         "checkpoint netops-") else 0)
-    record = execute.apply(make_runtime(tmp_path, device), "lab-nxos", request())
+    record = approved_apply(make_runtime(tmp_path, device), "lab-nxos", request())
     assert record["result"] == "reverted" and record["reason"] == "no time left to write", steps(record)
     assert "change_not_written" in steps(record) and "change_start" not in steps(record)
     assert not any(block[:2] == ["configure terminal", "interface Ethernet1/48"] for block in device.applied_blocks)
@@ -741,7 +768,7 @@ def test_a_line_is_not_sent_when_the_job_is_near_and_the_job_returns_the_written
         fake.line_seconds = 45 if block[:2] == ["configure terminal", "interface Ethernet1/48"] else 0
 
     device.on_apply = slow_lines
-    record = execute.apply(make_runtime(tmp_path, device), "lab-nxos",
+    record = approved_apply(make_runtime(tmp_path, device), "lab-nxos",
                            request(changes={"description": "netops-c6b-slow", "admin-state": "disabled"}))
     assert record["result"] == "reverted" and record["reason"] == "change failed", steps(record)
     assert device.unsent_lines == 1 and "revert_now_skipped" in steps(record) and device.replaces == 0
@@ -764,7 +791,7 @@ def test_a_change_left_after_the_job_ran_is_returned_by_configure_replace(tmp_pa
 
     device.on_apply = lose_check_account
     device.on_fire = late_write
-    record = execute.apply(make_runtime(tmp_path, device), "lab-nxos", request(changes={"admin-state": "disabled"}))
+    record = approved_apply(make_runtime(tmp_path, device), "lab-nxos", request(changes={"admin-state": "disabled"}))
     assert record["result"] == "reverted" and record["reason"] == "check identity unavailable", steps(record)
     names = steps(record)
     assert "revert_now_unverified" in names and "expiry_not_returned" in names and names.count("revert_now_done") == 1
@@ -785,7 +812,7 @@ def test_recover_after_the_job_returned_needs_no_device_clock(tmp_path, device):
 
     device.on_apply = killed
     with pytest.raises(KeyboardInterrupt):
-        execute.apply(runtime, "lab-nxos", request(changes={"description": "netops-c6b-kill"}, request_id="req-kill-4"))
+        approved_apply(runtime, "lab-nxos", request(changes={"description": "netops-c6b-kill"}, request_id="req-kill-4"))
     device.advance(400)
     assert device.interface(KEY) == [] and len(device.logfile) == 1
     device.clock_refused = True
@@ -798,6 +825,6 @@ def test_recover_after_the_job_returned_needs_no_device_clock(tmp_path, device):
 
 def test_the_whole_operation_never_reads_the_device_clock(tmp_path, device):
     device.clock_refused = True
-    record = execute.apply(make_runtime(tmp_path, device), "lab-nxos", request())
+    record = approved_apply(make_runtime(tmp_path, device), "lab-nxos", request())
     assert record["result"] == "confirmed", steps(record)
     assert "show clock" not in device.queries

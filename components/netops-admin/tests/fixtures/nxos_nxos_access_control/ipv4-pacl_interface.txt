@@ -1,0 +1,10 @@
+
+!Command: show running-config interface Ethernet1/64
+!Running configuration last done at: Thu Nov 19 17:27:01 2026
+!Time: Thu Nov 19 17:27:18 2026
+
+version 9.3(12) Bios:version
+
+interface Ethernet1/64
+  ip port access-group NETOPS-NXOS-ACCESS-CONTROL-V4 in
+

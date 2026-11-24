@@ -7,6 +7,7 @@ from fake_fortios import FakeFortiOS
 from test_execute import make_runtime, request
 from netops_admin import audit_gate, execute
 from netops_admin.errors import Rejected
+from approved_apply import approved_apply
 
 
 def with_policy(runtime, **values):
@@ -21,14 +22,14 @@ def test_disallowed_address_is_rejected_before_safeguard_installation(tmp_path):
     target = FakeFortiOS()
     runtime = with_policy(make_runtime(tmp_path, target), address_networks=["198.51.100.0/24"])
     with pytest.raises(Rejected, match="violates"):
-        execute.apply(runtime, "lab", request())
+        approved_apply(runtime, "lab", request())
     assert target.applied_blocks == []
 
 
 def test_allowed_address_succeeds_with_coverage_report(tmp_path):
     target = FakeFortiOS()
     runtime = with_policy(make_runtime(tmp_path, target), address_networks=["192.0.2.0/24"])
-    record = execute.apply(runtime, "lab", request())
+    record = approved_apply(runtime, "lab", request())
     assert record["result"] == "confirmed"
     assert record["audit_coverage"]["address-policy"] == "evaluated"
 
@@ -37,7 +38,7 @@ def test_old_policy_violation_does_not_allow_editing_a_still_disallowed_object(t
     target = FakeFortiOS()
     runtime = with_policy(make_runtime(tmp_path, target), address_networks=["198.51.100.0/24"])
     with pytest.raises(Rejected, match="violates"):
-        execute.apply(runtime, "lab", request(op="update", key="spare-host", changes={"comment": "changed"}))
+        approved_apply(runtime, "lab", request(op="update", key="spare-host", changes={"comment": "changed"}))
     assert target.applied_blocks == []
 
 
@@ -45,7 +46,7 @@ def test_required_unconfigured_check_refuses_before_mutation(tmp_path):
     target = FakeFortiOS()
     runtime = with_policy(make_runtime(tmp_path, target), required_rules=["address-policy"])
     with pytest.raises(Rejected, match="not evaluated"):
-        execute.apply(runtime, "lab", request())
+        approved_apply(runtime, "lab", request())
     assert target.applied_blocks == []
 
 

@@ -1,0 +1,3 @@
+
+IPv6 access list NETOPS-NXOS-ACCESS-CONTROL-V6
+	20 permit ipv6 any any

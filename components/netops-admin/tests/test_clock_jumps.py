@@ -8,6 +8,7 @@ from test_enrollment import ready
 from test_execute_exos import make_runtime, request, steps
 
 from netops_admin import enrollment, exec_exos, execute, exos
+from approved_apply import approved_apply
 
 JUMP_AT = 32
 SAFEGUARD = 180
@@ -113,7 +114,7 @@ def failing_change(tmp_path, **jump):
 
 def test_a_forward_jump_past_the_timer_waits_until_the_timer_has_fired(tmp_path):
     device, runtime = failing_change(tmp_path, seconds=300)
-    record = execute.apply(runtime, "sw", request())
+    record = approved_apply(runtime, "sw", request())
     assert record["result"] == "reverted" and record["reason"] == "prediction mismatch"
     assert moments(device) == [SAFEGUARD]
     assert device.uptime >= SAFEGUARD + execute.EXPIRY_GRACE_SECONDS
@@ -123,7 +124,7 @@ def test_a_forward_jump_past_the_timer_waits_until_the_timer_has_fired(tmp_path)
 def test_a_timer_seen_fired_during_its_run_is_given_time_to_finish(tmp_path):
     device, runtime = failing_change(tmp_path, seconds=300, at=JUMP_AT - 1.5)
     device.run_seconds = 1
-    record = execute.apply(runtime, "sw", request())
+    record = approved_apply(runtime, "sw", request())
     assert record["result"] == "reverted" and record["reason"] == "prediction mismatch"
     assert moments(device) == [SAFEGUARD]
     assert "guest" not in device.vlans and not device.timers and not device.profiles
@@ -132,7 +133,7 @@ def test_a_timer_seen_fired_during_its_run_is_given_time_to_finish(tmp_path):
 def test_a_timer_that_fires_right_after_the_settling_snapshot_is_not_a_failed_return(tmp_path):
     device, runtime = failing_change(tmp_path, seconds=300)
     fire_after_snapshot(device, 3)
-    record = execute.apply(runtime, "sw", request())
+    record = approved_apply(runtime, "sw", request())
     assert record["result"] == "reverted" and record["reason"] == "prediction mismatch"
     assert moments(device) == [SAFEGUARD]
     assert "guest" not in device.vlans and not device.timers and not device.profiles
@@ -141,7 +142,7 @@ def test_a_timer_that_fires_right_after_the_settling_snapshot_is_not_a_failed_re
 def test_a_timer_not_seen_fired_stays_installed_and_ends_unknown(tmp_path):
     device, runtime = failing_change(tmp_path, seconds=300)
     device.timer_stuck = True
-    record = execute.apply(runtime, "sw", request())
+    record = approved_apply(runtime, "sw", request())
     assert record["result"] == "unknown" and record["reason"] == "prediction mismatch"
     assert steps(record)[-1] == "revert_unverified"
     assert runtime.store.blocked("sw")["reason"] == "prediction mismatch"
@@ -152,7 +153,7 @@ def test_a_timer_not_seen_fired_stays_installed_and_ends_unknown(tmp_path):
 
 def test_a_backward_jump_still_follows_the_device_clock(tmp_path):
     device, runtime = failing_change(tmp_path, seconds=-300)
-    record = execute.apply(runtime, "sw", request())
+    record = approved_apply(runtime, "sw", request())
     assert record["result"] == "reverted" and record["reason"] == "prediction mismatch"
     assert moments(device) == [SAFEGUARD + 300]
     assert "guest" not in device.vlans and not device.timers
@@ -160,7 +161,7 @@ def test_a_backward_jump_still_follows_the_device_clock(tmp_path):
 
 def test_a_forward_jump_short_of_the_timer_still_follows_the_device_clock(tmp_path):
     device, runtime = failing_change(tmp_path, before_next=10)
-    record = execute.apply(runtime, "sw", request())
+    record = approved_apply(runtime, "sw", request())
     assert record["result"] == "reverted" and record["reason"] == "prediction mismatch"
     assert moments(device) == [JUMP_AT + 10]
     assert device.uptime < SAFEGUARD
@@ -180,7 +181,7 @@ def test_recover_after_a_forward_jump_waits_until_the_timer_has_fired(tmp_path):
     device = FakeExos()
     jump_with_the_change(device, seconds=300, crash=True)
     with pytest.raises(KeyboardInterrupt):
-        execute.apply(make_runtime(tmp_path, device), "sw", request())
+        approved_apply(make_runtime(tmp_path, device), "sw", request())
     device.on_apply = None
     settled = execute.recover(make_runtime(tmp_path, device), "sw")
     assert [(record["result"], record["reason"]) for record in settled] == [("reverted", "interrupted")]

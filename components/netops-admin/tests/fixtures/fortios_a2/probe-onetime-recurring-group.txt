@@ -1,0 +1,189 @@
+config firewall schedule onetime
+
+FortiGate-60F (onetime) $ edit "netops-a2-probe"
+new entry 'netops-a2-probe' added
+
+FortiGate-60F (netops-a2-probe) $ show
+config firewall schedule onetime
+    edit "netops-a2-probe"
+        set uuid 00000000-0000-4000-8000-000000000008
+    next
+end
+
+FortiGate-60F (netops-a2-probe) $ get
+name                : netops-a2-probe
+uuid                : 00000000-0000-4000-8000-000000000008
+start               : 00:00 2001/01/01
+end                 : 00:00 2001/01/01
+color               : 0
+expiration-days     : 3
+fabric-object       : disable 
+
+
+FortiGate-60F (netops-a2-probe) $ set start "10:00 2026/12/01"
+
+incomplete command in the end
+Command fail. Return code -160
+
+FortiGate-60F (netops-a2-probe) $ set end "11:30 2026/12/01"
+
+incomplete command in the end
+Command fail. Return code -160
+
+FortiGate-60F (netops-a2-probe) $ show
+config firewall schedule onetime
+    edit "netops-a2-probe"
+        set uuid 00000000-0000-4000-8000-000000000008
+    next
+end
+
+FortiGate-60F (netops-a2-probe) $ get
+name                : netops-a2-probe
+uuid                : 00000000-0000-4000-8000-000000000008
+start               : 00:00 2001/01/01
+end                 : 00:00 2001/01/01
+color               : 0
+expiration-days     : 3
+fabric-object       : disable 
+
+
+FortiGate-60F (netops-a2-probe) $ set expiration-days 0
+
+FortiGate-60F (netops-a2-probe) $ show
+config firewall schedule onetime
+    edit "netops-a2-probe"
+        set uuid 00000000-0000-4000-8000-000000000008
+        set expiration-days 0
+    next
+end
+
+FortiGate-60F (netops-a2-probe) $ abort
+
+FortiGate-60F $ end
+Unknown action 0
+
+FortiGate-60F $ show firewall schedule onetime
+config firewall schedule onetime
+end
+
+FortiGate-60F $ config firewall schedule recurring
+
+FortiGate-60F (recurring) $ edit "netops-a2-probe"
+new entry 'netops-a2-probe' added
+
+FortiGate-60F (netops-a2-probe) $ show
+config firewall schedule recurring
+    edit "netops-a2-probe"
+        set uuid 00000000-0000-4000-8000-000000000009
+    next
+end
+
+FortiGate-60F (netops-a2-probe) $ set day "monday" "friday"
+
+FortiGate-60F (netops-a2-probe) $ set start "08:00"
+
+FortiGate-60F (netops-a2-probe) $ set end "17:30"
+
+FortiGate-60F (netops-a2-probe) $ show
+config firewall schedule recurring
+    edit "netops-a2-probe"
+        set uuid 00000000-0000-4000-8000-000000000009
+        set start 08:00
+        set end 17:30
+        set day monday friday
+    next
+end
+
+FortiGate-60F (netops-a2-probe) $ get
+name                : netops-a2-probe
+uuid                : 00000000-0000-4000-8000-000000000009
+start               : 08:00
+end                 : 17:30
+day                 : monday friday 
+label-day           : none 
+color               : 0
+fabric-object       : disable 
+
+
+FortiGate-60F (netops-a2-probe) $ abort
+
+FortiGate-60F $ end
+Unknown action 0
+
+FortiGate-60F $ config firewall service group
+
+FortiGate-60F (group) $ edit "netops-a2-probe"
+new entry 'netops-a2-probe' added
+
+FortiGate-60F (netops-a2-probe) $ show
+config firewall service group
+    edit "netops-a2-probe"
+        set uuid 00000000-0000-4000-8000-000000000010
+    next
+end
+
+FortiGate-60F (netops-a2-probe) $ set member "HTTP" "HTTPS"
+
+FortiGate-60F (netops-a2-probe) $ set comment "a2 probe"
+
+FortiGate-60F (netops-a2-probe) $ show
+config firewall service group
+    edit "netops-a2-probe"
+        set uuid 00000000-0000-4000-8000-000000000010
+        set member "HTTP" "HTTPS"
+        set comment "a2 probe"
+    next
+end
+
+FortiGate-60F (netops-a2-probe) $ get
+name                : netops-a2-probe
+uuid                : 00000000-0000-4000-8000-000000000010
+member              : "HTTP" "HTTPS"
+comment             : a2 probe
+color               : 0
+fabric-object       : disable 
+
+
+FortiGate-60F (netops-a2-probe) $ abort
+
+FortiGate-60F $ end
+Unknown action 0
+
+FortiGate-60F $ show firewall schedule recurring
+config firewall schedule recurring
+    edit "always"
+        set uuid 00000000-0000-4000-8000-000000000005
+        set day sunday monday tuesday wednesday thursday friday saturday
+    next
+    edit "none"
+        set uuid 00000000-0000-4000-8000-000000000006
+    next
+    edit "default-darrp-optimize"
+        set uuid 00000000-0000-4000-8000-000000000007
+        set start 01:00
+        set end 01:30
+        set day sunday monday tuesday wednesday thursday friday saturday
+    next
+end
+
+FortiGate-60F $ show firewall service group
+config firewall service group
+    edit "Email Access"
+        set uuid 00000000-0000-4000-8000-000000000001
+        set member "DNS" "IMAP" "IMAPS" "POP3" "POP3S" "SMTP" "SMTPS"
+    next
+    edit "Web Access"
+        set uuid 00000000-0000-4000-8000-000000000002
+        set member "DNS" "HTTP" "HTTPS"
+    next
+    edit "Windows AD"
+        set uuid 00000000-0000-4000-8000-000000000003
+        set member "DCE-RPC" "DNS" "KERBEROS" "LDAP" "LDAP_UDP" "SAMBA" "SMB"
+    next
+    edit "Exchange Server"
+        set uuid 00000000-0000-4000-8000-000000000004
+        set member "DCE-RPC" "DNS" "HTTPS"
+    next
+end
+
+FortiGate-60F $ 

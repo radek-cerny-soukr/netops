@@ -1,0 +1,1965 @@
+{
+ "fortinet/ap_status/80f_live": {
+  "build": 251,
+  "http_method": "GET",
+  "name": "ap_status",
+  "path": "wifi",
+  "results": {
+   "client_count": 3,
+   "client_count_max": 0,
+   "client_peak_2g_1hour": [
+    2,
+    2,
+    2,
+    1
+   ],
+   "client_peak_2g_24hour": [
+    2,
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "client_peak_2g_30day": [
+    2,
+    2,
+    3,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "client_peak_5g_1hour": [
+    0,
+    0,
+    1,
+    0
+   ],
+   "client_peak_5g_24hour": [
+    1,
+    3,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2
+   ],
+   "client_peak_5g_30day": [
+    3,
+    3,
+    3,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "client_peak_6g_1hour": [
+    1,
+    1,
+    1,
+    1
+   ],
+   "client_peak_6g_24hour": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "client_peak_6g_30day": [
+    1,
+    2,
+    3,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "wtp_active": 1,
+   "wtp_down": 2,
+   "wtp_rebooted": 0,
+   "wtp_session_count": 1
+  },
+  "serial": "SSS00SSS00000001",
+  "status": "success",
+  "vdom": "root",
+  "version": "v8.0.2"
+ },
+ "fortinet/autoupdate_versions/80f": "\nAV Engine\n---------\nVersion: 8.00018 signed\nContract Expiry Date: Sat Sep 25 2027\nLast Updated using manual update on Thu Jul 23 22:56:00 2026\nLast Update Attempt: Sun Nov 22 18:53:28 2026\nResult: No Updates\n\nVirus Definitions\n---------\nVersion: 93.08331 signed\nContract Expiry Date: Sat Sep 25 2027\nLast Updated using scheduled update on Sun Nov 22 18:53:28 2026\nLast Update Attempt: Sun Nov 22 18:53:28 2026\nResult: Updates Installed\n\nExtended set\n---------\nVersion: 93.08331 signed\nContract Expiry Date: Sat Sep 25 2027\nLast Updated using scheduled update on Sun Nov 22 18:53:28 2026\nLast Update Attempt: Sun Nov 22 18:53:28 2026\nResult: Updates Installed\n\nOCR Set\n---------\nVersion: 1.00005\nContract Expiry Date: Sat Sep 25 2027\nLast Updated using manual update on Thu Oct 22 18:05:37 2026\nLast Update Attempt: Sun Nov 22 18:53:28 2026\nResult: No Updates\n\nMobile Malware Definitions\n---------\nVersion: 93.08331 signed\nContract Expiry Date: Sat Sep 25 2027\nLast Updated using scheduled update on Sun Nov 22 18:53:28 2026\nLast Update Attempt: Sun Nov 22 18:53:28 2026\nResult: Updates Installed\n\nIPS Attack Engine\n---------\nVersion: 8.00056 signed\nContract Expiry Date: Sat Sep 25 2027\nLast Updated using scheduled update on Tue Nov 17 21:07:02 2026\nLast Update Attempt: Sun Nov 22 18:53:28 2026\nResult: No Updates\n\nAttack Definitions\n---------\nVersion: 6.00741 signed\nContract Expiry Date: Sat Sep 25 2027\nLast Updated using manual update on Tue Dec  1 02:30:00 2015\nLast Update Attempt: n/a\nResult: Updates Installed\n\nAttack Extended Definitions\n---------\nVersion: 38.00342 signed\nContract Expiry Date: Sat Sep 25 2027\nLast Updated using scheduled update on Thu Nov 19 18:15:45 2026\nLast Update Attempt: Sun Nov 22 18:53:28 2026\nResult: No Updates\n\nAI/Machine Learning IPS Definitions\n---------\nVersion: 2609.00300 signed\nContract Expiry Date: Sat Sep 25 2027\nLast Updated using manual update on Mon Nov 16 16:29:11 2026\nLast Update Attempt: Sun Nov 22 18:53:28 2026\nResult: No Updates\n\nApplication Definitions\n---------\nVersion: 38.00341 signed\nContract Expiry Date: Sat Sep 25 2027\nLast Updated using scheduled update on Thu Nov 19 01:42:41 2026\nLast Update Attempt: Sun Nov 22 18:53:28 2026\nResult: No Updates\n\nGenAI Application Definitions\n---------\nVersion: 38.00340 signed\nContract Expiry Date: Sat Sep 25 2027\nLast Updated using scheduled update on Thu Nov 19 00:12:09 2026\nLast Update Attempt: Sun Nov 22 18:53:28 2026\nResult: No Updates\n\nOT Threat Definitions\n---------\nVersion: 38.00341 signed\nContract Expiry Date: Sat Sep 25 2027\nLast Updated using scheduled update on Thu Nov 19 01:42:41 2026\nLast Update Attempt: Sun Nov 22 18:53:28 2026\nResult: No Updates\n\nFMWP Definitions\n---------\nVersion: 0.00000\nContract Expiry Date: Sat Sep 25 2027\nLast Updated using manual update on Thu Oct 22 15:38:57 2026\nLast Update Attempt: Thu Oct 22 15:45:05 2026\nResult: No Updates\n\nIPS Malicious URL Database\n---------\nVersion: 5.00856 signed\nContract Expiry Date: Sat Sep 25 2027\nLast Updated using scheduled update on Fri Nov 20 18:44:20 2026\nLast Update Attempt: Sun Nov 22 18:53:28 2026\nResult: No Updates\n\nIoT Detect Definitions\n---------\nVersion: 38.00342 signed\nContract Expiry Date: Sat Sep 25 2027\nLast Updated using scheduled update on Thu Nov 19 19:46:00 2026\nLast Update Attempt: Sun Nov 22 18:53:28 2026\nResult: No Updates\n\nOT Detect Definitions\n---------\nVersion: 38.00342 signed\nContract Expiry Date: Sat Sep 25 2027\nLast Updated using scheduled update on Thu Nov 19 19:46:00 2026\nLast Update Attempt: Sun Nov 22 18:53:28 2026\nResult: No Updates\n\nOT Patch Definitions\n---------\nVersion: 38.00342 signed\nContract Expiry Date: Sat Sep 25 2027\nLast Updated using scheduled update on Thu Nov 19 19:46:00 2026\nLast Update Attempt: Sun Nov 22 18:53:28 2026\nResult: No Updates\n\nFlow-based Virus Definitions\n---------\nVersion: 93.08331 signed\nContract Expiry Date: Sat Sep 25 2027\nLast Updated using scheduled update on Sun Nov 22 18:53:28 2026\nLast Update Attempt: Sun Nov 22 18:53:28 2026\nResult: Updates Installed\n\nBotnet Domain Database\n---------\nVersion: 3.01722 signed\nContract Expiry Date: Sat Sep 25 2027\nLast Updated using scheduled update on Fri Nov 20 21:44:45 2026\nLast Update Attempt: Sun Nov 22 18:53:28 2026\nResult: No Updates\n\nProxy Attack Definitions\n---------\nVersion: 6.00741 signed\nContract Expiry Date: Sat Sep 25 2027\nLast Updated using manual update on Tue Dec  1 02:30:00 2015\nLast Update Attempt: n/a\nResult: Updates Installed\n\nProxy Attack Extended Definitions\n---------\nVersion: 38.00342 signed\nContract Expiry Date: Sat Sep 25 2027\nLast Updated using scheduled update on Thu Nov 19 18:15:45 2026\nLast Update Attempt: Sun Nov 22 18:53:28 2026\nResult: No Updates\n\nProxy Application Definitions\n---------\nVersion: 38.00341 signed\nContract Expiry Date: Sat Sep 25 2027\nLast Updated using scheduled update on Thu Nov 19 01:42:41 2026\nLast Update Attempt: Sun Nov 22 18:53:28 2026\nResult: No Updates\n\nProxy GenAI Application Definitions\n---------\nVersion: 38.00340 signed\nContract Expiry Date: Sat Sep 25 2027\nLast Updated using scheduled update on Thu Nov 19 00:12:09 2026\nLast Update Attempt: Sun Nov 22 18:53:28 2026\nResult: No Updates\n\nInternet-service On-Demand Database\n---------\nVersion: 7.04521\nContract Expiry Date: n/a\nLast Updated using manual update on Sun Nov 22 18:53:29 2026\nLast Update Attempt: Sun Nov 22 18:54:40 2026\nResult: Updates Installed\n\nDevice and OS Identifications\n---------\nVersion: 1.00209\nContract Expiry Date: Sat Sep 25 2027\nLast Updated using scheduled update on Mon Nov  9 23:28:21 2026\nLast Update Attempt: Sun Nov 22 18:53:28 2026\nResult: No Updates\n\nURL Allow list\n---------\nVersion: 5.00134\nContract Expiry Date: Sat Sep 25 2027\nLast Updated using scheduled update on Sun Nov 22 12:52:27 2026\nLast Update Attempt: Sun Nov 22 18:53:28 2026\nResult: No Updates\n\nDLP Signatures\n---------\nVersion: 1.00061 signed\nContract Expiry Date: Sat Sep 25 2027\nLast Updated using scheduled update on Sun Nov  8 01:06:00 2026\nLast Update Attempt: Sun Nov 22 18:53:28 2026\nResult: No Updates\n\nIP Geography DB\n---------\nVersion: 3.00359 signed\nContract Expiry Date: n/a\nLast Updated using manual update on Tue Nov 17 04:50:00 2026\nLast Update Attempt: Sun Nov 22 18:53:28 2026\nResult: No Updates\n\nCertificate Bundle\n---------\nVersion: 1.00067\nContract Expiry Date: n/a\nLast Updated using manual update on Tue Oct 20 15:00:00 2026\nLast Update Attempt: Sun Nov 22 18:53:28 2026\nResult: No Updates\n\nMalicious Certificate DB\n---------\nVersion: 1.00615\nContract Expiry Date: Sat Sep 25 2027\nLast Updated using scheduled update on Fri Nov 20 21:44:45 2026\nLast Update Attempt: Sun Nov 22 18:53:28 2026\nResult: No Updates\n\nImage Classification Categories\n---------\nVersion: 1.00001\nContract Expiry Date: Sat Sep 25 2027\nLast Updated using manual update on Thu Oct 22 18:05:37 2026\nLast Update Attempt: Sun Nov 22 18:53:28 2026\nResult: No Updates\n\nMac Address Database\n---------\nVersion: 1.00351\nContract Expiry Date: Sat Sep 25 2027\nLast Updated using scheduled update on Wed Nov 18 00:07:52 2026\nLast Update Attempt: Sun Nov 22 18:53:28 2026\nResult: No Updates\n\nAntiPhish Pattern DB\n---------\nVersion: 1.00019\nContract Expiry Date: Sat Sep 25 2027\nLast Updated using manual update on Thu Oct 22 15:38:57 2026\nLast Update Attempt: Sun Nov 22 18:53:28 2026\nResult: No Updates\n\nAI/Machine Learning Malware Detection Model\n---------\nVersion: 4.05343 signed\nContract Expiry Date: Sat Sep 25 2027\nLast Updated using scheduled update on Sun Nov 22 18:53:28 2026\nLast Update Attempt: Sun Nov 22 18:53:28 2026\nResult: Updates Installed\n\nICDB Database\n---------\nVersion: 1.00051 signed\nContract Expiry Date: Sat Sep 25 2027\nLast Updated using manual update on Thu Oct 22 15:29:59 2026\nLast Update Attempt: Sun Nov 22 18:53:28 2026\nResult: No Updates\n\nInline CASB Database\n---------\nVersion: 1.00011 signed\nContract Expiry Date: Sat Sep 25 2027\nLast Updated using manual update on Thu Oct 22 18:05:37 2026\nLast Update Attempt: Sun Nov 22 18:53:28 2026\nResult: No Updates\n\nSLA Database\n---------\nVersion: 1.00005\nContract Expiry Date: Sat Sep 25 2027\nLast Updated using manual update on Thu Oct 22 15:50:37 2026\nLast Update Attempt: Sun Nov 22 18:53:28 2026\nResult: No Updates\n\nTelemetry Database\n---------\nVersion: 1.00012\nContract Expiry Date: Sat Sep 25 2027\nLast Updated using scheduled update on Sun Nov 22 18:53:28 2026\nLast Update Attempt: Sun Nov 22 18:53:28 2026\nResult: Updates Installed\n\nModem List\n---------\nVersion: 0.000\n\nTimezone Database\n---------\nVersion: 1.016\nIANA Version: 2026f\n\nSecurity Rating Data Package\n---------\nVersion: 7.00009\nContract Expiry Date: Sat Sep 25 2027\nLast Updated using manual update on Thu Oct 22 18:05:37 2026\nLast Update Attempt: Sun Nov 22 18:53:28 2026\nResult: No Updates\n\nFDS Address\n---------\n192.0.2.6:443\n",
+ "fortinet/ha_status/80f_active_passive": "HA Health Status: OK\nModel: FortiGate-80F\nMode: HA A-P\nGroup Name: host01\nGroup ID: 20\nDebug: 0\nCluster Uptime: 2 days 11h:12m:11s\nCluster state change time: 2026-11-22 20:20:50\nPrimary selected using:\n    <2026/11/22 20:20:50> vcluster-1: SSS00SSS00000001 is selected as the primary because its override priority is larger than peer member SSS00SSS00000002.\n    <2026/11/22 20:20:14> vcluster-1: SSS00SSS00000002 is selected as the primary because the value of link-failure + pingsvr-failure is less than peer member SSS00SSS00000001.\n    <2026/11/20 10:31:57> vcluster-1: SSS00SSS00000001 is selected as the primary because its override priority is larger than peer member SSS00SSS00000002.\n    <2026/11/20 10:31:48> vcluster-1: SSS00SSS00000001 is selected as the primary because it's the only member in the cluster.\nses_pickup: enable, ses_pickup_delay=disable\noverride: disable\nConfiguration Status:\n    SSS00SSS00000001(updated 3 seconds ago): in-sync\n    SSS00SSS00000001 chksum dump: bd 94 81 50 89 f1 7f 84 e0 00 ff e3 fe e1 87 3e \n    SSS00SSS00000002(updated 0 seconds ago): in-sync\n    SSS00SSS00000002 chksum dump: bd 94 81 50 89 f1 7f 84 e0 00 ff e3 fe e1 87 3e \nSystem Usage stats:\n    SSS00SSS00000001(updated 3 seconds ago):\n        sessions=48, average-cpu-user/nice/system/idle=0%/0%/0%/100%, memory=62%\n    SSS00SSS00000002(updated 0 seconds ago):\n        sessions=4, average-cpu-user/nice/system/idle=0%/0%/0%/99%, memory=57%\nHBDEV stats:\n    SSS00SSS00000001(updated 3 seconds ago):\n        internal5: physical/1000auto, up, rx-bytes/packets/dropped/errors=871792091/3337342/0/0, tx=1568760478/3654468/0/0\n        internal6: physical/1000auto, up, rx-bytes/packets/dropped/errors=481992930/1068668/0/0, tx=486622901/1067160/0/0\n    SSS00SSS00000002(updated 0 seconds ago):\n        internal5: physical/1000auto, up, rx-bytes/packets/dropped/errors=1568766936/3654499/0/0, tx=871759969/3337383/0/0\n        internal6: physical/1000auto, up, rx-bytes/packets/dropped/errors=486625200/1067165/0/0, tx=481998793/1068681/0/0\nMONDEV stats:\n    SSS00SSS00000001(updated 3 seconds ago):\n        wan1: physical/1000auto, up, rx-bytes/packets/dropped/errors=2298171441/5904296/0/0, tx=1136426685/4157408/0/0\n    SSS00SSS00000002(updated 0 seconds ago):\n        wan1: physical/1000auto, up, rx-bytes/packets/dropped/errors=190076640/1612575/0/0, tx=29637546/104074/0/0\nnumber of member: 2\nSSS00SSS00000001, SSS00SSS00000001, HA cluster index = 0\nSSS00SSS00000002, SSS00SSS00000002, HA cluster index = 1\nnumber of vcluster: 1\nvcluster 1: work 198.51.100.1\nPrimary: SSS00SSS00000001, HA operating index = 0\nSecondary: SSS00SSS00000002, HA operating index = 1\n",
+ "fortinet/hardware_sensors/80f_psu1_absent": "[HW monitor sensors]\n  1 PSU [1] .......................  ABSENT(0)\n    Type                  : PSU status (10/0)\n    Sensor status         : Power absent(PSU not present)\n    Alarm                 : No                      \n    Value                 : 0.00\n  2 PSU [2] .......................  OK  \n    Type                  : PSU status (10/0)\n    Sensor status         : Power working Well\n    Alarm                 : No                      \n    Value                 : 1.00\n  3 CPU ON-DIE Temperature ........  68.6 C               \n    Type                  : Temperature (1/0)\n    Sensor status         : Normal                  \n    Alarm                 : No                      \n    Upper critical        : 110.0 \n  4 MV1548 Temperature ............  87.0 C               \n    Type                  : Temperature (1/0)\n    Sensor status         : Normal                  \n  5 MV1680 Temperature ............  65.0 C               \n    Type                  : Temperature (1/0)\n    Sensor status         : Normal                  \n",
+ "fortinet/interface_details/80f_internal1": "\nif=internal1 family=00 type=1 index=7 mtu=1500 link=0 master=0\nref=25 state=start present no_carrier fw_flags=400 flags=up broadcast promsic multicast \nQdisc=mq hw_addr=00:00:5e:00:53:01 broadcast_addr=ff:ff:ff:ff:ff:ff\nstat: rxp=0 txp=0 rxb=0 txb=0 rxe=0 txe=0 rxd=0 txd=0 mc=0 collision=0 @ time=1795380327\nre: rxl=0 rxo=0 rxc=0 rxf=0 rxfi=0 rxm=0\nte: txa=0 txc=0 txfi=0 txh=0 txw=0\nmisc rxc=0 txc=0\ninput_type=0 state=7 arp_entry=0 refcnt=25\nsession_count4=0, session_count6=0\n",
+ "fortinet/interface_details/80f_wan1": "\nif=wan1 family=00 type=1 index=5 mtu=1500 link=0 master=0\nref=93 state=start present fw_flags=10000400 flags=up broadcast run promsic multicast \nQdisc=mq hw_addr=00:00:5e:00:53:02 broadcast_addr=ff:ff:ff:ff:ff:ff\nstat: rxp=5906974 txp=4160559 rxb=2298534617 txb=1136931202 rxe=0 txe=0 rxd=0 txd=0 mc=1454887 collision=0 @ time=1795380327\nre: rxl=0 rxo=0 rxc=0 rxf=0 rxfi=0 rxm=0\nte: txa=0 txc=0 txfi=0 txh=0 txw=0\nmisc rxc=0 txc=0\ninput_type=0 state=3 arp_entry=0 refcnt=93\nsession_count4=18, session_count6=3\n",
+ "fortinet/interface_hardware/80f_wan1": "Description         :FortiASIC NP6XLITE Adapter\nDriver Name         :FortiASIC NP6XLITE Driver\nBoard               :80F\nlif id              :0\nlif oid             :64\nnetdev oid          :64\nCurrent_HWaddr       00:00:5e:00:53:02\nPermanent_HWaddr     00:00:5e:00:53:03\n========== Link Status ==========\nAdmin               :up\nnetdev status       :up\nautonego_setting    :1\nlink_setting        :1\nspeed_setting       :1000\nduplex_setting      :0\nSpeed               :1000\nDuplex              :Full\nlink_status         :Up\n============ Counters ===========\nRx Pkts             :5906974\nRx Bytes            :2298534617\nTx Pkts             :4160559\nTx Bytes            :1136931202\nHost Rx Pkts        :4488197\nHost Rx Bytes       :878286038\nHost Tx Pkts        :3237234\nHost Tx Bytes       :539504455\nHost Tx dropped     :0\nFragTxCreate        :0\nFragTxOk            :0\nFragTxDrop          :0\nnp_rx_pkts          :5906974\nnp_rx_bytes         :2327760253\nnp_rx_mc_pkts       :1454887\nnp_rx_bc_pkts       :61748\nnp_tx_pkts          :4160559\nnp_tx_bytes         :1159016934\nnp_tx_mc_pkts       :0\nnp_tx_bc_pkts       :5103\n",
+ "fortinet/interface_list/80f": "\nif=wan1 family=00 type=1 index=5 mtu=1500 link=0 master=0\nref=94 state=start present fw_flags=10000400 flags=up broadcast run promsic multicast \n\nif=wan2 alias=host02 family=00 type=1 index=6 mtu=1500 link=0 master=0\nref=35 state=start present fw_flags=c00 flags=up broadcast run promsic multicast \n\nif=internal1 family=00 type=1 index=7 mtu=1500 link=0 master=0\nref=25 state=start present no_carrier fw_flags=400 flags=up broadcast promsic multicast \n\nif=internal2 family=00 type=1 index=8 mtu=1500 link=0 master=0\nref=25 state=start present no_carrier fw_flags=400 flags=up broadcast promsic multicast \n\nif=internal3 family=00 type=1 index=9 mtu=1500 link=0 master=0\nref=25 state=start present no_carrier fw_flags=400 flags=up broadcast promsic multicast \n\nif=internal4 alias=host03 family=00 type=1 index=10 mtu=1500 link=0 master=0\nref=35 state=start present fw_flags=c00 flags=up broadcast run promsic multicast \n\nif=internal5 family=00 type=1 index=11 mtu=1500 link=0 master=0\nref=30 state=start present fw_flags=400 flags=up broadcast run promsic multicast \n\nif=internal6 family=00 type=1 index=12 mtu=1500 link=0 master=0\nref=27 state=start present fw_flags=400 flags=up broadcast run promsic multicast \n\nif=a family=00 type=1 index=13 mtu=1500 link=0 master=21\nref=28 state=start present fw_flags=400 flags=up broadcast run promsic slave multicast \n\nif=b family=00 type=1 index=14 mtu=1500 link=0 master=21\nref=28 state=start present fw_flags=400 flags=up broadcast run promsic slave multicast \n\nif=modem family=00 type=512 index=17 mtu=1500 link=0 master=0\nref=10 state=present fw_flags=400 flags=p2p noarp multicast \n\nif=root family=00 type=772 index=18 mtu=16436 link=0 master=0\nref=56 state=start present fw_flags=0 flags=up loopback run \n\nif=naf.root family=00 type=65535 index=19 mtu=1500 link=0 master=0\nref=9 state=start present fw_flags=82000400 flags=up broadcast run noarp multicast \n\nif=l2t.root family=00 type=512 index=20 mtu=1300 link=0 master=0\nref=10 state=start present fw_flags=400 flags=up p2p run noarp multicast \n\nif=fortilink family=00 type=1 index=21 mtu=1500 link=0 master=0\nref=48 state=start present fw_flags=400 flags=up broadcast run promsic master multicast \n\nif=host04  alias=host05    family=00 type=1 index=22 mtu=1500 link=0 master=0\nref=25 state=start present fw_flags=10000400 flags=up broadcast run promsic multicast \n\nif=host06  alias=host07    family=00 type=1 index=23 mtu=1500 link=0 master=0\nref=26 state=start present fw_flags=10000400 flags=up broadcast run promsic multicast \n\nif=_default alias=_default.fortilink family=00 type=1 index=24 mtu=1500 link=0 master=0\nref=12 state=start present fw_flags=400 flags=up broadcast run promsic multicast \n\nif=quarantine alias=quarantine.fortilink family=00 type=1 index=25 mtu=1500 link=0 master=0\nref=17 state=start present fw_flags=e00 flags=up broadcast run promsic multicast \n\nif=voice alias=voice.fortilink family=00 type=1 index=26 mtu=1500 link=0 master=0\nref=12 state=start present fw_flags=c00 flags=up broadcast run promsic multicast \n\nif=video alias=video.fortilink family=00 type=1 index=27 mtu=1500 link=0 master=0\nref=12 state=start present fw_flags=c00 flags=up broadcast run promsic multicast \n\nif=rspan alias=rspan.fortilink family=00 type=1 index=28 mtu=1500 link=0 master=0\nref=17 state=start present fw_flags=400 flags=up broadcast run promsic multicast \n\nif=onboarding alias=onboarding.fortilink family=00 type=1 index=29 mtu=1500 link=0 master=0\nref=12 state=start present fw_flags=e00 flags=up broadcast run promsic multicast \n\nif=nac_segment alias=nac_segment.fortilink family=00 type=1 index=30 mtu=1500 link=0 master=0\nref=17 state=start present fw_flags=c00 flags=up broadcast run promsic multicast \n\nif=ap-mgmt family=00 type=1 index=31 mtu=1500 link=0 master=0\nref=27 state=start present fw_flags=c00 flags=up broadcast run promsic multicast \n\nif=host01  family=00 type=1 index=32 mtu=1500 link=0 master=0\nref=23 state=start present fw_flags=c00 flags=up broadcast run promsic multicast \n\nif=internal family=00 type=1 index=33 mtu=1500 link=0 master=0\nref=29 state=start present no_carrier fw_flags=0 flags=up broadcast promsic multicast \n\nif=host08 family=00 type=768 index=34 mtu=1402 link=0 master=0\nref=18 state=start present fw_flags=10000000 flags=up p2p run noarp multicast \n\nif=host09 family=00 type=768 index=35 mtu=1402 link=0 master=0\nref=21 state=start present fw_flags=10000000 flags=up p2p run noarp multicast \n\nif=host10 family=00 type=768 index=36 mtu=1402 link=0 master=0\nref=18 state=start present fw_flags=10000000 flags=up p2p run noarp multicast \n\nif=havdlink1 family=00 type=65535 index=41 mtu=1500 link=0 master=0\nref=14 state=start present fw_flags=0 flags=up p2p run noarp multicast \n\nif=host11       family=00 type=1 index=42 mtu=1500 link=0 master=0\nref=19 state=start present fw_flags=c00 flags=up broadcast run promsic multicast \n",
+ "fortinet/managed_ap/80f_live": {
+  "build": 251,
+  "http_method": "GET",
+  "name": "managed_ap",
+  "path": "wifi",
+  "results": [
+   {
+    "ap_profile": "FAP231K-default",
+    "auto_cert_proto": "none",
+    "ble_profile": "",
+    "board_mac": "00:00:5e:00:53:3f",
+    "cli_enabled": false,
+    "clients": 3,
+    "comment": "",
+    "configured_country_code": 203,
+    "configured_country_name": "CZ",
+    "connecting_from": "203.0.113.252",
+    "connecting_interface": "ap-mgmt",
+    "connection_state": "Connected",
+    "country_code_conflict": 0,
+    "cpu_usage": 8,
+    "data_chan_sec": "clear-text",
+    "dedicated_scan_enabled": false,
+    "eos": false,
+    "forticare_registration_status": "registered",
+    "health": {
+     "general": {
+      "country_code": {
+       "severity": "good",
+       "value": 0
+      },
+      "overall": {
+       "severity": "good",
+       "value": 0
+      },
+      "uplink_status": [
+       {
+        "severity": "good",
+        "value": 1000
+       }
+      ]
+     }
+    },
+    "image_download_progress": 0,
+    "indoor_outdoor": 2,
+    "is_local": false,
+    "is_wpa3_supported": true,
+    "join_time": "11/22/26 20:22",
+    "join_time_raw": 1795375349,
+    "last_failure": "Control message maximal retransmission limit reached",
+    "last_failure_code": 8,
+    "last_failure_param": "N/A",
+    "last_failure_time": "11/20/26 12:30",
+    "last_reboot_time": "11/20/26 17:24",
+    "last_reboot_time_raw": 1795191849,
+    "led_blink": false,
+    "lldp": [
+     {
+      "capability": "Bridge Router ",
+      "chassis_id": "mac 00:00:5e:00:53:3d",
+      "ip": "203.0.113.251",
+      "ip6": "",
+      "local_port": "lan1",
+      "mau_operating_mode": "1000BaseTFD - Four-pair Category 5 UTP, full duplex mode",
+      "port_description": "port3",
+      "port_id": "port3",
+      "system_description": "FortiSwitch-224E-POE v8.0.1,build0069,260728 (GA)",
+      "system_name": "S000SSSS00000004",
+      "vlan": -1
+     }
+    ],
+    "lldp_enable": true,
+    "local_addr": "203.0.113.252",
+    "location": "",
+    "lw_profile": "",
+    "mem_free": 1569956,
+    "mem_total": 1937472,
+    "mesh_hop_count": 0,
+    "mesh_uplink": "ethernet",
+    "mesh_uplink_intf": "ap-mgmt",
+    "mesh_uplink_intf_speed": 2000.0,
+    "mgmt_vlanid": 0,
+    "name": "SS000S0S0000S0S5",
+    "os_version": "FP231K-v8.0.1-build0085",
+    "override_profile": false,
+    "poe_mode": "full(auto)",
+    "poe_mode_oper": "full",
+    "radio": [
+     {
+      "all_ssids": false,
+      "auto_txpower": false,
+      "background_scan_enabled": true,
+      "bandwidth_rx": 22,
+      "bandwidth_tx": 22,
+      "base_bssid": "00:00:5e:00:53:40",
+      "beacon_frames_tx": 1828964,
+      "bytes_rx": 4722170,
+      "bytes_tx": 12922070,
+      "chan_ai": 0,
+      "channel_bonding": "20MHz",
+      "channel_utilization": true,
+      "channel_utilization_percent": 5,
+      "channel_utilization_timestamp": 1795380153,
+      "channels": [],
+      "client_count": 2,
+      "country_code": 203,
+      "country_name": "CZ",
+      "detect_interfering": false,
+      "detected_rogue_aps": 8,
+      "detected_rogue_infra_aps": 0,
+      "health": {
+       "channel_utilization": {
+        "severity": "good",
+        "value": 5
+       },
+       "client_count": {
+        "severity": "good",
+        "value": 2
+       },
+       "infra_interfering_ssids": {
+        "severity": "good",
+        "value": 0
+       },
+       "interfering_ssids": {
+        "severity": "fair",
+        "value": 3
+       },
+       "overall": {
+        "severity": "fair",
+        "value": 0
+       }
+      },
+      "interfering_aps": 3,
+      "mac_errors_rx": 0,
+      "mac_errors_tx": 0,
+      "max_vaps": 8,
+      "mgmt_frames_rx": 7889,
+      "mgmt_frames_tx": 89233,
+      "mode": "AP",
+      "noise_floor": -95,
+      "oper_chan": 1,
+      "oper_txpower": 20,
+      "override_band": false,
+      "override_channel": false,
+      "override_sa": false,
+      "override_txpower": false,
+      "override_vaps": false,
+      "radio_id": 1,
+      "radio_max_rate_mbps": 0,
+      "radio_max_rate_standard_mbps": 0,
+      "radio_type": "802.11be-2G",
+      "ssid": {
+       "host01": "host01"
+      },
+      "ssid_mode": "manual",
+      "sta_locate": false,
+      "supported_bands": [
+       "b",
+       "g",
+       "n-2G",
+       "ax-2G",
+       "be-2G"
+      ],
+      "tx_discard_percentage": 0,
+      "tx_retries_percent": 0,
+      "txpower": 100,
+      "wids_profile": ""
+     },
+     {
+      "all_ssids": false,
+      "auto_txpower": false,
+      "background_scan_enabled": true,
+      "bandwidth_rx": 0,
+      "bandwidth_tx": 0,
+      "base_bssid": "00:00:5e:00:53:41",
+      "beacon_frames_tx": 1811313,
+      "bytes_rx": 24346698,
+      "bytes_tx": 59305288,
+      "chan_ai": 0,
+      "channel_bonding": "20MHz",
+      "channel_utilization": true,
+      "channel_utilization_percent": 0,
+      "channel_utilization_timestamp": 1795380153,
+      "channels": [],
+      "client_count": 0,
+      "country_code": 203,
+      "country_name": "CZ",
+      "detect_interfering": false,
+      "detected_rogue_aps": 12,
+      "detected_rogue_infra_aps": 0,
+      "health": {
+       "channel_utilization": {
+        "severity": "good",
+        "value": 0
+       },
+       "client_count": {
+        "severity": "good",
+        "value": 0
+       },
+       "infra_interfering_ssids": {
+        "severity": "good",
+        "value": 0
+       },
+       "interfering_ssids": {
+        "severity": "good",
+        "value": 1
+       },
+       "overall": {
+        "severity": "good",
+        "value": 0
+       }
+      },
+      "interfering_aps": 1,
+      "mac_errors_rx": 0,
+      "mac_errors_tx": 11,
+      "max_vaps": 8,
+      "mgmt_frames_rx": 1977,
+      "mgmt_frames_tx": 6642,
+      "mode": "AP",
+      "noise_floor": -95,
+      "oper_chan": 120,
+      "oper_txpower": 26,
+      "override_band": false,
+      "override_channel": false,
+      "override_sa": false,
+      "override_txpower": false,
+      "override_vaps": false,
+      "radio_id": 2,
+      "radio_max_rate_mbps": 0,
+      "radio_max_rate_standard_mbps": 0,
+      "radio_type": "802.11be-5G",
+      "ssid": {
+       "host01": "host01"
+      },
+      "ssid_mode": "manual",
+      "sta_locate": false,
+      "supported_bands": [
+       "a",
+       "n-5G",
+       "ac-5G",
+       "ax-5G",
+       "be-5G"
+      ],
+      "tx_discard_percentage": 0,
+      "tx_retries_percent": 0,
+      "txpower": 100,
+      "wids_profile": ""
+     },
+     {
+      "all_ssids": false,
+      "auto_txpower": false,
+      "background_scan_enabled": true,
+      "bandwidth_rx": 0,
+      "bandwidth_tx": 0,
+      "base_bssid": "00:00:5e:00:53:42",
+      "beacon_frames_tx": 46430,
+      "bytes_rx": 12966,
+      "bytes_tx": 111616,
+      "chan_ai": 0,
+      "channel_bonding": "20MHz",
+      "channel_utilization": true,
+      "channel_utilization_percent": 0,
+      "channel_utilization_timestamp": 1795380153,
+      "channels": [],
+      "client_count": 1,
+      "country_code": 203,
+      "country_name": "CZ",
+      "detect_interfering": false,
+      "detected_rogue_aps": 0,
+      "detected_rogue_infra_aps": 0,
+      "health": {
+       "channel_utilization": {
+        "severity": "good",
+        "value": 0
+       },
+       "client_count": {
+        "severity": "good",
+        "value": 1
+       },
+       "infra_interfering_ssids": {
+        "severity": "good",
+        "value": 0
+       },
+       "interfering_ssids": {
+        "severity": "good",
+        "value": 0
+       },
+       "overall": {
+        "severity": "good",
+        "value": 0
+       }
+      },
+      "interfering_aps": 0,
+      "mac_errors_rx": 0,
+      "mac_errors_tx": 0,
+      "max_vaps": 8,
+      "mgmt_frames_rx": 12,
+      "mgmt_frames_tx": 82,
+      "mode": "AP",
+      "noise_floor": -95,
+      "oper_chan": 1,
+      "oper_txpower": 21,
+      "override_band": false,
+      "override_channel": false,
+      "override_sa": false,
+      "override_txpower": false,
+      "override_vaps": false,
+      "radio_id": 3,
+      "radio_max_rate_mbps": 0,
+      "radio_max_rate_standard_mbps": 0,
+      "radio_type": "802.11be-6G",
+      "ssid": {
+       "host11": "host11"
+      },
+      "ssid_mode": "manual",
+      "sta_locate": false,
+      "supported_bands": [
+       "ax-6G",
+       "be-6G"
+      ],
+      "tx_discard_percentage": 0,
+      "tx_retries_percent": 0,
+      "txpower": 100,
+      "wids_profile": ""
+     },
+     {
+      "mode": "Not Exist",
+      "radio_id": 4,
+      "radio_type": "unknown",
+      "supported_bands": []
+     },
+     {
+      "mode": "Not Exist",
+      "radio_id": 5,
+      "radio_type": "unknown",
+      "supported_bands": []
+     }
+    ],
+    "reboot_last_day": false,
+    "region": "",
+    "region_code": "E ",
+    "sensors_temperatures": [
+     50
+    ],
+    "serial": "SS000S0S0000S0S5",
+    "ssid": [
+     {
+      "list": [
+       "host01"
+      ],
+      "radio": 1
+     },
+     {
+      "list": [
+       "host01"
+      ],
+      "radio": 2
+     },
+     {
+      "list": [
+       "host11"
+      ],
+      "radio": 3
+     }
+    ],
+    "state": "authorized",
+    "status": "connected",
+    "subtype": 0,
+    "vdom": "root",
+    "wan_802_1x_macsec": false,
+    "wan_802_1x_method": "all",
+    "wan_port_auth": "none",
+    "wan_status": [
+     {
+      "interface": "lan1",
+      "is_carrier_link": true,
+      "is_full_duplex": true,
+      "link_speed_mbps": 1000
+     }
+    ],
+    "wanlan_mode": "wan-only",
+    "wired": [
+     {
+      "bytes_rx": 1062767101,
+      "bytes_tx": 327770868,
+      "collisions": 0,
+      "dropped_rx": 6274,
+      "dropped_tx": 0,
+      "errors_rx": 0,
+      "errors_tx": 0,
+      "interface": "lan1",
+      "is_carrier_link": true,
+      "is_full_duplex": true,
+      "link_speed_mbps": 1000,
+      "max_link_speed": 5000,
+      "packets_rx": 1150563,
+      "packets_tx": 838950,
+      "peak_bandwidth_bytes_rx": 132507,
+      "peak_bandwidth_bytes_tx": 42630,
+      "peak_bandwidth_packets_rx": 145,
+      "peak_bandwidth_packets_tx": 142
+     }
+    ],
+    "wired-state-extension": [
+     {
+      "interface": "lan1",
+      "peak_bandwidth_bytes_rx": 132507,
+      "peak_bandwidth_bytes_tx": 42630,
+      "peak_bandwidth_packets_rx": 145,
+      "peak_bandwidth_packets_tx": 142
+     }
+    ],
+    "wtp_id": "SS000S0S0000S0S5",
+    "wtp_mode": "normal"
+   },
+   {
+    "ap_profile": "FAP23JK-default",
+    "auto_cert_proto": "none",
+    "ble_profile": "",
+    "board_mac": "00:00:5e:00:53:43",
+    "cli_enabled": false,
+    "clients": 0,
+    "comment": "",
+    "configured_country_code": 203,
+    "configured_country_name": "CZ",
+    "connecting_from": "203.0.113.250",
+    "connecting_interface": "ap-mgmt",
+    "connection_state": "Disconnected",
+    "country_code_conflict": 2,
+    "cpu_usage": 0,
+    "data_chan_sec": "clear-text",
+    "dedicated_scan_enabled": false,
+    "eos": false,
+    "forticare_registration_status": "unknown",
+    "health": {
+     "general": {
+      "country_code": {
+       "severity": "poor",
+       "value": 2
+      },
+      "overall": {
+       "severity": "poor",
+       "value": 0
+      },
+      "uplink_status": [
+       {
+        "severity": "good",
+        "value": 1000
+       }
+      ]
+     }
+    },
+    "image_download_progress": 0,
+    "indoor_outdoor": 2,
+    "is_local": false,
+    "is_wpa3_supported": true,
+    "join_time": "11/20/26 10:42",
+    "join_time_raw": 1795167774,
+    "last_failure": "Control message maximal retransmission limit reached",
+    "last_failure_code": 8,
+    "last_failure_param": "N/A",
+    "last_failure_time": "11/20/26 11:51",
+    "led_blink": false,
+    "lldp": [
+     {
+      "capability": "Bridge Router ",
+      "chassis_id": "mac 00:00:5e:00:53:20",
+      "ip": "203.0.113.249",
+      "ip6": "",
+      "local_port": "wan",
+      "mau_operating_mode": "1000BaseTFD - Four-pair Category 5 UTP, full duplex mode",
+      "port_description": "port3",
+      "port_id": "port3",
+      "system_description": "FortiSwitch-224E-POE v8.0.1,build0069,260728 (GA)",
+      "system_name": "S000SSSS00000003",
+      "vlan": -1
+     }
+    ],
+    "lldp_enable": true,
+    "local_addr": "203.0.113.250",
+    "location": "",
+    "lw_profile": "",
+    "mem_free": 0,
+    "mem_total": 0,
+    "mesh_hop_count": 0,
+    "mesh_uplink": "ethernet",
+    "mesh_uplink_intf": "ap-mgmt",
+    "mesh_uplink_intf_speed": 2000.0,
+    "mgmt_vlanid": 0,
+    "name": "SS00SSSS00000006",
+    "os_version": "FP23JK-v8.0.1-build0085",
+    "override_profile": false,
+    "poe_mode": "auto(auto)",
+    "poe_mode_oper": "auto",
+    "radio": [
+     {
+      "all_ssids": false,
+      "auto_txpower": false,
+      "background_scan_enabled": true,
+      "bandwidth_rx": 179459,
+      "bandwidth_tx": 2284422,
+      "base_bssid": "00:00:5e:00:53:44",
+      "bytes_rx": 1202026,
+      "bytes_tx": 5914417,
+      "chan_ai": 0,
+      "channel_bonding": "20MHz",
+      "channel_utilization": true,
+      "channel_utilization_percent": 7,
+      "channel_utilization_timestamp": 1795171833,
+      "channels": [],
+      "client_count": 0,
+      "country_code": 276,
+      "country_name": "DE",
+      "detect_interfering": false,
+      "detected_rogue_aps": 0,
+      "detected_rogue_infra_aps": 0,
+      "health": {
+       "channel_utilization": {
+        "severity": "good",
+        "value": 7
+       },
+       "client_count": {
+        "severity": "good",
+        "value": 0
+       },
+       "infra_interfering_ssids": {
+        "severity": "good",
+        "value": 0
+       },
+       "interfering_ssids": {
+        "severity": "good",
+        "value": 0
+       },
+       "overall": {
+        "severity": "good",
+        "value": 0
+       }
+      },
+      "interfering_aps": 0,
+      "mac_errors_rx": 0,
+      "mac_errors_tx": 0,
+      "max_vaps": 8,
+      "mode": "AP",
+      "noise_floor": -95,
+      "oper_chan": 0,
+      "oper_txpower": 17,
+      "override_band": false,
+      "override_channel": false,
+      "override_sa": false,
+      "override_txpower": false,
+      "override_vaps": false,
+      "radio_id": 1,
+      "radio_max_rate_mbps": 0,
+      "radio_max_rate_standard_mbps": 0,
+      "radio_type": "802.11be-2G",
+      "ssid": {
+       "host01": "host01"
+      },
+      "ssid_mode": "manual",
+      "sta_locate": false,
+      "supported_bands": [
+       "b",
+       "g",
+       "n-2G",
+       "ax-2G",
+       "be-2G"
+      ],
+      "tx_retries_percent": 11,
+      "txpower": 100,
+      "wids_profile": ""
+     },
+     {
+      "all_ssids": false,
+      "auto_txpower": false,
+      "background_scan_enabled": true,
+      "bandwidth_rx": 0,
+      "bandwidth_tx": 0,
+      "base_bssid": "00:00:5e:00:53:45",
+      "bytes_rx": 0,
+      "bytes_tx": 0,
+      "chan_ai": 0,
+      "channel_bonding": "20MHz",
+      "channel_utilization": true,
+      "channel_utilization_percent": 0,
+      "channel_utilization_timestamp": 1795171833,
+      "channels": [],
+      "client_count": 0,
+      "country_code": 276,
+      "country_name": "DE",
+      "detect_interfering": false,
+      "detected_rogue_aps": 0,
+      "detected_rogue_infra_aps": 0,
+      "health": {
+       "channel_utilization": {
+        "severity": "good",
+        "value": 0
+       },
+       "client_count": {
+        "severity": "good",
+        "value": 0
+       },
+       "infra_interfering_ssids": {
+        "severity": "good",
+        "value": 0
+       },
+       "interfering_ssids": {
+        "severity": "good",
+        "value": 0
+       },
+       "overall": {
+        "severity": "good",
+        "value": 0
+       }
+      },
+      "interfering_aps": 0,
+      "mac_errors_rx": 0,
+      "mac_errors_tx": 0,
+      "max_vaps": 8,
+      "mode": "AP",
+      "noise_floor": -95,
+      "oper_chan": 0,
+      "oper_txpower": 18,
+      "override_band": false,
+      "override_channel": false,
+      "override_sa": false,
+      "override_txpower": false,
+      "override_vaps": false,
+      "radio_id": 2,
+      "radio_max_rate_mbps": 0,
+      "radio_max_rate_standard_mbps": 0,
+      "radio_type": "802.11be-5G",
+      "ssid": {
+       "host01": "host01"
+      },
+      "ssid_mode": "manual",
+      "sta_locate": false,
+      "supported_bands": [
+       "a",
+       "n-5G",
+       "ac-5G",
+       "ax-5G",
+       "be-5G"
+      ],
+      "tx_retries_percent": 0,
+      "txpower": 100,
+      "wids_profile": ""
+     },
+     {
+      "all_ssids": false,
+      "auto_txpower": false,
+      "background_scan_enabled": true,
+      "bandwidth_rx": 0,
+      "bandwidth_tx": 0,
+      "base_bssid": "00:00:5e:00:53:46",
+      "bytes_rx": 0,
+      "bytes_tx": 0,
+      "chan_ai": 0,
+      "channel_bonding": "20MHz",
+      "channel_utilization": true,
+      "channel_utilization_percent": 0,
+      "channel_utilization_timestamp": 1795171833,
+      "channels": [],
+      "client_count": 0,
+      "country_code": 276,
+      "country_name": "DE",
+      "detect_interfering": false,
+      "detected_rogue_aps": 0,
+      "detected_rogue_infra_aps": 0,
+      "health": {
+       "channel_utilization": {
+        "severity": "good",
+        "value": 0
+       },
+       "client_count": {
+        "severity": "good",
+        "value": 0
+       },
+       "infra_interfering_ssids": {
+        "severity": "good",
+        "value": 0
+       },
+       "interfering_ssids": {
+        "severity": "good",
+        "value": 0
+       },
+       "overall": {
+        "severity": "good",
+        "value": 0
+       }
+      },
+      "interfering_aps": 0,
+      "mac_errors_rx": 0,
+      "mac_errors_tx": 0,
+      "max_vaps": 8,
+      "mode": "AP",
+      "noise_floor": 0,
+      "oper_chan": 0,
+      "oper_txpower": 2,
+      "override_band": false,
+      "override_channel": false,
+      "override_sa": false,
+      "override_txpower": false,
+      "override_vaps": false,
+      "radio_id": 3,
+      "radio_max_rate_mbps": 0,
+      "radio_max_rate_standard_mbps": 0,
+      "radio_type": "802.11be-6G",
+      "ssid": {
+       "host11": "host11"
+      },
+      "ssid_mode": "manual",
+      "sta_locate": false,
+      "supported_bands": [
+       "ax-6G",
+       "be-6G"
+      ],
+      "tx_retries_percent": 0,
+      "txpower": 100,
+      "wids_profile": ""
+     },
+     {
+      "mode": "Virtual Lan AP",
+      "radio_id": 4,
+      "radio_type": "unknown",
+      "supported_bands": []
+     },
+     {
+      "mode": "Not Exist",
+      "radio_id": 5,
+      "radio_type": "unknown",
+      "supported_bands": []
+     }
+    ],
+    "region": "",
+    "region_code": "E ",
+    "sensors_temperatures": [
+     70
+    ],
+    "serial": "SS00SSSS00000006",
+    "ssid": [
+     {
+      "list": [
+       "host01"
+      ],
+      "radio": 1
+     },
+     {
+      "list": [
+       "host01"
+      ],
+      "radio": 2
+     },
+     {
+      "list": [
+       "host11"
+      ],
+      "radio": 3
+     }
+    ],
+    "state": "authorized",
+    "status": "disconnected",
+    "subtype": 0,
+    "vdom": "root",
+    "wan_802_1x_macsec": false,
+    "wan_802_1x_method": "all",
+    "wan_port_auth": "none",
+    "wan_status": [
+     {
+      "interface": "wan",
+      "is_carrier_link": true,
+      "is_full_duplex": true,
+      "link_speed_mbps": 1000
+     }
+    ],
+    "wanlan_mode": "wan-only",
+    "wired": [
+     {
+      "bytes_rx": 7191495,
+      "bytes_tx": 3405647,
+      "collisions": 0,
+      "dropped_rx": 141,
+      "dropped_tx": 0,
+      "errors_rx": 1,
+      "errors_tx": 0,
+      "interface": "wan",
+      "is_carrier_link": true,
+      "is_full_duplex": true,
+      "link_speed_mbps": 1000,
+      "max_link_speed": 10000,
+      "packets_rx": 11995,
+      "packets_tx": 12425,
+      "peak_bandwidth_bytes_rx": 25411,
+      "peak_bandwidth_bytes_tx": 18175,
+      "peak_bandwidth_packets_rx": 40,
+      "peak_bandwidth_packets_tx": 44
+     },
+     {
+      "bytes_rx": 0,
+      "bytes_tx": 0,
+      "collisions": 0,
+      "dropped_rx": 0,
+      "dropped_tx": 0,
+      "errors_rx": 0,
+      "errors_tx": 0,
+      "interface": "lan1",
+      "is_carrier_link": false,
+      "is_full_duplex": false,
+      "link_speed_mbps": 0,
+      "max_link_speed": 1000,
+      "packets_rx": 0,
+      "packets_tx": 0,
+      "peak_bandwidth_bytes_rx": 0,
+      "peak_bandwidth_bytes_tx": 0,
+      "peak_bandwidth_packets_rx": 0,
+      "peak_bandwidth_packets_tx": 0
+     },
+     {
+      "bytes_rx": 0,
+      "bytes_tx": 0,
+      "collisions": 0,
+      "dropped_rx": 0,
+      "dropped_tx": 0,
+      "errors_rx": 0,
+      "errors_tx": 0,
+      "interface": "lan2",
+      "is_carrier_link": false,
+      "is_full_duplex": false,
+      "link_speed_mbps": 0,
+      "max_link_speed": 1000,
+      "packets_rx": 0,
+      "packets_tx": 0,
+      "peak_bandwidth_bytes_rx": 0,
+      "peak_bandwidth_bytes_tx": 0,
+      "peak_bandwidth_packets_rx": 0,
+      "peak_bandwidth_packets_tx": 0
+     },
+     {
+      "bytes_rx": 0,
+      "bytes_tx": 0,
+      "collisions": 0,
+      "dropped_rx": 0,
+      "dropped_tx": 0,
+      "errors_rx": 0,
+      "errors_tx": 0,
+      "interface": "lan3",
+      "is_carrier_link": false,
+      "is_full_duplex": false,
+      "link_speed_mbps": 0,
+      "max_link_speed": 1000,
+      "packets_rx": 0,
+      "packets_tx": 0,
+      "peak_bandwidth_bytes_rx": 0,
+      "peak_bandwidth_bytes_tx": 0,
+      "peak_bandwidth_packets_rx": 0,
+      "peak_bandwidth_packets_tx": 0
+     }
+    ],
+    "wired-state-extension": [
+     {
+      "interface": "wan",
+      "peak_bandwidth_bytes_rx": 25411,
+      "peak_bandwidth_bytes_tx": 18175,
+      "peak_bandwidth_packets_rx": 40,
+      "peak_bandwidth_packets_tx": 44
+     },
+     {
+      "interface": "lan1",
+      "peak_bandwidth_bytes_rx": 0,
+      "peak_bandwidth_bytes_tx": 0,
+      "peak_bandwidth_packets_rx": 0,
+      "peak_bandwidth_packets_tx": 0
+     },
+     {
+      "interface": "lan2",
+      "peak_bandwidth_bytes_rx": 0,
+      "peak_bandwidth_bytes_tx": 0,
+      "peak_bandwidth_packets_rx": 0,
+      "peak_bandwidth_packets_tx": 0
+     },
+     {
+      "interface": "lan3",
+      "peak_bandwidth_bytes_rx": 0,
+      "peak_bandwidth_bytes_tx": 0,
+      "peak_bandwidth_packets_rx": 0,
+      "peak_bandwidth_packets_tx": 0
+     }
+    ],
+    "wtp_id": "SS00SSSS00000006",
+    "wtp_mode": "normal"
+   },
+   {
+    "ap_profile": "FAP244K-default",
+    "auto_cert_proto": "none",
+    "ble_profile": "",
+    "board_mac": "00:00:5e:00:53:47",
+    "cli_enabled": false,
+    "clients": 0,
+    "comment": "",
+    "configured_country_code": 203,
+    "configured_country_name": "CZ",
+    "connecting_from": "203.0.113.248",
+    "connecting_interface": "ap-mgmt",
+    "connection_state": "Disconnected",
+    "country_code_conflict": 0,
+    "cpu_usage": 0,
+    "data_chan_sec": "clear-text",
+    "dedicated_scan_enabled": true,
+    "eos": false,
+    "forticare_registration_status": "unknown",
+    "health": {
+     "general": {
+      "country_code": {
+       "severity": "good",
+       "value": 0
+      },
+      "overall": {
+       "severity": "good",
+       "value": 0
+      },
+      "uplink_status": [
+       {
+        "severity": "good",
+        "value": 1000
+       },
+       {
+        "severity": "good",
+        "value": 0
+       }
+      ]
+     }
+    },
+    "image_download_progress": 0,
+    "indoor_outdoor": 0,
+    "is_local": false,
+    "is_wpa3_supported": true,
+    "join_time": "11/20/26 12:25",
+    "join_time_raw": 1795173923,
+    "last_failure": "Control message maximal retransmission limit reached",
+    "last_failure_code": 8,
+    "last_failure_param": "N/A",
+    "last_failure_time": "11/20/26 18:01",
+    "led_blink": false,
+    "lldp": [
+     {
+      "capability": "Bridge Router ",
+      "chassis_id": "mac 00:00:5e:00:53:20",
+      "ip": "203.0.113.249",
+      "ip6": "",
+      "local_port": "lan1",
+      "mau_operating_mode": "1000BaseTFD - Four-pair Category 5 UTP, full duplex mode",
+      "port_description": "port3",
+      "port_id": "port3",
+      "system_description": "FortiSwitch-224E-POE v8.0.1,build0069,260728 (GA)",
+      "system_name": "S000SSSS00000003",
+      "vlan": -1
+     }
+    ],
+    "lldp_enable": true,
+    "local_addr": "203.0.113.248",
+    "location": "",
+    "lw_profile": "",
+    "mem_free": 0,
+    "mem_total": 0,
+    "mesh_hop_count": 0,
+    "mesh_uplink": "ethernet",
+    "mesh_uplink_intf": "ap-mgmt",
+    "mesh_uplink_intf_speed": 2000.0,
+    "mgmt_vlanid": 0,
+    "name": "SS000S0S00000007",
+    "os_version": "FP244K-v8.0.1-build0085",
+    "override_profile": false,
+    "poe_mode": "auto(auto)",
+    "poe_mode_oper": "auto",
+    "radio": [
+     {
+      "all_ssids": false,
+      "auto_txpower": false,
+      "background_scan_enabled": false,
+      "bandwidth_rx": 0,
+      "bandwidth_tx": 0,
+      "base_bssid": "00:00:5e:00:53:48",
+      "bytes_rx": 197936970,
+      "bytes_tx": 147735281,
+      "chan_ai": 0,
+      "channel_bonding": "20MHz",
+      "channel_utilization": true,
+      "channel_utilization_percent": 7,
+      "channel_utilization_timestamp": 1795194035,
+      "channels": [],
+      "client_count": 0,
+      "country_code": 203,
+      "country_name": "CZ",
+      "detect_interfering": false,
+      "detected_rogue_aps": 0,
+      "detected_rogue_infra_aps": 0,
+      "health": {
+       "channel_utilization": {
+        "severity": "good",
+        "value": 7
+       },
+       "client_count": {
+        "severity": "good",
+        "value": 0
+       },
+       "infra_interfering_ssids": {
+        "severity": "good",
+        "value": 0
+       },
+       "interfering_ssids": {
+        "severity": "good",
+        "value": 0
+       },
+       "overall": {
+        "severity": "good",
+        "value": 0
+       }
+      },
+      "interfering_aps": 0,
+      "mac_errors_rx": 0,
+      "mac_errors_tx": 0,
+      "max_vaps": 16,
+      "mode": "AP",
+      "noise_floor": -95,
+      "oper_chan": 0,
+      "oper_txpower": 11,
+      "override_band": false,
+      "override_channel": false,
+      "override_sa": false,
+      "override_txpower": false,
+      "override_vaps": false,
+      "radio_id": 1,
+      "radio_max_rate_mbps": 0,
+      "radio_max_rate_standard_mbps": 0,
+      "radio_type": "802.11be-2G",
+      "ssid": {
+       "host01": "host01"
+      },
+      "ssid_mode": "manual",
+      "sta_locate": false,
+      "supported_bands": [
+       "b",
+       "g",
+       "n-2G",
+       "ax-2G",
+       "be-2G"
+      ],
+      "tx_retries_percent": 0,
+      "txpower": 100,
+      "wids_profile": ""
+     },
+     {
+      "all_ssids": false,
+      "auto_txpower": false,
+      "background_scan_enabled": false,
+      "bandwidth_rx": 0,
+      "bandwidth_tx": 77,
+      "base_bssid": "00:00:5e:00:53:49",
+      "bytes_rx": 135539372,
+      "bytes_tx": 120055030,
+      "chan_ai": 0,
+      "channel_bonding": "20MHz",
+      "channel_utilization": true,
+      "channel_utilization_percent": 0,
+      "channel_utilization_timestamp": 1795194035,
+      "channels": [],
+      "client_count": 0,
+      "country_code": 203,
+      "country_name": "CZ",
+      "detect_interfering": false,
+      "detected_rogue_aps": 0,
+      "detected_rogue_infra_aps": 0,
+      "health": {
+       "channel_utilization": {
+        "severity": "good",
+        "value": 0
+       },
+       "client_count": {
+        "severity": "good",
+        "value": 0
+       },
+       "infra_interfering_ssids": {
+        "severity": "good",
+        "value": 0
+       },
+       "interfering_ssids": {
+        "severity": "good",
+        "value": 0
+       },
+       "overall": {
+        "severity": "good",
+        "value": 0
+       }
+      },
+      "interfering_aps": 0,
+      "mac_errors_rx": 0,
+      "mac_errors_tx": 0,
+      "max_vaps": 16,
+      "mode": "AP",
+      "noise_floor": -95,
+      "oper_chan": 0,
+      "oper_txpower": 21,
+      "override_band": false,
+      "override_channel": false,
+      "override_sa": false,
+      "override_txpower": false,
+      "override_vaps": false,
+      "radio_id": 2,
+      "radio_max_rate_mbps": 0,
+      "radio_max_rate_standard_mbps": 0,
+      "radio_type": "802.11be-5G",
+      "ssid": {
+       "host01": "host01"
+      },
+      "ssid_mode": "manual",
+      "sta_locate": false,
+      "supported_bands": [
+       "a",
+       "n-5G",
+       "ac-5G",
+       "ax-5G",
+       "be-5G"
+      ],
+      "tx_retries_percent": 0,
+      "txpower": 100,
+      "wids_profile": ""
+     },
+     {
+      "all_ssids": false,
+      "auto_txpower": false,
+      "background_scan_enabled": false,
+      "bandwidth_rx": 51963,
+      "bandwidth_tx": 27357,
+      "base_bssid": "00:00:5e:00:53:4a",
+      "bytes_rx": 1115789764,
+      "bytes_tx": 1127692655,
+      "chan_ai": 0,
+      "channel_bonding": "20MHz",
+      "channel_utilization": true,
+      "channel_utilization_percent": 0,
+      "channel_utilization_timestamp": 1795194035,
+      "channels": [
+       "37"
+      ],
+      "client_count": 0,
+      "country_code": 203,
+      "country_name": "CZ",
+      "detect_interfering": false,
+      "detected_rogue_aps": 0,
+      "detected_rogue_infra_aps": 0,
+      "health": {
+       "channel_utilization": {
+        "severity": "good",
+        "value": 0
+       },
+       "client_count": {
+        "severity": "good",
+        "value": 0
+       },
+       "infra_interfering_ssids": {
+        "severity": "good",
+        "value": 0
+       },
+       "interfering_ssids": {
+        "severity": "good",
+        "value": 0
+       },
+       "overall": {
+        "severity": "good",
+        "value": 0
+       }
+      },
+      "interfering_aps": 0,
+      "mac_errors_rx": 0,
+      "mac_errors_tx": 0,
+      "max_vaps": 16,
+      "mode": "AP",
+      "noise_floor": -95,
+      "oper_chan": 0,
+      "oper_txpower": 13,
+      "override_band": false,
+      "override_channel": false,
+      "override_sa": false,
+      "override_txpower": false,
+      "override_vaps": false,
+      "radio_id": 3,
+      "radio_max_rate_mbps": 0,
+      "radio_max_rate_standard_mbps": 0,
+      "radio_type": "802.11be-6G",
+      "ssid": {
+       "host11": "host11"
+      },
+      "ssid_mode": "manual",
+      "sta_locate": false,
+      "supported_bands": [
+       "ax-6G",
+       "be-6G"
+      ],
+      "tx_retries_percent": 18,
+      "txpower": 100,
+      "wids_profile": ""
+     },
+     {
+      "detected_rogue_aps": 0,
+      "detected_rogue_infra_aps": 0,
+      "health": {
+       "channel_utilization": {
+        "severity": "good",
+        "value": 0
+       },
+       "client_count": {
+        "severity": "good",
+        "value": 0
+       },
+       "infra_interfering_ssids": {
+        "severity": "good",
+        "value": 0
+       },
+       "interfering_ssids": {
+        "severity": "good",
+        "value": 0
+       },
+       "overall": {
+        "severity": "good",
+        "value": 0
+       }
+      },
+      "max_2g_channel": 0,
+      "max_2g_channel_utilization": 0,
+      "max_5g_channel": 0,
+      "max_5g_channel_utilization": 0,
+      "min_2g_channel": 0,
+      "min_2g_channel_utilization": 0,
+      "min_5g_channel": 0,
+      "min_5g_channel_utilization": 0,
+      "mode": "Monitor",
+      "radio_id": 4,
+      "radio_type": "unknown",
+      "supported_bands": [
+       "a",
+       "b",
+       "g",
+       "n-2G",
+       "n-5G",
+       "ac-5G",
+       "ax-2G",
+       "ax-5G",
+       "ax-6G",
+       "be-2G",
+       "be-5G",
+       "be-6G"
+      ],
+      "wids_profile": ""
+     },
+     {
+      "mode": "Not Exist",
+      "radio_id": 5,
+      "radio_type": "unknown",
+      "supported_bands": []
+     }
+    ],
+    "region": "",
+    "region_code": "E ",
+    "sensors_temperatures": [
+     39
+    ],
+    "serial": "SS000S0S00000007",
+    "ssid": [
+     {
+      "list": [
+       "host01"
+      ],
+      "radio": 1
+     },
+     {
+      "list": [
+       "host01"
+      ],
+      "radio": 2
+     },
+     {
+      "list": [
+       "host11"
+      ],
+      "radio": 3
+     }
+    ],
+    "state": "authorized",
+    "status": "disconnected",
+    "subtype": 0,
+    "vdom": "root",
+    "wan_802_1x_macsec": false,
+    "wan_802_1x_method": "all",
+    "wan_port_auth": "none",
+    "wan_status": [
+     {
+      "interface": "lan1",
+      "is_carrier_link": true,
+      "is_full_duplex": true,
+      "link_speed_mbps": 1000
+     },
+     {
+      "interface": "lan2",
+      "is_carrier_link": false,
+      "is_full_duplex": false,
+      "link_speed_mbps": 0
+     }
+    ],
+    "wanlan_mode": "wan-only",
+    "wired": [
+     {
+      "bytes_rx": 560218918,
+      "bytes_tx": 680598154,
+      "collisions": 0,
+      "dropped_rx": 677,
+      "dropped_tx": 0,
+      "errors_rx": 0,
+      "errors_tx": 0,
+      "interface": "lan1",
+      "is_carrier_link": true,
+      "is_full_duplex": true,
+      "link_speed_mbps": 1000,
+      "max_link_speed": 5000,
+      "packets_rx": 821537,
+      "packets_tx": 1056928,
+      "peak_bandwidth_bytes_rx": 57458,
+      "peak_bandwidth_bytes_tx": 135910,
+      "peak_bandwidth_packets_rx": 166,
+      "peak_bandwidth_packets_tx": 208
+     },
+     {
+      "bytes_rx": 0,
+      "bytes_tx": 0,
+      "collisions": 0,
+      "dropped_rx": 0,
+      "dropped_tx": 0,
+      "errors_rx": 0,
+      "errors_tx": 0,
+      "interface": "lan2",
+      "is_carrier_link": false,
+      "is_full_duplex": false,
+      "link_speed_mbps": 0,
+      "max_link_speed": 10000,
+      "packets_rx": 0,
+      "packets_tx": 0,
+      "peak_bandwidth_bytes_rx": 0,
+      "peak_bandwidth_bytes_tx": 0,
+      "peak_bandwidth_packets_rx": 0,
+      "peak_bandwidth_packets_tx": 0
+     }
+    ],
+    "wired-state-extension": [
+     {
+      "interface": "lan1",
+      "peak_bandwidth_bytes_rx": 57458,
+      "peak_bandwidth_bytes_tx": 135910,
+      "peak_bandwidth_packets_rx": 166,
+      "peak_bandwidth_packets_tx": 208
+     },
+     {
+      "interface": "lan2",
+      "peak_bandwidth_bytes_rx": 0,
+      "peak_bandwidth_bytes_tx": 0,
+      "peak_bandwidth_packets_rx": 0,
+      "peak_bandwidth_packets_tx": 0
+     }
+    ],
+    "wtp_id": "SS000S0S00000007",
+    "wtp_mode": "normal"
+   }
+  ],
+  "serial": "SSS00SSS00000001",
+  "status": "success",
+  "vdom": "root",
+  "version": "v8.0.2"
+ },
+ "fortinet/managed_switch_poe/switch1": "Vdom: root\nManaged Switch : S000SSSS00000003     0\nUnit Power Budget: 180.00W\nUnit Guard Band: 10.00W\nUnit Power Consumption: 0.00W\nUnit Poe Power Mode : Priority Based.\n\n\nInterface   Status    State             Max-Power(W)   Power-consumption(W)   Priority   Class   Error\n------------------------------------------------------------------------------------------------------------\nport1       Enabled   Searching         0.00           0.00                   Low        0       \nport2       Enabled   Searching         0.00           0.00                   Low        0       \nport3       Enabled   Searching         0.00           0.00                   Low        0       \nport4       Enabled   Searching         0.00           0.00                   Low        0       \nport5       Enabled   Searching         0.00           0.00                   Low        0       \nport6       Enabled   Searching         0.00           0.00                   Low        0       \nport7       Enabled   Searching         0.00           0.00                   Low        0       \nport8       Enabled   Searching         0.00           0.00                   Low        0       \nport9       Enabled   Searching         0.00           0.00                   Low        0       \nport10      Enabled   Searching         0.00           0.00                   Low        0       \nport11      Enabled   Searching         0.00           0.00                   Low        0       \nport12      Enabled   Searching         0.00           0.00                   Low        0       \n",
+ "fortinet/managed_switch_port_stats/switch1_full": "Vdom: root\n\nS000SSSS00000003:\nPort(port1) is HW Admin up, SW Admin up, line protocol is down\nInterface Type is Serial Gigabit Media Independent Interface(SGMII/SerDes)\nAddress is 00:00:5E:00:53:04, None loopback\nMTU 9216 bytes, Encapsulation IEEE 802.3/Ethernet-II\nhalf-duplex, 1000 Mb/s, link type is auto\ninput  : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts, 0 unknowns\noutput : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts\n0 fragments, 0 undersizes, 0 collisions, 0 jabbers\n\n\nPort(port2) is HW Admin up, SW Admin up, line protocol is up\nInterface Type is Serial Gigabit Media Independent Interface(SGMII/SerDes)\nAddress is 00:00:5E:00:53:05, None loopback\nMTU 9216 bytes, Encapsulation IEEE 802.3/Ethernet-II\nfull-duplex, 1000 Mb/s, link type is auto\ninput  : 1208253236 bytes, 1586223 packets, 0 errors, 0 drops, 0 oversizes\n         1571533 unicasts, 14129 multicasts, 561 broadcasts, 0 unknowns\noutput : 866578709 bytes, 1551018 packets, 0 errors, 0 drops, 0 oversizes\n         1472869 unicasts, 77938 multicasts, 211 broadcasts\n0 fragments, 0 undersizes, 0 collisions, 0 jabbers\n\n\nPort(port3) is HW Admin up, SW Admin up, line protocol is down\nInterface Type is Serial Gigabit Media Independent Interface(SGMII/SerDes)\nAddress is 00:00:5E:00:53:06, None loopback\nMTU 9216 bytes, Encapsulation IEEE 802.3/Ethernet-II\nhalf-duplex, 1000 Mb/s, link type is auto\ninput  : 698933297 bytes, 1158338 packets, 0 errors, 47 drops, 0 oversizes\n         1156302 unicasts, 1981 multicasts, 55 broadcasts, 0 unknowns\noutput : 655875907 bytes, 913493 packets, 0 errors, 5 drops, 0 oversizes\n         898596 unicasts, 13949 multicasts, 948 broadcasts\n0 fragments, 0 undersizes, 0 collisions, 0 jabbers\n\n\nPort(port4) is HW Admin up, SW Admin up, line protocol is down\nInterface Type is Serial Gigabit Media Independent Interface(SGMII/SerDes)\nAddress is 00:00:5E:00:53:07, None loopback\nMTU 9216 bytes, Encapsulation IEEE 802.3/Ethernet-II\nhalf-duplex, 1000 Mb/s, link type is auto\ninput  : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts, 0 unknowns\noutput : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts\n0 fragments, 0 undersizes, 0 collisions, 0 jabbers\n\n\nPort(port5) is HW Admin up, SW Admin up, line protocol is down\nInterface Type is Serial Gigabit Media Independent Interface(SGMII/SerDes)\nAddress is 00:00:5E:00:53:08, None loopback\nMTU 9216 bytes, Encapsulation IEEE 802.3/Ethernet-II\nhalf-duplex, 1000 Mb/s, link type is auto\ninput  : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts, 0 unknowns\noutput : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts\n0 fragments, 0 undersizes, 0 collisions, 0 jabbers\n\n\nPort(port6) is HW Admin up, SW Admin up, line protocol is down\nInterface Type is Serial Gigabit Media Independent Interface(SGMII/SerDes)\nAddress is 00:00:5E:00:53:09, None loopback\nMTU 9216 bytes, Encapsulation IEEE 802.3/Ethernet-II\nhalf-duplex, 1000 Mb/s, link type is auto\ninput  : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts, 0 unknowns\noutput : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts\n0 fragments, 0 undersizes, 0 collisions, 0 jabbers\n\n\nPort(port7) is HW Admin up, SW Admin up, line protocol is down\nInterface Type is Serial Gigabit Media Independent Interface(SGMII/SerDes)\nAddress is 00:00:5E:00:53:0A, None loopback\nMTU 9216 bytes, Encapsulation IEEE 802.3/Ethernet-II\nhalf-duplex, 1000 Mb/s, link type is auto\ninput  : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts, 0 unknowns\noutput : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts\n0 fragments, 0 undersizes, 0 collisions, 0 jabbers\n\n\nPort(port8) is HW Admin up, SW Admin up, line protocol is down\nInterface Type is Serial Gigabit Media Independent Interface(SGMII/SerDes)\nAddress is 00:00:5E:00:53:0B, None loopback\nMTU 9216 bytes, Encapsulation IEEE 802.3/Ethernet-II\nhalf-duplex, 1000 Mb/s, link type is auto\ninput  : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts, 0 unknowns\noutput : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts\n0 fragments, 0 undersizes, 0 collisions, 0 jabbers\n\n\nPort(port9) is HW Admin up, SW Admin up, line protocol is down\nInterface Type is Serial Gigabit Media Independent Interface(SGMII/SerDes)\nAddress is 00:00:5E:00:53:0C, None loopback\nMTU 9216 bytes, Encapsulation IEEE 802.3/Ethernet-II\nhalf-duplex, 1000 Mb/s, link type is auto\ninput  : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts, 0 unknowns\noutput : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts\n0 fragments, 0 undersizes, 0 collisions, 0 jabbers\n\n\nPort(port10) is HW Admin up, SW Admin up, line protocol is down\nInterface Type is Serial Gigabit Media Independent Interface(SGMII/SerDes)\nAddress is 00:00:5E:00:53:0D, None loopback\nMTU 9216 bytes, Encapsulation IEEE 802.3/Ethernet-II\nhalf-duplex, 1000 Mb/s, link type is auto\ninput  : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts, 0 unknowns\noutput : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts\n0 fragments, 0 undersizes, 0 collisions, 0 jabbers\n\n\nPort(port11) is HW Admin up, SW Admin up, line protocol is down\nInterface Type is Serial Gigabit Media Independent Interface(SGMII/SerDes)\nAddress is 00:00:5E:00:53:0E, None loopback\nMTU 9216 bytes, Encapsulation IEEE 802.3/Ethernet-II\nhalf-duplex, 1000 Mb/s, link type is auto\ninput  : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts, 0 unknowns\noutput : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts\n0 fragments, 0 undersizes, 0 collisions, 0 jabbers\n\n\nPort(port12) is HW Admin up, SW Admin up, line protocol is down\nInterface Type is Serial Gigabit Media Independent Interface(SGMII/SerDes)\nAddress is 00:00:5E:00:53:0F, None loopback\nMTU 9216 bytes, Encapsulation IEEE 802.3/Ethernet-II\nhalf-duplex, 1000 Mb/s, link type is auto\ninput  : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts, 0 unknowns\noutput : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts\n0 fragments, 0 undersizes, 0 collisions, 0 jabbers\n\n\nPort(port13) is HW Admin up, SW Admin up, line protocol is up\nInterface Type is Serial Gigabit Media Independent Interface(SGMII/SerDes)\nAddress is 00:00:5E:00:53:10, None loopback\nMTU 9216 bytes, Encapsulation IEEE 802.3/Ethernet-II\nfull-duplex, 1000 Mb/s, link type is auto\ninput  : 449926837 bytes, 485202 packets, 0 errors, 402119 drops, 0 oversizes\n         401663 unicasts, 77446 multicasts, 6093 broadcasts, 0 unknowns\noutput : 475827296 bytes, 649547 packets, 0 errors, 0 drops, 0 oversizes\n         565596 unicasts, 77579 multicasts, 6372 broadcasts\n0 fragments, 0 undersizes, 0 collisions, 0 jabbers\n\n\nPort(port14) is HW Admin up, SW Admin up, line protocol is up\nInterface Type is Serial Gigabit Media Independent Interface(SGMII/SerDes)\nAddress is 00:00:5E:00:53:11, None loopback\nMTU 9216 bytes, Encapsulation IEEE 802.3/Ethernet-II\nfull-duplex, 1000 Mb/s, link type is auto\ninput  : 604306351 bytes, 1109183 packets, 0 errors, 13854 drops, 0 oversizes\n         1009190 unicasts, 78241 multicasts, 21752 broadcasts, 0 unknowns\noutput : 1076298325 bytes, 1222780 packets, 0 errors, 0 drops, 0 oversizes\n         1143926 unicasts, 78156 multicasts, 698 broadcasts\n0 fragments, 0 undersizes, 0 collisions, 0 jabbers\n\n\nPort(port15) is HW Admin up, SW Admin up, line protocol is down\nInterface Type is Serial Gigabit Media Independent Interface(SGMII/SerDes)\nAddress is 00:00:5E:00:53:12, None loopback\nMTU 9216 bytes, Encapsulation IEEE 802.3/Ethernet-II\nhalf-duplex, 1000 Mb/s, link type is auto\ninput  : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts, 0 unknowns\noutput : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts\n0 fragments, 0 undersizes, 0 collisions, 0 jabbers\n\n\nPort(port16) is HW Admin up, SW Admin up, line protocol is down\nInterface Type is Serial Gigabit Media Independent Interface(SGMII/SerDes)\nAddress is 00:00:5E:00:53:13, None loopback\nMTU 9216 bytes, Encapsulation IEEE 802.3/Ethernet-II\nhalf-duplex, 1000 Mb/s, link type is auto\ninput  : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts, 0 unknowns\noutput : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts\n0 fragments, 0 undersizes, 0 collisions, 0 jabbers\n\n\nPort(port17) is HW Admin up, SW Admin up, line protocol is down\nInterface Type is Serial Gigabit Media Independent Interface(SGMII/SerDes)\nAddress is 00:00:5E:00:53:14, None loopback\nMTU 9216 bytes, Encapsulation IEEE 802.3/Ethernet-II\nhalf-duplex, 1000 Mb/s, link type is auto\ninput  : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts, 0 unknowns\noutput : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts\n0 fragments, 0 undersizes, 0 collisions, 0 jabbers\n\n\nPort(port18) is HW Admin up, SW Admin up, line protocol is down\nInterface Type is Serial Gigabit Media Independent Interface(SGMII/SerDes)\nAddress is 00:00:5E:00:53:15, None loopback\nMTU 9216 bytes, Encapsulation IEEE 802.3/Ethernet-II\nhalf-duplex, 1000 Mb/s, link type is auto\ninput  : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts, 0 unknowns\noutput : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts\n0 fragments, 0 undersizes, 0 collisions, 0 jabbers\n\n\nPort(port19) is HW Admin up, SW Admin up, line protocol is down\nInterface Type is Serial Gigabit Media Independent Interface(SGMII/SerDes)\nAddress is 00:00:5E:00:53:16, None loopback\nMTU 9216 bytes, Encapsulation IEEE 802.3/Ethernet-II\nhalf-duplex, 1000 Mb/s, link type is auto\ninput  : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts, 0 unknowns\noutput : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts\n0 fragments, 0 undersizes, 0 collisions, 0 jabbers\n\n\nPort(port20) is HW Admin up, SW Admin up, line protocol is down\nInterface Type is Serial Gigabit Media Independent Interface(SGMII/SerDes)\nAddress is 00:00:5E:00:53:17, None loopback\nMTU 9216 bytes, Encapsulation IEEE 802.3/Ethernet-II\nhalf-duplex, 1000 Mb/s, link type is auto\ninput  : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts, 0 unknowns\noutput : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts\n0 fragments, 0 undersizes, 0 collisions, 0 jabbers\n\n\nPort(port21) is HW Admin up, SW Admin up, line protocol is down\nInterface Type is Serial Gigabit Media Independent Interface(SGMII/SerDes)\nAddress is 00:00:5E:00:53:18, None loopback\nMTU 9216 bytes, Encapsulation IEEE 802.3/Ethernet-II\nhalf-duplex, 1000 Mb/s, link type is auto\ninput  : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts, 0 unknowns\noutput : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts\n0 fragments, 0 undersizes, 0 collisions, 0 jabbers\n\n\nPort(port22) is HW Admin up, SW Admin up, line protocol is down\nInterface Type is Serial Gigabit Media Independent Interface(SGMII/SerDes)\nAddress is 00:00:5E:00:53:19, None loopback\nMTU 9216 bytes, Encapsulation IEEE 802.3/Ethernet-II\nhalf-duplex, 1000 Mb/s, link type is auto\ninput  : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts, 0 unknowns\noutput : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts\n0 fragments, 0 undersizes, 0 collisions, 0 jabbers\n\n\nPort(port23) is HW Admin up, SW Admin up, line protocol is up\nInterface Type is Serial Gigabit Media Independent Interface(SGMII/SerDes)\nAddress is 00:00:5E:00:53:1A, None loopback\nMTU 9216 bytes, Encapsulation IEEE 802.3/Ethernet-II\nfull-duplex, 1000 Mb/s, link type is auto\ninput  : 7183405 bytes, 79461 packets, 0 errors, 1 drops, 0 oversizes\n         72312 unicasts, 7061 multicasts, 88 broadcasts, 0 unknowns\noutput : 30554547 bytes, 152216 packets, 0 errors, 0 drops, 0 oversizes\n         73293 unicasts, 78907 multicasts, 16 broadcasts\n0 fragments, 0 undersizes, 0 collisions, 0 jabbers\n\n\nPort(port24) is HW Admin up, SW Admin up, line protocol is down\nInterface Type is Serial Gigabit Media Independent Interface(SGMII/SerDes)\nAddress is 00:00:5E:00:53:1B, None loopback\nMTU 9216 bytes, Encapsulation IEEE 802.3/Ethernet-II\nhalf-duplex, 1000 Mb/s, link type is auto\ninput  : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts, 0 unknowns\noutput : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts\n0 fragments, 0 undersizes, 0 collisions, 0 jabbers\n\n\nPort(port25) is HW Admin up, SW Admin up, line protocol is down\nInterface Type is Gigabit Media Independent Interface(GMII)\nAddress is 00:00:5E:00:53:1C, None loopback\nMTU 9216 bytes, Encapsulation IEEE 802.3/Ethernet-II\nfull-duplex, 1000 Mb/s, link type is manual\ninput  : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts, 0 unknowns\noutput : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts\n0 fragments, 0 undersizes, 0 collisions, 0 jabbers\n\n\nPort(port26) is HW Admin up, SW Admin up, line protocol is down\nInterface Type is Gigabit Media Independent Interface(GMII)\nAddress is 00:00:5E:00:53:1D, None loopback\nMTU 9216 bytes, Encapsulation IEEE 802.3/Ethernet-II\nfull-duplex, 1000 Mb/s, link type is manual\ninput  : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts, 0 unknowns\noutput : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts\n0 fragments, 0 undersizes, 0 collisions, 0 jabbers\n\n\nPort(port27) is HW Admin up, SW Admin up, line protocol is down\nInterface Type is Gigabit Media Independent Interface(GMII)\nAddress is 00:00:5E:00:53:1E, None loopback\nMTU 9216 bytes, Encapsulation IEEE 802.3/Ethernet-II\nfull-duplex, 1000 Mb/s, link type is manual\ninput  : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts, 0 unknowns\noutput : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts\n0 fragments, 0 undersizes, 0 collisions, 0 jabbers\n\n\nPort(port28) is HW Admin up, SW Admin up, line protocol is down\nInterface Type is Gigabit Media Independent Interface(GMII)\nAddress is 00:00:5E:00:53:1F, None loopback\nMTU 9216 bytes, Encapsulation IEEE 802.3/Ethernet-II\nfull-duplex, 1000 Mb/s, link type is manual\ninput  : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts, 0 unknowns\noutput : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts\n0 fragments, 0 undersizes, 0 collisions, 0 jabbers\n\n\nPort(internal) is HW Admin up, SW Admin up, line protocol is up\nInterface Type is Pass Through without PHY\nAddress is 00:00:5E:00:53:20, None loopback\nMTU 9216 bytes, Encapsulation IEEE 802.3/Ethernet-II\nfull-duplex, 1000 Mb/s, link type is manual\ninput  : 538318452 bytes, 1176260 packets, 0 errors, 0 drops, 0 oversizes\n         1176260 unicasts, 0 multicasts, 0 broadcasts, 0 unknowns\noutput : 660095852 bytes, 1113793 packets, 0 errors, 0 drops, 0 oversizes\n         1113793 unicasts, 0 multicasts, 0 broadcasts\n0 fragments, 0 undersizes, 0 collisions, 0 jabbers\n",
+ "fortinet/managed_switch_port_stats/switch2_full": "Vdom: root\n\nS000SSSS00000004:\nPort(port1) is HW Admin up, SW Admin up, line protocol is up\nInterface Type is Serial Gigabit Media Independent Interface(SGMII/SerDes)\nAddress is 00:00:5E:00:53:21, None loopback\nMTU 9216 bytes, Encapsulation IEEE 802.3/Ethernet-II\nfull-duplex, 1000 Mb/s, link type is auto\ninput  : 666611447 bytes, 1216350 packets, 0 errors, 0 drops, 0 oversizes\n         1180495 unicasts, 14126 multicasts, 21729 broadcasts, 0 unknowns\noutput : 512232483 bytes, 1291059 packets, 0 errors, 0 drops, 0 oversizes\n         1213063 unicasts, 77926 multicasts, 70 broadcasts\n0 fragments, 0 undersizes, 0 collisions, 0 jabbers\n\n\nPort(port2) is HW Admin up, SW Admin up, line protocol is down\nInterface Type is Serial Gigabit Media Independent Interface(SGMII/SerDes)\nAddress is 00:00:5E:00:53:22, None loopback\nMTU 9216 bytes, Encapsulation IEEE 802.3/Ethernet-II\nhalf-duplex, 1000 Mb/s, link type is auto\ninput  : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts, 0 unknowns\noutput : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts\n0 fragments, 0 undersizes, 0 collisions, 0 jabbers\n\n\nPort(port3) is HW Admin up, SW Admin up, line protocol is up\nInterface Type is Serial Gigabit Media Independent Interface(SGMII/SerDes)\nAddress is 00:00:5E:00:53:23, None loopback\nMTU 9216 bytes, Encapsulation IEEE 802.3/Ethernet-II\nfull-duplex, 1000 Mb/s, link type is auto\ninput  : 347610732 bytes, 905584 packets, 0 errors, 36 drops, 0 oversizes\n         897933 unicasts, 7629 multicasts, 22 broadcasts, 0 unknowns\noutput : 1114390295 bytes, 1209608 packets, 0 errors, 2 drops, 0 oversizes\n         1101876 unicasts, 96813 multicasts, 10919 broadcasts\n0 fragments, 0 undersizes, 0 collisions, 0 jabbers\n\n\nPort(port4) is HW Admin up, SW Admin up, line protocol is down\nInterface Type is Serial Gigabit Media Independent Interface(SGMII/SerDes)\nAddress is 00:00:5E:00:53:24, None loopback\nMTU 9216 bytes, Encapsulation IEEE 802.3/Ethernet-II\nhalf-duplex, 1000 Mb/s, link type is auto\ninput  : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts, 0 unknowns\noutput : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts\n0 fragments, 0 undersizes, 0 collisions, 0 jabbers\n\n\nPort(port5) is HW Admin up, SW Admin up, line protocol is down\nInterface Type is Serial Gigabit Media Independent Interface(SGMII/SerDes)\nAddress is 00:00:5E:00:53:25, None loopback\nMTU 9216 bytes, Encapsulation IEEE 802.3/Ethernet-II\nhalf-duplex, 1000 Mb/s, link type is auto\ninput  : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts, 0 unknowns\noutput : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts\n0 fragments, 0 undersizes, 0 collisions, 0 jabbers\n\n\nPort(port6) is HW Admin up, SW Admin up, line protocol is down\nInterface Type is Serial Gigabit Media Independent Interface(SGMII/SerDes)\nAddress is 00:00:5E:00:53:26, None loopback\nMTU 9216 bytes, Encapsulation IEEE 802.3/Ethernet-II\nhalf-duplex, 1000 Mb/s, link type is auto\ninput  : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts, 0 unknowns\noutput : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts\n0 fragments, 0 undersizes, 0 collisions, 0 jabbers\n\n\nPort(port7) is HW Admin up, SW Admin up, line protocol is down\nInterface Type is Serial Gigabit Media Independent Interface(SGMII/SerDes)\nAddress is 00:00:5E:00:53:27, None loopback\nMTU 9216 bytes, Encapsulation IEEE 802.3/Ethernet-II\nhalf-duplex, 1000 Mb/s, link type is auto\ninput  : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts, 0 unknowns\noutput : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts\n0 fragments, 0 undersizes, 0 collisions, 0 jabbers\n\n\nPort(port8) is HW Admin up, SW Admin up, line protocol is down\nInterface Type is Serial Gigabit Media Independent Interface(SGMII/SerDes)\nAddress is 00:00:5E:00:53:28, None loopback\nMTU 9216 bytes, Encapsulation IEEE 802.3/Ethernet-II\nhalf-duplex, 1000 Mb/s, link type is auto\ninput  : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts, 0 unknowns\noutput : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts\n0 fragments, 0 undersizes, 0 collisions, 0 jabbers\n\n\nPort(port9) is HW Admin up, SW Admin up, line protocol is down\nInterface Type is Serial Gigabit Media Independent Interface(SGMII/SerDes)\nAddress is 00:00:5E:00:53:29, None loopback\nMTU 9216 bytes, Encapsulation IEEE 802.3/Ethernet-II\nhalf-duplex, 1000 Mb/s, link type is auto\ninput  : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts, 0 unknowns\noutput : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts\n0 fragments, 0 undersizes, 0 collisions, 0 jabbers\n\n\nPort(port10) is HW Admin up, SW Admin up, line protocol is down\nInterface Type is Serial Gigabit Media Independent Interface(SGMII/SerDes)\nAddress is 00:00:5E:00:53:2A, None loopback\nMTU 9216 bytes, Encapsulation IEEE 802.3/Ethernet-II\nhalf-duplex, 1000 Mb/s, link type is auto\ninput  : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts, 0 unknowns\noutput : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts\n0 fragments, 0 undersizes, 0 collisions, 0 jabbers\n\n\nPort(port11) is HW Admin up, SW Admin up, line protocol is down\nInterface Type is Serial Gigabit Media Independent Interface(SGMII/SerDes)\nAddress is 00:00:5E:00:53:2B, None loopback\nMTU 9216 bytes, Encapsulation IEEE 802.3/Ethernet-II\nhalf-duplex, 1000 Mb/s, link type is auto\ninput  : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts, 0 unknowns\noutput : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts\n0 fragments, 0 undersizes, 0 collisions, 0 jabbers\n\n\nPort(port12) is HW Admin up, SW Admin up, line protocol is down\nInterface Type is Serial Gigabit Media Independent Interface(SGMII/SerDes)\nAddress is 00:00:5E:00:53:2C, None loopback\nMTU 9216 bytes, Encapsulation IEEE 802.3/Ethernet-II\nhalf-duplex, 1000 Mb/s, link type is auto\ninput  : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts, 0 unknowns\noutput : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts\n0 fragments, 0 undersizes, 0 collisions, 0 jabbers\n\n\nPort(port13) is HW Admin up, SW Admin up, line protocol is up\nInterface Type is Serial Gigabit Media Independent Interface(SGMII/SerDes)\nAddress is 00:00:5E:00:53:2D, None loopback\nMTU 9216 bytes, Encapsulation IEEE 802.3/Ethernet-II\nfull-duplex, 1000 Mb/s, link type is auto\ninput  : 475827491 bytes, 649549 packets, 0 errors, 404339 drops, 0 oversizes\n         565598 unicasts, 77579 multicasts, 6372 broadcasts, 0 unknowns\noutput : 449926837 bytes, 485202 packets, 0 errors, 6 drops, 0 oversizes\n         401663 unicasts, 77446 multicasts, 6093 broadcasts\n0 fragments, 0 undersizes, 0 collisions, 0 jabbers\n\n\nPort(port14) is HW Admin up, SW Admin up, line protocol is up\nInterface Type is Serial Gigabit Media Independent Interface(SGMII/SerDes)\nAddress is 00:00:5E:00:53:2E, None loopback\nMTU 9216 bytes, Encapsulation IEEE 802.3/Ethernet-II\nfull-duplex, 1000 Mb/s, link type is auto\ninput  : 1076298453 bytes, 1222782 packets, 0 errors, 192 drops, 0 oversizes\n         1143928 unicasts, 78156 multicasts, 698 broadcasts, 0 unknowns\noutput : 604306351 bytes, 1109183 packets, 0 errors, 4 drops, 0 oversizes\n         1009190 unicasts, 78241 multicasts, 21752 broadcasts\n0 fragments, 0 undersizes, 0 collisions, 0 jabbers\n\n\nPort(port15) is HW Admin up, SW Admin up, line protocol is down\nInterface Type is Serial Gigabit Media Independent Interface(SGMII/SerDes)\nAddress is 00:00:5E:00:53:2F, None loopback\nMTU 9216 bytes, Encapsulation IEEE 802.3/Ethernet-II\nhalf-duplex, 1000 Mb/s, link type is auto\ninput  : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts, 0 unknowns\noutput : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts\n0 fragments, 0 undersizes, 0 collisions, 0 jabbers\n\n\nPort(port16) is HW Admin up, SW Admin up, line protocol is down\nInterface Type is Serial Gigabit Media Independent Interface(SGMII/SerDes)\nAddress is 00:00:5E:00:53:30, None loopback\nMTU 9216 bytes, Encapsulation IEEE 802.3/Ethernet-II\nhalf-duplex, 1000 Mb/s, link type is auto\ninput  : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts, 0 unknowns\noutput : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts\n0 fragments, 0 undersizes, 0 collisions, 0 jabbers\n\n\nPort(port17) is HW Admin up, SW Admin up, line protocol is down\nInterface Type is Serial Gigabit Media Independent Interface(SGMII/SerDes)\nAddress is 00:00:5E:00:53:31, None loopback\nMTU 9216 bytes, Encapsulation IEEE 802.3/Ethernet-II\nhalf-duplex, 1000 Mb/s, link type is auto\ninput  : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts, 0 unknowns\noutput : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts\n0 fragments, 0 undersizes, 0 collisions, 0 jabbers\n\n\nPort(port18) is HW Admin up, SW Admin up, line protocol is down\nInterface Type is Serial Gigabit Media Independent Interface(SGMII/SerDes)\nAddress is 00:00:5E:00:53:32, None loopback\nMTU 9216 bytes, Encapsulation IEEE 802.3/Ethernet-II\nhalf-duplex, 1000 Mb/s, link type is auto\ninput  : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts, 0 unknowns\noutput : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts\n0 fragments, 0 undersizes, 0 collisions, 0 jabbers\n\n\nPort(port19) is HW Admin up, SW Admin up, line protocol is down\nInterface Type is Serial Gigabit Media Independent Interface(SGMII/SerDes)\nAddress is 00:00:5E:00:53:33, None loopback\nMTU 9216 bytes, Encapsulation IEEE 802.3/Ethernet-II\nhalf-duplex, 1000 Mb/s, link type is auto\ninput  : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts, 0 unknowns\noutput : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts\n0 fragments, 0 undersizes, 0 collisions, 0 jabbers\n\n\nPort(port20) is HW Admin up, SW Admin up, line protocol is down\nInterface Type is Serial Gigabit Media Independent Interface(SGMII/SerDes)\nAddress is 00:00:5E:00:53:34, None loopback\nMTU 9216 bytes, Encapsulation IEEE 802.3/Ethernet-II\nhalf-duplex, 1000 Mb/s, link type is auto\ninput  : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts, 0 unknowns\noutput : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts\n0 fragments, 0 undersizes, 0 collisions, 0 jabbers\n\n\nPort(port21) is HW Admin up, SW Admin up, line protocol is down\nInterface Type is Serial Gigabit Media Independent Interface(SGMII/SerDes)\nAddress is 00:00:5E:00:53:35, None loopback\nMTU 9216 bytes, Encapsulation IEEE 802.3/Ethernet-II\nhalf-duplex, 1000 Mb/s, link type is auto\ninput  : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts, 0 unknowns\noutput : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts\n0 fragments, 0 undersizes, 0 collisions, 0 jabbers\n\n\nPort(port22) is HW Admin up, SW Admin up, line protocol is down\nInterface Type is Serial Gigabit Media Independent Interface(SGMII/SerDes)\nAddress is 00:00:5E:00:53:36, None loopback\nMTU 9216 bytes, Encapsulation IEEE 802.3/Ethernet-II\nhalf-duplex, 1000 Mb/s, link type is auto\ninput  : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts, 0 unknowns\noutput : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts\n0 fragments, 0 undersizes, 0 collisions, 0 jabbers\n\n\nPort(port23) is HW Admin up, SW Admin up, line protocol is down\nInterface Type is Serial Gigabit Media Independent Interface(SGMII/SerDes)\nAddress is 00:00:5E:00:53:37, None loopback\nMTU 9216 bytes, Encapsulation IEEE 802.3/Ethernet-II\nhalf-duplex, 1000 Mb/s, link type is auto\ninput  : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts, 0 unknowns\noutput : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts\n0 fragments, 0 undersizes, 0 collisions, 0 jabbers\n\n\nPort(port24) is HW Admin up, SW Admin up, line protocol is up\nInterface Type is Serial Gigabit Media Independent Interface(SGMII/SerDes)\nAddress is 00:00:5E:00:53:38, None loopback\nMTU 9216 bytes, Encapsulation IEEE 802.3/Ethernet-II\nfull-duplex, 1000 Mb/s, link type is auto\ninput  : 7239129 bytes, 79522 packets, 0 errors, 0 drops, 0 oversizes\n         72457 unicasts, 7060 multicasts, 5 broadcasts, 0 unknowns\noutput : 31065120 bytes, 152903 packets, 0 errors, 0 drops, 0 oversizes\n         73909 unicasts, 78861 multicasts, 133 broadcasts\n0 fragments, 0 undersizes, 0 collisions, 0 jabbers\n\n\nPort(port25) is HW Admin up, SW Admin up, line protocol is down\nInterface Type is Gigabit Media Independent Interface(GMII)\nAddress is 00:00:5E:00:53:39, None loopback\nMTU 9216 bytes, Encapsulation IEEE 802.3/Ethernet-II\nfull-duplex, 1000 Mb/s, link type is manual\ninput  : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts, 0 unknowns\noutput : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts\n0 fragments, 0 undersizes, 0 collisions, 0 jabbers\n\n\nPort(port26) is HW Admin up, SW Admin up, line protocol is down\nInterface Type is Gigabit Media Independent Interface(GMII)\nAddress is 00:00:5E:00:53:3A, None loopback\nMTU 9216 bytes, Encapsulation IEEE 802.3/Ethernet-II\nfull-duplex, 1000 Mb/s, link type is manual\ninput  : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts, 0 unknowns\noutput : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts\n0 fragments, 0 undersizes, 0 collisions, 0 jabbers\n\n\nPort(port27) is HW Admin up, SW Admin up, line protocol is down\nInterface Type is Gigabit Media Independent Interface(GMII)\nAddress is 00:00:5E:00:53:3B, None loopback\nMTU 9216 bytes, Encapsulation IEEE 802.3/Ethernet-II\nfull-duplex, 1000 Mb/s, link type is manual\ninput  : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts, 0 unknowns\noutput : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts\n0 fragments, 0 undersizes, 0 collisions, 0 jabbers\n\n\nPort(port28) is HW Admin up, SW Admin up, line protocol is down\nInterface Type is Gigabit Media Independent Interface(GMII)\nAddress is 00:00:5E:00:53:3C, None loopback\nMTU 9216 bytes, Encapsulation IEEE 802.3/Ethernet-II\nfull-duplex, 1000 Mb/s, link type is manual\ninput  : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts, 0 unknowns\noutput : 0 bytes, 0 packets, 0 errors, 0 drops, 0 oversizes\n         0 unicasts, 0 multicasts, 0 broadcasts\n0 fragments, 0 undersizes, 0 collisions, 0 jabbers\n\n\nPort(internal) is HW Admin up, SW Admin up, line protocol is up\nInterface Type is Pass Through without PHY\nAddress is 00:00:5E:00:53:3D, None loopback\nMTU 9216 bytes, Encapsulation IEEE 802.3/Ethernet-II\nfull-duplex, 1000 Mb/s, link type is manual\ninput  : 543805974 bytes, 1183384 packets, 0 errors, 0 drops, 0 oversizes\n         1183384 unicasts, 0 multicasts, 0 broadcasts, 0 unknowns\noutput : 666457999 bytes, 1193443 packets, 0 errors, 0 drops, 0 oversizes\n         1193443 unicasts, 0 multicasts, 0 broadcasts\n0 fragments, 0 undersizes, 0 collisions, 0 jabbers\n",
+ "fortinet/managed_switch_stacking/switch1_refused": "Error: Switch S000SSSS00000003 is not a stacking switch\nCommand fail. Return code -7622\n",
+ "fortinet/managed_switch_status/switch1": "Vdom: root\nManaged Switch : S000SSSS00000003     0\nVersion: FortiSwitch-224E-POE v8.0.1,build0069,260728 (GA)\nSerial-Number: S000SSSS00000003\nFirmware Signature: valid(1)\nBoot: N/A\nBIOS version: 04000004\nSystem Part-Number: P21936-02\nBurn in MAC: 00:00:5e:00:53:3e\nHostname: host12\nSecurity mode: none\nSecurity level: high (force)\nDistribution: International (r)\nBranch point: 069 \nSystem time: Sun Nov 22 21:44:05 2026\nPrivate Data Encryption : Disabled \n",
+ "fortinet/performance/80f": "CPU states: 4% user 0% system 0% nice 96% idle 0% iowait 0% irq 0% softirq\nCPU0 states: 0% user 0% system 0% nice 100% idle 0% iowait 0% irq 0% softirq\nCPU1 states: 19% user 0% system 0% nice 81% idle 0% iowait 0% irq 0% softirq\nCPU2 states: 0% user 0% system 0% nice 100% idle 0% iowait 0% irq 0% softirq\nCPU3 states: 0% user 0% system 0% nice 100% idle 0% iowait 0% irq 0% softirq\nCPU4 states: 1% user 1% system 0% nice 98% idle 0% iowait 0% irq 0% softirq\nCPU5 states: 4% user 1% system 0% nice 95% idle 0% iowait 0% irq 0% softirq\nCPU6 states: 4% user 1% system 0% nice 95% idle 0% iowait 0% irq 0% softirq\nCPU7 states: 3% user 0% system 0% nice 97% idle 0% iowait 0% irq 0% softirq\nMemory: 3843548k total, 2408420k used (62.7%), 960232k free (25.0%), 474896k freeable (12.3%)\nAverage network usage: 99 / 87 kbps in 1 minute, 105 / 99 kbps in 10 minutes, 107 / 97 kbps in 30 minutes\nMaximal network usage: 256 / 149 kbps in 1 minute, 571 / 527 kbps in 10 minutes, 709 / 627 kbps in 30 minutes\nAverage sessions: 68 sessions in 1 minute, 68 sessions in 10 minutes, 69 sessions in 30 minutes\nMaximal sessions: 75 sessions in 1 minute, 85 sessions in 10 minutes, 111 sessions in 30 minutes\nAverage session setup rate: 0 sessions per second in last 1 minute, 0 sessions per second in last 10 minutes, 0 sessions per second in last 30 minutes\nMaximal session setup rate: 4 sessions per second in last 1 minute, 10 sessions per second in last 10 minutes, 11 sessions per second in last 30 minutes\nAverage NPU sessions: 0 sessions in last 1 minute, 0 sessions in last 10 minutes, 0 sessions in last 30 minutes\nMaximal NPU sessions: 0 sessions in last 1 minute, 7 sessions in last 10 minutes, 17 sessions in last 30 minutes\nAverage nTurbo sessions: 0 sessions in last 1 minute, 0 sessions in last 10 minutes, 0 sessions in last 30 minutes\nMaximal nTurbo sessions: 0 sessions in last 1 minute, 7 sessions in last 10 minutes, 17 sessions in last 30 minutes\nVirus caught: 0 total in 1 minute\nIPS attacks blocked: 0 total in 1 minute\nUptime: 2 days,  11 hours,  13 minutes\n",
+ "fortinet/physical_interfaces/80f": "== [onboard]\n\t==[a]\n\t\tmode: static\n\t\tip: 0.0.0.0 0.0.0.0\n\t\tipv6: ::/0\n\t\tstatus: up\n\t\tspeed: 1000Mbps (Duplex: full)\n\t\tFEC: none\n\t\tFEC_cap: none\n\t==[b]\n\t\tmode: static\n\t\tip: 0.0.0.0 0.0.0.0\n\t\tipv6: ::/0\n\t\tstatus: up\n\t\tspeed: 1000Mbps (Duplex: full)\n\t\tFEC: none\n\t\tFEC_cap: none\n\t==[internal1]\n\t\tmode: static\n\t\tip: 0.0.0.0 0.0.0.0\n\t\tipv6: ::/0\n\t\tstatus: down\n\t\tspeed: n/a\n\t\tFEC: none\n\t\tFEC_cap: none\n\t==[internal2]\n\t\tmode: static\n\t\tip: 0.0.0.0 0.0.0.0\n\t\tipv6: ::/0\n\t\tstatus: down\n\t\tspeed: n/a\n\t\tFEC: none\n\t\tFEC_cap: none\n\t==[internal3]\n\t\tmode: static\n\t\tip: 0.0.0.0 0.0.0.0\n\t\tipv6: ::/0\n\t\tstatus: down\n\t\tspeed: n/a\n\t\tFEC: none\n\t\tFEC_cap: none\n\t==[internal4]\n\t\tmode: static\n\t\tip: 203.0.113.1 255.255.255.248\n\t\tipv6: ::/0\n\t\tstatus: up\n\t\tspeed: 1000Mbps (Duplex: full)\n\t\tFEC: none\n\t\tFEC_cap: none\n\t==[internal5]\n\t\tmode: static\n\t\tip: 0.0.0.0 0.0.0.0\n\t\tipv6: ::/0\n\t\tstatus: up\n\t\tspeed: 1000Mbps (Duplex: full)\n\t\tFEC: none\n\t\tFEC_cap: none\n\t==[internal6]\n\t\tmode: static\n\t\tip: 0.0.0.0 0.0.0.0\n\t\tipv6: ::/0\n\t\tstatus: up\n\t\tspeed: 1000Mbps (Duplex: full)\n\t\tFEC: none\n\t\tFEC_cap: none\n\t==[wan1]\n\t\tmode: dhcp\n\t\tip: 203.0.113.254  255.255.255.0\n\t\tipv6: ::/0\n\t\tstatus: up\n\t\tspeed: 1000Mbps (Duplex: full)\n\t\tmedium: copper\n\t\tFEC: none\n\t\tFEC_cap: none\n\t==[wan2]\n\t\tmode: static\n\t\tip: 203.0.113.253 255.255.255.248\n\t\tipv6: ::/0\n\t\tstatus: up\n\t\tspeed: 1000Mbps (Duplex: full)\n\t\tmedium: copper\n\t\tFEC: none\n\t\tFEC_cap: none\n\t==[modem]\n\t\tmode: pppoe\n\t\tip: 0.0.0.0 0.0.0.0\n\t\tipv6: ::/0\n\t\tstatus: down\n\t\tspeed: n/a\n\t\tFEC: none\n\t\tFEC_cap: none\n",
+ "fortinet/switch_fan_health/switch1": "Vdom: root\nManaged Switch : S000SSSS00000003     0\n\nModule\t\tStatus\n___________________________________\nFAN1\t\tOK(45.1 %)\n",
+ "fortinet/switch_health/80f_live": {
+  "action": "health-status",
+  "build": 251,
+  "http_method": "GET",
+  "name": "managed-switch",
+  "path": "switch-controller",
+  "results": [
+   {
+    "fan": [
+     {
+      "module": "fan1",
+      "speed": {
+       "unit": "%",
+       "value": 45.09803771972656
+      },
+      "status": "OK"
+     }
+    ],
+    "performance": {
+     "cpu": {
+      "idle": {
+       "unit": "%",
+       "value": 84
+      },
+      "nice": {
+       "unit": "%",
+       "value": 1
+      },
+      "system": {
+       "unit": "%",
+       "value": 11
+      },
+      "user": {
+       "unit": "%",
+       "value": 4
+      }
+     },
+     "memory": {
+      "used": {
+       "unit": "%",
+       "value": 53
+      }
+     },
+     "network": {
+      "in-10min": {
+       "unit": "kbps",
+       "value": 0
+      },
+      "in-1min": {
+       "unit": "kbps",
+       "value": 0
+      },
+      "in-30min": {
+       "unit": "kbps",
+       "value": 0
+      }
+     },
+     "uptime": {
+      "days": {
+       "unit": "days",
+       "value": 2
+      },
+      "hours": {
+       "unit": "hours",
+       "value": 11
+      },
+      "minutes": {
+       "unit": "minutes",
+       "value": 12
+      }
+     }
+    },
+    "poe": {
+     "max_value": 180,
+     "unit": "watts",
+     "value": 0.0
+    },
+    "psu": [
+     {
+      "name": "PSU1",
+      "status": "OK"
+     },
+     {
+      "connection": "Not inserted",
+      "name": "PSU2"
+     }
+    ],
+    "serial": "S000SSSS00000003",
+    "summary": {
+     "cpu": {
+      "rating": "good",
+      "value": 16
+     },
+     "fan": {
+      "fan1": {
+       "fan_speed": {
+        "unit": "%",
+        "value": 45.09803771972656
+       },
+       "rating": "good",
+       "value": "OK"
+      }
+     },
+     "memory": {
+      "rating": "good",
+      "value": 53
+     },
+     "overall": "good",
+     "poe": {
+      "rating": "good",
+      "value": 100.0
+     },
+     "psu": {
+      "PSU1": {
+       "rating": "good",
+       "value": "OK"
+      }
+     },
+     "temperature": {
+      "rating": "good",
+      "value": 57.125
+     },
+     "uptime": {
+      "rating": "good",
+      "value": 213120
+     }
+    },
+    "switch-id": "S000SSSS00000003",
+    "temperature": [
+     {
+      "module": "Sensor1",
+      "status": {
+       "unit": "celsius",
+       "value": 59.0
+      }
+     },
+     {
+      "module": "Sensor2",
+      "status": {
+       "unit": "celsius",
+       "value": 55.25
+      }
+     }
+    ]
+   },
+   {
+    "fan": [
+     {
+      "module": "fan1",
+      "speed": {
+       "unit": "%",
+       "value": 40.39215850830078
+      },
+      "status": "OK"
+     }
+    ],
+    "performance": {
+     "cpu": {
+      "idle": {
+       "unit": "%",
+       "value": 85
+      },
+      "nice": {
+       "unit": "%",
+       "value": 0
+      },
+      "system": {
+       "unit": "%",
+       "value": 11
+      },
+      "user": {
+       "unit": "%",
+       "value": 4
+      }
+     },
+     "memory": {
+      "used": {
+       "unit": "%",
+       "value": 53
+      }
+     },
+     "network": {
+      "in-10min": {
+       "unit": "kbps",
+       "value": 0
+      },
+      "in-1min": {
+       "unit": "kbps",
+       "value": 0
+      },
+      "in-30min": {
+       "unit": "kbps",
+       "value": 0
+      }
+     },
+     "uptime": {
+      "days": {
+       "unit": "days",
+       "value": 2
+      },
+      "hours": {
+       "unit": "hours",
+       "value": 11
+      },
+      "minutes": {
+       "unit": "minutes",
+       "value": 11
+      }
+     }
+    },
+    "poe": {
+     "max_value": 180,
+     "unit": "watts",
+     "value": 8.100000381469727
+    },
+    "psu": [
+     {
+      "name": "PSU1",
+      "status": "OK"
+     },
+     {
+      "connection": "Not inserted",
+      "name": "PSU2"
+     }
+    ],
+    "serial": "S000SSSS00000004",
+    "summary": {
+     "cpu": {
+      "rating": "good",
+      "value": 15
+     },
+     "fan": {
+      "fan1": {
+       "fan_speed": {
+        "unit": "%",
+        "value": 40.39215850830078
+       },
+       "rating": "good",
+       "value": "OK"
+      }
+     },
+     "memory": {
+      "rating": "good",
+      "value": 53
+     },
+     "overall": "good",
+     "poe": {
+      "rating": "good",
+      "value": 95.49999978807237
+     },
+     "psu": {
+      "PSU1": {
+       "rating": "good",
+       "value": "OK"
+      }
+     },
+     "temperature": {
+      "rating": "good",
+      "value": 47.1875
+     },
+     "uptime": {
+      "rating": "good",
+      "value": 213060
+     }
+    },
+    "switch-id": "S000SSSS00000004",
+    "temperature": [
+     {
+      "module": "Sensor1",
+      "status": {
+       "unit": "celsius",
+       "value": 49.0
+      }
+     },
+     {
+      "module": "Sensor2",
+      "status": {
+       "unit": "celsius",
+       "value": 45.375
+      }
+     }
+    ]
+   }
+  ],
+  "serial": "SSS00SSS00000001",
+  "status": "success",
+  "vdom": "root",
+  "version": "v8.0.2"
+ },
+ "fortinet/switch_status/80f_live": {
+  "action": "status",
+  "build": 251,
+  "http_method": "GET",
+  "name": "managed-switch",
+  "path": "switch-controller",
+  "results": [
+   {
+    "config_sync_error": false,
+    "connecting_from": "203.0.113.249",
+    "dhcp_snooping_supported": true,
+    "eos": false,
+    "fgt_peer_intf_name": "fortilink",
+    "forticare_registration_status": "already registered",
+    "igmp_snooping_supported": true,
+    "image_download_progress": 0,
+    "is_external": false,
+    "is_l2": true,
+    "is_l3": false,
+    "is_tunnel": false,
+    "is_vxlan": false,
+    "join_time": "Sun Nov 22 20:20:58 2026",
+    "led_blink_supported": true,
+    "max_poe_budget": 180,
+    "mc_lag_supported": true,
+    "os_version": "S224EP-v8.0.1-build069,260728 (GA)",
+    "ptp_capable": true,
+    "serial": "S000SSSS00000003",
+    "state": "Authorized",
+    "status": "Connected",
+    "switch-id": "S000SSSS00000003",
+    "type": "physical",
+    "vdom": "root",
+    "vlan_segment_lite_supported": false,
+    "vlan_segment_supported": true
+   },
+   {
+    "config_sync_error": false,
+    "connecting_from": "203.0.113.251",
+    "dhcp_snooping_supported": true,
+    "eos": false,
+    "fgt_peer_intf_name": "fortilink",
+    "forticare_registration_status": "registered",
+    "igmp_snooping_supported": true,
+    "image_download_progress": 0,
+    "is_external": false,
+    "is_l2": true,
+    "is_l3": false,
+    "is_tunnel": false,
+    "is_vxlan": false,
+    "join_time": "Sun Nov 22 20:21:00 2026",
+    "led_blink_supported": true,
+    "max_poe_budget": 180,
+    "mc_lag_supported": true,
+    "os_version": "S224EP-v8.0.1-build069,260728 (GA)",
+    "ptp_capable": true,
+    "serial": "S000SSSS00000004",
+    "state": "Authorized",
+    "status": "Connected",
+    "switch-id": "S000SSSS00000004",
+    "type": "physical",
+    "vdom": "root",
+    "vlan_segment_lite_supported": false,
+    "vlan_segment_supported": true
+   }
+  ],
+  "serial": "SSS00SSS00000001",
+  "status": "success",
+  "vdom": "root",
+  "version": "v8.0.2"
+ },
+ "fortinet/system_interfaces/80f": "== [ wan1 ]\nname: wan1   mode: dhcp    management-ip: 203.0.113.247  255.255.255.0   remote-management-ip: 0.0.0.0 0.0.0.0   ip: 203.0.113.254  255.255.255.0   status: up    netbios-forward: disable    type: physical   netflow-sampler: disable    sflow-sampler: disable    src-check: enable    explicit-web-proxy: disable    explicit-ftp-proxy: disable    proxy-captive-portal: disable    trunk: disable    wccp: disable    drop-fragment: disable    mtu-override: disable    \n== [ wan2 ]\nname: wan2   mode: static    management-ip: 0.0.0.0 0.0.0.0   remote-management-ip: 0.0.0.0 0.0.0.0   ip: 203.0.113.253 255.255.255.248   status: up    netbios-forward: disable    type: physical   netflow-sampler: disable    sflow-sampler: disable    src-check: enable    explicit-web-proxy: disable    explicit-ftp-proxy: disable    proxy-captive-portal: disable    trunk: disable    wccp: disable    drop-fragment: disable    mtu-override: disable    \n== [ internal1 ]\nname: internal1   status: up    type: physical   trunk: disable    \n== [ internal2 ]\nname: internal2   status: up    type: physical   trunk: disable    \n== [ internal3 ]\nname: internal3   status: up    type: physical   trunk: disable    \n== [ internal4 ]\nname: internal4   mode: static    management-ip: 0.0.0.0 0.0.0.0   remote-management-ip: 0.0.0.0 0.0.0.0   ip: 203.0.113.1 255.255.255.248   status: up    netbios-forward: disable    type: physical   netflow-sampler: disable    sflow-sampler: disable    src-check: enable    explicit-web-proxy: disable    explicit-ftp-proxy: disable    proxy-captive-portal: disable    trunk: disable    wccp: disable    drop-fragment: disable    mtu-override: disable    \n== [ internal5 ]\nname: internal5   mode: static    management-ip: 0.0.0.0 0.0.0.0   remote-management-ip: 0.0.0.0 0.0.0.0   ip: 0.0.0.0 0.0.0.0   status: up    netbios-forward: disable    type: physical   netflow-sampler: disable    sflow-sampler: disable    src-check: enable    explicit-web-proxy: disable    explicit-ftp-proxy: disable    proxy-captive-portal: disable    trunk: disable    wccp: disable    drop-fragment: disable    mtu-override: disable    \n== [ internal6 ]\nname: internal6   mode: static    management-ip: 0.0.0.0 0.0.0.0   remote-management-ip: 0.0.0.0 0.0.0.0   ip: 0.0.0.0 0.0.0.0   status: up    netbios-forward: disable    type: physical   netflow-sampler: disable    sflow-sampler: disable    src-check: enable    explicit-web-proxy: disable    explicit-ftp-proxy: disable    proxy-captive-portal: disable    trunk: disable    wccp: disable    drop-fragment: disable    mtu-override: disable    \n== [ a ]\nname: a   status: up    type: physical   src-check: enable    trunk: disable    aggregate: fortilink    \n== [ b ]\nname: b   status: up    type: physical   src-check: enable    trunk: disable    aggregate: fortilink    \n== [ modem ]\nname: modem   mode: pppoe    management-ip: 0.0.0.0 0.0.0.0   remote-management-ip: 0.0.0.0 0.0.0.0   ip: 0.0.0.0 0.0.0.0   status: down    netbios-forward: disable    type: physical   netflow-sampler: disable    sflow-sampler: disable    src-check: enable    explicit-web-proxy: disable    explicit-ftp-proxy: disable    proxy-captive-portal: disable    trunk: disable    wccp: disable    drop-fragment: disable    mtu-override: disable    \n== [ naf.root ]\nname: naf.root   ip: 0.0.0.0 0.0.0.0   status: up    netbios-forward: disable    type: tunnel   netflow-sampler: disable    sflow-sampler: disable    src-check: disable    explicit-web-proxy: disable    explicit-ftp-proxy: disable    proxy-captive-portal: disable    trunk: disable    wccp: disable    \n== [ l2t.root ]\nname: l2t.root   ip: 0.0.0.0 0.0.0.0   status: up    netbios-forward: disable    type: tunnel   netflow-sampler: disable    sflow-sampler: disable    src-check: enable    explicit-web-proxy: disable    explicit-ftp-proxy: disable    proxy-captive-portal: disable    trunk: disable    wccp: disable    \n== [ ssl.root ]\nname: ssl.root   ip: 0.0.0.0 0.0.0.0   status: up    netbios-forward: disable    type: tunnel   netflow-sampler: disable    sflow-sampler: disable    src-check: enable    explicit-web-proxy: disable    explicit-ftp-proxy: disable    proxy-captive-portal: disable    trunk: disable    wccp: disable    mtu-override: disable    \n== [ internal ]\nname: internal   mode: static    management-ip: 0.0.0.0 0.0.0.0   remote-management-ip: 0.0.0.0 0.0.0.0   ip: 203.0.113.246 255.255.0.0   status: up    netbios-forward: disable    type: hard-switch   netflow-sampler: disable    sflow-sampler: disable    src-check: enable    explicit-web-proxy: disable    explicit-ftp-proxy: disable    proxy-captive-portal: disable    trunk: disable    wccp: disable    drop-fragment: disable    mtu-override: disable    \n== [ fortilink ]\nname: fortilink   mode: static    management-ip: 0.0.0.0 0.0.0.0   remote-management-ip: 0.0.0.0 0.0.0.0   ip: 203.0.113.245 255.255.255.0   status: up    netbios-forward: disable    type: aggregate   netflow-sampler: disable    sflow-sampler: disable    src-check: enable    explicit-web-proxy: disable    explicit-ftp-proxy: disable    proxy-captive-portal: disable    trunk: disable    wccp: disable    drop-fragment: disable    mtu-override: disable    \n== [ host04 ]\nname: host04    mode: dhcp    management-ip: 0.0.0.0 0.0.0.0   remote-management-ip: 0.0.0.0 0.0.0.0   ip: 203.0.113.244  255.255.255.248   status: up    netbios-forward: disable    type: fext-wan   netflow-sampler: disable    sflow-sampler: disable    src-check: enable    explicit-web-proxy: disable    explicit-ftp-proxy: disable    proxy-captive-portal: disable    trunk: disable    drop-fragment: disable    mtu-override: enable    \n== [ host06 ]\nname: host06    mode: dhcp    management-ip: 0.0.0.0 0.0.0.0   remote-management-ip: 0.0.0.0 0.0.0.0   ip: 203.0.113.243 255.255.255.252   status: up    netbios-forward: disable    type: fext-wan   netflow-sampler: disable    sflow-sampler: disable    src-check: enable    explicit-web-proxy: disable    explicit-ftp-proxy: disable    proxy-captive-portal: disable    trunk: disable    drop-fragment: disable    mtu-override: enable    \n== [ host08 ]\nname: host08   ip: 203.0.113.242 255.255.255.255   status: up    netbios-forward: disable    type: tunnel   netflow-sampler: disable    sflow-sampler: disable    src-check: enable    explicit-web-proxy: disable    explicit-ftp-proxy: disable    proxy-captive-portal: disable    trunk: disable    wccp: disable    mtu-override: disable    \n== [ host09 ]\nname: host09   ip: 203.0.113.241 255.255.255.255   status: up    netbios-forward: disable    type: tunnel   netflow-sampler: disable    sflow-sampler: disable    src-check: enable    explicit-web-proxy: disable    explicit-ftp-proxy: disable    proxy-captive-portal: disable    trunk: disable    wccp: disable    mtu-override: disable    \n== [ host10 ]\nname: host10   ip: 203.0.113.240 255.255.255.255   status: up    netbios-forward: disable    type: tunnel   netflow-sampler: disable    sflow-sampler: disable    src-check: enable    explicit-web-proxy: disable    explicit-ftp-proxy: disable    proxy-captive-portal: disable    trunk: disable    wccp: disable    mtu-override: disable    \n== [ _default ]\nname: _default   mode: static    management-ip: 0.0.0.0 0.0.0.0   remote-management-ip: 0.0.0.0 0.0.0.0   ip: 0.0.0.0 0.0.0.0   status: up    netbios-forward: disable    type: vlan   netflow-sampler: disable    sflow-sampler: disable    src-check: enable    explicit-web-proxy: disable    explicit-ftp-proxy: disable    proxy-captive-portal: disable    trunk: disable    switch-controller-feature: default-vlan    wccp: disable    drop-fragment: disable    mtu-override: disable    \n== [ quarantine ]\nname: quarantine   mode: static    management-ip: 0.0.0.0 0.0.0.0   remote-management-ip: 0.0.0.0 0.0.0.0   ip: 203.0.113.239 255.255.255.0   status: up    netbios-forward: disable    type: vlan   netflow-sampler: disable    sflow-sampler: disable    src-check: enable    explicit-web-proxy: disable    explicit-ftp-proxy: disable    proxy-captive-portal: disable    trunk: disable    switch-controller-feature: quarantine    wccp: disable    drop-fragment: disable    mtu-override: disable    \n== [ voice ]\nname: voice   mode: static    management-ip: 0.0.0.0 0.0.0.0   remote-management-ip: 0.0.0.0 0.0.0.0   ip: 0.0.0.0 0.0.0.0   status: up    netbios-forward: disable    type: vlan   netflow-sampler: disable    sflow-sampler: disable    src-check: enable    explicit-web-proxy: disable    explicit-ftp-proxy: disable    proxy-captive-portal: disable    trunk: disable    switch-controller-feature: voice    wccp: disable    drop-fragment: disable    mtu-override: disable    \n== [ video ]\nname: video   mode: static    management-ip: 0.0.0.0 0.0.0.0   remote-management-ip: 0.0.0.0 0.0.0.0   ip: 0.0.0.0 0.0.0.0   status: up    netbios-forward: disable    type: vlan   netflow-sampler: disable    sflow-sampler: disable    src-check: enable    explicit-web-proxy: disable    explicit-ftp-proxy: disable    proxy-captive-portal: disable    trunk: disable    switch-controller-feature: video    wccp: disable    drop-fragment: disable    mtu-override: disable    \n== [ rspan ]\nname: rspan   mode: static    management-ip: 0.0.0.0 0.0.0.0   remote-management-ip: 0.0.0.0 0.0.0.0   ip: 203.0.113.238 255.255.255.0   status: up    netbios-forward: disable    type: vlan   netflow-sampler: disable    sflow-sampler: disable    src-check: enable    explicit-web-proxy: disable    explicit-ftp-proxy: disable    proxy-captive-portal: disable    trunk: disable    switch-controller-feature: rspan    wccp: disable    drop-fragment: disable    mtu-override: disable    \n== [ onboarding ]\nname: onboarding   mode: static    management-ip: 0.0.0.0 0.0.0.0   remote-management-ip: 0.0.0.0 0.0.0.0   ip: 0.0.0.0 0.0.0.0   status: up    netbios-forward: disable    type: vlan   netflow-sampler: disable    sflow-sampler: disable    src-check: enable    explicit-web-proxy: disable    explicit-ftp-proxy: disable    proxy-captive-portal: disable    trunk: disable    switch-controller-feature: nac    wccp: disable    drop-fragment: disable    mtu-override: disable    \n== [ nac_segment ]\nname: nac_segment   mode: static    management-ip: 0.0.0.0 0.0.0.0   remote-management-ip: 0.0.0.0 0.0.0.0   ip: 203.0.113.237 255.255.255.0   status: up    netbios-forward: disable    type: vlan   netflow-sampler: disable    sflow-sampler: disable    src-check: enable    explicit-web-proxy: disable    explicit-ftp-proxy: disable    proxy-captive-portal: disable    trunk: disable    switch-controller-feature: nac-segment    wccp: disable    drop-fragment: disable    mtu-override: disable    \n== [ ap-mgmt ]\nname: ap-mgmt   mode: static    management-ip: 0.0.0.0 0.0.0.0   remote-management-ip: 0.0.0.0 0.0.0.0   ip: 203.0.113.236 255.255.255.0   status: up    netbios-forward: disable    type: vlan   netflow-sampler: disable    sflow-sampler: disable    src-check: enable    explicit-web-proxy: disable    explicit-ftp-proxy: disable    proxy-captive-portal: disable    trunk: disable    switch-controller-feature: none    wccp: disable    drop-fragment: disable    mtu-override: disable    \n== [ host01 ]\nname: host01    mode: static    management-ip: 0.0.0.0 0.0.0.0   remote-management-ip: 0.0.0.0 0.0.0.0   ip: 203.0.113.235 255.255.255.0   status: up    netbios-forward: disable    type: vap-switch   netflow-sampler: disable    sflow-sampler: disable    src-check: enable    explicit-web-proxy: disable    explicit-ftp-proxy: disable    proxy-captive-portal: disable    trunk: disable    mtu-override: disable    \n== [ host11 ]\nname: host11         mode: static    management-ip: 0.0.0.0 0.0.0.0   remote-management-ip: 0.0.0.0 0.0.0.0   ip: 203.0.113.234 255.255.255.0   status: up    netbios-forward: disable    type: vap-switch   netflow-sampler: disable    sflow-sampler: disable    src-check: enable    explicit-web-proxy: disable    explicit-ftp-proxy: disable    proxy-captive-portal: disable    trunk: disable    mtu-override: disable    \n",
+ "fortinet/system_status/80f_ha_primary": "Version: FortiGate-80F v8.0.2,build0251,260928 (GA.F)\nFirst GA patch build date: 260421\nCurrent Security Level: High\nFirmware Signature: certified\nVirus-DB: 93.08331(2026-11-22 09:24)\nExtended DB: 93.08331(2026-11-22 09:23)\nOCR DB: 1.00005(2026-04-16 12:36)\nAV AI/ML Model: 4.05343(2026-11-22 09:21)\nIPS-DB: 6.00741(2015-12-01 02:30)\nIPS-ETDB: 38.00342(2026-11-19 03:47)\nIPS-MLDB: 2609.00300(2026-09-16 00:55)\nAPP-DB: 38.00341(2026-11-18 22:07)\nTelemetry-DB: 1.00012(2026-11-22 18:53)\nAIAP-DB: 38.00340(2026-11-18 20:28)\nProxy-IPS-DB: 6.00741(2015-12-01 02:30)\nProxy-IPS-ETDB: 38.00342(2026-11-19 03:47)\nProxy-APP-DB: 38.00341(2026-11-18 22:07)\nProxy-AIAP-DB: 38.00340(2026-11-18 20:28)\nFMWP-DB: 0.00000(2001-01-01 00:00)\nIMCL version: 0.00000(2001-01-01 00:00)\nIPS Malicious URL Database: 5.00856(2026-11-20 05:12)\nIoT-Detect: 38.00342(2026-11-18 16:04)\nOT-Detect-DB: 38.00342(2026-11-18 16:04)\nOT-Patch-DB: 38.00342(2026-11-18 20:22)\nOT-Threat-DB: 38.00341(2026-11-18 22:22)\nIPS-Engine: 8.00056(2026-11-04 20:57)\nTimezone DB Version: 1.016\nTimezone DB IANA Version: 2026f\nSerial-Number: SSS00SSS00000001\nBIOS version: 05000100\nSystem Part-Number: P25604-21\nLog hard disk: Not available\nHostname: host13\nPrivate Encryption: Disable\nOperation Mode: NAT\nCurrent virtual domain: root\nMax number of virtual domains: 10\nVirtual domains status: 1 in NAT mode, 0 in TP mode\nVirtual domain configuration: disable\nFIPS-CC mode: disable\nCurrent HA mode: a-p, primary\nCluster uptime: 2 days, 11 hours, 12 minutes, 11 seconds\nCluster state change time: 2026-11-22 20:20:50\nBranch point: 0251\nRelease Version Information: GA\nSystem time: Sun Nov 22 21:44:03 2026\nLast reboot reason: power cycle\n",
+ "fortinet/wifi_ap_status/80f_three_aps": "WTP: SS000S0S0000S0S5  0-203.0.113.252:5246\n    vdom             : root\n    vap in user      : no\n    wtp-id           : SS000S0S0000S0S5\n    region-code      : E \n    name             : \n    mgmt_vlanid      : 0\n    data-chan-sec    : clear-text\n    mesh-uplink      : ethernet\n    mesh-hop-count   : 0\n    parent-wtp-id    : \n    software-version : FP231K-v8.0.1-build0085\n    local-ip-addr   : 203.0.113.252\n    board-mac        : 00:00:5e:00:53:3f\n    ble-mac          : 00:00:5e:00:53:4b\n    join-time        : Sun Nov 22 20:22:29 2026\n    connection-state : Connected\n    image-download-progress: 0\n    last-failure     : 8 -- Control message maximal retransmission limit reached\n    last-failure-param: N/A\n    last-failure-time: Fri Nov 20 12:30:53 2026\n  LLDP               : enabled (total 1)\n    local port       : lan1\n    chassis id       : mac 00:00:5e:00:53:3d\n    sys name         : S000SSSS00000004\n    sys description  : FortiSwitch-224E-POE v8.0.1,build0069,260728 (GA)\n    capability       : Bridge Router \n    port id          : port3\n    port description : port3\n    MAU oper type    : 1000BaseTFD - Four-pair Category 5 UTP, full duplex mode\n    ip               : 203.0.113.251\n    vlan id          : N/A\n  SNMP               : disabled\n  Temperature in Celsius: 1 (50)\n  Radio 1            : AP\n    detected_rogue_ap_num     : 7\n    detected_rogue_infra_ap_num     : 0\n    country-name     : CZ\n    country-code     : 203\n    client-count     : 2\n    base-bssid       : 00:00:5e:00:53:40\n    max-vaps         : 8\n    oper-chan        : 1\n    radio_max_rate_standard   : 0 mbps\n    radio_max_rate   : 0 mbps\n    oper-chutil-time : Sun Nov 22 21:44:03 2026 (age=4)\n    oper-chutil-val  : 3 (averaged for the last available 15 seconds data)\n    oper-txpower     : 20 (max allowed 20) \n    bandwidth-rx     : 23\n    bandwidth-tx     : 23\n    bytes-rx         : 4722422\n    bytes-tx         : 12926752\n    tx-retries       : 0%\n    mac-err-rx       : 0\n    mac-err-tx       : 0\n    interfering-ap   : 2\n    peak-sta-cnt     : 3\n    antenna RSSI     :  7   2  (age=48)\n  Radio 2            : AP\n    detected_rogue_ap_num     : 12\n    detected_rogue_infra_ap_num     : 0\n    country-name     : CZ\n    country-code     : 203\n    client-count     : 0\n    base-bssid       : 00:00:5e:00:53:41\n    max-vaps         : 8\n    oper-chan        : 120\n    radio_max_rate_standard   : 0 mbps\n    radio_max_rate   : 0 mbps\n    oper-chutil-time : Sun Nov 22 21:44:03 2026 (age=4)\n    oper-chutil-val  : 0 (averaged for the last available 15 seconds data)\n    oper-txpower     : 26 (max allowed 26) \n    bandwidth-rx     : 0\n    bandwidth-tx     : 0\n    bytes-rx         : 24346698\n    bytes-tx         : 59309409\n    tx-retries       : 0%\n    mac-err-rx       : 0\n    mac-err-tx       : 11\n    interfering-ap   : 1\n    peak-sta-cnt     : 3\n    antenna RSSI     : 34  36  (age=1518)\n  Radio 3            : AP\n    detected_rogue_ap_num     : 0\n    detected_rogue_infra_ap_num     : 0\n    country-name     : CZ\n    country-code     : 203\n    client-count     : 1\n    base-bssid       : 00:00:5e:00:53:42\n    max-vaps         : 8\n    oper-chan        : 1\n    radio_max_rate_standard   : 0 mbps\n    radio_max_rate   : 0 mbps\n    oper-chutil-time : Sun Nov 22 21:44:03 2026 (age=4)\n    oper-chutil-val  : 0 (averaged for the last available 15 seconds data)\n    oper-txpower     : 21 (max allowed 21) \n    bandwidth-rx     : 0\n    bandwidth-tx     : 0\n    bytes-rx         : 13026\n    bytes-tx         : 113342\n    tx-retries       : 0%\n    mac-err-rx       : 0\n    mac-err-tx       : 0\n    interfering-ap   : 0\n    peak-sta-cnt     : 3\n    antenna RSSI     : 41  44  (age=130247)\n  Radio 4            : Not Exist\n  Radio 5            : Not Exist\n  wtp-wanlan-mode            : wan-only\nWTP: SS00SSSS00000006  0-203.0.113.250:5246\n    vdom             : root\n    vap in user      : no\n    wtp-id           : SS00SSSS00000006\n    region-code      : E \n    name             : \n    mgmt_vlanid      : 0\n    data-chan-sec    : unknown\n    mesh-uplink      : ethernet\n    mesh-hop-count   : 0\n    parent-wtp-id    : \n    software-version : FP23JK-v8.0.1-build0085\n    local-ip-addr   : 203.0.113.250\n    board-mac        : 00:00:5e:00:53:43\n    ble-mac          : 00:00:5e:00:53:4c\n    join-time        : Fri Nov 20 10:42:54 2026\n    connection-state : Disconnected\n    image-download-progress: 0\n    last-failure     : 8 -- Control message maximal retransmission limit reached\n    last-failure-param: N/A\n    last-failure-time: Fri Nov 20 11:51:16 2026\n  LLDP               : enabled (total 1)\n    local port       : wan\n    chassis id       : mac 00:00:5e:00:53:20\n    sys name         : S000SSSS00000003\n    sys description  : FortiSwitch-224E-POE v8.0.1,build0069,260728 (GA)\n    capability       : Bridge Router \n    port id          : port3\n    port description : port3\n    MAU oper type    : 1000BaseTFD - Four-pair Category 5 UTP, full duplex mode\n    ip               : 203.0.113.249\n    vlan id          : N/A\n  SNMP               : disabled\n  Temperature in Celsius: 1 (70)\n  Radio 1            : AP\n    detected_rogue_ap_num     : 0\n    detected_rogue_infra_ap_num     : 0\n    country-name     : DE\n    country-code     : 276\n    client-count     : 0\n    base-bssid       : 00:00:5e:00:53:44\n    max-vaps         : 8\n    oper-chan        : 0\n    radio_max_rate_standard   : 0 mbps\n    radio_max_rate   : 0 mbps\n    oper-chutil-time : Fri Nov 20 11:50:33 2026 (age=208414)\n    oper-chutil-val  : 9 (averaged for the last available 15 seconds data)\n    oper-txpower     : 17 (max allowed 17) \n    bandwidth-rx     : 179459\n    bandwidth-tx     : 2284422\n    bytes-rx         : 1202026\n    bytes-tx         : 5914417\n    tx-retries       : 11%\n    mac-err-rx       : 0\n    mac-err-tx       : 0\n    interfering-ap   : 0\n    peak-sta-cnt     : 2\n    antenna RSSI     : 43  31  (age=208428)\n  Radio 2            : AP\n    detected_rogue_ap_num     : 0\n    detected_rogue_infra_ap_num     : 0\n    country-name     : DE\n    country-code     : 276\n    client-count     : 0\n    base-bssid       : 00:00:5e:00:53:45\n    max-vaps         : 8\n    oper-chan        : 0\n    radio_max_rate_standard   : 0 mbps\n    radio_max_rate   : 0 mbps\n    oper-chutil-time : Fri Nov 20 11:50:33 2026 (age=208414)\n    oper-chutil-val  : 0 (averaged for the last available 15 seconds data)\n    oper-txpower     : 18 (max allowed 18) \n    bandwidth-rx     : 0\n    bandwidth-tx     : 0\n    bytes-rx         : 0\n    bytes-tx         : 0\n    tx-retries       : 0%\n    mac-err-rx       : 0\n    mac-err-tx       : 0\n    interfering-ap   : 0\n    peak-sta-cnt     : 0\n  Radio 3            : AP\n    detected_rogue_ap_num     : 0\n    detected_rogue_infra_ap_num     : 0\n    country-name     : DE\n    country-code     : 276\n    client-count     : 0\n    base-bssid       : 00:00:5e:00:53:46\n    max-vaps         : 8\n    oper-chan        : 0\n    radio_max_rate_standard   : 0 mbps\n    radio_max_rate   : 0 mbps\n    oper-chutil-time : Fri Nov 20 11:50:33 2026 (age=208414)\n    oper-chutil-val  : 0 (averaged for the last available 15 seconds data)\n    oper-txpower     : 2 (max allowed 19) \n    bandwidth-rx     : 0\n    bandwidth-tx     : 0\n    bytes-rx         : 0\n    bytes-tx         : 0\n    tx-retries       : 0%\n    mac-err-rx       : 0\n    mac-err-tx       : 0\n    interfering-ap   : 0\n    peak-sta-cnt     : 0\n  Radio 4            : Virtual Lan AP\n  Radio 5            : Not Exist\n  wtp-wanlan-mode            : wan-only\nWTP: SS000S0S00000007  0-203.0.113.248:5246\n    vdom             : root\n    vap in user      : no\n    wtp-id           : SS000S0S00000007\n    region-code      : E \n    name             : \n    mgmt_vlanid      : 0\n    data-chan-sec    : unknown\n    mesh-uplink      : ethernet\n    mesh-hop-count   : 0\n    parent-wtp-id    : \n    software-version : FP244K-v8.0.1-build0085\n    local-ip-addr   : 203.0.113.248\n    board-mac        : 00:00:5e:00:53:47\n    ble-mac          : 00:00:5e:00:53:4d\n    join-time        : Fri Nov 20 12:25:23 2026\n    connection-state : Disconnected\n    image-download-progress: 0\n    last-failure     : 8 -- Control message maximal retransmission limit reached\n    last-failure-param: N/A\n    last-failure-time: Fri Nov 20 18:01:16 2026\n  LLDP               : enabled (total 1)\n    local port       : lan1\n    chassis id       : mac 00:00:5e:00:53:20\n    sys name         : S000SSSS00000003\n    sys description  : FortiSwitch-224E-POE v8.0.1,build0069,260728 (GA)\n    capability       : Bridge Router \n    port id          : port3\n    port description : port3\n    MAU oper type    : 1000BaseTFD - Four-pair Category 5 UTP, full duplex mode\n    ip               : 203.0.113.249\n    vlan id          : N/A\n  SNMP               : disabled\n  Temperature in Celsius: 1 (39)\n  Radio 1            : AP\n    detected_rogue_ap_num     : 0\n    detected_rogue_infra_ap_num     : 0\n    country-name     : CZ\n    country-code     : 203\n    client-count     : 0\n    base-bssid       : 00:00:5e:00:53:48\n    max-vaps         : 16\n    oper-chan        : 0\n    radio_max_rate_standard   : 0 mbps\n    radio_max_rate   : 0 mbps\n    oper-chutil-time : Fri Nov 20 18:00:35 2026 (age=186212)\n    oper-chutil-val  : 10 (averaged for the last available 15 seconds data)\n    oper-txpower     : 11 (max allowed 11) \n    bandwidth-rx     : 0\n    bandwidth-tx     : 0\n    bytes-rx         : 197936970\n    bytes-tx         : 147735281\n    tx-retries       : 0%\n    mac-err-rx       : 0\n    mac-err-tx       : 0\n    interfering-ap   : 0\n    peak-sta-cnt     : 3\n    antenna RSSI     : 10   8  (age=204830)\n  Radio 2            : AP\n    detected_rogue_ap_num     : 0\n    detected_rogue_infra_ap_num     : 0\n    country-name     : CZ\n    country-code     : 203\n    client-count     : 0\n    base-bssid       : 00:00:5e:00:53:49\n    max-vaps         : 16\n    oper-chan        : 0\n    radio_max_rate_standard   : 0 mbps\n    radio_max_rate   : 0 mbps\n    oper-chutil-time : Fri Nov 20 18:00:35 2026 (age=186212)\n    oper-chutil-val  : 0 (averaged for the last available 15 seconds data)\n    oper-txpower     : 21 (max allowed 21) \n    bandwidth-rx     : 0\n    bandwidth-tx     : 77\n    bytes-rx         : 135539372\n    bytes-tx         : 120055030\n    tx-retries       : 0%\n    mac-err-rx       : 0\n    mac-err-tx       : 0\n    interfering-ap   : 0\n    peak-sta-cnt     : 3\n    antenna RSSI     : 47  48  (age=186230)\n  Radio 3            : AP\n    detected_rogue_ap_num     : 0\n    detected_rogue_infra_ap_num     : 0\n    country-name     : CZ\n    country-code     : 203\n    client-count     : 0\n    base-bssid       : 00:00:5e:00:53:4a\n    max-vaps         : 16\n    oper-chan        : 0\n    radio_max_rate_standard   : 0 mbps\n    radio_max_rate   : 0 mbps\n    oper-chutil-time : Fri Nov 20 18:00:35 2026 (age=186212)\n    oper-chutil-val  : 0 (averaged for the last available 15 seconds data)\n    oper-txpower     : 13 (max allowed 13) \n    bandwidth-rx     : 51963\n    bandwidth-tx     : 27357\n    bytes-rx         : 1115789764\n    bytes-tx         : 1127692655\n    tx-retries       : 18%\n    mac-err-rx       : 0\n    mac-err-tx       : 0\n    interfering-ap   : 0\n    peak-sta-cnt     : 3\n  Radio 4            : Monitor\n    detected_rogue_ap_num     : 0\n    detected_rogue_infra_ap_num     : 0\n  Radio 5            : Not Exist\n  wtp-wanlan-mode            : wan-only\n"
+}

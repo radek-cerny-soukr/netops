@@ -1,4 +1,4 @@
                                                                    local/remote
   mlag     desc                      state     local     remote          status
 -------- ------------------- --------------- --------- ----------- ------------
-   128     B04-MLAG-to-vPC     active-full     Po128      Po128           up/up
+   128     DUO-MLAG-to-vPC     active-full     Po128      Po128           up/up

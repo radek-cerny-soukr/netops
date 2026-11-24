@@ -1,0 +1,9 @@
+host01        $ config firewall addrgrp
+    edit "netops-firewall-addresses-parent"
+        set member "netops-firewall-addresses-child"
+        set comment "FIREWALL-ADDRESSES parent"
+        set uuid 00000000-0000-4000-8000-000000000008
+    next
+end
+
+host01        $

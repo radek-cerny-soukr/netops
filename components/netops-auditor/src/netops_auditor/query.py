@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from .engine import EVALUATED, NOT_EVALUATED, UNSUPPORTED
+from .engine import EVALUATED, NOT_EVALUATED, UNSUPPORTED, run_platform
+from .platforms import PLATFORMS, is_snapshot_marker
 from .findings import SEVERITIES
 from .state import STATE_GONE, STATES, UNEVALUATED_RULES, classify, suppressions_for_device
 from .state import STATE_NOT_EVALUATED, coverage, evaluation_complete, last_evaluated, stored_statuses, unevaluated_rules
@@ -61,8 +62,6 @@ FINDING_KEYS = (
 )
 
 MARKER_STATES = {
-    "fortios.snapshot.incomplete": (NOT_EVALUATED, "snapshot-incomplete"),
-    "exos.snapshot.incomplete": (NOT_EVALUATED, "snapshot-incomplete"),
     "fortios.scope.vdom-unsupported": (UNSUPPORTED, "fortios.scope.vdom-unsupported"),
 }
 
@@ -238,10 +237,9 @@ def _unevaluated_history(stored, statuses, history) -> tuple:
     if complete and not skipped:
         return None, ()
     run, previous = history
-    if complete:
-        present = {item["fingerprint"] for item in stored}
-        previous = tuple(item for item in previous if item["rule_id"] in skipped and item["fingerprint"] not in present)
-    return run, previous
+    present = {item["fingerprint"] for item in stored}
+    return run, tuple(item for item in previous if item["fingerprint"] not in present
+                      and (not complete or item["rule_id"] in skipped))
 
 
 def _severity_counts(findings) -> dict:
@@ -262,7 +260,8 @@ def _rule_state(statuses, stored, rule_id) -> dict:
     marker = next((entry["rule_id"] for entry in stored if entry["rule_id"] in UNEVALUATED_RULES), None)
     if marker is None or marker == rule_id:
         return {"status": EVALUATED, "reason": ""}
-    status, reason = MARKER_STATES[marker]
+    status, reason = ((NOT_EVALUATED, "snapshot-incomplete") if is_snapshot_marker(marker)
+                      else MARKER_STATES[marker])
     return {"status": status, "reason": reason}
 
 
@@ -330,8 +329,16 @@ def _groups(entries) -> tuple:
     return tuple(sorted(groups, key=lambda group: (-group["count"], group["object_key"])))
 
 
-def _device_status(store, tenant, device, now, stale_after_hours) -> dict:
-    runs = _runs(store, tenant, device)
+def _selected_runs(store, tenant, names, platform):
+    if platform is not None and (not isinstance(platform, str) or platform not in PLATFORMS):
+        raise QueryError("unknown Auditor platform")
+    for name in sorted(set(names)):
+        runs = _runs(store, tenant, name)
+        if platform is None or runs and run_platform(runs[0]["rules_version"]) == platform:
+            yield name, runs
+
+
+def _device_status(store, tenant, device, now, stale_after_hours, runs) -> dict:
     if not runs:
         return {
             "device": device,
@@ -372,6 +379,7 @@ def audit_status(
     now=None,
     stale_after_hours=DEFAULT_STALE_AFTER_HOURS,
     suppressions_configured=None,
+    platform=None,
 ) -> dict:
     _checked_text("tenant", tenant)
     moment = _checked_now(now)
@@ -381,7 +389,8 @@ def audit_status(
     else:
         names = (_checked_text("device", device),)
     devices = tuple(
-        _device_status(store, tenant, name, moment, hours) for name in sorted(frozenset(names))
+        _device_status(store, tenant, name, moment, hours, runs)
+        for name, runs in _selected_runs(store, tenant, names, platform)
     )
     totals = {"devices": len(devices), STATUS_FRESH: 0, STATUS_STALE: 0, STATUS_NEVER: 0}
     for item in devices:
@@ -440,13 +449,14 @@ def _empty_listing(tenant, device, run_state) -> dict:
     }
 
 
-def _device_entries(store, tenant, device, suppressions, moment, boundary=None):
+def _device_entries(store, tenant, device, suppressions, moment, boundary=None, *, runs=None):
     """Classify the last run of one device exactly as list_findings does.
 
     Returns (run_state, last_run, findings, gone); the entries are unfiltered.
     Shared by list_findings and findings_summary so that their filters mean the same.
     """
-    runs = _runs(store, tenant, device)
+    if runs is None:
+        runs = _runs(store, tenant, device)
     if not runs:
         return RUN_NEVER, None, (), ()
     last = runs[0]
@@ -596,6 +606,7 @@ def findings_summary(
     rule_id=None,
     limit=SUMMARY_LIMIT_DEFAULT,
     suppressions_configured=False,
+    platform=None,
 ) -> dict:
     """Brief filtered findings of the last run of every device of the tenant (or one device).
 
@@ -614,8 +625,8 @@ def findings_summary(
     else:
         names = (_checked_text("device", device),)
     everything = []
-    for name in sorted(frozenset(names)):
-        findings, gone = _device_entries(store, tenant, name, suppressions, moment)[2:]
+    for name, runs in _selected_runs(store, tenant, names, platform):
+        findings, gone = _device_entries(store, tenant, name, suppressions, moment, runs=runs)[2:]
         everything.extend(_summary_item(name, item) for item in findings + gone)
     matching = sorted(_filtered(everything, wanted_severity, wanted_state, wanted_rule), key=_summary_order)
     items = tuple(matching[:bound])

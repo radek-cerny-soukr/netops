@@ -1,0 +1,23 @@
+
+
+
+Extended IP access list NETOPS-XE-ACCESS-CONTROL-V4
+    10 permit tcp 203.0.113.32 0.0.0.31 host 203.0.113.39 eq 22
+    20 permit udp any any eq domain
+    30 permit icmp any any (4 matches)
+    40 deny ip host 203.0.113.41 any
+    50 permit tcp any any eq www
+    60 permit tcp any any eq 443
+    70 permit tcp any any eq 8080
+    80 permit udp any any eq ntp
+    90 permit tcp any any eq bgp
+    100 permit tcp any any eq smtp
+    110 permit tcp any any eq telnet
+    120 permit tcp any any eq ftp
+    130 permit udp any any eq snmp
+    140 permit udp any any eq syslog
+    150 permit tcp 192.0.2.0 0.0.0.3 any
+    160 permit tcp any any eq 8443
+    170 permit tcp any any eq 67
+    180 permit udp any any eq tftp
+    190 permit udp any any eq bootps

@@ -69,7 +69,8 @@ def decode_rpc(headers, raw):
         return json.loads(raw)
     if kind.startswith("text/event-stream"):
         messages = []
-        for block in raw.decode("utf-8", "replace").split("\n\n"):
+        stream = raw.decode("utf-8", "replace").replace("\r\n", "\n").replace("\r", "\n")
+        for block in stream.split("\n\n"):
             data = [line[5:].lstrip() for line in block.splitlines() if line.startswith("data:")]
             if data:
                 messages.append(json.loads("\n".join(data)))

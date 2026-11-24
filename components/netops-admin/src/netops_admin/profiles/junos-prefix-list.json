@@ -28,5 +28,5 @@
   "volatile": [],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "Uses the Junos commit confirmed safeguard and scoped inverse (G132). A whitespace-delimited list of literal IPv4 or IPv6 network prefixes in one address family."
+  "rollback_evidence": "Live write and return on vJunos-switch 26.2R1.7 (2026-11-19): The OSPF interface or routing policy configuration was changed, read back and undone. Uses the Junos commit confirmed safeguard and scoped inverse (junos routing). A whitespace-delimited list of literal IPv4 or IPv6 network prefixes in one address family."
 }

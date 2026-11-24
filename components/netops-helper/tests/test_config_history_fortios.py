@@ -12,9 +12,9 @@ import test_config_diff_ios_family as family
 from test_config_diff_ios_family import SPECS, _call, env  # noqa: F401 (pytest fixture)
 
 ROOT = Path(__file__).resolve().parents[3]
-PROJECTED = (ROOT / 'components/netops-admin/tests/fixtures/g16/fg60f-global.conf').read_text()
+PROJECTED = (ROOT / 'components/netops-admin/tests/fixtures/interface-addressing/fg60f-global.conf').read_text()
 CONFIG = PROJECTED.split('\n', 1)[1]
-STATUS = json.loads((Path(__file__).parent / 'fixtures/g09_fortios_60f_768.json').read_text())
+STATUS = json.loads((Path(__file__).parent / 'fixtures/firewall_health_fortios_60f_768.json').read_text())
 STATUS = STATUS['members']['probe']['responses']['get system status']
 STATUS = '\n'.join(line for line in STATUS.splitlines()
                    if line.startswith(('Version:', 'Virtual domain configuration:')))

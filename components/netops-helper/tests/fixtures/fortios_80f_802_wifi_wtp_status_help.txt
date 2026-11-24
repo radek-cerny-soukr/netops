@@ -1,6 +1,6 @@
 <wtp-id>    WTP ID.
 
-FGT80F0000001111(Primary) $ get wireless-controller wtp-status 
+FGTEXAMPLE0001111(Primary) $ get wireless-controller wtp-status 
 
 WTP: FAPEXAMPLE0000001  0-192.0.2.10:5246
     vdom             : root

@@ -1,4 +1,4 @@
-"""Port bounce (1.0.12 G138 J11) and PoE cycle (J10) of one Junos port.
+"""Port bounce (1.0.12 junos port maintenance J11) and PoE cycle (J10) of one Junos port.
 
 Both run as one journaled operation through the same admission as apply (target, enrollment, budgets, blocking, audit
 log, notification) and behind the commit confirmed safeguard of exec_junos.py. The plan is a plan of an action-only
@@ -10,7 +10,7 @@ Order: the state before, the margin of the own timer, the change session (the co
 postcheck and audit of the off state, the observed off state, a pause of HOLD_SECONDS, the immediate return of
 exec_junos.revert_now (the inverse lines committed with a plain "commit comment netops-<id>-revert", which ends the
 own timer and keeps the state before; it is never committed with commit confirmed, because an expiry would return the
-state before the newest commit confirmed, which is the disabled port, measured in task 378), the check of the
+state before the newest commit confirmed, which is the disabled port, measured in verification), the check of the
 configuration against the state before and the observed on state. Until the plain commit the expiry of the timer
 returns the port to the state before, so an interrupted operation settles like any other Junos change (execute.py
 recover). A link or a powered device that does not return within the wait leaves the configuration as before, with the
@@ -50,16 +50,19 @@ def request(action: str, device: str, port: str, reason: str, user_request: str,
     return parse_request(json.dumps(body).encode("utf-8"))
 
 
-def _admissible(runtime, device_name, action):
+def _admissible(runtime, device_name, action, cycle_request):
+    """Platform and measured profile of the target, from the configuration only: no device read or write."""
     device = runtime.config.devices.get(device_name)
     if device is not None and device.platform != "junos":
         raise Rejected(["operation %s of this module is for Junos switches" % action],
                        reason_codes=["action_unsupported"])
+    if device is not None:
+        execute._measured(runtime, device, cycle_request)
 
 
 def preview(runtime, device_name: str, action: str, cycle_request) -> dict:
     try:
-        _admissible(runtime, device_name, action)
+        _admissible(runtime, device_name, action, cycle_request)
         result, refused = execute._preview(runtime, device_name, cycle_request, action=action)
     except Rejected as exc:
         if not isinstance(exc, execute.BudgetExhausted):
@@ -74,7 +77,7 @@ def preview(runtime, device_name: str, action: str, cycle_request) -> dict:
 
 def apply(runtime, device_name: str, action: str, cycle_request, *, expected_plan_sha256=None) -> dict:
     try:
-        _admissible(runtime, device_name, action)
+        _admissible(runtime, device_name, action, cycle_request)
         if expected_plan_sha256 is None:
             raise Rejected(["Junos cycle apply requires the plan_sha256 from preview"], reason_codes=["plan_changed"])
         expected_plan = execute._expected_plan(cycle_request, expected_plan_sha256)

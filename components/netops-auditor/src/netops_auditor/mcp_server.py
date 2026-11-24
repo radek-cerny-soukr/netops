@@ -22,11 +22,9 @@ except ModuleNotFoundError:
 from fastmcp.exceptions import ToolError
 
 from . import __version__
-from . import checks_exos
-from . import checks_fortiadc
-from . import checks_fortios
 from . import query
-from .engine import CatalogError, load_catalog
+from .engine import CatalogError, available_platforms, load_catalog
+from .platforms import PLATFORMS
 from .findings import FingerprintError, checked_component
 from .store import BUSY_TIMEOUT_SECONDS, SCHEMA_VERSION, Store, schema_version
 from .suppressions import SuppressionError, load_for_tenant
@@ -38,8 +36,6 @@ CATALOG_VARIABLE = "NETOPS_AUDITOR_CATALOG"
 SUPPRESSIONS_VARIABLE = "NETOPS_AUDITOR_SUPPRESSIONS"
 
 REQUIRED_VARIABLES = (STORE_VARIABLE, TENANT_VARIABLE, CATALOG_VARIABLE)
-
-PLATFORMS = {"exos": checks_exos, "fortiadc": checks_fortiadc, "fortios": checks_fortios}
 
 TOOL_NAMES = (
     "audit_status",
@@ -130,10 +126,6 @@ class ReadOnlyStore(Store):
             )
 
 
-def available_platforms() -> tuple:
-    return tuple(sorted(PLATFORMS))
-
-
 def _text(values, name: str) -> str:
     value = values.get(name)
     return value.strip() if isinstance(value, str) else ""
@@ -144,11 +136,10 @@ def _missing(values) -> tuple:
 
 
 def _rules(platform: str) -> tuple:
-    known = available_platforms()
-    if platform not in known:
+    if platform not in PLATFORMS:
         raise ConfigurationError(
-            "%s names platform %r, the auditor holds a rule catalog for: %s"
-            % (CATALOG_VARIABLE, platform, ", ".join(known))
+            "%s names an unavailable platform, the auditor holds a rule catalog for: %s"
+            % (CATALOG_VARIABLE, ", ".join(available_platforms()))
         )
     try:
         return load_catalog(platform)
@@ -258,6 +249,15 @@ def _tool_errors(function):
 mcp = FastMCP("NetOps Auditor Read-Only", instructions=INSTRUCTIONS, version=__version__)
 
 
+def _selected_rules(platform, current):
+    if platform is None or platform == current.platform:
+        return current.rules
+    try:
+        return _rules(platform)
+    except ConfigurationError as error:
+        raise query.QueryError(str(error)) from None
+
+
 @mcp.tool(
     description=(
         "Report audit freshness, run identity and finding counts per device of the configured tenant."
@@ -267,8 +267,10 @@ mcp = FastMCP("NetOps Auditor Read-Only", instructions=INSTRUCTIONS, version=__v
 def audit_status(
     device: str | None = None,
     stale_after_hours: float = query.DEFAULT_STALE_AFTER_HOURS,
+    platform: str | None = None,
 ) -> dict[str, Any]:
     current = configuration()
+    _selected_rules(platform, current)
     with open_store() as store:
         return query.audit_status(
             store,
@@ -276,14 +278,15 @@ def audit_status(
             device=device,
             now=_now(),
             stale_after_hours=stale_after_hours,
+            platform=platform,
             suppressions_configured=suppressions_configured(),
         )
 
 
 @mcp.tool(description="List the rules of the configured catalog with class, severity and title.")
 @_tool_errors
-def list_rules() -> tuple[dict[str, Any], ...]:
-    return query.list_rules(configuration().rules)
+def list_rules(platform: str | None = None) -> tuple[dict[str, Any], ...]:
+    return query.list_rules(_selected_rules(platform, configuration()))
 
 
 @mcp.tool(
@@ -293,8 +296,8 @@ def list_rules() -> tuple[dict[str, Any], ...]:
     )
 )
 @_tool_errors
-def rule_detail(rule_id: str) -> dict[str, Any]:
-    return query.rule_detail(configuration().rules, rule_id)
+def rule_detail(rule_id: str, platform: str | None = None) -> dict[str, Any]:
+    return query.rule_detail(_selected_rules(platform, configuration()), rule_id)
 
 
 @mcp.tool(
@@ -342,13 +345,16 @@ def findings_summary(
     state: str | None = None,
     rule_id: str | None = None,
     limit: int = query.SUMMARY_LIMIT_DEFAULT,
+    platform: str | None = None,
 ) -> dict[str, Any]:
     current = configuration()
+    rules = _selected_rules(platform, current)
     with open_store() as store:
         return query.findings_summary(
             store,
             current.tenant,
-            current.rules,
+            rules,
+            platform=platform,
             device=device,
             suppressions=suppressions(),
             now=_now(),

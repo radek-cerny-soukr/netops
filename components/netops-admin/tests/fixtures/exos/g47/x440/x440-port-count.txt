@@ -1,5 +1,0 @@
-Policy Name       Vlan Name        Port   Direction
-    Counter Name                   Packet Count         Byte Count
-==================================================================
-netops-g47-live   *                10     ingress
-    g47_live                       0

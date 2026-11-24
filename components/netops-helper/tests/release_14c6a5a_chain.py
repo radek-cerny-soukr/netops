@@ -1,4 +1,4 @@
-"""Frozen copy of the main 14c6a5a response chain (netops_helper/sanitize.py), task 165-r4.
+"""Frozen copy of the main 14c6a5a response chain (netops_helper/sanitize.py), verification.
 
 Test reference only, independent of the product module: the credential expressions,
 replacement functions, ``_redact_credentials`` and the response flow
@@ -7,7 +7,7 @@ replacement functions, ``_redact_credentials`` and the response flow
 (proxy ``_sanitize_object``, product ``netops.redaction.redact``, SNMP context marking
 and masking, terminal-control cleaning) are identical in 1.0.8 (61e7de3) and 14c6a5a
 and are bound in ``bind_layers``; the proxy is the frozen 1.0.8 test fixture
-(task 377), independent of current proxy rules. Its public ``sanitize_object`` and
+(verification), independent of current proxy rules. Its public ``sanitize_object`` and
 ``sanitize_text`` wrappers are disabled here: they delegate to the current response
 chain; reference callers must use ``_sanitize_object`` instead.
 ``redact_response(text, secrets, helper=...)`` with the

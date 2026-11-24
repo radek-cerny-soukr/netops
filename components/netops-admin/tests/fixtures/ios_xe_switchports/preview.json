@@ -1,0 +1,20 @@
+{
+  "approval": "TASK.md SCHVALENI UZIVATELE 2026-11-17",
+  "commands": [
+    "configure terminal revert timer 5",
+    "end",
+    "configure terminal",
+    "vlan 3780",
+    "name netops-xe-switchports",
+    "exit",
+    "vlan 3781",
+    "name netops-xe-switchports-voice",
+    "exit",
+    "interface Ethernet0/1",
+    "switchport access vlan 3780",
+    "switchport voice vlan 3781",
+    "no shutdown",
+    "end"
+  ],
+  "return": "configure revert now; no vlan 3780-3782; compare full config digest"
+}

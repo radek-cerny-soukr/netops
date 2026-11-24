@@ -16,7 +16,7 @@ def _interface_slot(kind: str) -> dict[str, Slot]:
     return {"interface": Slot("interfaces", kind)}
 
 
-# G132: enrolled routing instance, peer and probe addresses (verified on vJunos-switch 26.2R1.7).
+# junos routing: enrolled routing instance, peer and probe addresses (verified on vJunos-switch 26.2R1.7).
 _INSTANCE = {"instance": Slot("routing_instances", "routing_instance")}
 _PEER = {"address": Slot("addresses", "address")}
 _PROBE = {"address": Slot("addresses", "ipv4_address"), "source": Slot("addresses", "ipv4_address")}
@@ -144,7 +144,7 @@ COMMON_QUERIES: dict[str, Query] = {
         high_volume=True, empty_allowed=True, optional_slots=frozenset({"severity", "interface"}),
         filter_slots=frozenset(LOG_HISTORY_SLOTS),
     ),
-    # G132 (1.0.12): probes from the device, routing-instance context and BGP/OSPF detail.
+    # junos routing (1.0.12): probes from the device, routing-instance context and BGP/OSPF detail.
     "ping": Query("ping {address} count 5 source {source} | no-more", _PROBE, "Send five IPv4 echo requests to an enrolled address from an enrolled source." + _NETWORK_PERMISSION),
     "ping_instance": Query("ping {address} count 5 source {source} routing-instance {instance} | no-more", {**_PROBE, **_INSTANCE}, "Send five IPv4 echo requests from an enrolled source in an enrolled routing instance." + _NETWORK_PERMISSION),
     "traceroute": Query("traceroute {address} no-resolve " + _TRACEROUTE_OPTIONS, {"address": _PROBE["address"]}, "Trace the path to an enrolled IPv4 address (at most 30 hops, 1 s per probe)." + _NETWORK_PERMISSION),

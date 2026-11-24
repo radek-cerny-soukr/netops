@@ -11,6 +11,6 @@
 - [Device accounts and roles](account-model.md) describes the Helper, Auditor and Admin account requirements.
 - [Auditor configuration](../components/netops-auditor/docs/configuration.md), [collection channels](../components/netops-auditor/docs/channels.md) and [FortiADC snapshots](../components/netops-auditor/docs/tools.md#fortiadc-snapshots) cover operator setup and audit scope.
 - [Qualification](testing-1.0.md) (run from a source checkout of the release commit; the release files do not contain it) and [CIS Docker Benchmark mapping](security/cis-docker-benchmark.md).
-- [1.0.12 release notes](../release/notes-1.0.12.md) and the [changelog](../CHANGELOG.md).
+- [Release notes for 1.0.13](../release/notes-1.0.13.md), [changelog](../CHANGELOG.md), [release history](release-history.md) and [changelog archive](changelog-archive.md).
 
 Existing device/parser/schema contracts continue to apply inside the new product. Core inventory and vault schemas, Admin safeguard/enrollment contracts and Auditor findings are maintained with their engine sources. Installation and release procedures in historical component documentation do not replace the NetOps 1.0 Docker quickstart.

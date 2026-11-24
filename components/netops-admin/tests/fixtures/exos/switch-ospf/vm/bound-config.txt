@@ -1,0 +1,4 @@
+#
+# Module acl configuration.
+#
+configure access-list netops-switch-ospf-capture vlan "netops-switch-ospf" ingress

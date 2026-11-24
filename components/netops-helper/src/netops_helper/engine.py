@@ -25,6 +25,7 @@ import socket
 import subprocess
 import stat
 import struct
+import sys
 import tempfile
 import threading
 import ssl
@@ -172,7 +173,7 @@ _EXOS_BLANK_STATUS_250_QUERIES = frozenset({"bfd_sessions", "ospf_lsdb", "ospf_n
 # EXOS lists the newest message first; IOS, IOS XE, NX-OS, EOS and Junos print the oldest first, so the limit keeps the trailing lines.
 _EXOS_LOG_QUERIES = frozenset({"log_messages", "log_warnings"})
 _OLDEST_FIRST_LOG_PROFILES = frozenset({"cisco_ios", "cisco_xe", "cisco_nxos", "arista_eos", "juniper_junos", "juniper_junos_els"})
-# G120: the EOS time-window and time-range reads are capped the same way (oldest first).
+# eos health: the EOS time-window and time-range reads are capped the same way (oldest first).
 _OLDEST_FIRST_LOG_QUERIES = frozenset({"log_messages", "log_interactive_commands"}) | EOS_LOG_WINDOW_QUERIES
 # Junos `| last 200 | no-more` prints the pager mark of the `last` stage in front of the final line, e.g. "---(more 100%)---  <line>".
 _JUNOS_LAST_PAGER_MARK = re.compile(r"(?m)^[ \t]*---\(more 100%\)---[ \t]*\r?\n(?:[ \t]*\r?\n)?|---\(more 100%\)---[ \t]*")
@@ -242,12 +243,35 @@ def _process_connection_lane(address: str, port: int):
         if (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1
                 or info.st_uid != os.geteuid() or stat.S_IMODE(info.st_mode) != 0o600):
             raise ValueError("SSH lane file is unsafe")
-        fcntl.flock(descriptor, fcntl.LOCK_EX)
+        if _OVERVIEW_BUDGET.get() is None:
+            fcntl.flock(descriptor, fcntl.LOCK_EX)
+        else:
+            while True:
+                _read_timeout(1)
+                try:
+                    fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    break
+                except BlockingIOError:
+                    _sleep(_read_timeout(0.05))
         yield descriptor
     finally:
         if descriptor is not None:
             os.close(descriptor)  # closing also releases flock after cancellation
         os.close(directory)
+
+
+@contextmanager
+def _connection_lock(lock):
+    if _OVERVIEW_BUDGET.get() is None:
+        with lock:
+            yield
+        return
+    while not lock.acquire(timeout=_read_timeout(0.05)):
+        pass
+    try:
+        yield
+    finally:
+        lock.release()
 
 
 @contextmanager
@@ -260,7 +284,7 @@ def _paced_connection(address: str, port: int, platform: str | None):
     """
     spacing = _CONNECTION_SPACING_SECONDS.get(platform, 0.0)
     lane = _lane_for(address, port)
-    with lane.lock, _process_connection_lane(address, port) as descriptor:
+    with _connection_lock(lane.lock), _process_connection_lane(address, port) as descriptor:
         saved = os.pread(descriptor, 9, 0)
         if saved:
             if len(saved) != 8:
@@ -270,7 +294,10 @@ def _paced_connection(address: str, port: int, platform: str | None):
                 raise ValueError("SSH lane timestamp is invalid")
             wait = previous + spacing - _now()
             if wait > 0:
-                _sleep(_read_timeout(wait))
+                allowed = _read_timeout(wait)
+                if _OVERVIEW_BUDGET.get() is not None and allowed < wait:
+                    raise TimeoutError("connection spacing exceeds the remaining read time")
+                _sleep(allowed)
         _read_timeout(_SSH_READ_TIMEOUT_SECONDS)
         lane.last_started = _now()
         if os.pwrite(descriptor, struct.pack("!d", lane.last_started), 0) != 8:
@@ -374,14 +401,29 @@ def host_key_line(
     return line
 
 
+def _overview_getaddrinfo(host):
+    # Killing the subprocess on timeout also stops its blocking system resolver.
+    program = ("import json,socket,sys; "
+               "print(json.dumps(socket.getaddrinfo(sys.argv[1], None, "
+               "family=socket.AF_INET, type=socket.SOCK_STREAM)))")
+    result = subprocess.run(
+        [sys.executable, "-I", "-c", program, host], stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL, timeout=_read_timeout(_SSH_READ_TIMEOUT_SECONDS),
+    )
+    if result.returncode:
+        raise socket.gaierror("system resolver failed")
+    return json.loads(result.stdout)
+
+
 def _resolve_target_ipv4(auth: TargetAuth) -> tuple[str, ...]:
     try:
         parsed = ipaddress.ip_address(auth.host)
     except ValueError:
         auth.require_dns()
-        rows = socket.getaddrinfo(
-            auth.host, None, family=socket.AF_INET, type=socket.SOCK_STREAM,
-        )
+        if _OVERVIEW_BUDGET.get() is not None:
+            rows = _overview_getaddrinfo(auth.host)
+        else:
+            rows = socket.getaddrinfo(auth.host, None, family=socket.AF_INET, type=socket.SOCK_STREAM)
         addresses = tuple(sorted({str(ipaddress.ip_address(row[4][0])) for row in rows}))
     else:
         if parsed.version != 4:
@@ -392,6 +434,17 @@ def _resolve_target_ipv4(auth: TargetAuth) -> tuple[str, ...]:
     if any(not auth.egress.allows_address(address) for address in addresses):
         raise EgressScopeError("resolved target address is outside the egress allowlist")
     return addresses
+
+
+def _read_endpoint(auth, platform):
+    cached = _OVERVIEW_ENDPOINT.get()
+    if cached is not None and "pin" in cached:
+        return cached["pin"]
+    address = _resolve_target_ipv4(auth)[0]
+    endpoint = address, host_key_line(auth, address, platform)
+    if cached is not None:
+        cached["pin"] = endpoint
+    return endpoint
 
 
 def _refused_host_key_algorithms(auth: TargetAuth) -> list[str]:
@@ -593,7 +646,10 @@ def _fortinet_needs_refusal_text(platform, command):
     # marks such a command as refused and discards its body.
     if platform == "fortiadc":
         return command in fortiadc_diagnostics.INTERFACE_EXEC_WORDS
+    # A managed switch without PSE ports answers its PoE summary with `switch:<serial> is not PoE capable`
+    # before the refusal line (FortiOS 7.6.8); the overview reports that as not applicable.
     return command.startswith(("diagnose wireless-controller ", "diagnose switch-controller switch-info mclag ",
+                               "diagnose switch-controller switch-info poe summary ",
                                "get router info bgp neighbors ", "get router info6 bgp neighbors "))
 
 
@@ -652,8 +708,7 @@ def _exec_read(auth: TargetAuth, platform: str, command: str, stdout_consumer=No
             address, pinned_line = reader.target(platform)
             result = _exec_command(auth, address, pinned_line, DeviceCredential(auth), command, platform, **options)
     else:
-        address = _resolve_target_ipv4(auth)[0]
-        known_hosts_line = host_key_line(auth, address, platform)
+        address, known_hosts_line = _read_endpoint(auth, platform)
         credential = DeviceCredential(auth)
         for preamble in _PLATFORM_PREAMBLE.get(platform, ()):
             _exec_command(auth, address, known_hosts_line, credential, preamble, platform)
@@ -768,8 +823,7 @@ def _pty_body(data: bytes, command: str, prompt: bytes) -> str:
 
 def _pty_read(auth: TargetAuth, platform: str, command: str) -> tuple[int | None, str]:
     """Answer a device without an exec channel, discarding every byte of the login."""
-    address = _resolve_target_ipv4(auth)[0]
-    known_hosts_line = host_key_line(auth, address, platform)
+    address, known_hosts_line = _read_endpoint(auth, platform)
     try:
         with _paced_connection(address, auth.port, platform):
             session = core_session.Session(
@@ -779,7 +833,7 @@ def _pty_read(auth: TargetAuth, platform: str, command: str) -> tuple[int | None
                 DeviceCredential(auth),
                 known_hosts_line,
                 legacy_ssh=auth.legacy_ssh,
-                timeout_seconds=_SSH_READ_TIMEOUT_SECONDS,
+                timeout_seconds=_read_timeout(_SSH_READ_TIMEOUT_SECONDS),
             )
             try:
                 for prompt, answer in (
@@ -787,13 +841,15 @@ def _pty_read(auth: TargetAuth, platform: str, command: str) -> tuple[int | None
                     (_RUCKUS_PASSWORD_PROMPT, auth.secret),
                     (_RUCKUS_USER_PROMPT, _RUCKUS_ENABLE_COMMAND),
                 ):
-                    _, seen = session.expect([prompt], _SSH_LOGIN_TIMEOUT_SECONDS)
+                    _, seen = session.expect([prompt], _read_timeout(_SSH_LOGIN_TIMEOUT_SECONDS))
                     session.discard(seen)
+                    _read_timeout(_SSH_LOGIN_TIMEOUT_SECONDS)
                     session.send(answer)
-                _, seen = session.expect([_RUCKUS_ENABLE_PROMPT], _SSH_LOGIN_TIMEOUT_SECONDS)
+                _, seen = session.expect([_RUCKUS_ENABLE_PROMPT], _read_timeout(_SSH_LOGIN_TIMEOUT_SECONDS))
                 session.discard(seen)
+                _read_timeout(_SSH_READ_TIMEOUT_SECONDS)
                 session.send(command)
-                _, answered = session.expect([_RUCKUS_ENABLE_PROMPT], _SSH_READ_TIMEOUT_SECONDS)
+                _, answered = session.expect([_RUCKUS_ENABLE_PROMPT], _read_timeout(_SSH_READ_TIMEOUT_SECONDS))
             finally:
                 session.close()
     except core_session.SessionError:
@@ -867,7 +923,7 @@ def _prompt_read(auth: TargetAuth, platform: str, command: str) -> tuple[int | N
 
 
 def _ios_family_adapter(platform):
-    """The adapter module of the Cisco IOS, IOS XE, NX-OS, Arista EOS and Junos (G136) configuration reads."""
+    """The adapter module of the Cisco IOS, IOS XE, NX-OS, Arista EOS and Junos (junos config) configuration reads."""
     if platform in ('juniper_junos', 'juniper_junos_els'):
         from . import config_junos_adapter as adapter
         return adapter
@@ -917,10 +973,12 @@ def _ios_capture_consumer(command, stdout_consumer, platform='cisco_ios') -> boo
 
 
 _LOCATE_BUDGET = ContextVar("helper_locate_budget", default=None)
+_OVERVIEW_BUDGET = ContextVar("helper_overview_budget", default=None)
+_OVERVIEW_ENDPOINT = ContextVar("helper_overview_endpoint", default=None)
 
 
 def _read_timeout(seconds):
-    budget = _LOCATE_BUDGET.get()
+    budget = _OVERVIEW_BUDGET.get() or _LOCATE_BUDGET.get()
     return min(seconds, budget.remaining()) if budget is not None else seconds
 
 
@@ -967,7 +1025,7 @@ _JUNOS_REFUSAL = re.compile(
     r"|unknown command: [^\r\n]*+|permission denied: [^\r\n]*+"
     r"|the [a-z0-9-]+ subsystem is not running"
     r"|device [a-z0-9./:-]+ not found"
-    # G132: an unknown routing instance in `show route table <ri>.inet.0` / `show arp vpn <ri>`.
+    # junos routing: an unknown routing instance in `show route table <ri>.inet.0` / `show arp vpn <ri>`.
     r"|No routing tables matching specification\.|Named Route table not found\.)[ \t]*\r?$"
 )
 _CLI_REFUSALS = {
@@ -1204,7 +1262,7 @@ _VDOM_ADMIN_REFUSED_COMMANDS = frozenset(READ_QUERIES["fortinet"][query].command
 def _login_vdom_context(shell: Any, vdom: str) -> bool:
     """After a refused `config vdom` / `config global`: is this session a per-VDOM administrator's login of `vdom`?
 
-    Positive device signals only, read in the same session (measured, task 197; see fortios_vdom): the status
+    Positive device signals only, read in the same session (measured, verification; see fortios_vdom): the status
     names multi-VDOM mode and exactly `vdom`, and the per-VDOM probe `get system arp` answers its table where a
     global session answers `-61`. The prompt must not show a context (`<host> (<context>) `). The texts are never
     answered.
@@ -1220,7 +1278,7 @@ def _login_vdom_context(shell: Any, vdom: str) -> bool:
 
 def _vdom_context_read(auth: TargetAuth, platform: str, vdom: str, commands: tuple[str, ...], *,
                        sequence: bool = False, extra: tuple[str, ...] = ()) -> tuple[int | None, str, int | None, tuple[str, ...]]:
-    """Run reviewed FortiOS reads in one SSH session inside `config vdom` / `edit <vdom>` / ... / `end`.
+    """Run reviewed FortiOS reads in one SSH session inside `config vdom` / `edit <vdom>` /... / `end`.
 
     Measured on the 60F 7.6.8 in multi-VDOM mode: a per-VDOM read outside a VDOM context is refused, and
     `edit <vdom>` prints `current vf=<vdom>:<index>`. Nothing is answered unless that marker names this VDOM
@@ -1228,7 +1286,7 @@ def _vdom_context_read(auth: TargetAuth, platform: str, vdom: str, commands: tup
     command that prints anything ends it, as in _sequence_read); `extra` commands (the VDOM membership join)
     run afterwards in the same context and are answered separately. Returns (rc, text, VDOM index, extras).
 
-    A per-VDOM administrator cannot enter `config vdom` (`Unknown action 0`, measured, task 197) and reads its
+    A per-VDOM administrator cannot enter `config vdom` (`Unknown action 0`, measured, verification) and reads its
     VDOM in its login context. Only when `config vdom` was refused and _login_vdom_context proves that context
     for this VDOM, the commands run directly; the index is then None (no marker). If any command of the read,
     `extra` included (the membership join `show system interface` lists every VDOM), has data not limited to the
@@ -1288,12 +1346,12 @@ def _global_context_read(auth: TargetAuth, platform: str, command: str,
                          vdom: str | None = None) -> tuple[int | None, str]:
     """Run one reviewed global FortiOS read in one SSH session inside `config global` / command / `end`.
 
-    Multi-VDOM only (task 202): the global system state commands are refused inside `config vdom` / `edit <vdom>`
+    Multi-VDOM only (verification): the global system state commands are refused inside `config vdom` / `edit <vdom>`
     (`-61`, measured on the 60F 7.6.8). `config global` prints no marker (measured): nothing is answered unless
     the device accepted it with an empty answer (measured) and the prompt is `<host> (global) # ` or `$ `.
     A refusal raises VdomRefused("global_context_not_permitted"), any other prompt "global_context_unverified";
     a refusal in a session that _login_vdom_context proves to be a per-VDOM administrator's login of `vdom`
-    raises VdomRefused("vdom_admin_global_scope_unavailable") (task 206).
+    raises VdomRefused("vdom_admin_global_scope_unavailable") (verification).
     """
     if platform != "fortinet":
         raise ValueError("global context reads are supported only for FortiOS")
@@ -1853,7 +1911,9 @@ def _audit_device_call(function: Any) -> Any:
             if auth.legacy_ssh is not None:
                 fields["legacy_ssh"] = auth.legacy_ssh
             record(
-                event, operation_id=operation_id, device=auth.alias, status="started",
+                event, operation_id=operation_id, device=(
+                    _overview_redact(auth.alias, auth) if event == "network_overview" else auth.alias
+                ), status="started",
                 **fields,
             )
         except Exception as exc:
@@ -1878,8 +1938,9 @@ def _audit_device_call(function: Any) -> Any:
             fields["detail"] = detail
         try:
             record(
-                event, operation_id=operation_id, device=auth.alias,
-                status=status, **fields,
+                event, operation_id=operation_id, device=(
+                    _overview_redact(auth.alias, auth) if event == "network_overview" else auth.alias
+                ), status=status, **fields,
             )
         except Exception as exc:
             raise AuditPostOperationError(
@@ -2525,7 +2586,7 @@ def _ssh_read(
             from .sanitize import redact_junos_sa_keys
             output = redact_junos_sa_keys(output)
         if normalized == "fortinet" and query in FORTIOS_IPSEC_KEY_QUERIES:
-            # G14: IKE/ESP key material before hashing, paging and the response.
+            # ipsec status: IKE/ESP key material before hashing, paging and the response.
             output = redact_fortios_ipsec_keys(output)
         if normalized == "cisco_xe" and query == "authentication_sessions_interface":
             # Cisco redirect URLs can include per-session tokens of any length.
@@ -2708,7 +2769,7 @@ def _ssh_read(
     forwarding_failed = (normalized == "cisco_nxos" and query == "forwarding_ipv4_route"
                          and (rc not in (0, None) or re.search(r"(?m)^\s*Cmd exec error\.[ \t]*$", cleaned)))
     partial_forwarding = forwarding_failed and not refused and re.search(r"(?m)^IPv4 routes for table ", cleaned)
-    # FortiADC (G28 ADC-C13, measured 7.6.7 build0676): a profile without diagnose rejects the first diagnose word.
+    # FortiADC (adc statistics ADC-C13, measured 7.6.7 build0676): a profile without diagnose rejects the first diagnose word.
     adc_diagnose_denied = normalized == "fortiadc" and not sequence and _fortiadc_diagnose_refused(command, cleaned)
     adc_interface_failed = adc_interface_read and rc not in (0, None)
     adc_interface_denied = (adc_interface_read and auth.account_role == "read-only"
@@ -2881,7 +2942,7 @@ def _ssh_read(
         from netops_core import tested
         firmware = _firmware_fields(tested.support(
             "Junos", identity_response["os_version"], TESTED_G134,
-            model=identity_response["model"], function="G134 Junos diagnostics" if g134 else "G135 Junos diagnostics",
+            model=identity_response["model"], function="Junos platform diagnostics" if g134 else "Junos security diagnostics",
         ))
     if g135 and not offset and page["next_offset"] is None:
         from .tables import junos_firewall_diagnostics
@@ -3040,7 +3101,7 @@ def _ssh_read(
 
 
 def _eos_health_routing_payload(query, output, parameters, capture_state, page, line_limit, unreadable_logs):
-    """G120 (EP09/EP10): EOS log window, health and routing summaries."""
+    """eos health (EP09/EP10): EOS log window, health and routing summaries."""
     from .triage_health import eos_health_payload
     from .triage_routing import eos_routing_payload
     return (eos_health_payload(query, output, capture_state, page["offset"], page["offset"] + page["returned_bytes"],
@@ -3506,7 +3567,7 @@ def _transport_cause(exc):
 
 # FortiOS 8.0.2 Administration Guide, "General configurations" (Create per-VDOM administrators): a per-VDOM
 # administrator must log in through an interface that belongs to its VDOM; elsewhere FortiOS refuses the login
-# (measured task 197: `name_invalid` in VDOM root). Added only for a FortiOS target with diagnostic_vdoms.
+# (measured verification: `name_invalid` in VDOM root). Added only for a FortiOS target with diagnostic_vdoms.
 _FORTIOS_VDOM_AUTH_ADVICE = ("; a per-VDOM administrator of a multi-VDOM FortiGate must log in through an interface "
                              "that belongs to its own VDOM, so check that the enrolled address is in that VDOM")
 
@@ -3573,7 +3634,7 @@ def _adc_certificate_inventory(auth, platform, query, parameters, offset, max_by
                 if rc in (0, None) and not _cli_refused(platform, output, command=command):
                     acme = config_fortiadc.certificate_acme(output)
             except (OSError, ValueError, core_ssh.SshError, core_session.SessionError, _ProductIdentityError):
-                # ACME is an optional extra read (1.0.12 summary 702, 550-rv/3): a refused SSH identity read leaves the
+                # ACME is an optional extra read (1.0.12 summary): a refused SSH identity read leaves the
                 # ACME state unknown (reported in `missing`) but must not discard the HTTPS inventory, which verifies
                 # the product identity on its own through platform/info.
                 pass
@@ -3701,7 +3762,7 @@ class _FortiosDiagnosticShell:
         self.answer_refusal_raises = answer_refusal_raises
         marker = getattr(session, "_last_prompt", None)
         if marker is None:
-            _, login = session.expect([b"# ", b"$ "], 15)
+            _, login = session.expect([b"# ", b"$ "], _overview_read_timeout(15))
             marker = login.splitlines()[-1]
             session.discard(login)
         marker = marker.rstrip() + b" "
@@ -3761,6 +3822,7 @@ class _FortiosDiagnosticShell:
         return command if getattr(self.session, "_prompt_pattern", None) is None else ""
 
     def command(self, command, timeout=10):
+        timeout = _overview_read_timeout(timeout)
         self.ready = False
         try:
             self.session.send(command)
@@ -3771,9 +3833,10 @@ class _FortiosDiagnosticShell:
 
     def navigate(self, command):
         start_context = getattr(self.session, "context", None)
+        timeout = _overview_read_timeout(10)
         self.session.send(command)
         try:
-            raw, marker = self._expect_prompt(command, 10, navigate=True)
+            raw, marker = self._expect_prompt(command, timeout, navigate=True)
         except core_session.SessionError:
             self.session.close()
             raise
@@ -3794,7 +3857,7 @@ class _FortiosDiagnosticShell:
             self.navigate("end")
             if self.prompt == initial:
                 return
-        except (ValueError, core_session.SessionError):
+        except (ValueError, TimeoutError, core_session.SessionError):
             pass
         # A later read must never run after the verified context was lost.
         self.session.close()
@@ -3872,7 +3935,7 @@ def _fortiadc_logs(auth, recipe, address, interface, count, timeout, max_bytes, 
             if next_start_line > diagnostics.MAX_START_LINE:
                 next_start_line = None
     else:
-        # Cut to max_bytes below: the floor must hold in every prefix (task 302-r7).
+        # Cut to max_bytes below: the floor must hold in every prefix (verification).
         selected = redact(result["output"], auth.secrets, cut_bytes=max_bytes)
         returned = selected.encode("utf-8")[:max_bytes].decode("utf-8", "ignore")
         byte_truncated = returned != selected
@@ -3920,7 +3983,7 @@ def _fortiadc_logs(auth, recipe, address, interface, count, timeout, max_bytes, 
         answer["header_only"] = result["header_only"]
         answer["source_address"] = result["source_address"]
         answer["filter_mismatch"] = result["filter_mismatch"]
-        # G28 ADC-C08: the parsed columns of the returned rows (device text, redacted like the output); only for a
+        # adc statistics ADC-C08: the parsed columns of the returned rows (device text, redacted like the output); only for a
         # complete answer, so a row never appears without the text it was parsed from.
         answer["records"] = [{key: redact(value, auth.secrets) if isinstance(value, str) else value
                               for key, value in row.items()} for row in result["records"]] if complete else []
@@ -3937,21 +4000,23 @@ def _fortiadc_logs(auth, recipe, address, interface, count, timeout, max_bytes, 
     return answer
 
 
-# G110 (RP10): the Unleashed identity the reads were checked on (R610, G107-G110 live runs).
+# wireless network services (RP10): the Unleashed identity the reads were checked on (R610, wireless inventory-wireless network services live runs).
 TESTED_RUCKUS = (("r610", "%s build %s" % (wifi_parse.RUCKUS_R610_RELEASE, wifi_parse.RUCKUS_R610_BUILD)),)
 
 
-def _read_ruckus_identity(auth):
+def _read_ruckus_identity(auth, *, read=None):
     try:
         platform = auth.require_ssh_query("ruckus_unleashed", "system_info")
     except PolicyScopeError:
         return None, None
     command = READ_QUERIES[platform]["system_info"].command
     try:
-        rc, output = _verified_read(auth, platform, command)
+        rc, output = (read or _verified_read)(auth, platform, command)
         if rc in (0, None) and not _cli_refused(platform, output, command=command):
-            return wifi_parse.ruckus_identity(_redact_output(output, auth))
+            return wifi_parse.ruckus_identity(output if read is not None else _redact_output(output, auth))
     except Exception:
+        if read is not None:
+            raise
         # The optional identification read must not discard the main query response.
         pass
     return None, None
@@ -3967,7 +4032,7 @@ def _ruckus_firmware_fields(auth, model, version):
 
 
 def _firmware_fields(support: dict[str, Any]) -> dict[str, Any]:
-    """The G00 result fields: firmware_support always, and for a version outside the tested ones one warnings[]
+    """The startup result fields: firmware_support always, and for a version outside the tested ones one warnings[]
     item (code firmware_untested) with the text for the person and the agent; the data are returned either way."""
     from netops_core import tested
     warning = tested.warning(support)
@@ -4013,7 +4078,7 @@ def fortios_diagnostics(auth: TargetAuth, recipe: str, address: str, interface: 
                                                    destination_port, protocol, since, until, start_line)):
                 raise ValueError("disk/NTP reads do not accept filters")
             return _fortiadc_monitoring(auth, recipe, address, interface, count, timeout, max_bytes)
-        if recipe == fortiadc_diagnostics.PACKET_CAPTURE:  # G32 ADC-G11
+        if recipe == fortiadc_diagnostics.PACKET_CAPTURE:  # adc objects ADC-firewall routing
             if any(value is not None for value in (vdom, health_check, source_port, protocol, since, until,
                                                    start_line)):
                 raise ValueError("packet_capture takes only address, source_address and destination_port filters")
@@ -4043,7 +4108,7 @@ def fortios_diagnostics(auth: TargetAuth, recipe: str, address: str, interface: 
                          destination_port=destination_port, protocol=protocol, **g10)
     window = diagnostics.log_window(recipe, since, until)
     diagnostics.authorize(auth, recipe, address, interface, vdom, source_address=source_address)
-    support: list[dict[str, Any]] = []  # firmware_support of the run (G00): filled once the identity is read
+    support: list[dict[str, Any]] = []  # firmware_support of the run (startup): filled once the identity is read
     from netops_core.target_lock import target_lock
     with target_lock(auth.host_key_fingerprint):
         try:
@@ -4077,7 +4142,7 @@ def fortios_diagnostics(auth: TargetAuth, recipe: str, address: str, interface: 
             # restoration was verified; otherwise RestoreUnverified above names the check.
             code = _transport_cause(error)
             if code is None:
-                # G00 (H5, X-P03): a refusal of the recipe itself names its fixed reason; others stay generic.
+                # startup (H5, X-P03): a refusal of the recipe itself names its fixed reason; others stay generic.
                 reason = _diagnostic_reason(error, diagnostics)
                 raise ValueError("bounded FortiOS diagnostic failed" + (": " + reason if reason else "") +
                                  "; the session was closed") from None
@@ -4095,7 +4160,7 @@ def fortios_diagnostics(auth: TargetAuth, recipe: str, address: str, interface: 
                 partial=diagnostics.session_partial(recipe, source_address, source_port, destination_port,
                                                     protocol, policy_id))))
     if recipe == "logs":
-        text = redact(raw["output"], auth.secrets, cut_bytes=max_bytes)  # cut below (task 302-r7)
+        text = redact(raw["output"], auth.secrets, cut_bytes=max_bytes)  # cut below (verification)
         page = text.encode("utf-8")[:max_bytes].decode("utf-8", "ignore")
         return {"ok": raw["state"] in {"ok", "empty"}, "target": auth.alias, "recipe": recipe, "vdom": domain,
                 "identity": identity, "deadline_reached": timed_out, "cleanup": "verified",
@@ -4112,7 +4177,7 @@ def fortios_diagnostics(auth: TargetAuth, recipe: str, address: str, interface: 
                 "content_sha256": digest_text(text), "returned_bytes": len(page.encode("utf-8")),
                 "truncated": raw["truncated"] or page != text, **_firmware_fields(support[0]),
                 "untrusted_device_output": page}
-    # Cut to max_bytes below: the floor must hold in every prefix (task 302-r7). The session
+    # Cut to max_bytes below: the floor must hold in every prefix (verification). The session
     # projection keeps only numbers, addresses and fixed words of the redacted text.
     cleaned = redact(raw, auth.secrets, cut_bytes=max_bytes)
     extra = {}
@@ -4200,7 +4265,7 @@ def _fortiadc_monitoring(auth, recipe, address, interface, count, timeout, max_b
 
 
 def _fortiadc_capture(auth, address, interface, count, timeout, max_bytes, source_address, port):
-    """G32 ADC-G11: one bounded packet capture with a fixed host/port filter; no device state is left behind."""
+    """adc objects ADC-firewall routing: one bounded packet capture with a fixed host/port filter; no device state is left behind."""
     from . import config_fortiadc, fortiadc_diagnostics as diagnostics
     recipe = diagnostics.PACKET_CAPTURE
     diagnostics.validate_capture(address, interface, count, timeout, max_bytes, source_address, port)
@@ -4219,7 +4284,7 @@ def _fortiadc_capture(auth, address, interface, count, timeout, max_bytes, sourc
                 raise ValueError("bounded FortiADC packet capture failed; the session was closed") from None
             return _diagnostic_transport_failure(auth, recipe, code, platform="fortiadc")
     state = result["state"]
-    text = redact(result["raw_output"], auth.secrets, cut_bytes=max_bytes)  # cut below (task 302-r7)
+    text = redact(result["raw_output"], auth.secrets, cut_bytes=max_bytes)  # cut below (verification)
     returned = text.encode("utf-8")[:max_bytes].decode("utf-8", "ignore")
     truncated = returned != text
     if truncated and state in ("count_reached", "deadline_reached"):
@@ -4269,7 +4334,7 @@ def _fortiadc_diagnostics(auth, recipe, address, interface, count, timeout, max_
             if code is None:
                 raise ValueError("bounded FortiADC diagnostic failed; the session was closed") from None
             return _diagnostic_transport_failure(auth, recipe, code, platform="fortiadc")
-    # Cut to max_bytes below: the floor must hold in every prefix (task 302-r7).
+    # Cut to max_bytes below: the floor must hold in every prefix (verification).
     cleaned = redact(raw, auth.secrets, cut_bytes=max_bytes)
     returned = cleaned.encode("utf-8")[:max_bytes].decode("utf-8", "ignore")
     truncated = returned != cleaned
@@ -4332,7 +4397,7 @@ def _triage_read(auth: TargetAuth, platform: str, query: str,
     found = holder.get("scope") if holder is not None and normalized == "fortinet" and query != "system_status" else None
     index = None
     extras: tuple[str, ...] = ()
-    # Multi-VDOM: the global system state is read in `config global`, never inside the VDOM (task 202).
+    # Multi-VDOM: the global system state is read in `config global`, never inside the VDOM (verification).
     global_read = (fortios_vdom.contextual(found) and query in fortios_vdom.GLOBAL_QUERIES
                    and not is_read_sequence(normalized, query))
     context_read = False
@@ -4342,7 +4407,7 @@ def _triage_read(auth: TargetAuth, platform: str, query: str,
                 "error_code": fortios_vdom.VDOM_ADMIN_GLOBAL, "error": error, **fortios_vdom.label(found, query),
                 **({"context": fortios_vdom.GLOBAL_CONTEXT} if global_read else {})}
 
-    # A per-VDOM administrator's session, proved by the device earlier in this triage run (task 206): reads beyond
+    # A per-VDOM administrator's session, proved by the device earlier in this triage run (verification): reads beyond
     # its VDOM are refused without another session.
     membership = () if is_read_sequence(normalized, query) else _membership_commands(auth, normalized, query, None)
     if (fortios_vdom.contextual(found)
@@ -4392,18 +4457,21 @@ def _triage_read(auth: TargetAuth, platform: str, query: str,
         from .sanitize import redact_ruckus_secrets
         output = redact_ruckus_secrets(output, _redaction_secret_forms(auth))
     if normalized == "fortinet" and query in FORTIOS_IPSEC_KEY_QUERIES:
-        # G14: IKE/ESP key material before the hash and the triage parser.
+        # ipsec status: IKE/ESP key material before the hash and the triage parser.
         output = redact_fortios_ipsec_keys(output)
     cleaned = _redact_output(output, auth)
     if len(cleaned.encode("utf-8")) > _SSH_CAPTURE_MAX_BYTES:
         return {"ok": False, "platform": normalized, "query": query, "rc": rc, "reason": "truncated"}
+    # The overview adapter may recognize an exact, measured device answer (feature absent or not
+    # configured) in a refused capture; other triage results keep reporting only the reason.
+    answer_text = {"text": cleaned} if _OVERVIEW_BUDGET.get() is not None else {}
     if normalized in JUNOS_PROFILES or normalized in {"cisco_ios", "cisco_xe", "cisco_nxos", "extreme_exos"}:
         state = normalization.output_status(cleaned, rc=rc, profile=normalized, command=command)
         if state in {"permission_denied", "truncated", "unsupported"}:
             return {"ok": False, "platform": normalized, "query": query, "rc": rc, "reason": state,
-                    "error_code": state}
+                    "error_code": state, **(answer_text if state == "unsupported" else {})}
     if normalized == "ruckus_unleashed" and rc in (0, None) and wifi_parse.RUCKUS_NOT_FOUND.search(cleaned):
-        # G108: an object read of an absent client/AP/station is an answer for wifi_triage, not a failed read.
+        # wireless path: an object read of an absent client/AP/station is an answer for wifi_triage, not a failed read.
         return {"ok": True, "absent": True, "platform": normalized, "query": query, "rc": rc,
                 "content_sha256": digest_text(cleaned), "total_bytes": len(cleaned.encode("utf-8")), "text": cleaned}
     if (rc not in (0, None) and not normalization.exos_exit_250(normalized, rc, cleaned, command)) or (
@@ -4412,19 +4480,24 @@ def _triage_read(auth: TargetAuth, platform: str, query: str,
         if normalized == "fortiadc" and _fortiadc_diagnose_refused(command, cleaned):
             return {"ok": False, "platform": normalized, "query": query, "rc": rc, "reason": "permission_denied",
                     "error_code": "permission_denied", "detail": "diagnose_not_permitted"}
+        if (normalized == "fortiadc" and auth.account_role == "read-only"
+                and fortiadc_diagnostics.interface_exec_refusal(command, cleaned) is not None):
+            return {"ok": False, "platform": normalized, "query": query, "rc": rc,
+                    "reason": "permission_denied", "error_code": "permission_denied"}
         if (context_read or global_read) and fortios_vdom.diagnose_refused(command, cleaned):
             # Measured: in a verified VDOM context a profile without diagnose answers `Unknown action 0`.
             return {"ok": False, "platform": normalized, "query": query, "rc": rc, "reason": "permission_denied",
                     "error_code": "permission_denied", "detail": "diagnose_not_permitted",
                     **fortios_vdom.label(found, query, index),
                     **({"context": fortios_vdom.GLOBAL_CONTEXT} if global_read else {})}
-        return {"ok": False, "platform": normalized, "query": query, "rc": rc, "reason": "device_cli_error"}
+        return {"ok": False, "platform": normalized, "query": query, "rc": rc, "reason": "device_cli_error",
+                **answer_text}
     if normalized == "fortinet" and query in wifi_parse.PARSERS:
         sequence_filter = render_read_sequence(normalized, query, parameters, _read_inventory(auth))[2] \
             if is_read_sequence(normalized, query) else {}
         if sequence_filter.get("mac_literal") and cleaned.strip():
             cleaned = wifi_parse.filter_events_by_mac(cleaned, sequence_filter["mac_literal"])[0]
-        if query == "wifi_ap_status":
+        if query == "wifi_ap_status" and _OVERVIEW_BUDGET.get() is None:
             _remember_wtp_ids(auth, [item["serial"] for item in wifi_parse.summarize(query, cleaned)["records"]])
     owners = None
     if extras:
@@ -4544,7 +4617,7 @@ def _run_triage(auth, run, read, tool, *, identity_query="system_status"):
         result = run(checked)
     except UnsupportedPlatform as refused:
         if not failures:
-            # G00 (H10): a model or build outside the tested ones is not refused (firmware_support); what remains
+            # startup (H10): a model or build outside the tested ones is not refused (firmware_support); what remains
             # is an unreadable identity, another product or a scope limit, named by the triage itself.
             reason = str(refused).split(": ", 1)[-1]
             return {"ok": False, "target": auth.alias, "error_code": "config_platform_not_supported",
@@ -4880,7 +4953,7 @@ def triage_vpn(auth: TargetAuth, tunnel: str) -> dict[str, Any]:
         try:
             return triage_vpn_read(auth, "fortinet", query, parameters)
         except PolicyScopeError:
-            # An optional detail query (G14) the operator did not enable is not a failed step.
+            # An optional detail query (ipsec status) the operator did not enable is not a failed step.
             return {"ok": False, "reason": "not_enrolled" if query in FORTIOS_IPSEC_KEY_QUERIES else "permission_denied"}
         finally:
             steps.read(query)
@@ -4888,6 +4961,112 @@ def triage_vpn(auth: TargetAuth, tunnel: str) -> dict[str, Any]:
     result = _scoped_triage(auth, "triage_vpn", read, lambda scoped: _run_triage(
         auth, lambda checked: triage.run(checked, lambda: datetime.now(timezone.utc), tunnel), scoped, "triage_vpn"))
     return {"target": auth.alias, **result}
+
+
+def _overview_read_timeout(seconds):
+    budget = _OVERVIEW_BUDGET.get()
+    return min(seconds, budget.remaining()) if budget is not None else seconds
+
+
+def _overview_redact(value, auth=None, *, secrets=()):
+    from netops.redaction import redact
+    from .proxy_sanitize import sanitize_object
+
+    if auth is not None:
+        secrets = auth.redaction_secrets
+    # The proxy's pattern rules handle labelled secrets. The product redactor
+    # covers enrolled values under three bytes before an adapter sees them.
+    return redact(sanitize_object(value, secrets), secrets)[0]
+
+
+def _overview_rest_document(auth, monitor, budget):
+    from . import wifi_rest
+
+    path = {
+        "switch_status": wifi_rest.SWITCH_STATUS, "switch_health": wifi_rest.SWITCH_HEALTH,
+        "managed_ap": wifi_rest.MONITOR + "managed_ap", "ap_status": wifi_rest.MONITOR + "ap_status",
+    }[monitor]
+    auth.require_tcp_port(auth.fortios_rest_port)
+    if not auth.fortios_rest_token or not auth.fortios_rest_certificate_sha256:
+        raise wifi_rest.RestError("configuration", "overview requires an enrolled REST token and pin")
+    document = wifi_rest.get(auth, path, budget_seconds=budget.remaining())
+    if (not isinstance(document, dict) or document.get("status") != "success"
+            or document.get("http_method") != "GET" or document.get("vdom") != "root"
+            or not isinstance(document.get("results"), (list, dict))):
+        raise wifi_rest.RestError("unparsed_envelope", "expected successful root VDOM GET")
+    return _overview_redact(document, auth)
+
+
+def _overview_identity(auth, read):
+    platform = auth.ssh_platform
+    if platform == "ruckus_unleashed":
+        model, version = _read_ruckus_identity(auth, read=read)
+        if not (model and version):
+            raise _ProductIdentityError(platform, None)
+    else:
+        _check_identity(auth, platform, read)
+
+
+@contextmanager
+def _overview_transport(auth, budget):
+    timeout_token = _OVERVIEW_BUDGET.set(budget)
+    endpoint_token = _OVERVIEW_ENDPOINT.set({})
+    try:
+        with _fortinet_operation(auth) as reader:
+            yield reader
+    finally:
+        _OVERVIEW_ENDPOINT.reset(endpoint_token)
+        _OVERVIEW_BUDGET.reset(timeout_token)
+
+
+def _overview_ssh(auth, spec, scope):
+    """Return classified CLI output using the same catalogue and verified VDOM reader as triage."""
+    platform = auth.ssh_platform
+    parameters = dict(spec.parameters)
+    auth.require_tcp_port(auth.port)
+    _, command, _ = _ssh_read_state(auth, platform, spec.query, parameters, auth.read_inventory)
+    query = READ_QUERIES[platform][spec.query]
+    if platform == "fortiadc" and is_read_sequence(platform, spec.query):
+        commands = render_read_sequence(platform, spec.query, parameters, auth.read_inventory)[1]
+        output = []
+        for part in commands:
+            rc, text = read_from_device(auth, platform, part)
+            state = normalization.output_status(text, rc=rc, profile=platform, command=part,
+                                                truncated=len(text.encode("utf-8")) > _SSH_CAPTURE_MAX_BYTES)
+            if state != "ok" or _cli_refused(platform, text, command=part):
+                reason = "permission_denied" if _fortiadc_diagnose_refused(part, text) else state
+                return {"ok": False, "reason": reason, "rc": rc}
+            output.append(_redact_output(text, auth))
+        answer = {"ok": True, "text": "\n".join(output), "rc": rc}
+    else:
+        token = _TRIAGE_SCOPE.set(scope)
+        try:
+            answer = _triage_read(auth, platform, spec.query, parameters, auth.read_inventory)
+        finally:
+            _TRIAGE_SCOPE.reset(token)
+    if not answer.get("ok"):
+        return answer
+    text = answer["text"]
+    state = normalization.output_status(text, rc=answer["rc"], profile=platform, command=command,
+                                        truncated=len(text.encode("utf-8")) > _SSH_CAPTURE_MAX_BYTES)
+    if state == "empty" and query.empty_allowed:
+        return {**answer, "status": "empty"}
+    if state != "ok":
+        return {**answer, "ok": False, "reason": state}
+    return {**answer, "status": "ok"}
+
+
+def _overview_audit_skipped(target, reason):
+    # Even an alias without usable auth has one operation in the audit ledger.
+    operation_id = f"op_{secrets.token_hex(16)}"
+    record("network_overview", operation_id=operation_id, device=target, status="started")
+    record("network_overview", operation_id=operation_id, device=target, status="failed", detail=reason)
+
+
+@_audit_device_call
+def network_overview(auth: TargetAuth, execute) -> dict[str, Any]:
+    result = execute()
+    return {**result, "ok": result["status"] == "complete"}
 
 
 @_audit_device_call
@@ -5218,7 +5397,7 @@ def triage_wifi(auth: TargetAuth, mac: str | None = None, ip: str | None = None,
 
 def _triage_wifi_ruckus(auth: TargetAuth, mac: str | None, ip: str | None, summary: bool, name: str | None,
                         history_limit: int, history_offset: int) -> dict[str, Any]:
-    """G108 (RP02): Ruckus Unleashed client triage over catalogue reads of this target (inside the audited call)."""
+    """wireless path (RP02): Ruckus Unleashed client triage over catalogue reads of this target (inside the audited call)."""
     from datetime import datetime, timezone
     from . import triage_wifi as triage
     triage.validate_history(history_limit, history_offset)
@@ -5371,9 +5550,9 @@ class RedactionUnverified(PaginationRefused):
 
 
 class SnapshotIncomparable(PaginationRefused):
-    """config_diff of two snapshots taken with other section, firmware, profile or options (task 157).
+    """config_diff of two snapshots taken with other section, firmware, profile or options (verification).
 
-    Also snapshots of another scope (target, platform or credential; task 157-r2) or different
+    Also snapshots of another scope (target, platform or credential; verification) or different
     FortiADC account visibility. A restart at offset 0 cannot repair the mismatch.
     """
 
@@ -5381,11 +5560,11 @@ class SnapshotIncomparable(PaginationRefused):
 
 
 class ConfigurationRefusal(PaginationRefused):
-    """A config_read/config_diff refusal with a fixed machine code and fixed safe text (task 186).
+    """A config_read/config_diff refusal with a fixed machine code and fixed safe text (verification).
 
     ``config_platform_not_supported``: the identity of an ExtremeXOS, Cisco IOS, IOS XE, NX-OS or Arista EOS
     target cannot be read conclusively (identity-unverifiable); the text stays the engine text, only the
-    machine code is new.  An identity that is read but is not the tested one is no refusal (G00): the read
+    machine code is new.  An identity that is read but is not the tested one is no refusal (startup): the read
     runs and the reply carries ``firmware_support`` with a ``firmware_untested`` warning.
     ``config_diff_limit_exceeded``: the line diff of two snapshots exceeds its fixed bound.  A restart at
     offset 0 repairs neither.
@@ -6222,7 +6401,7 @@ def _full_config_read(auth, platform, section, include_all, snapshot_id, offset,
             if rc != 0 or _cli_refused(wire_platform, status):
                 raise ValueError('configuration device-refused during identity read; output withheld')
             try:
-                # G00 (H11, H12, H18): a version or build outside the tested ones is read with the nearest field
+                # startup (H11, H12, H18): a version or build outside the tested ones is read with the nearest field
                 # policy and reported in firmware_support; only an unreadable identity or product is refused.
                 firmware, metadata = adapter.verify_identity(status)
             except ValueError:
@@ -6424,7 +6603,7 @@ _IDENTITY_UNVERIFIABLE = 'configuration identity-unverifiable; output withheld'
 
 
 def _config_firmware_fields(adapter, firmware):
-    """G00 (decision of 2026-11-17): the reply fields of the identity against the adapter's tested identity.
+    """startup (decision of 2026-11-17): the reply fields of the identity against the adapter's tested identity.
 
     A tested identity adds nothing, so its reply stays as before.  Another model, version or build is no
     refusal: the reply carries ``firmware_support`` (netops_core.tested, machine-readable) and a
@@ -6882,7 +7061,7 @@ def _ios_capture(auth, section, include_all, snapshot_id, offset, limit, redacti
             raise
 
 
-# config_diff platforms (task 157): the requested name -> the snapshot platform. FortiOS/FortiADC as before;
+# config_diff platforms (verification): the requested name -> the snapshot platform. FortiOS/FortiADC as before;
 # EXOS and the IOS family compare only snapshots of their exact config_read profile.
 _DIFF_PLATFORMS = {'fortios': 'fortios', 'fortinet': 'fortios', 'fortiadc': 'fortiadc',
                    'extreme_exos': 'extreme_exos', 'cisco_ios': 'cisco_ios', 'cisco_xe': 'cisco_xe',
@@ -6974,8 +7153,8 @@ def config_diff(auth: TargetAuth, platform: str, base_snapshot: str,
         except configuration.ConfigurationBaselineError as exc:
             raise ConfigurationRefusal('config_baseline_unavailable', str(exc)) from None
         except configuration.DiffLimitExceeded as exc:
-            # The line diff of the EXOS/IOS family exceeds its fixed bound (task 186) or the memory budget
-            # (task 186-r2): a fixed code and one of two fixed texts.
+            # The line diff of the EXOS/IOS family exceeds its fixed bound (verification) or the memory budget
+            # (verification): a fixed code and one of two fixed texts.
             message = str(exc)
             if message not in (configuration.DIFF_LIMIT_EXCEEDED, configuration.DIFF_BUDGET_EXCEEDED):
                 message = configuration.DIFF_LIMIT_EXCEEDED
@@ -7087,10 +7266,10 @@ def triage_slb(auth: TargetAuth, virtual_server: str, vdom: str = "root") -> dic
                                     "The identity read was refused; check the account permissions")
         try:
             found, identity = config_fortiadc.verify_identity(status)
-            # G00 (H12): another model or build is triaged with firmware_support "untested" and a warning.
+            # startup (H12): another model or build is triaged with firmware_support "untested" and a warning.
             support = config_fortiadc.firmware_support(found, "triage_slb")
         except configuration.UnsupportedConfigurationFirmware:
-            # Only another product kind is refused here (G00 §2.4), never a model or build.
+            # Only another product kind is refused here (startup §2.4), never a model or build.
             return identity_failure("config_platform_not_supported", "unsupported",
                                     "triage_slb requires a FortiADC target; the device reports another product")
         except Exception:
@@ -7189,7 +7368,7 @@ def triage_slb(auth: TargetAuth, virtual_server: str, vdom: str = "root") -> dic
     required = rules.REQUIRED_STEPS
     content_routing = bool(vs) and vs["content_routing"] == "enable"
     if content_routing:
-        # G28 ADC-C04: the pool is chosen per request by the content-routing entries; read each entry (at most
+        # adc statistics ADC-C04: the pool is chosen per request by the content-routing entries; read each entry (at most
         # MAX_CONTENT_ROUTES) and name its pool as a configured candidate. With exactly one candidate pool and every
         # entry read, that pool is the pool of every routed request and is evaluated like a static pool.
         chain["pool"]["selection"] = "content_routing"
@@ -7973,7 +8152,7 @@ def _locate_endpoint_correlate(auths, endpoint, progress, deadline, connections)
     @serialized
     @_audit_device_call
     def ruckus_read(auth, platform, query, table, parameters):
-        """G108: one counted, audited Ruckus Unleashed catalogue read, redacted and parsed like ssh_read."""
+        """wireless path: one counted, audited Ruckus Unleashed catalogue read, redacted and parsed like ssh_read."""
         from datetime import datetime, timezone
         from .sanitize import redact_ruckus_secrets
         profile, command, _ = _ssh_read_state(auth, platform, query, parameters)

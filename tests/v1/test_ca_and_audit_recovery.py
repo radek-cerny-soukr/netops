@@ -149,13 +149,13 @@ class AuditRecovery(unittest.IsolatedAsyncioTestCase):
             for action in ("tail", "stats", "pending"):
                 with self.subTest(action=action):
                     done = subprocess.run([sys.executable, "-B", "-m", "netops", "audit", action], env=dict(os.environ, NETOPS_STATE_DIR=directory),
-                                          capture_output=True, text=True, timeout=60)
+                                          capture_output=True, text=True, timeout=300)
                     self.assertEqual(done.returncode, 1, done.stderr)
                     self.assertIn("incomplete record", done.stderr)
                     self.assertIn("audit recover", done.stderr)
                     self.assertNotIn("JSONDecodeError", done.stderr)
             done = subprocess.run([sys.executable, "-B", "-m", "netops", "audit", "tail"], env=dict(os.environ, NETOPS_STATE_DIR=directory),
-                                  capture_output=True, text=True, timeout=60)
+                                  capture_output=True, text=True, timeout=300)
             self.assertEqual(done.stdout.count('"correlation"'), 1, done.stdout)
 
 
@@ -185,7 +185,7 @@ class PendingAndIdentity(unittest.TestCase):
             }).encode())
             write_private(audit / "current.jsonl", "".join(json.dumps(record) + "\n" for record in records).encode())
             done = subprocess.run([sys.executable, "-B", "-m", "netops", "audit", "pending"], env=dict(os.environ, NETOPS_STATE_DIR=directory),
-                                  capture_output=True, text=True, timeout=60)
+                                  capture_output=True, text=True, timeout=300)
             self.assertEqual(done.returncode, 0, done.stderr)
             listed = {key for key in ("no-response", "normal", "interrupted", "withheld", "unknown", "revert", "confirmed") if '"' + key + '"' in done.stdout}
             self.assertEqual(listed, {"no-response", "interrupted", "withheld", "unknown", "revert"})

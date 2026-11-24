@@ -26,11 +26,11 @@ OT-Threat-DB: 6.00741(2015-12-01 02:30)
 IPS-Engine: 8.00050(2026-09-02 16:02)
 Timezone DB Version: 1.016
 Timezone DB IANA Version: 2026f
-Serial-Number: FGT80FTK00000000
+Serial-Number: FGTEXAMPLE0000000
 BIOS version: 05000100
 System Part-Number: P25604-21
 Log hard disk: Not available
-Hostname: FGT80FTK00000000
+Hostname: FGTEXAMPLE0000000
 Private Encryption: Disable
 Operation Mode: NAT
 Current virtual domain: root

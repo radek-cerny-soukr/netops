@@ -43,7 +43,7 @@ def adc_runtime(tmp_path, device):
 
 
 def adc_doctor(tmp_path, device):
-    # since 1.0.10 (task 306) FortiADC has a plan and apply adapter: doctor reports instead of refusing
+    # since 1.0.10 (verification) FortiADC has a plan and apply adapter: doctor reports instead of refusing
     report = readiness.doctor(adc_runtime(tmp_path, device), "lab")
     return {item["check"]: item["status"] + ("" if item["detail"] is None else " (%s)" % item["detail"])
             for item in report["checks"]}

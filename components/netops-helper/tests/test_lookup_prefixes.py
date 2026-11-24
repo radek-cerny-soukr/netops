@@ -367,7 +367,7 @@ UNTESTED_PREFIX_IDENTITIES = sorted(diag.IDENTITIES - diag.PREFIX_RANGE_IDENTITI
 @pytest.mark.parametrize("recipe", ["sessions", "flow"])
 @pytest.mark.parametrize("identity", UNTESTED_PREFIX_IDENTITIES)
 def test_untested_prefix_runs_with_the_range_and_reports_untested(recipe, identity):
-    # G00 (2026-11-17): a prefix on an identity where filter ranges were not tested is not refused (T3 is a
+    # STARTUP (2026-11-17): a prefix on an identity where filter ranges were not tested is not refused (T3 is a
     # syntax variant, not a gate); the range is sent and the run reports firmware_support "untested".
     shell = GrammarShell(recipe)
     shell.status_line = "Version: %s v%s,build%s,240101" % identity

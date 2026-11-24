@@ -10,6 +10,7 @@ from test_execute import audit_lines, make_runtime, request, steps
 from netops_admin import execute, profiles
 from netops_admin.config import _device
 from netops_admin.errors import Rejected
+from approved_apply import approved_apply
 
 
 
@@ -37,7 +38,7 @@ def runtime(tmp_path, device, **fields):
 
 def apply_approved(rt, device, req):
     if req.table != "firewall policy":
-        return execute.apply(rt, device, req)
+        return approved_apply(rt, device, req)
     preview = execute.preview(rt, device, req)
     if preview["result"] == "rejected":
         raise Rejected(preview["reasons"], reason_codes=preview["reason_codes"])
@@ -56,7 +57,7 @@ def test_profile_loads_and_is_provisional():
     assert set(profile.ops) == {"create", "update", "delete", "move"}
     assert profile.attributes["logtraffic"].default == "utm"
     assert profile.attributes["status"].default == "enable" and profile.attributes["action"].default == "deny"
-    # G00-1: a build outside the tested versions finds the profile and is reported untested, not refused
+    # STARTUP-1: a build outside the tested versions finds the profile and is reported untested, not refused
     for untested in ("8.0.0 build0167", "7.6.7 build3704", "8.0.1 build0200", "8.0.2 build0250", "8.0.3 build0300"):
         found = profiles.find_profile("fortios", "firewall policy", untested)
         assert profiles.firmware_support(found, untested)["status"] == "untested"

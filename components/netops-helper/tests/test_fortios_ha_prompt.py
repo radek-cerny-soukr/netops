@@ -14,7 +14,7 @@ import pytest
 from netops_core.session import SessionError
 from netops_helper import engine
 
-HA_PRIMARY = b"FGT80F0000001111(Primary) $ "
+HA_PRIMARY = b"FGTEXAMPLE0001111(Primary) $ "
 
 
 class _Session:
@@ -45,8 +45,8 @@ class _Session:
 
 @pytest.mark.parametrize("prompt", [
     HA_PRIMARY,
-    b"FGT80F0000002222(Secondary) $ ",
-    b"FGT80F0000001111(Primary) # ",
+    b"FGTEXAMPLE0002222(Secondary) $ ",
+    b"FGTEXAMPLE0001111(Primary) # ",
     b"FGT-SYNTH (root) # ",
     b"FGT-SYNTH $ ",
 ])
@@ -60,12 +60,12 @@ def test_the_login_prompt_of_a_cluster_member_is_verified(prompt) -> None:
 
 @pytest.mark.parametrize("prompt", [
     b"FGT80F*1111(Primary) $ ",
-    b"FGT80F0000001111(Master) $ ",
-    b"FGT80F0000001111(Slave) $ ",
-    b"FGT80F0000001111(primary) $ ",
-    b"FGT80F0000001111(Primary)(Secondary) $ ",
-    b"FGT80F0000001111(Primary) (root) $ ",
-    b"FGT80F0000001111(Primary)$ ",
+    b"FGTEXAMPLE0001111(Master) $ ",
+    b"FGTEXAMPLE0001111(Slave) $ ",
+    b"FGTEXAMPLE0001111(primary) $ ",
+    b"FGTEXAMPLE0001111(Primary)(Secondary) $ ",
+    b"FGTEXAMPLE0001111(Primary) (root) $ ",
+    b"FGTEXAMPLE0001111(Primary)$ ",
     b"(Primary) $ ",
     b"random text $ ",
     b"Login incorrect # ",
@@ -76,7 +76,7 @@ def test_any_other_login_prompt_is_refused(prompt) -> None:
 
 
 def test_the_prompt_of_another_hostname_does_not_end_an_answer() -> None:
-    session = _Session(HA_PRIMARY, b"get system status\r\nVersion: synthetic\r\nFGT80F0000009999(Primary) $ ")
+    session = _Session(HA_PRIMARY, b"get system status\r\nVersion: synthetic\r\nFGTEXAMPLE0009999(Primary) $ ")
     shell = engine._FortiosDiagnosticShell(session)
     with pytest.raises(SessionError):
         shell.command("get system status")

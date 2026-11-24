@@ -1,6 +1,7 @@
 {
   "platform": "eos",
   "table": "startup-config",
+  "measured": true,
   "versions": [
     "4.36.1F"
   ],
@@ -16,5 +17,5 @@
   "volatile": [],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "Saving replaces startup-config with running-config. Admin has no undo for this operation."
+  "rollback_evidence": "Live write and return on cEOSLab 4.36.1F (2026-11-22): A save of one pending change was confirmed with an empty running/startup diff, read by a separate check account (privilege 15, network-operator role under command authorization); the startup configuration was restored afterwards by the operator. Saving replaces startup-config with running-config. Admin has no undo for this operation."
 }

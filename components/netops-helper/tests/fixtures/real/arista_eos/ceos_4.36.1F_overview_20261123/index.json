@@ -1,0 +1,8 @@
+{
+ "poe": {
+  "account": "read-only account",
+  "command": "show poe",
+  "lines": 3,
+  "rc": 1
+ }
+}

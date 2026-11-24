@@ -1,0 +1,333 @@
+{
+  "platform": "arista-eos",
+  "rules": [
+    {
+      "id": "arista-eos.mgmt.telnet-enabled",
+      "version": 1,
+      "check": "arista-eos.mgmt.telnet-enabled",
+      "sections": [],
+      "class": "fakt",
+      "severity": "high",
+      "evidence_fields": [
+        "reason"
+      ],
+      "title": "Telnet is enabled in a management scope.",
+      "remediation": "Disable the Telnet listener and use SSH.",
+      "refs": [
+        "https://www.arista.com/en/um-eos/eos-session-management-commands"
+      ]
+    },
+    {
+      "id": "arista-eos.mgmt.http-enabled",
+      "version": 1,
+      "check": "arista-eos.mgmt.http-enabled",
+      "sections": [],
+      "class": "fakt",
+      "severity": "high",
+      "evidence_fields": [
+        "reason"
+      ],
+      "title": "The management API accepts unencrypted HTTP.",
+      "remediation": "Disable protocol http and expose the API over HTTPS.",
+      "refs": [
+        "https://www.arista.com/en/um-eos/eos-session-management-commands"
+      ]
+    },
+    {
+      "id": "arista-eos.mgmt.idle-timeout",
+      "version": 1,
+      "check": "arista-eos.mgmt.idle-timeout",
+      "sections": [],
+      "class": "fakt",
+      "severity": "low",
+      "evidence_fields": [
+        "reason"
+      ],
+      "title": "SSH idle time is unlimited.",
+      "remediation": "Set an SSH idle-timeout appropriate for the management workflow.",
+      "refs": [
+        "https://www.arista.com/en/um-eos/eos-session-management-commands"
+      ]
+    },
+    {
+      "id": "arista-eos.mgmt.lockout",
+      "version": 1,
+      "check": "arista-eos.mgmt.lockout",
+      "sections": [],
+      "class": "fakt",
+      "severity": "low",
+      "evidence_fields": [
+        "reason"
+      ],
+      "title": "Local remote login has no timed lockout.",
+      "remediation": "Configure a timed lockout for repeated failures on local login.",
+      "refs": [
+        "https://www.arista.com/en/um-eos/eos-user-security"
+      ]
+    },
+    {
+      "id": "arista-eos.mgmt.access-acl",
+      "version": 1,
+      "check": "arista-eos.mgmt.access-acl",
+      "sections": [],
+      "class": "usudek",
+      "severity": "medium",
+      "evidence_fields": [
+        "reason"
+      ],
+      "title": "An SSH management path is open to sources outside the declared prefixes.",
+      "remediation": "Bind a source ACL to the SSH listener in the affected VRF and address family.",
+      "refs": [
+        "https://www.arista.com/en/um-eos/eos-session-management-commands"
+      ]
+    },
+    {
+      "id": "arista-eos.aaa.external-login",
+      "version": 1,
+      "check": "arista-eos.aaa.external-login",
+      "sections": [],
+      "class": "usudek",
+      "severity": "medium",
+      "evidence_fields": [
+        "reason"
+      ],
+      "title": "Default login lacks the declared external authentication chain.",
+      "remediation": "Link the default login method to the intended server group and configured servers.",
+      "refs": [
+        "https://www.arista.com/en/um-eos/eos-user-security"
+      ]
+    },
+    {
+      "id": "arista-eos.aaa.local-password-storage",
+      "version": 1,
+      "check": "arista-eos.aaa.local-password-storage",
+      "sections": [],
+      "class": "fakt",
+      "severity": "high",
+      "evidence_fields": [
+        "reason"
+      ],
+      "title": "A local login uses a plaintext secret or permits login without a password.",
+      "remediation": "Use an EOS-supported hashed password or a login method that requires another credential.",
+      "refs": [
+        "https://www.arista.com/en/um-eos/eos-user-security"
+      ]
+    },
+    {
+      "id": "arista-eos.snmp.v1v2c-community",
+      "version": 1,
+      "check": "arista-eos.snmp.v1v2c-community",
+      "sections": [],
+      "class": "fakt",
+      "severity": "medium",
+      "evidence_fields": [
+        "reason",
+        "count"
+      ],
+      "title": "One or more SNMP v1/v2c communities are configured.",
+      "remediation": "Remove legacy communities and use SNMPv3 authentication and privacy where SNMP is needed.",
+      "refs": [
+        "https://www.arista.com/en/um-eos/eos-snmp"
+      ]
+    },
+    {
+      "id": "arista-eos.snmp.v3-auth-priv",
+      "version": 1,
+      "check": "arista-eos.snmp.v3-auth-priv",
+      "sections": [],
+      "class": "fakt",
+      "severity": "medium",
+      "evidence_fields": [
+        "reason",
+        "count"
+      ],
+      "title": "One or more SNMPv3 users lack required authentication and privacy.",
+      "remediation": "Use authentication and privacy for the users and their group.",
+      "refs": [
+        "https://www.arista.com/en/um-eos/eos-snmp"
+      ]
+    },
+    {
+      "id": "arista-eos.time.no-ntp-source",
+      "version": 1,
+      "check": "arista-eos.time.no-ntp-source",
+      "sections": [],
+      "class": "fakt",
+      "severity": "medium",
+      "evidence_fields": [
+        "reason"
+      ],
+      "title": "No NTP client source is configured.",
+      "remediation": "Configure an NTP server in the intended routing scope.",
+      "refs": [
+        "https://www.arista.com/en/um-eos/eos-system-clock-and-time-protocols"
+      ]
+    },
+    {
+      "id": "arista-eos.time.ntp-auth",
+      "version": 1,
+      "check": "arista-eos.time.ntp-auth",
+      "sections": [],
+      "class": "usudek",
+      "severity": "medium",
+      "evidence_fields": [
+        "reason",
+        "count"
+      ],
+      "title": "An NTP source lacks the declared authentication chain.",
+      "remediation": "Enable NTP authentication and bind each source to a configured, trusted key.",
+      "refs": [
+        "https://www.arista.com/en/um-eos/eos-system-clock-and-time-protocols"
+      ]
+    },
+    {
+      "id": "arista-eos.logging.no-syslog-target",
+      "version": 1,
+      "check": "arista-eos.logging.no-syslog-target",
+      "sections": [],
+      "class": "fakt",
+      "severity": "medium",
+      "evidence_fields": [
+        "reason"
+      ],
+      "title": "Remote syslog export is disabled or has no target.",
+      "remediation": "Enable logging and configure a remote collector in the intended VRF.",
+      "refs": [
+        "https://www.arista.com/en/support/advisories-notices/end-of-support/77-support/quick-start-guide/um-eos?start=130"
+      ]
+    },
+    {
+      "id": "arista-eos.logging.syslog-level",
+      "version": 1,
+      "check": "arista-eos.logging.syslog-level",
+      "sections": [],
+      "class": "usudek",
+      "severity": "medium",
+      "evidence_fields": [
+        "reason",
+        "level"
+      ],
+      "title": "The remote syslog severity threshold excludes events required by policy.",
+      "remediation": "Set logging trap to the required severity or a more inclusive level.",
+      "refs": [
+        "https://www.arista.com/en/support/advisories-notices/end-of-support/77-support/quick-start-guide/um-eos?start=130"
+      ]
+    },
+    {
+      "id": "arista-eos.services.edge-discovery",
+      "version": 1,
+      "check": "arista-eos.services.edge-discovery",
+      "sections": [],
+      "class": "usudek",
+      "severity": "low",
+      "evidence_fields": [
+        "reason"
+      ],
+      "title": "LLDP transmits on an edge port where policy prohibits discovery.",
+      "remediation": "Disable LLDP transmission on the affected interface.",
+      "refs": [
+        "https://www.arista.com/en/um-eos/eos-link-layer-discovery-protocol"
+      ]
+    },
+    {
+      "id": "arista-eos.l2.bpdu-guard",
+      "version": 1,
+      "check": "arista-eos.l2.bpdu-guard",
+      "sections": [],
+      "class": "usudek",
+      "severity": "medium",
+      "evidence_fields": [
+        "reason"
+      ],
+      "title": "An edge port lacks BPDU guard.",
+      "remediation": "Enable interface BPDU guard or configure the effective edge-port default.",
+      "refs": [
+        "https://www.arista.com/en/um-eos/eos-spanning-tree-protocol"
+      ]
+    },
+    {
+      "id": "arista-eos.l2.default-vlan",
+      "version": 1,
+      "check": "arista-eos.l2.default-vlan",
+      "sections": [],
+      "class": "usudek",
+      "severity": "medium",
+      "evidence_fields": [
+        "reason",
+        "vlan"
+      ],
+      "title": "An active edge access port belongs to VLAN 1 despite policy.",
+      "remediation": "Assign the intended access VLAN to the affected port.",
+      "refs": [
+        "https://www.arista.com/en/um-eos/eos-virtual-lans-vlans"
+      ]
+    },
+    {
+      "id": "arista-eos.l2.trunk-native",
+      "version": 1,
+      "check": "arista-eos.l2.trunk-native",
+      "sections": [],
+      "class": "usudek",
+      "severity": "medium",
+      "evidence_fields": [
+        "reason",
+        "vlan",
+        "expected_vlan"
+      ],
+      "title": "The trunk's untagged membership differs from policy.",
+      "remediation": "Align the native VLAN and allowed list with the documented trunk policy.",
+      "refs": [
+        "https://www.arista.com/en/um-eos/eos-virtual-lans-vlans"
+      ]
+    },
+    {
+      "id": "arista-eos.l2.dhcp-snooping",
+      "version": 1,
+      "check": "arista-eos.l2.dhcp-snooping",
+      "sections": [],
+      "class": "usudek",
+      "severity": "medium",
+      "evidence_fields": [
+        "reason",
+        "vlan"
+      ],
+      "title": "DHCP snooping or the port trust setting differs from policy.",
+      "remediation": "Enable snooping in the intended mode and VLANs and align trust with the authorized DHCP uplinks.",
+      "refs": [
+        "https://www.arista.com/en/um-eos/eos-ipv4"
+      ]
+    },
+    {
+      "id": "arista-eos.l2.storm-control",
+      "version": 1,
+      "check": "arista-eos.l2.storm-control",
+      "sections": [],
+      "class": "usudek",
+      "severity": "medium",
+      "evidence_fields": [
+        "reason"
+      ],
+      "title": "An edge port lacks the required broadcast storm control.",
+      "remediation": "Configure a supported broadcast threshold on the affected edge port.",
+      "refs": [
+        "https://www.arista.com/en/um-eos/eos-data-transfer"
+      ]
+    },
+    {
+      "id": "arista-eos.ports.unused-up",
+      "version": 1,
+      "check": "arista-eos.ports.unused-up",
+      "sections": [],
+      "class": "usudek",
+      "severity": "medium",
+      "evidence_fields": [
+        "reason"
+      ],
+      "title": "A physical port declared unused is administratively enabled.",
+      "remediation": "Administratively shut the declared unused port.",
+      "refs": [
+        "https://www.arista.com/assets/data/pdf/user-manual/EOS-User-Manual.pdf"
+      ]
+    }
+  ]
+}

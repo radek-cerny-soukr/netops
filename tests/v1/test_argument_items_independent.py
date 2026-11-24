@@ -1,4 +1,5 @@
 import random
+import signal
 import time
 import unittest
 
@@ -114,11 +115,20 @@ class ItemsDifferential(unittest.TestCase):
     def test_maximal_string_array_is_validated_quickly_and_still_rejects_a_late_bad_item(self):
         schema = SCHEMAS[1]
         oids = ["[x]"] * 699027
+        # Speed-independent: a per-item or quadratic revalidation of 699027 items needs hours, so a
+        # 60 s hard stop (a reserve of two orders of magnitude over the linear path) separates them
+        # on any runner; the verdict is the hard stop, not the measured speed.
+        def expired(*_):
+            raise AssertionError("validating the maximal string array exceeded the 60 s hard stop")
+        previous = signal.signal(signal.SIGALRM, expired)
+        signal.setitimer(signal.ITIMER_REAL, 60)
         start = time.perf_counter()
-        self.assertIsNone(gateway.argument_error(schema, {"target": "t", "oids": oids}))
-        elapsed = time.perf_counter() - start
-        print("maximal valid array %.3f s" % elapsed, flush=True)
-        self.assertLess(elapsed, 2.0)
+        try:
+            self.assertIsNone(gateway.argument_error(schema, {"target": "t", "oids": oids}))
+        finally:
+            signal.setitimer(signal.ITIMER_REAL, 0)
+            signal.signal(signal.SIGALRM, previous)
+        print("maximal valid array %.3f s" % (time.perf_counter() - start), flush=True)
         oids[-1] = 7
         error = gateway.argument_error(schema, {"target": "t", "oids": oids})
         self.assertEqual((error.validator, tuple(error.path)), ("type", ("oids", 699026)))

@@ -179,7 +179,7 @@ def test_ios_last_clearing_tracks_counter_epoch(monkeypatch, profile, before, af
 
     monkeypatch.setattr(tables, 'response_envelope', timestamped)
     port = 'TenGigabitEthernet1/0/1'
-    fixture = ROOT / 'docs/cisco_xe/g71/negotiated_speed.out'
+    fixture = ROOT / 'docs/cisco_xe/xe-ports/negotiated_speed.out'
     original = fixture.read_text().replace('TenGigabitEthernet1/1', port)
 
     def sample(age, received, errors):
@@ -351,14 +351,14 @@ def json_dumps(value):
 
 
 # Two reads of the same device about 90 s apart, captured 2026-11-17 with the RO account netops-ro
-# (fixtures/real/<os>/<device>/captures_20261117_g03, index.json holds command, exit status and time).
-G03 = 'captures_20261117_g03'
+# (fixtures/real/<os>/<device>/captures_20261117_device_inventory, index.json holds command, exit status and time).
+DEVICE_INVENTORY = 'captures_20261117_device_inventory'
 TWO_TIMES = [
-    ('extreme_exos', REAL / 'exos/x435-8p-4s_33.7.1.6' / G03, ('ports_rx_errors', 'ports_tx_errors'), '1', 12, None),
-    ('extreme_exos', REAL / 'exos/x440g2-12p-10g4_33.7.1.6' / G03, ('ports_rx_errors', 'ports_tx_errors'), '1', 16, None),
-    ('cisco_ios', REAL / 'cisco_ios/iosv_15.9.3M12' / G03, ('interfaces_counters_errors', 'interfaces_details'),
+    ('extreme_exos', REAL / 'exos/x435-8p-4s_33.7.1.6' / DEVICE_INVENTORY, ('ports_rx_errors', 'ports_tx_errors'), '1', 12, None),
+    ('extreme_exos', REAL / 'exos/x440g2-12p-10g4_33.7.1.6' / DEVICE_INVENTORY, ('ports_rx_errors', 'ports_tx_errors'), '1', 16, None),
+    ('cisco_ios', REAL / 'cisco_ios/iosv_15.9.3M12' / DEVICE_INVENTORY, ('interfaces_counters_errors', 'interfaces_details'),
      'Gi0/1', 7, 'permission_denied'),
-    ('cisco_ios', REAL / 'cisco_ios/iosvl2_15.2.20200924' / G03, ('interfaces_counters_errors', 'interfaces_details'),
+    ('cisco_ios', REAL / 'cisco_ios/iosvl2_15.2.20200924' / DEVICE_INVENTORY, ('interfaces_counters_errors', 'interfaces_details'),
      'Gi0/1', 11, 'empty'),
 ]
 
@@ -398,7 +398,7 @@ def test_real_two_time_captures(monkeypatch, profile, directory, queries, port, 
 
 
 def test_real_iosv_refused_fallback_without_authorization_has_no_baseline(monkeypatch):
-    directory = REAL / 'cisco_ios/iosv_15.9.3M12' / G03
+    directory = REAL / 'cisco_ios/iosv_15.9.3M12' / DEVICE_INVENTORY
     body = (directory / 'interfaces_counters_errors_t1.txt').read_text()
     assert 'Line has invalid autocommand' in body
     auth, calls = setup_reads(monkeypatch, 'cisco_ios', {'interfaces_counters_errors': body})
@@ -409,7 +409,7 @@ def test_real_iosv_refused_fallback_without_authorization_has_no_baseline(monkey
 
 
 def test_real_cut_capture_is_unparsed_and_gives_no_new_baseline(monkeypatch):
-    directory = REAL / 'cisco_ios/iosvl2_15.2.20200924' / G03
+    directory = REAL / 'cisco_ios/iosvl2_15.2.20200924' / DEVICE_INVENTORY
     queries = ('interfaces_counters_errors', 'interfaces_details')
     auth, _ = setup_reads(monkeypatch, 'cisco_ios', two_time_bodies(directory, queries, 't1'))
     token = engine.switch_read(auth, 'interface_errors')['counter_baseline']
@@ -424,7 +424,7 @@ def test_real_cut_capture_is_unparsed_and_gives_no_new_baseline(monkeypatch):
     assert result['summary']['baseline']['missing_ports'] is None  # an incomplete read cannot prove a port vanished
 
 
-# 434-rv finding 1: an incomplete read (RX rows, empty TX answer with rc 0) must not issue a new baseline;
+# Review finding 1: an incomplete read (RX rows, empty TX answer with rc 0) must not issue a new baseline;
 # otherwise the next complete read would lose the earlier TX values and miss their increase.
 def set_exos_tx(text, port, value):
     """Replace the Tx Errors column (4th counter) of one port row, keeping the device's column layout."""
@@ -475,7 +475,7 @@ def test_shape_never_issues_baseline_or_missing_ports_for_incomplete_coverage():
     assert 'counter_baseline_too_large' not in shaped['warnings']
 
 
-# 434-rv finding 2: the short summaries tell a measured zero from an unavailable or incomparable counter.
+# Review finding 2: the short summaries tell a measured zero from an unavailable or incomparable counter.
 def test_counts_summary_tells_measured_zero_from_unavailable_counter(monkeypatch):
     auth, _ = setup_reads(monkeypatch, 'extreme_exos', exos_bodies())
     counts = engine.switch_read(auth, 'interface_errors', summary='counts')

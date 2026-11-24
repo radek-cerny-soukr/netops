@@ -1,10 +1,10 @@
-"""1.0.12 G112 adds the measured answers for the ACL, isolation, limit, passphrase-reference and enterprise lines of a WLAN
-and for the DHCP relay entries (tests/fixtures/ruckus_g112).
+"""1.0.12 WIRELESS-DHCP adds the measured answers for the ACL, isolation, limit, passphrase-reference and enterprise lines of a WLAN
+and for the DHCP relay entries (tests/fixtures/ruckus_wireless_dhcp).
 
 A Ruckus R610 Unleashed (200.15.6.212 build 27) simulated at the access layer for the common Admin engine.
 
-Listings come from the measured fixtures (tests/fixtures/ruckus_g111); the answers of the CLI are the measured texts
-(see test_ruckus_g111.test_fake_answers_are_measured_ones). The device keeps a WLAN only when its context ends with
+Listings come from the measured fixtures (tests/fixtures/ruckus_wireless_wlans); the answers of the CLI are the measured texts
+(see test_ruckus_wireless_wlans.test_fake_answers_are_measured_ones). The device keeps a WLAN only when its context ends with
 `end` or `exit`; a session that ends earlier saves nothing (measured: `abort` -> "No changes have been saved.").
 """
 from __future__ import annotations
@@ -16,8 +16,8 @@ from types import SimpleNamespace
 from netops_admin import exec_ruckus, ruckus
 from netops_admin.access import AccessError
 
-FIXTURES = Path(__file__).with_name("fixtures") / "ruckus_g111"
-GROUP_CONFIG = (FIXTURES.parents[3] / "netops-helper" / "tests" / "fixtures" / "ruckus_g110" / "show_config.out")
+FIXTURES = Path(__file__).with_name("fixtures") / "ruckus_wireless_wlans"
+GROUP_CONFIG = (FIXTURES.parents[3] / "netops-helper" / "tests" / "fixtures" / "ruckus_wireless_network_services" / "show_config.out")
 OK = "The command was executed successfully. To save the changes, type 'end' or 'exit'."
 UNRECOGNIZED = ("The command is either unrecognized or incomplete. To view a list of commands that you can run "
                 " from this context, type '?' or 'help'.")
@@ -31,7 +31,7 @@ MAX_CLIENTS_REFUSED = "The Max. client value must be a number between 1 and 512.
 RATE_REFUSED = ("The rate of limiting must be between 0.10 and 200.00, 2 digits after the decimal point is retained. "
                 "020 or 020.0 is error format.")
 PERSSID_REFUSED = "The rate of limiting must be between 0.1 and 500.0 mbps. 0 means disable.  020 or 020.0 is error format."
-HELPER_DHCP_EMPTY = FIXTURES.parents[3].parent / "netops-helper" / "tests" / "fixtures" / "ruckus_g110" / "show_dhcp_all.out"
+HELPER_DHCP_EMPTY = FIXTURES.parents[3].parent / "netops-helper" / "tests" / "fixtures" / "ruckus_wireless_network_services" / "show_dhcp_all.out"
 
 
 def measured(name: str) -> str:
@@ -63,7 +63,7 @@ def _withdrawn(block) -> list:
 
 
 class FakeRuckus:
-    def __init__(self, selected=("netops-g111-test",), hostile=None):
+    def __init__(self, selected=("netops-wireless-wlans-test",), hostile=None):
         self.credential = SimpleNamespace(login="admin", kind="password")
         self.check_credential = SimpleNamespace(login="admin", kind="password")
         base = _blocks(measured("show_wlan_all.out"))
@@ -87,7 +87,7 @@ class FakeRuckus:
         self.sessions = 0
         self.last_passphrase = None
         self.passphrases = []
-        # 1.0.12 G112: objects the lines may name (the device refuses a name it does not know), the DHCP relay entries
+        # 1.0.12 WIRELESS-DHCP: objects the lines may name (the device refuses a name it does not know), the DHCP relay entries
         # and the vault entries a passphrase reference resolves to
         self.l2acls, self.l3acls, self.aaa = {"allow-list", "block-list"}, {"guest-l3"}, {"corp-radius"}
         self.relays = {}          # name -> {"description": str, "addresses": [first, second]}
@@ -274,7 +274,7 @@ class FakeRuckus:
         if words == ["no", "service"]:
             self._set(block, "Service", "Disabled")
             return OK
-        extra = self._g112_line(words, block)
+        extra = self._wireless_dhcp_line(words, block)
         if extra is not None:
             return extra
         if len(words) >= 3 and words[0] == "open" and words[1] in ("wpa2", "wpa3") and words[2] == "passphrase":
@@ -297,8 +297,8 @@ class FakeRuckus:
                 return OK
         return UNRECOGNIZED
 
-    def _g112_line(self, words, block):
-        """The measured answers of the G112 lines (tests/fixtures/ruckus_g112/cli_wlan.out, cli_wlan_errors.out)."""
+    def _wireless_dhcp_line(self, words, block):
+        """The measured answers of the WIRELESS-DHCP lines (tests/fixtures/ruckus_wireless_dhcp/cli_wlan.out, cli_wlan_errors.out)."""
         if words[:1] == ["max-clients"] and len(words) == 2:
             if not (words[1].isdigit() and 1 <= int(words[1]) <= 512):
                 return MAX_CLIENTS_REFUSED

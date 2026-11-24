@@ -5,7 +5,6 @@ import re
 from dataclasses import dataclass
 from importlib import resources
 
-from netops_admin import ios
 from netops_admin.errors import Rejected
 from netops_core import tested
 
@@ -16,9 +15,11 @@ FORTIOS_80_AUTO_SCRIPT = (
     " FortiOS 8.0 changed auto-script, which the cli-script safeguard runs: from 8.0.1 build0185 it allows only"
     " information-gathering commands, so from 8.0.1 Admin uses the webhook safeguard (an automation stitch that"
     " calls the REST API of the device), on 8.0.0 the cli-script safeguard.")
-# ipv4-interface (1.0.12 G19): an interface address with its mask, host bits set (FortiOS system interface ip)
+# ipv4-interface (1.0.12 firewall routing admin): an interface address with its mask, host bits set (FortiOS system interface ip)
 LIST_TYPES = ("name-list", "mac-address-list")
-ATTRIBUTE_TYPES = ("ipv4-network", "ipv4-address", "ipv4-interface", "mac-address", *LIST_TYPES, "text", "integer")
+# ipv6-network, ipv6-address (1.0.13 A1-R): a compressed IPv6 prefix without host bits and a compressed IPv6 address
+ATTRIBUTE_TYPES = ("ipv4-network", "ipv4-address", "ipv4-interface", "mac-address", *LIST_TYPES, "text", "integer",
+                   "ipv6-network", "ipv6-address")
 PROFILE_FIELDS = frozenset((
     "platform", "table", "versions", "ops", "key_pattern", "protected_keys", "attributes",
     "fixed", "volatile", "reserved_values", "inverse_identity_changes", "rollback_evidence",
@@ -32,7 +33,7 @@ OPTIONAL_PROFILE_FIELDS = frozenset((
     "isolated_update", "provisional", "value_requires", "measured", "action",
 ))
 # a table changed only by its own operation (never by admin_apply or admin_preview)
-# 1.0.12 G123: EOS has the PoE cycle (E07) and the port bounce (E08)
+# 1.0.12 eos port maintenance: EOS has the PoE cycle (E07) and the port bounce (E08)
 ACTIONS = {"poe-cycle": ("exos", "eos", "fortios", "junos", "ios", "iosxe"), "port-bounce": ("exos", "eos", "fortios", "junos", "nxos", "ios", "iosxe")}
 
 
@@ -195,7 +196,7 @@ def parse_profile(data) -> Profile:
         _require(set(_strings(names, "inverse_identity_changes %s" % op)) <= set(volatile),
                  "an identity change must be a volatile attribute")
     _require(isinstance(data["rollback_evidence"], str) and data["rollback_evidence"],
-             "rollback_evidence must describe the measured rollback")
+             "rollback_evidence must describe the rollback evidence")
     undo_ops = _strings(data.get("undo_ops", []), "undo_ops")
     _require(set(undo_ops) <= set(OPS), "undo_ops must be a subset of %s" % (OPS,))
     exact = data.get("exact_versions", False)
@@ -205,7 +206,6 @@ def parse_profile(data) -> Profile:
              "exact_versions, table_scoped_key and provisional must be true or false")
     measured = data.get("measured", True)
     _require(isinstance(measured, bool), "measured must be true or false")
-    _require(measured or (provisional and exact), "a profile not measured on a device must be provisional with exact_versions")
     action = data.get("action")
     _require(action is None or (action in ACTIONS and data["platform"] in ACTIONS[action]),
              "action must name an operation of the platform: %s" % sorted(ACTIONS))
@@ -258,6 +258,12 @@ def load_profiles() -> dict:
             profile = parse_profile(json.loads(entry.read_text(encoding="utf-8")))
         except (ValueError, ProfileError) as exc:
             raise ProfileError("%s: %s" % (entry.name, exc)) from exc
+        if profile.platform == "fortios" and profile.isolated_update:
+            from netops_admin import fortios_tables
+            try:
+                fortios_tables.check_profile(profile)
+            except Rejected as exc:
+                raise ProfileError("%s: %s" % (entry.name, "; ".join(exc.reasons))) from None
         identity = (profile.platform, profile.table)
         if identity in profiles:
             raise ProfileError("two profiles for %s %s" % identity)
@@ -266,7 +272,7 @@ def load_profiles() -> dict:
 
 
 def find_profile(platform: str, table: str, firmware: str) -> Profile:
-    """The profile of a table. The firmware is not a gate (G00): profile.versions lists the tested versions and
+    """The profile of a table. The firmware is not a gate (startup): profile.versions lists the tested versions and
     firmware_support() reports a version outside them as untested; there is one profile per platform and table, so
     it is also the nearest profile of the OS family for any version."""
     profile = load_profiles().get((platform, table))
@@ -282,14 +288,11 @@ PLATFORM_NAMES = {"fortios": "FortiOS", "exos": "ExtremeXOS", "eos": "Arista EOS
 
 def firmware_support(profile: Profile, firmware, *, unmeasured_operation=False) -> dict:
     """tested/untested/unknown of the firmware against the tested versions of the profile (netops_core.tested)."""
-    unmeasured_poe_cycle = profile.platform == "fortios" and profile.table == "poe-cycle"
-    if (unmeasured_operation or unmeasured_poe_cycle
-            or (profile.platform == "junos" and profile.table in ("poe", "inline-power"))
-            or (profile.platform in ios.PLATFORMS and profile.table in ios.POE_TABLES)):
+    if not profile.measured or unmeasured_operation:
         status = tested.UNTESTED if firmware else tested.UNKNOWN
         return {"status": status, "platform": PLATFORM_NAMES[profile.platform], "device_version": firmware,
                 "model": None, "tested_versions": [],
-                "message": "No firmware version has been tested live for this operation."}
+                "message": "Live verification is pending for this operation."}
     result = tested.support(PLATFORM_NAMES[profile.platform], firmware, profile.versions,
                             function="the Admin profile %s %r" % (profile.platform, profile.table))
     if (result["status"] == tested.UNTESTED and profile.platform == "fortios"

@@ -1,0 +1,7 @@
+#
+# Module ospfv3 configuration.
+#
+enable ospfv3
+create ospfv3 area 0.0.0.15
+configure ospfv3 add vlan netops-ospf instance-id 0 area 0.0.0.15 link-type auto passive
+configure ospfv3 vlan netops-ospf cost 42

@@ -460,7 +460,7 @@ def test_every_resolver_failure_of_the_target_name_is_dns(fake_openssh, monkeypa
 
 
 def test_a_refused_login_of_a_multi_vdom_fortios_target_names_the_vdom_interface(fake_openssh):
-    # Task 212 (live check 197 S6): a per-VDOM administrator that logs in through an interface of another VDOM
+    # verification (live check 197 S6): a per-VDOM administrator that logs in through an interface of another VDOM
     # is refused like a wrong password; only a FortiOS target with diagnostic_vdoms gets the per-VDOM advice.
     use, _, events = fake_openssh
     use("auth")
@@ -487,7 +487,7 @@ def test_a_refused_login_of_a_multi_vdom_fortios_target_names_the_vdom_interface
 
 
 def test_a_refused_login_of_a_multi_vdom_fortios_table_read_names_the_vdom_interface(fake_openssh):
-    # Review 212-rv finding 1: switch_read goes through normalized_query and its transport branch, which must carry
+    # Review finding 1: switch_read goes through normalized_query and its transport branch, which must carry
     # the target too, so the per-VDOM advice of a FortiOS target with diagnostic_vdoms is not lost there.
     use, clients, events = fake_openssh
     use("auth")

@@ -1,7 +1,7 @@
-"""1.0.12 small review fixes (task 493) replay real cEOS 4.36.1F captures; only the SSH transport is replaced.
+"""1.0.12 small review fixes (verification) replay real cEOS 4.36.1F captures; only the SSH transport is replaced.
 
-`drobne493_ceos_4.36.1F` holds live read-only captures: `show poe` of the admin account on cEOS 2253 and the triage
-reads of Port-Channel128 on the MLAG pair b04-eos-a (:2263). Cut or blanked captures are marked DERIVED.
+`drobne493_ceos_4.36.1F` holds live read-only captures: `show poe` of the admin account on cEOS and the triage
+reads of Port-Channel128 on an MLAG peer. Cut or blanked captures are marked DERIVED.
 """
 import json
 from dataclasses import replace
@@ -15,9 +15,9 @@ from netops_helper.query_catalog.arista import QUERIES
 
 FIXTURES = Path(__file__).parent / 'fixtures/real/arista_eos'
 REAL = FIXTURES / 'drobne493_ceos_4.36.1F'
-G118 = FIXTURES / 'g118_ceos_4.36.1F'
+EOS_PORTS = FIXTURES / 'eos_ports_ceos_4.36.1F'
 INDEX = json.loads((REAL / 'index.json').read_text())
-G118_INDEX = json.loads((G118 / 'index.json').read_text())
+EOS_PORTS_INDEX = json.loads((EOS_PORTS / 'index.json').read_text())
 INVENTORY = {'interfaces': ('Ethernet2', 'Ethernet14', 'Port-Channel104', 'Port-Channel128')}
 
 
@@ -28,7 +28,7 @@ def capture(key):
 def transport(monkeypatch, outputs, enabled=None):
     """Answer each command with (rc, text); `show version` is the anonymized capture of the same pair."""
     outputs = dict(outputs)
-    outputs.setdefault('show version', (0, (G118 / G118_INDEX['pair_version_ro']['file']).read_text()))
+    outputs.setdefault('show version', (0, (EOS_PORTS / EOS_PORTS_INDEX['pair_version_ro']['file']).read_text()))
     auth = replace(_target('arista_eos', 'version'), enabled_queries=tuple(enabled or QUERIES), read_inventory=INVENTORY)
     calls = []
 
@@ -121,7 +121,7 @@ def doc_layout(*rows):
     return _table(*(_row(*row) for row in rows))
 
 
-MEMBER = ('128', 'B04-MLAG-to-vPC', 'active-full', 'Po128', 'Po128', 'up/up')
+MEMBER = ('128', 'DUO-MLAG-to-vPC', 'active-full', 'Po128', 'Po128', 'up/up')
 
 
 def test_eos_triage_real_pair_capture_reads_the_member_state(monkeypatch):
@@ -130,7 +130,7 @@ def test_eos_triage_real_pair_capture_reads_the_member_state(monkeypatch):
     members = result['evidence']['mlag_interfaces']['mlag_members']
     row, = members['members']
     assert members['state'] == 'measured' and row['state'] == 'active-full'
-    assert row['description'] == 'B04-MLAG-to-vPC'
+    assert row['description'] == 'DUO-MLAG-to-vPC'
     assert row['local_status'] == row['remote_status'] == 'up'
     assert result['missing'] == [] and result['verdict'] == 'no_fault_observed' and result['ok'] is True
 
@@ -147,7 +147,7 @@ def derived_header_only():
 
 
 def derived_blank_state():
-    return doc_layout(('128', 'B04-MLAG-to-vPC', '', 'Po128', 'Po128', 'up/up'))
+    return doc_layout(('128', 'DUO-MLAG-to-vPC', '', 'Po128', 'Po128', 'up/up'))
 
 
 def derived_blank_live_state():
@@ -155,7 +155,7 @@ def derived_blank_live_state():
 
 
 def derived_unknown_link():
-    return doc_layout(('128', 'B04-MLAG-to-vPC', 'active-full', 'Po128', 'Po128', '-/up'))
+    return doc_layout(('128', 'DUO-MLAG-to-vPC', 'active-full', 'Po128', 'Po128', '-/up'))
 
 
 @pytest.mark.parametrize('make', [derived_header_only, derived_blank_state, derived_blank_live_state, derived_unknown_link])
@@ -175,10 +175,10 @@ def test_eos_triage_another_members_gaps_do_not_hide_the_selected_row(monkeypatc
 
 
 @pytest.mark.parametrize('role', ['ro', 'admin'])
-def test_eos_g118_no_mlag_ports_capture_is_still_a_complete_empty_table(monkeypatch, role):
-    from test_g118_ports import transport as g118_transport
+def test_eos_eos_ports_no_mlag_ports_capture_is_still_a_complete_empty_table(monkeypatch, role):
+    from test_eos_ports_ports import transport as eos_ports_transport
 
-    auth, calls = g118_transport(monkeypatch, ['mlag_interfaces'], role=role)
+    auth, calls = eos_ports_transport(monkeypatch, ['mlag_interfaces'], role=role)
     result = engine.ssh_read(auth, 'arista_eos', 'mlag_interfaces', {}, 0, 16000)
     assert calls[-1] == 'show mlag interfaces' and result['ok'] is True
     assert result['mlag_members'] == {'state': 'measured', 'members': [], 'missing_fields': []}
@@ -186,7 +186,7 @@ def test_eos_g118_no_mlag_ports_capture_is_still_a_complete_empty_table(monkeypa
 
 # 2c. A refused MAC read names every query the administrator can enable, including the backward compatible `mac_table`.
 
-MAC = G118_INDEX['mac_table_address_ro']['parameters']['mac']
+MAC = EOS_PORTS_INDEX['mac_table_address_ro']['parameters']['mac']
 REFUSED = [
     ({'mac': MAC}, ['mac_table_address', 'mac_table']),
     ({'vlan_id': '10'}, ['mac_table_vlan', 'mac_table']),
@@ -225,7 +225,7 @@ def test_public_eos_mac_refusal_names_the_candidates(tmp_path, arguments, names)
 
 
 def test_eos_mac_read_with_the_targeted_query_enabled_is_unchanged(monkeypatch):
-    from test_g118_ports import transport as g118_transport
-    auth, calls = g118_transport(monkeypatch, ['mac_table_address'], enabled=['version', 'mac_table_address'])
+    from test_eos_ports_ports import transport as eos_ports_transport
+    auth, calls = eos_ports_transport(monkeypatch, ['mac_table_address'], enabled=['version', 'mac_table_address'])
     result = engine.switch_read(auth, 'mac_entry', mac=MAC)
     assert result['status'] == 'ok' and calls[-1] == 'show mac address-table address ' + MAC

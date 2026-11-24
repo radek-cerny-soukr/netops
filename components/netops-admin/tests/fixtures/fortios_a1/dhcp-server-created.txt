@@ -1,0 +1,9 @@
+config system dhcp server
+    edit 7
+        set status disable
+        set default-gateway 192.0.2.1
+        set netmask 255.255.255.0
+        set interface "netops-a1s"
+    next
+end
+

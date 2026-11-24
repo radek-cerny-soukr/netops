@@ -1,1 +1,0 @@
-Can't ls: "/config/netops-g47-capture.pol" not found

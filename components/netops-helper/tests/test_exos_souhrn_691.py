@@ -1,4 +1,4 @@
-"""1.0.12 EXOS summary fixes (task 691): real captures through the real Helper read path, fake SSH transport only."""
+"""1.0.12 EXOS summary fixes (verification): real captures through the real Helper read path, fake SSH transport only."""
 
 import hashlib
 import json
@@ -7,9 +7,9 @@ from pathlib import Path
 import pytest
 
 from netops_helper import engine
-from test_g38_ports import ordinary_port_outputs, transport as port_transport
-from test_g40_exos_health import LEGACY_LOGS, PROFILE, public  # noqa: F401  (public is a fixture)
-from test_ios_exos_522_r2 import ssh_read as wire_ssh_read
+from test_switch_port_inventory_ports import ordinary_port_outputs, transport as port_transport
+from test_switch_health_exos_health import LEGACY_LOGS, PROFILE, public  # noqa: F401  (public is a fixture)
+from test_ios_exos_openssh_warning import ssh_read as wire_ssh_read
 
 FIXTURES = Path(__file__).parent / "fixtures"
 REAL = FIXTURES / "real/exos"

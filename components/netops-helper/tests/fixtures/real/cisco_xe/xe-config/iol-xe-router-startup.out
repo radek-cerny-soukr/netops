@@ -1,0 +1,279 @@
+
+
+
+Using 5899 out of 65536 bytes
+!
+<UNVERIFIED:cisco-ios-opaque-line>
+!
+version 17.18
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+!
+hostname host01
+!
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+!
+!
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+!
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+!
+!
+!
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+!
+!
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+!
+!
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+!
+!
+<UNVERIFIED:cisco-ios-opaque-line>
+!
+<UNVERIFIED:cisco-ios-opaque-line>
+!
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+!
+!
+!
+!
+!
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+interface Loopback0
+ ip address 192.0.2.7   255.255.255.255
+<UNVERIFIED:cisco-ios-opaque-line>
+ ipv6 address 2001:db8:1::7/128
+<UNVERIFIED:cisco-ios-opaque-line>
+!
+interface Ethernet0/0
+ ip address 198.51.100.57  255.255.255.0
+!
+interface Ethernet0/1
+<UNVERIFIED:cisco-ios-opaque-line>
+!
+interface Ethernet0/1.10
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+ ip address 203.0.113.7 255.255.255.0
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+ ipv6 address 2001:db8:2::7/64
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+!
+interface Ethernet0/1.20
+<UNVERIFIED:cisco-ios-opaque-line>
+ ip address 203.0.113.254 255.255.255.0
+!
+interface Ethernet0/2
+ description XE-ROUTING VRF blue link to iosv Gi0/2
+<UNVERIFIED:cisco-ios-opaque-line>
+ ip address 203.0.113.253 255.255.255.0
+ ipv6 address 2001:db8:3::7/64
+<UNVERIFIED:cisco-ios-opaque-line>
+!
+interface Ethernet0/3
+<UNVERIFIED:cisco-ios-opaque-line>
+ shutdown
+!
+interface Ethernet1/0
+<UNVERIFIED:cisco-ios-opaque-line>
+ shutdown
+!
+interface Ethernet1/1
+<UNVERIFIED:cisco-ios-opaque-line>
+ shutdown
+!
+interface Ethernet1/2
+<UNVERIFIED:cisco-ios-opaque-line>
+ shutdown
+!
+interface Ethernet1/3
+<UNVERIFIED:cisco-ios-opaque-line>
+ shutdown
+!
+interface Serial2/0
+<UNVERIFIED:cisco-ios-opaque-line>
+ shutdown
+<UNVERIFIED:cisco-ios-opaque-line>
+!
+interface Serial2/1
+<UNVERIFIED:cisco-ios-opaque-line>
+ shutdown
+<UNVERIFIED:cisco-ios-opaque-line>
+!
+interface Serial2/2
+<UNVERIFIED:cisco-ios-opaque-line>
+ shutdown
+<UNVERIFIED:cisco-ios-opaque-line>
+!
+interface Serial2/3
+<UNVERIFIED:cisco-ios-opaque-line>
+ shutdown
+<UNVERIFIED:cisco-ios-opaque-line>
+!
+interface Serial3/0
+<UNVERIFIED:cisco-ios-opaque-line>
+ shutdown
+<UNVERIFIED:cisco-ios-opaque-line>
+!
+interface Serial3/1
+<UNVERIFIED:cisco-ios-opaque-line>
+ shutdown
+<UNVERIFIED:cisco-ios-opaque-line>
+!
+interface Serial3/2
+<UNVERIFIED:cisco-ios-opaque-line>
+ shutdown
+<UNVERIFIED:cisco-ios-opaque-line>
+!
+interface Serial3/3
+<UNVERIFIED:cisco-ios-opaque-line>
+ shutdown
+<UNVERIFIED:cisco-ios-opaque-line>
+!
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+!
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+!
+<UNVERIFIED:cisco-ios-opaque-line>
+!
+<UNVERIFIED:cisco-ios-opaque-line>
+!
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+!
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+!
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+!
+!
+!
+!
+<UNVERIFIED:cisco-ios-opaque-line>
+!
+!
+!
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+<UNVERIFIED:cisco-ios-opaque-line>
+!
+!
+!
+!
+end

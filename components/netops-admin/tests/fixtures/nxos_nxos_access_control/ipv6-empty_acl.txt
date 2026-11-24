@@ -1,0 +1,2 @@
+
+IPv6 access list NETOPS-NXOS-ACCESS-CONTROL-V6

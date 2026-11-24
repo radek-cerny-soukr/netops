@@ -27,5 +27,5 @@
   "volatile": [],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "IOS timed configuration safeguard, full running-config verification and a scoped inverse. The privilege-15 account rereads service configuration. The privilege-1 account cannot read it."
+  "rollback_evidence": "Live write and return on Cisco IOS 15.9(3)M12 (2026-11-19): The affected management-service settings were read back after the change and after undo. IOS timed configuration safeguard, full running-config verification and a scoped inverse. The privilege-15 account rereads service configuration. The privilege-1 account cannot read it."
 }

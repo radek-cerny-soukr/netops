@@ -1,2 +1,0 @@
-ip access-group NETOPS-G82-V4 in
-host01(config-if)#

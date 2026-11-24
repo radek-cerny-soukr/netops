@@ -36,7 +36,7 @@ class _DialogOutput(_FortinetOutput):
 
 def dialog(shell, command, seconds, *, typed=None, password=False, capture_max_bytes=None, sent=None):
     """Use the open Core PTY and its frame reader for an Admin CLI dialog. `sent` is called once the line has been
-    written to the session, before the device answers (1.0.12 G24: a profile batch step starts only then)."""
+    written to the session, before the device answers (1.0.12 firewall commit: a profile batch step starts only then)."""
     shell._alive()
     wire = command if typed is None else typed(command)
     if any(mark in wire for mark in ("\n", "\r", "\0")):

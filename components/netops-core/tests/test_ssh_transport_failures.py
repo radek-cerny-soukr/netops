@@ -6,6 +6,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+from types import SimpleNamespace
 
 import pytest
 
@@ -102,7 +103,7 @@ def test_ssh_drains_the_client_without_a_pidfd(client, monkeypatch):
         raise OSError(errno.ENOSYS, "private-CANARY")
 
     with monkeypatch.context() as fault:
-        fault.setattr(os, "pidfd_open", unsupported, raising=False)
+        fault.setattr(ssh, "os", SimpleNamespace(**(vars(os) | {"pidfd_open": unsupported})))
         result = _run_ssh()
 
     assert result.rc == 0 and result.stdout == SUCCESS and result.said == ""

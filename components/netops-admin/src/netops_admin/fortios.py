@@ -8,6 +8,7 @@ from dataclasses import dataclass, replace
 
 from netops_auditor import l1_fortios
 
+from netops_admin import fortios_tables
 from netops_admin.config import NAT_TABLES
 from netops_admin.errors import (SNAPSHOT_FIRMWARE_MISMATCH, SNAPSHOT_INCOMPLETE, SNAPSHOT_SCOPE_UNSUPPORTED,
                                  SNAPSHOT_UNREADABLE, Rejected, SnapshotRejected, StateUnreadable)
@@ -53,12 +54,17 @@ SESSION_TUPLE = re.compile(r"(?m)^hook=(pre|post) dir=org act=(?:noop|snat|dnat)
                            r"([0-9.]+):([0-9]+)->([0-9.]+):([0-9]+)\([0-9.]+:[0-9]+\)[ \t]*$")
 CONTROL = re.compile(r"[\x00-\x1f\x7f]")
 NOT_FOUND = "entry is not found in table"
-# 1.0.12 G20: tables that live one level down in another table, keyed "<parent key>:<child id>". The parent key of a
+# 1.0.12 dhcp dns: tables that live one level down in another table, keyed "<parent key>:<child id>". The parent key of a
 # DHCP server is its numeric id, that of a DNS zone its name. A request may also name the child by what the operator
 # knows (resolve_nested_key): "<interface>@<mac>" for a DHCP reservation, "<zone>@<hostname>" for a DNS entry.
 DHCP_TABLE = "system dhcp server/reserved-address"
 DNS_TABLE = "system dns-database/dns-entry"
 NESTED = {DHCP_TABLE: ("system dhcp server", "reserved-address"), DNS_TABLE: ("system dns-database", "dns-entry")}
+ORIGINAL_NESTED = tuple(NESTED)
+# 1.0.13 A1-R: the DHCP address range below its server, keyed "<server id>:<range id>" like a reservation (the profile and
+# its hooks come from the registry, fortios_tables)
+IP_RANGE_TABLE = "system dhcp server/ip-range"
+NESTED[IP_RANGE_TABLE] = ("system dhcp server", "ip-range")
 MAC_TEXT = re.compile(r"[0-9A-Fa-f]{2}(?::[0-9A-Fa-f]{2}){5}")
 
 
@@ -268,6 +274,13 @@ class Snapshot:
             stack.extend(node.entries.values())
 
     def entries(self, table: str):
+        registered = fortios_tables.hooks(table)
+        if registered is not None and registered.entries is not None:
+            return registered.entries(self)
+        if registered is not None and registered.kind == "singleton":
+            # 1.0.13 A1-R: a singleton is always configured; a snapshot without its section is incomplete
+            section = self.root.sub.get(table)
+            return None if section is None else {fortios_tables.SINGLETON_KEY: section}
         if table in SWITCH_PORT_TABLES:
             switches = self.root.section(MANAGED_SWITCH)
             if switches is None:
@@ -289,7 +302,9 @@ class Snapshot:
         section = self.root.sub.get(table)
         if section is None:
             # Abbreviated show omits empty tables. The live check account independently proves target absence.
-            return {} if table in (GROUP_TABLE, POLICY_TABLE, PHASE2_TABLE, *NAT_TABLES) else None
+            # 1.0.13 A1-R r2: so does it omit an empty object table of the registry (router static6 on 7.6.8)
+            empty = (GROUP_TABLE, POLICY_TABLE, PHASE2_TABLE, *NAT_TABLES)
+            return {} if table in empty or (registered is not None and registered.kind == "object") else None
         return dict(section.entries)
 
     def policy_order(self):
@@ -299,7 +314,9 @@ class Snapshot:
     def entry_state(self, entry, lists=()):
         unsupported = ["%s: a list item holds whitespace" % name for name in lists
                        if name in entry.attrs and _list_has_unsupported_whitespace(entry, name, entry.attrs[name].values)]
-        if entry.sub or entry.entries:
+        registered = fortios_tables.hooks(entry.path[0]) if len(entry.path) == 2 else None
+        children = set(entry.sub) - set(registered.child_sections if registered is not None else ())
+        if children or entry.entries:
             unsupported.append("nested configuration")
         unsupported.extend("unset %s" % name for name, attr in entry.attrs.items() if attr.unset)
         if self._repeated is None:
@@ -336,9 +353,16 @@ class Snapshot:
 
     def rest_digest(self, table: str, key: str, safeguard_id=None, *,
                     include_empty_group=False, omit_empty_policy=False, switch_port_g18=False,
-                    ignore_uuid=frozenset(), batch=False) -> str:
+                    ignore_uuid=frozenset(), batch=False, singleton_names=frozenset()) -> str:
         own_names = safeguard_names(safeguard_id) if safeguard_id else {}
         target = (table, key)
+        registered = fortios_tables.hooks(table)
+        # 1.0.13 A1-R (design A 1.5a): the section of a singleton stays in the digest without the attributes of the plan state
+        singleton = (table,) if registered is not None and registered.kind == "singleton" else None
+        # design A 1.2: the child sections of a registered object (DHCP ranges and reservations of a server) are not
+        # part of its state, so they stay in the digest of the rest
+        object_table = registered is not None and registered.kind == "object"
+        kept = registered.child_sections if object_table else ()
         if table in NESTED:
             parent, child = split_nested(table, key)
             target = (NESTED[table][0], parent, NESTED[table][1], child)
@@ -356,8 +380,10 @@ class Snapshot:
             for name, attr in sorted(node.attrs.items()):
                 if port_target and node.path == target and name in port_fields:
                     continue
+                if node.path == singleton and name in singleton_names:
+                    continue
                 if name == "uuid" and node.path in ignore_uuid:
-                    # 1.0.12 G24: the identity the device gave an object created by an earlier step of the batch
+                    # 1.0.12 firewall commit: the identity the device gave an object created by an earlier step of the batch
                     continue
                 values = list(attr.values)
                 volatile = ((node.path[:1] == ("vpn certificate local",) and name in ("password", "private-key"))
@@ -378,7 +404,12 @@ class Snapshot:
                     continue
                 if section.path in ((PHASE2_TABLE,), (VIP_TABLE,), (POOL_TABLE,)) and not any(body.values()):
                     continue
-                if (name.startswith("system automation-") or name in ("reserved-address", "dns-entry", "system api-user")) and not any(body.values()):
+                if section.path == (table,) and object_table and not any(body.values()):
+                    # 1.0.13 A1-R r2/r3: show omits an empty object table of the registry; the first create and the
+                    # last delete of the plan target compare the rest without its empty wrapper. Only the target table:
+                    # the digest of a plan for any other table keeps every section as before
+                    continue
+                if (name.startswith("system automation-") or name in ("reserved-address", "dns-entry", "ip-range", "system api-user")) and not any(body.values()):
                     continue
                 children[name] = body
             if include_empty_group and not node.path:
@@ -389,6 +420,9 @@ class Snapshot:
             source = sorted(node.entries.items()) if unordered else node.entries.items()
             for name, entry in source:
                 if entry.path == target and not port_target:
+                    sections = {child: body for child, body in canonical(entry)["sections"].items() if child in kept}
+                    if sections:
+                        items.append([name, {"attributes": {}, "sections": sections, "entries": []}])
                     continue
                 if len(node.path) == 1 and (node.path[0], name) in ignore:
                     continue
@@ -457,15 +491,23 @@ def group_members(state) -> set:
 
 
 def group_policy_use(snapshot, key: str, protected) -> tuple:
-    """1.0.12 G24 r2 (705-rv finding 1): the policies that name an address group (or a group that holds it) in srcaddr
+    """1.0.12 firewall commit r2 (review finding 1): the policies that name an address group (or a group that holds it) in srcaddr
     or dstaddr. Returns (protected policy IDs from the inventory, active policy IDs); a member change of the group
     changes the traffic these policies match although their own record stays the same."""
     names = {key.casefold()} | {name.casefold() for name in containing_groups(snapshot.entries(GROUP_TABLE), key)}
+    return policy_use(snapshot, names, ("srcaddr", "dstaddr"), protected)
+
+
+def policy_use(snapshot, names, attributes, protected) -> tuple:
+    """1.0.13 A1-R: the policies that name one of names in one of the policy attributes (the generalization of
+    group_policy_use for TableHooks.policy_attributes). Returns (protected policy IDs from the inventory, active
+    policy IDs)."""
+    names = {name.casefold() for name in names}
     guarded = {str(item) for item in (protected or {}).get(POLICY_TABLE, ())}
     used, active = [], []
     for policy_id, entry in (snapshot.entries(POLICY_TABLE) or {}).items():
-        addresses = entry.values("srcaddr") + entry.values("dstaddr")
-        if not any(item.casefold() in names for item in addresses):
+        values = [item for attribute in attributes for item in entry.values(attribute)]
+        if not any(item.casefold() in names for item in values):
             continue
         used.append(policy_id)
         if entry.value("status", "enable") == "enable":
@@ -519,10 +561,29 @@ def _context(profile, key):
     if profile.table == DNS_TABLE:
         zone, entry_id = split_nested(profile.table, key)
         return ["config system dns-database", "edit " + _quoted(zone), "config dns-entry"], entry_id, ["end", "next", "end"]
+    if profile.table in NESTED:
+        # 1.0.13 A1-R: a registered nested table (DHCP ip-range) below its numeric or named parent
+        parent_table, child_table = NESTED[profile.table]
+        parent, child = split_nested(profile.table, key)
+        parent = parent if parent.isdigit() else _quoted(parent)
+        child = child if child.isdigit() else _quoted(child)
+        return ["config " + parent_table, "edit " + parent, "config " + child_table], child, ["end", "next", "end"]
     return ["config " + profile.table], _quoted(key), ["end"]
 
 
-# 1.0.12 G19: measured on FortiGate-60F 7.6.8 build3744 (task 439): a VLAN created without a role inherits role lan
+def _singleton(profile) -> bool:
+    registered = fortios_tables.hooks(profile.table)
+    return registered is not None and registered.kind == "singleton"
+
+
+def _registered_render(profile, op, key, assign, remove):
+    registered = fortios_tables.hooks(profile.table)
+    if registered is not None and registered.render is not None:
+        return registered.render(profile, op, key, dict(assign), list(remove))
+    return None
+
+
+# 1.0.12 firewall routing admin: measured on FortiGate-60F 7.6.8 build3744 (verification): a VLAN created without a role inherits role lan
 # from its parent (show lists "set role lan"), and role lan with an address makes FortiOS create the firewall address
 # "<name> address" (type interface-subnet) that blocks the delete of the VLAN (-23, used by 1 entry). Created with
 # role undefined, the VLAN has no such address, show omits the role and the delete succeeds.
@@ -539,6 +600,9 @@ def _write_order(table, names):
 
 
 def render_create(profile, key: str, attributes: dict) -> list:
+    rendered = _registered_render(profile, "create", key, attributes, ())
+    if rendered is not None:
+        return rendered
     prefix, local_key, suffix = _context(profile, key)
     lines = prefix + ["    edit " + local_key]
     values = {name: _value(profile, name, value) for name, value in attributes.items()}
@@ -572,6 +636,14 @@ def render_create(profile, key: str, attributes: dict) -> list:
 
 
 def render_update(profile, key: str, assign: dict, remove: list) -> list:
+    rendered = _registered_render(profile, "update", key, assign, remove)
+    if rendered is not None:
+        return rendered
+    if _singleton(profile):
+        # 1.0.13 A1-R: a singleton is a section without edit/next
+        return (["config " + profile.table]
+                + ["    set %s %s" % (name, _value(profile, name, assign[name])) for name in sorted(assign)]
+                + ["    unset %s" % name for name in sorted(remove)] + ["end"])
     prefix, local_key, suffix = _context(profile, key)
     lines = prefix + ["    edit " + local_key]
     # Restoring these defaults is an unset before changing the surrounding CLI context.
@@ -609,6 +681,9 @@ def render_update(profile, key: str, assign: dict, remove: list) -> list:
 
 
 def render_delete(profile, key: str) -> list:
+    rendered = _registered_render(profile, "delete", key, {}, ())
+    if rendered is not None:
+        return rendered
     prefix, local_key, suffix = _context(profile, key)
     return prefix + ["    delete " + local_key] + suffix
 
@@ -790,6 +865,26 @@ def dhcp_protected(snapshot, key: str, protected) -> list:
         return ["the DHCP server serves interface %s on the management path (protected system interface); Admin never"
                 " changes its reservations" % interface]
     return []
+
+
+def dhcp_server_protected(snapshot, before, after, protected) -> None:
+    """1.0.13 A1-R (design A 3): a DHCP server (or the parent server of an address range) whose interface - before or
+    after the change - is protected or built on a protected interface, or is missing from the snapshot, is never
+    changed; refused with fortios_service_scope."""
+    guarded = protected_interfaces(snapshot, protected)
+    interfaces = {name.casefold() for name in (snapshot.entries(INTERFACE_TABLE) or {})}
+    reasons = []
+    for state in (before, after):
+        name = (state or {}).get("interface")
+        if not name:
+            continue
+        if name.casefold() in guarded:
+            reasons.append("the DHCP server serves interface %s on the management path (protected system interface)"
+                           % name)
+        elif name.casefold() not in interfaces:
+            reasons.append("the DHCP server names interface %s, which the snapshot does not hold" % name)
+    if reasons:
+        raise Rejected(sorted(set(reasons)), reason_codes=["fortios_service_scope"])
 
 
 def dns_prechecks(snapshot, key: str, after) -> list:
@@ -982,7 +1077,7 @@ def _network(text):
 
 
 def network_prechecks(snapshot, profile, op, key, before, after, protected) -> list:
-    """G19: system interface and router static never touch the management path: the protected interfaces, the
+    """firewall routing admin: system interface and router static never touch the management path: the protected interfaces, the
     interfaces built on them, the interfaces carrying them, an interface with administrative access, the default
     route, a route through a protected interface or into its subnet or into the destination of a route that leaves
     through a protected interface."""
@@ -1063,6 +1158,94 @@ def network_prechecks(snapshot, profile, op, key, before, after, protected) -> l
         if after and after.get("device") not in interfaces:
             reasons.append("the route names an interface missing from the snapshot")
     return list(dict.fromkeys(reasons))
+
+
+ROUTE6_TABLE = "router static6"
+
+
+def _network6(text):
+    try:
+        return ipaddress.IPv6Network((text or "").strip(), strict=False)
+    except ValueError:
+        return None
+
+
+def interface_networks6(entry) -> list:
+    """The IPv6 prefixes of an interface: ip6-address and the ip6-extra-addr entries of its config ipv6 section."""
+    section = entry.section("ipv6")
+    if section is None:
+        return []
+    texts = [section.value("ip6-address", "")]
+    extra = section.section("ip6-extra-addr")
+    texts += [] if extra is None else [name for name in extra.entries] + [
+        node.value("prefix", "") for node in extra.entries.values()]
+    networks = [_network6(text) for text in texts]
+    return [network for network in networks if network is not None and network.prefixlen > 0]
+
+
+def management_ipv4(address, check_address) -> bool:
+    """1.0.13 A1-R (design A 3, rule f): the sessions of Admin run over IPv4 only when the device address and the check
+    address (or the device address when no check address is configured) are IPv4 literals."""
+    try:
+        for text in (address, check_address or address):
+            ipaddress.IPv4Address(text)
+    except (ValueError, TypeError):
+        return False
+    return True
+
+
+def route6_prechecks(snapshot, key, before, after, protected, *, address=None, check_address=None) -> None:
+    """1.0.13 A1-R (design A 3): router static6 follows the rules of router static for the state before and after the
+    change: no default route, no protected device, no destination into an IPv6 subnet of a protected interface or into
+    the destination of another static6 that leaves through one, the shape of a blackhole route, and management over
+    IPv4 literals. Refused with fortios_route6_protected, in the preview, the apply and the undo.
+
+    The management rule (f) needs the device address, which the table hook (TableHooks.prechecks, route6_hook) does
+    not get: with address None it is left to exec_fortios.plan_prechecks, which checks it for every plan of a
+    registered router static6 (preview, apply and undo) where the device is known."""
+    guarded = protected_interfaces(snapshot, protected)
+    interfaces = snapshot.entries(INTERFACE_TABLE) or {}
+    reasons = []
+    if address is not None and not management_ipv4(address, check_address):
+        reasons.append("an IPv6 static route is changed only while Admin reaches the device over IPv4 literals"
+                       " (address and check_address)")
+    protected_networks = [network for name, entry in interfaces.items() if name.casefold() in guarded
+                          for network in interface_networks6(entry)]
+    protected_routes = [_network6(entry.value("dst", "")) for other, entry in (snapshot.entries(ROUTE6_TABLE) or {}).items()
+                        if other != key and (entry.value("device") or "").casefold() in guarded]
+    for state in (before, after):
+        if state is None:
+            continue
+        destination = _network6(state.get("dst", "::/0"))
+        device = state.get("device") or ""
+        blackhole = state.get("blackhole", "disable") == "enable"
+        if destination is None:
+            reasons.append("the IPv6 destination %r is not a prefix" % state.get("dst"))
+            continue
+        if destination.prefixlen == 0:
+            reasons.append("the IPv6 default route ::/0 is never changed")
+        if blackhole and (device or state.get("gateway")):
+            reasons.append("a blackhole IPv6 route has neither device nor gateway")
+        if not blackhole and not device:
+            reasons.append("an IPv6 route needs a device unless it is a blackhole route")
+        if device and device.casefold() in guarded:
+            reasons.append("the IPv6 route leaves through %s on the management path (protected system interface)"
+                           % device)
+        if device and not blackhole and device not in interfaces:
+            reasons.append("the IPv6 route names device %s, which the snapshot does not hold" % device)
+        if any(destination.overlaps(network) for network in protected_networks):
+            reasons.append("the IPv6 destination %s overlaps a subnet of a protected interface" % destination)
+        if any(route is not None and destination.overlaps(route) for route in protected_routes):
+            reasons.append("the IPv6 destination %s overlaps a route through a protected interface" % destination)
+    if reasons:
+        raise Rejected(sorted(set(reasons)), reason_codes=["fortios_route6_protected"])
+
+
+def route6_hook(snapshot, profile, op, key, before, after, protected, impact, undo) -> list:
+    """1.0.13 A1-R r2: route6_prechecks with the arguments of TableHooks.prechecks (A3 registers it as the prechecks of
+    router static6); rule (f) runs in exec_fortios.plan_prechecks. Raises Rejected with fortios_route6_protected."""
+    route6_prechecks(snapshot, key, before, after, protected)
+    return []
 
 
 POLICY_TABLE = "firewall policy"
@@ -1149,6 +1332,10 @@ def valid_policy_uuid(value):
     ) is not None
 
 
+def object_uuid(value):
+    return value.lower() if valid_policy_uuid(value) else None
+
+
 def require_policy_uuid(value):
     if not valid_policy_uuid(value):
         raise Rejected(["the original firewall policy UUID is unavailable; its identity cannot be restored"])
@@ -1168,7 +1355,9 @@ def policy_restore_attributes(profile, before):
 def policy_support(profile, snapshot, op, changes, before, after):
     destinations = {name for state in (before, after)
                     for name in l1_fortios.tokenize((state or {}).get("dstaddr", ""))}
-    vip_reference = destinations & (_entry_names(snapshot, VIP_TABLE) | _entry_names(snapshot, VIP_GROUP_TABLE))
+    if destinations & _entry_names(snapshot, VIP_GROUP_TABLE):
+        return firmware_support(profile, snapshot.firmware, unmeasured_operation=True)
+    vip_reference = destinations & _entry_names(snapshot, VIP_TABLE)
     measured_here = (op in ("delete", "move") or op == "create" and changes.get("status") == "enable"
                      or changes.keys() & ({"before", "after", "nat", "utm-status"} | G23_POLICY_FIELDS)
                      or vip_reference)
@@ -1645,6 +1834,9 @@ REST_PATHS = {"firewall policy": "firewall/policy", "firewall address": "firewal
               "firewall addrgrp": "firewall/addrgrp", "firewall service custom": "firewall.service/custom",
               DHCP_TABLE: "system.dhcp/server", DNS_TABLE: "system/dns-database", PHASE2_TABLE: "vpn.ipsec/phase2-interface",
               VIP_TABLE: "firewall/vip", POOL_TABLE: "firewall/ippool"}
+# 1.0.13 A1-R: the tables whose webhook safeguard 1.0.12 already verified; webhook_refusal keeps them unchanged, a table
+# of the registry (fortios_tables) adds its REST path, key and permission through rest_path/rest_key/rest_permission
+ORIGINAL_REST = frozenset(REST_PATHS) & frozenset(REST_KEYS)
 ACCPROFILE_NONE = ("secfabgrp", "ftviewgrp", "authgrp", "sysgrp", "netgrp", "loggrp", "vpngrp", "utmgrp", "wifi")
 REST_PERMISSION = {DNS_TABLE: "sysgrp", PHASE2_TABLE: "vpngrp"}
 API_KEY = re.compile(r"^New API key:[ \t]*([0-9A-Za-z]+)[ \t\r]*$", re.MULTILINE)
@@ -1661,19 +1853,60 @@ def webhook_firmware(firmware: str) -> bool:
     return match is not None and tuple(int(part) for part in match.groups()) >= WEBHOOK_FROM
 
 
-# T1 (G00): a technical incompatibility, not an untested version. From 8.0.1 the safeguard is the webhook, which
+# T1 (startup): a technical incompatibility, not an untested version. From 8.0.1 the safeguard is the webhook, which
 # returns the change through the REST API; a table without a REST inverse cannot be returned there, and the
 # cli-script safeguard cannot run configuration commands on these builds.
 NO_REST_INVERSE = "safeguard_no_rest_inverse"
 
 
-def webhook_refusal(profile, firmware):
-    if not webhook_firmware(firmware) or (profile.table in REST_PATHS and profile.table in REST_KEYS):
+def webhook_refusal(profile, firmware, op=None):
+    """1.0.13 A1-R (design A 1.7): a table of the original set is unchanged; a registered table needs the operation and
+    its opposite operation verified (create with delete, update with update) so every change on 8.0.1+ can be
+    returned; op None (doctor) refuses a registered table only when nothing is verified."""
+    if not webhook_firmware(firmware) or profile.table in ORIGINAL_REST:
         return None
+    registered = fortios_tables.hooks(profile.table)
+    if registered is not None and fortios_tables.webhook_allowed(registered, op):
+        return None
+    if registered is not None and registered.rest_verified and registered.kind != "singleton":
+        return ("operation %s of table %s cannot run on FortiOS %s: from 8.0.1 Admin returns a change through the"
+                " webhook safeguard (the REST API of the device), and the REST inverse of this operation and of its"
+                " opposite operation (%s) is not verified for this table (verified: %s); technical limit, not an"
+                " untested version" % (op, profile.table, firmware, fortios_tables.OPPOSITE.get(op, op),
+                                       ", ".join(sorted(registered.rest_verified))))
     return ("table %s cannot be changed on FortiOS %s: from 8.0.1 Admin returns a change through the webhook"
             " safeguard (the REST API of the device), and the webhook safeguard has no REST inverse for this table;"
             " the cli-script safeguard of earlier FortiOS versions cannot run configuration commands on these builds"
             " (technical limit, not an untested version)" % (profile.table, firmware))
+
+
+def rest_path(table):
+    registered = fortios_tables.hooks(table)
+    return REST_PATHS.get(table) if registered is None else registered.rest_path
+
+
+def rest_key(table):
+    registered = fortios_tables.hooks(table)
+    return REST_KEYS.get(table) if registered is None else registered.rest_key
+
+
+def rest_permission(table):
+    registered = fortios_tables.hooks(table)
+    return REST_PERMISSION.get(table, "fwgrp") if registered is None else registered.rest_permission
+
+
+def registered_rest_check(profile, op, key, commands, inverse) -> None:
+    """1.0.13 A1-R (design A 14.2): on 8.0.1+ the safeguard of this plan and the safeguard of its opposite operation
+    (the undo, whose inverse is this plan's commands) must both render as a REST request within the body limit;
+    otherwise the plan is refused before any write with safeguard_no_rest_inverse."""
+    opposite = fortios_tables.OPPOSITE[op]
+    for operation, lines in ((op, inverse), (opposite, commands)):
+        try:
+            rest_inverse(profile, operation, key, lines, "")
+        except Rejected as exc:
+            raise Rejected(["the webhook safeguard cannot return %s of %s: %s"
+                            % (operation, profile.table, "; ".join(exc.reasons))],
+                           reason_codes=[NO_REST_INVERSE]) from None
 
 
 def snapshot_firmware(text: str):
@@ -1756,8 +1989,8 @@ def _rest_value(profile, name, values):
 
 
 def rest_inverse(profile, op: str, key: str, inverse: list, address: str) -> dict:
-    field = REST_KEYS.get(profile.table)
-    if field is None or profile.table not in REST_PATHS:
+    field, base = rest_key(profile.table), rest_path(profile.table)
+    if field is None or base is None:
         raise Rejected(["the webhook safeguard has no REST inverse for table %s" % profile.table],
                        reason_codes=["safeguard_no_rest_inverse"])
     assign, removed, move = {}, [], None
@@ -1769,7 +2002,7 @@ def rest_inverse(profile, op: str, key: str, inverse: list, address: str) -> dic
             removed.append(tokens[1])
         elif tokens[:2] == ["move", key] and len(tokens) == 4 and tokens[2] in ("before", "after") and valid_policy_id(tokens[3]):
             move = tokens[2:]
-    path = "api/v2/cmdb/" + REST_PATHS[profile.table]
+    path = "api/v2/cmdb/" + base
     child_id = key
     if profile.table in NESTED:
         parent, child_id = split_nested(profile.table, key)
@@ -1806,7 +2039,7 @@ def rest_inverse(profile, op: str, key: str, inverse: list, address: str) -> dic
 
 
 def webhook_permissions(table):
-    write_group = REST_PERMISSION.get(table, "fwgrp")
+    write_group = rest_permission(table)
     return {group: "read-write" if group == write_group else "none" for group in ("fwgrp", *ACCPROFILE_NONE)}
 
 
@@ -2081,6 +2314,65 @@ def _switch_vlan_names(state, field):
 def switch_poe_reset(key):
     serial, port = key.split(":")
     return f"execute switch-controller poe-reset {serial} {port}"
+
+
+def shown_registered(text: str, table: str, key: str):
+    """1.0.13 A1-R: the check account answer for a registered table (show <table> for a singleton, show <table>
+    "<key>" for an object, show <parent> <parent id> for a nested table). An answer that is cut off, does not parse or
+    holds configuration below the object other than its child sections is refused; the caller gives it the reason
+    code of the table."""
+    registered = fortios_tables.hooks(table)
+    if registered.kind == "nested":
+        _shown_parent_scope(text, registered, table, key)
+        return shown_object(text, table, key)
+    if registered.kind == "object" and _answers_not_found(text):
+        return None
+    start = text.find("config %s" % table)
+    if start < 0 or "--More--" in text:
+        raise Rejected(["the check account answer holds no complete %s section" % table])
+    try:
+        root = l1_fortios.parse(text[start:])
+    except (l1_fortios.ParseError, l1_fortios.TruncatedError) as exc:
+        raise Rejected(["the check account answer does not parse: %s" % exc]) from None
+    section = root.sub.get(table)
+    if section is None or set(root.sub) != {table} or _repetitions(text[start:]):
+        raise Rejected(["the check account returned incomplete or ambiguous configuration of %s" % table])
+    if registered.kind == "singleton":
+        node = section
+        if node.sub or node.entries:
+            raise Rejected(["the check account sees nested configuration in %s" % table])
+    else:
+        node = section.entries.get(key)
+        if node is None or len(section.entries) != 1:
+            raise Rejected(["the check account answer names no single object %s" % key])
+        if node.entries or set(node.sub) - set(registered.child_sections):
+            raise Rejected(["the check account sees nested configuration in %s %s" % (table, key)])
+    if any(attr.unset for attr in node.attrs.values()):
+        raise Rejected(["the check account returned an unset attribute of %s" % table])
+    return _shown_attributes(node)
+
+
+def _shown_parent_scope(text: str, registered, table: str, key: str) -> None:
+    """1.0.13 A1-R r2 (design A 1.3a, 1.5): the readback of a nested table reads its parent object as well; an excluded
+    attribute or child section of the parent (DHCP options, DDNS) that the check account sees refuses the readback
+    exactly as the plan refuses it, named only. A cut off or unparsable answer is refused here, before shown_object."""
+    parent_table, _child = registered.parent
+    start = text.find("config " + parent_table)
+    if start < 0:
+        return  # shown_object names the missing parent
+    if "--More--" in text:
+        raise Rejected(["the check account answer holds no complete %s section" % parent_table])
+    try:
+        parents = l1_fortios.parse(text[start:]).section(parent_table)
+    except (l1_fortios.ParseError, l1_fortios.TruncatedError) as exc:
+        raise Rejected(["the check account answer does not parse: %s" % exc]) from None
+    parent = None if parents is None else parents.entries.get(split_nested(table, key)[0])
+    if parent is None:
+        return
+    names = fortios_tables.excluded_names(registered, [*parent.attrs, *parent.sub])
+    if names:
+        raise Rejected(["the check account sees attributes Admin does not manage on %s %s: %s"
+                        % (parent_table, split_nested(table, key)[0], ", ".join(names))])
 
 
 def shown_object(text: str, table: str, key: str):

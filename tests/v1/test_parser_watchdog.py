@@ -19,8 +19,8 @@ class Watchdog(unittest.TestCase):
             measured_growth(str, fail)
 
     def test_rejects_superlinear_growth(self):
-        # Deterministic timing samples; real regexes use the unmodified clock.
+        # Deterministic CPU samples exercise the growth check in the child.
         from unittest.mock import patch
-        with patch('parser_watchdog.time.perf_counter', side_effect=[0, 1] * 3 + [0, 16] * 3):
-            with self.assertRaises(AssertionError):
+        with patch('parser_watchdog.time.process_time', side_effect=[0, 1] * 3 + [0, 16] * 3):
+            with self.assertRaisesRegex(AssertionError, r'\(1, 16\)'):
                 measured_growth(str, len)

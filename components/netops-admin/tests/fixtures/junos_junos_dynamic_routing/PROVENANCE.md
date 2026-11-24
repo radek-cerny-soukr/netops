@@ -1,0 +1,5 @@
+# Junos junos dynamic routing captures
+
+Targeted output from vJunos-switch (vJunos-switch 26.2R1.7, ELS), 2026-11-19 UTC. The probe recorded in a private measurement record applied a temporary candidate with an exclusive confirmed commit and returned it. The pre/post configuration SHA-256 was identical. Fixture names follow the probe commands. The write account netops-admin captured the configuration scopes in `enabled-ae-config.txt`, `enabled-lag-count.txt`, `enabled-member-config.txt` and `enabled-stp-config.txt`. All other fixtures are operational reads as netops-ro. Anonymized and checked with `components/netops-helper/tests/support/anonymize_fixture.py`.
+
+Tests derive truncated answers from these captures. The collecting/distributing variant uses the form in the [Junos show lacp interfaces reference](https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-lacp-interfaces.html) and the repository's Junos ELS LACP documentation fixture. Live ge-0/0/8 reported Detached.

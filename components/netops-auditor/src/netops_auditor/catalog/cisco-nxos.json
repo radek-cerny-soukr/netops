@@ -1,0 +1,314 @@
+{
+  "rules": [
+    {
+      "id": "cisco-nxos.mgmt.telnet-enabled",
+      "version": 1,
+      "check": "nxos_telnet",
+      "class": "fakt",
+      "severity": "high",
+      "sections": [],
+      "evidence_fields": [
+        "state"
+      ],
+      "title": "Telnet is enabled",
+      "remediation": "Disable the Telnet feature and use SSH.",
+      "refs": [
+        "https://www.cisco.com/c/en/us/td/docs/switches/datacenter/nexus9000/sw/93x/security/configuration/guide/b-cisco-nexus-9000-nx-os-security-configuration-guide-93x.pdf"
+      ]
+    },
+    {
+      "id": "cisco-nxos.mgmt.http-enabled",
+      "version": 1,
+      "check": "nxos_http",
+      "class": "fakt",
+      "severity": "high",
+      "sections": [],
+      "evidence_fields": [
+        "port"
+      ],
+      "title": "NX-API listens on HTTP",
+      "remediation": "Disable the HTTP listener and use HTTPS for NX-API.",
+      "refs": [
+        "https://www.cisco.com/c/en/us/td/docs/dcn/nx-os/nexus9000/101x/programmability/cisco-nexus-9000-series-nx-os-programmability-guide-release-101x/m-n9k-nx-api-cli-101x.html"
+      ]
+    },
+    {
+      "id": "cisco-nxos.mgmt.idle-timeout",
+      "version": 1,
+      "check": "nxos_idle_timeout",
+      "class": "fakt",
+      "severity": "low",
+      "sections": [],
+      "evidence_fields": [
+        "minutes"
+      ],
+      "title": "VTY idle timeout is disabled",
+      "remediation": "Set a nonzero exec-timeout on the VTY lines.",
+      "refs": [
+        "https://www.cisco.com/c/en/us/td/docs/switches/datacenter/nexus9000/sw/93x/security/configuration/guide/b-cisco-nexus-9000-nx-os-security-configuration-guide-93x.pdf"
+      ]
+    },
+    {
+      "id": "cisco-nxos.mgmt.lockout",
+      "version": 1,
+      "check": "nxos_lockout",
+      "class": "usudek",
+      "severity": "low",
+      "sections": [],
+      "evidence_fields": [
+        "state"
+      ],
+      "title": "Login attempts lack local blocking",
+      "remediation": "Set the rejection count, watch interval and ban duration for local login.",
+      "refs": [
+        "https://www.cisco.com/c/en/us/td/docs/switches/datacenter/nexus9000/sw/93x/security/configuration/guide/b-cisco-nexus-9000-nx-os-security-configuration-guide-93x.pdf"
+      ]
+    },
+    {
+      "id": "cisco-nxos.mgmt.access-acl",
+      "version": 1,
+      "check": "nxos_access_acl",
+      "class": "usudek",
+      "severity": "medium",
+      "sections": [],
+      "evidence_fields": [
+        "state"
+      ],
+      "title": "VTY access differs from the management prefixes",
+      "remediation": "Bind an inbound ACL for each declared address family and limit its permits to the declared sources.",
+      "refs": [
+        "https://www.cisco.com/c/en/us/td/docs/switches/datacenter/nexus9000/sw/93x/security/configuration/guide/b-cisco-nexus-9000-nx-os-security-configuration-guide-93x.pdf"
+      ]
+    },
+    {
+      "id": "cisco-nxos.aaa.external-login",
+      "version": 1,
+      "check": "nxos_external_login",
+      "class": "usudek",
+      "severity": "medium",
+      "sections": [],
+      "evidence_fields": [
+        "state"
+      ],
+      "title": "Default login lacks a usable external AAA group",
+      "remediation": "Bind an enabled RADIUS or TACACS+ group with a configured server to default login.",
+      "refs": [
+        "https://www.cisco.com/c/en/us/td/docs/switches/datacenter/nexus9000/sw/93x/security/configuration/guide/b-cisco-nexus-9000-nx-os-security-configuration-guide-93x.pdf"
+      ]
+    },
+    {
+      "id": "cisco-nxos.snmp.v1v2c-community",
+      "version": 1,
+      "check": "nxos_communities",
+      "class": "fakt",
+      "severity": "medium",
+      "sections": [],
+      "evidence_fields": [
+        "count"
+      ],
+      "title": "Legacy SNMP communities are configured",
+      "remediation": "Remove the communities and use authenticated and encrypted SNMPv3.",
+      "refs": [
+        "https://www.cisco.com/c/en/us/td/docs/switches/datacenter/nexus9000/sw/93x/security/configuration/guide/b-cisco-nexus-9000-nx-os-security-configuration-guide-93x.pdf"
+      ]
+    },
+    {
+      "id": "cisco-nxos.snmp.v3-auth-priv",
+      "version": 1,
+      "check": "nxos_snmp_users",
+      "class": "usudek",
+      "severity": "medium",
+      "sections": [],
+      "evidence_fields": [
+        "privacy",
+        "count"
+      ],
+      "title": "SNMPv3 users lack authenticated AES privacy",
+      "remediation": "Use authentication and AES privacy for users with effective SNMP access.",
+      "refs": [
+        "https://www.cisco.com/c/en/us/td/docs/switches/datacenter/nexus9000/sw/93x/security/configuration/guide/b-cisco-nexus-9000-nx-os-security-configuration-guide-93x.pdf"
+      ]
+    },
+    {
+      "id": "cisco-nxos.time.no-ntp-source",
+      "version": 1,
+      "check": "nxos_ntp_source",
+      "class": "fakt",
+      "severity": "medium",
+      "sections": [],
+      "evidence_fields": [
+        "count"
+      ],
+      "title": "No external NTP source is configured",
+      "remediation": "Configure a usable NTP server or peer in the intended VRF.",
+      "refs": [
+        "https://www.cisco.com/c/en/us/td/docs/switches/datacenter/nexus9000/sw/93x/system-management/b-cisco-nexus-9000-series-nx-os-system-management-configuration-guide-93x.pdf"
+      ]
+    },
+    {
+      "id": "cisco-nxos.time.ntp-auth",
+      "version": 1,
+      "check": "nxos_ntp_auth",
+      "class": "usudek",
+      "severity": "medium",
+      "sections": [],
+      "evidence_fields": [
+        "state",
+        "count"
+      ],
+      "title": "An NTP source lacks required authentication",
+      "remediation": "Enable NTP authentication and attach a configured trusted key to each source.",
+      "refs": [
+        "https://www.cisco.com/c/en/us/td/docs/switches/datacenter/nexus9000/sw/93x/system-management/b-cisco-nexus-9000-series-nx-os-system-management-configuration-guide-93x.pdf"
+      ]
+    },
+    {
+      "id": "cisco-nxos.logging.no-syslog-target",
+      "version": 1,
+      "check": "nxos_syslog_target",
+      "class": "fakt",
+      "severity": "medium",
+      "sections": [],
+      "evidence_fields": [
+        "count"
+      ],
+      "title": "No remote syslog destination is configured",
+      "remediation": "Configure a remote syslog server in the intended VRF.",
+      "refs": [
+        "https://www.cisco.com/c/en/us/td/docs/switches/datacenter/nexus9000/sw/93x/system-management/b-cisco-nexus-9000-series-nx-os-system-management-configuration-guide-93x.pdf"
+      ]
+    },
+    {
+      "id": "cisco-nxos.logging.syslog-level",
+      "version": 1,
+      "check": "nxos_syslog_level",
+      "class": "usudek",
+      "severity": "medium",
+      "sections": [],
+      "evidence_fields": [
+        "level",
+        "expected",
+        "count"
+      ],
+      "title": "Syslog severity is more restrictive than required",
+      "remediation": "Allow the declared severity in the server and explicitly configured facility limits.",
+      "refs": [
+        "https://www.cisco.com/c/en/us/td/docs/switches/datacenter/nexus9000/sw/93x/system-management/b-cisco-nexus-9000-series-nx-os-system-management-configuration-guide-93x.pdf"
+      ]
+    },
+    {
+      "id": "cisco-nxos.services.edge-discovery",
+      "version": 1,
+      "check": "nxos_edge_discovery",
+      "class": "usudek",
+      "severity": "low",
+      "sections": [],
+      "evidence_fields": [
+        "protocols"
+      ],
+      "title": "Discovery transmits on a restricted edge port",
+      "remediation": "Disable CDP and LLDP transmission on the declared edge port.",
+      "refs": [
+        "https://www.cisco.com/c/en/us/td/docs/switches/datacenter/nexus9000/sw/93x/layer-2-switching/configuration/guide/b-cisco-nexus-9000-nx-os-layer-2-switching-configuration-guide-93x.pdf"
+      ]
+    },
+    {
+      "id": "cisco-nxos.l2.bpdu-guard",
+      "version": 1,
+      "check": "nxos_bpdu_guard",
+      "class": "usudek",
+      "severity": "medium",
+      "sections": [],
+      "evidence_fields": [
+        "state"
+      ],
+      "title": "Edge port lacks BPDU Guard",
+      "remediation": "Enable BPDU Guard on the port or use the edge default with an effective edge port type.",
+      "refs": [
+        "https://www.cisco.com/c/en/us/td/docs/switches/datacenter/nexus9000/sw/93x/layer-2-switching/configuration/guide/b-cisco-nexus-9000-nx-os-layer-2-switching-configuration-guide-93x.pdf"
+      ]
+    },
+    {
+      "id": "cisco-nxos.l2.default-vlan",
+      "version": 1,
+      "check": "nxos_default_vlan",
+      "class": "usudek",
+      "severity": "medium",
+      "sections": [],
+      "evidence_fields": [
+        "vlan"
+      ],
+      "title": "Edge access port uses VLAN 1",
+      "remediation": "Assign the permitted access VLAN to the port.",
+      "refs": [
+        "https://www.cisco.com/c/en/us/td/docs/switches/datacenter/nexus9000/sw/93x/interfaces/configuration/guide/b-cisco-nexus-9000-nx-os-interfaces-configuration-guide-93x/b-cisco-nexus-9000-nx-os-interfaces-configuration-guide-93x_chapter_0100.html"
+      ]
+    },
+    {
+      "id": "cisco-nxos.l2.trunk-native",
+      "version": 1,
+      "check": "nxos_trunk_native",
+      "class": "usudek",
+      "severity": "medium",
+      "sections": [],
+      "evidence_fields": [
+        "vlan",
+        "expected"
+      ],
+      "title": "Trunk uses a different native VLAN",
+      "remediation": "Set the declared native VLAN on the trunk.",
+      "refs": [
+        "https://www.cisco.com/c/en/us/td/docs/switches/datacenter/nexus9000/sw/93x/interfaces/configuration/guide/b-cisco-nexus-9000-nx-os-interfaces-configuration-guide-93x/b-cisco-nexus-9000-nx-os-interfaces-configuration-guide-93x_chapter_0100.html"
+      ]
+    },
+    {
+      "id": "cisco-nxos.l2.dhcp-snooping",
+      "version": 1,
+      "check": "nxos_dhcp_snooping",
+      "class": "usudek",
+      "severity": "medium",
+      "sections": [],
+      "evidence_fields": [
+        "state",
+        "count"
+      ],
+      "title": "DHCP snooping differs from the declared scope",
+      "remediation": "Enable snooping on the declared VLANs and trust only the declared ports.",
+      "refs": [
+        "https://www.cisco.com/c/en/us/td/docs/switches/datacenter/nexus9000/sw/93x/security/configuration/guide/b-cisco-nexus-9000-nx-os-security-configuration-guide-93x.pdf"
+      ]
+    },
+    {
+      "id": "cisco-nxos.l2.storm-control",
+      "version": 1,
+      "check": "nxos_storm_control",
+      "class": "usudek",
+      "severity": "medium",
+      "sections": [],
+      "evidence_fields": [
+        "state"
+      ],
+      "title": "Edge port lacks effective broadcast storm control",
+      "remediation": "Configure a broadcast storm-control limit below 100 percent.",
+      "refs": [
+        "https://www.cisco.com/c/en/us/td/docs/switches/datacenter/nexus9000/sw/93x/layer-2-switching/configuration/guide/b-cisco-nexus-9000-nx-os-layer-2-switching-configuration-guide-93x.pdf"
+      ]
+    },
+    {
+      "id": "cisco-nxos.ports.unused-up",
+      "version": 1,
+      "check": "nxos_unused_up",
+      "class": "usudek",
+      "severity": "medium",
+      "sections": [],
+      "evidence_fields": [
+        "state"
+      ],
+      "title": "Unused physical port is administratively up",
+      "remediation": "Administratively shut down the declared unused port.",
+      "refs": [
+        "https://www.cisco.com/c/en/us/td/docs/switches/datacenter/nexus9000/sw/93x/interfaces/configuration/guide/b-cisco-nexus-9000-nx-os-interfaces-configuration-guide-93x/b-cisco-nexus-9000-nx-os-interfaces-configuration-guide-93x_chapter_0100.html"
+      ]
+    }
+  ]
+}

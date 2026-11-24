@@ -30,5 +30,5 @@
       "undo_to_default": true
     }
   },
-  "rollback_evidence": "1.0.12 G138 J11 (port-bounce): 'set interfaces <if> disable' commit confirmed, a pause, then the inverse 'delete interfaces <if> disable' committed with a plain commit that ends the own timer (the immediate return of exec_junos.py), all behind the commit confirmed safeguard of the Junos adapter (expiry before the plain commit returns the port to the state before). Measured on vJunos-switch 26.2R1.7 (task-evidence/g138/live): the check account reads 'show interfaces <if> terse' (Admin up/down, Link) right after both commits. Used only by the port-bounce operation (junos_cycle.py)."
+  "rollback_evidence": "1.0.12 junos port maintenance J11 (port-bounce): 'set interfaces <if> disable' commit confirmed, a pause, then the inverse 'delete interfaces <if> disable' committed with a plain commit that ends the own timer (the immediate return of exec_junos.py), all behind the commit confirmed safeguard of the Junos adapter (expiry before the plain commit returns the port to the state before). Measured on vJunos-switch 26.2R1.7: the check account reads 'show interfaces <if> terse' (Admin up/down, Link) right after both commits. Used only by the port-bounce operation (junos_cycle.py)."
 }

@@ -1,0 +1,9 @@
+host01        $ config firewall addrgrp
+    edit "netops-firewall-addresses-group"
+        set member "netops-firewall-addresses-mask" "netops-firewall-addresses-range"
+        set comment "FIREWALL-ADDRESSES group"
+        set uuid 00000000-0000-4000-8000-000000000004
+    next
+end
+
+host01        $

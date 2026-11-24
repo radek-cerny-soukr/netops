@@ -1,4 +1,4 @@
-"""Review68 regressions: capture state limits `measured` (N1); unreadable/absent metric headers (N2).
+"""Review regressions: capture state limits `measured` (N1); unreadable/absent metric headers (N2).
 
 D = real RO capture sample_a-port13.txt, T = real RO capture sample_a-temperature.txt (home64, EXOS 33.7.1.6).
 Every input below is a DERIVED mutation of D/T (or D/T with a fake SSH rc/pager tail), not a new measurement.

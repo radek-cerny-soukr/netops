@@ -1,3 +1,0 @@
-
-> show ip access-lists netops-g127-v4 | json
-% Invalid input (privileged mode required) at line 1

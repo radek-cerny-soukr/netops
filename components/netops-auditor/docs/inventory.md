@@ -189,3 +189,23 @@ that has no use for it, and every cross-check of the table above. A device the a
 refused when its `name` holds U+001F, the separator the auditor puts between the components of a
 finding fingerprint (rule, rule version, tenant, device, object key); a device of another component
 is neither read nor checked.
+
+## Auditor catalog and platform keys
+
+Keep the inventory's platform key to preserve the device variant. IOS and IOS-XE share the
+`cisco-ios` catalog. The collection and catalog mappings are:
+
+| Inventory platform | Catalog | Channels |
+|---|---|---|
+| `fortios` | `fortios` | `file`, `ssh`, `fortios-rest` |
+| `exos` | `exos` | `file`, `ssh` |
+| `cisco_ios`, `cisco_xe` | `cisco-ios` | `file`, `ssh` |
+| `cisco_nxos` | `cisco-nxos` | `file`, `ssh` |
+| `arista_eos` | `arista-eos` | `file`, `ssh` |
+| `juniper_junos`, `juniper_junos_els` | `juniper-junos` | `file`, `ssh` |
+| `fortiadc` | `fortiadc` | Offline `auditor run` |
+
+The parser uses names such as `line vty`, `interface`, `ip access-list` and `management ssh`
+for indentation-based configurations. Junos uses top-level hierarchy names such as `system`,
+`interfaces` and `firewall`. `required_sections` records the operator's expected scope.
+Evidence for section visibility comes from the collector and parser.

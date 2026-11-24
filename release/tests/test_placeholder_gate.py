@@ -63,10 +63,10 @@ class PlaceholderGate(unittest.TestCase):
         rc, out = self.run_gate(files)
         self.assertEqual(rc, 1, out)
         self.assertIn("notes-1.0.11.md is missing", out)
-        rc, out = self.run_gate(self.clean(), version="1.0.12")
+        rc, out = self.run_gate(self.clean(), version="1.0.13")
         self.assertEqual(rc, 1, out)
-        self.assertIn("no dated section ## 1.0.12", out)
-        self.assertIn("notes-1.0.12.md is missing", out)
+        self.assertIn("no dated section ## 1.0.13", out)
+        self.assertIn("notes-1.0.13.md is missing", out)
 
     def test_candidate_stage_tolerates_only_the_acceptance_and_release_date_placeholders(self):
         files = self.clean()

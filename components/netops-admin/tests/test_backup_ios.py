@@ -13,7 +13,7 @@ from netops.files import write_private
 from netops_admin import backup, backup_ios, cli
 from netops_core import hostkey, ssh
 
-FIXTURES = Path(__file__).resolve().parents[2] / 'netops-helper/tests/fixtures/real/cisco_ios/g58'
+FIXTURES = Path(__file__).resolve().parents[2] / 'netops-helper/tests/fixtures/real/cisco_ios/router-config'
 PIN = 'SHA256:' + 'A' * 43
 REPLACEMENT_PIN = 'SHA256:' + 'B' * 43
 PASSWORD = 'fixture-device-password'

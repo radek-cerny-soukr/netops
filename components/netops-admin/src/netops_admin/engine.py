@@ -8,20 +8,21 @@ from netops_admin import (
     __version__, eos, eos_save, exos, exos_acl, exos_g44, exos_save, exos_services, fortiadc, fortiadc_plan, fortios,
     ios, ios_save, junos, junos_clear, junos_g140, membership, nxos, ruckus,
 )
-from netops_admin import eos_clear, fortios_lease, nxos_clear
+from netops_admin import eos_clear, fortios_lease, fortios_tables, nxos_clear
 from netops_admin.errors import SNAPSHOT_INCOMPLETE, SNAPSHOT_UNREADABLE, Rejected, SnapshotRejected
 from netops_admin.profiles import LIST_TYPES, find_profile, firmware_support
 from netops_core import tested
-from netops_admin.request import BATCH, FORTIOS_POLICY_LIST_FIELDS, MAX_BATCH_STEPS, ProfileBatch, canonical_value, list_items
+from netops_admin.request import (BATCH, FORTIOS_POLICY_LIST_FIELDS, MAX_BATCH_STEPS, ProfileBatch, canonical_value,
+                                  inverse_profile_changes, list_items, profile_undo_request)
 
 PLAN_FORMAT = "netops-admin-plan/1"
 ADAPTERS = {"fortios": fortios, "exos": exos, "eos": eos, "ios": ios, "iosxe": ios, "fortiadc": fortiadc_plan, "nxos": nxos,
             "junos": junos, "ruckus": ruckus}
 MAX_SNAPSHOT_BYTES = 16 * 1024 * 1024
 PORT_TABLES = exos.PORT_TABLES
-# platforms whose port changes accept endpoint_impact (1.0.12 G60/G78 IOS and IOS XE, G122 EOS)
+# platforms whose port changes accept endpoint_impact (1.0.12 ios switchports/xe switchports IOS and IOS XE, eos switchport admin EOS)
 IMPACT_PLATFORMS = ios.PLATFORMS + ("eos", "junos", "nxos")
-# 1.0.12 G138: the Junos tables that accept endpoint_impact (a port in use: bounce, PoE, speed and MTU)
+# 1.0.12 junos port maintenance: the Junos tables that accept endpoint_impact (a port in use: bounce, PoE, speed and MTU)
 JUNOS_IMPACT_TABLES = ("interface", junos.POE_TABLE, junos.POE_CYCLE_TABLE, junos.BOUNCE_TABLE, *junos_g140.TABLES, *junos.routing.BGP_TABLES,
                        *junos.fltr.TABLES, *junos.srx.TABLES, *junos.dhcp.TABLES)
 REFERENCE_TEXT_ATTRIBUTES = {"vlan-membership": ("untagged",), "firewall policy": ("schedule",),
@@ -110,7 +111,7 @@ def is_isolated_plan(profile, plan) -> bool:
 
 def check_view(plan, state):
     """The part of an object state that the check account can read; the comparison of the check account takes it from
-    both the observed and the predicted state (G122 r2: EOS hides a phone VLAN outside trunk phone mode and 802.1X that
+    both the observed and the predicted state (eos switchport admin r2: EOS hides a phone VLAN outside trunk phone mode and 802.1X that
     is not enforced; every other platform reads the whole state)."""
     from netops_admin import schema_runtime
     if state is None or schema_runtime.is_plan(plan):
@@ -129,7 +130,7 @@ def check_view(plan, state):
     if (plan.get("platform"), plan["table"]) == ("exos", exos_g44.ELRP):
         return {"action": "L", **state}
     if plan.get("platform") in ios.PLATFORMS and plan["table"] in ios.POE_TABLES:
-        # 1.0.12 G61: show power inline of the check account names the admin mode; the maximum it prints is the default
+        # 1.0.12 ios port maintenance: show power inline of the check account names the admin mode; the maximum it prints is the default
         # of the hardware unless it is set, so the maximum is verified in the running configuration only
         return {name: value for name, value in state.items() if name != "max-milliwatts"}
     return state
@@ -145,6 +146,10 @@ def observed_state(plan, attributes):
         return attributes  # The independent parser supplies the port list, interval and action.
     attributes = check_view(plan, attributes)
     profile = find_profile(plan["platform"], plan["table"], plan["firmware"])
+    registered = fortios_tables.hooks(plan["table"]) if plan["platform"] == "fortios" else None
+    if registered is not None:
+        # design A 1.3a: an excluded attribute seen after the write is a mismatch, named only
+        fortios_tables.observed_scope(registered, attributes)
     if "policy_move_sha256" in plan:
         return normalize(profile, {name: value for name, value in attributes.items() if name in profile.attributes})[0]
     if is_isolated_plan(profile, plan):
@@ -155,7 +160,9 @@ def observed_state(plan, attributes):
         if fortios.valid_policy_uuid(value):
             state["uuid"] = value.lower()
     if unknown:
-        raise Rejected(["the check account sees configuration outside the profile: %s" % ", ".join(sorted(unknown))])
+        raise Rejected(["the check account sees configuration outside the profile: %s" % ", ".join(sorted(unknown))],
+                       reason_codes=[registered.readback_code] if registered is not None and registered.readback_code
+                       else None)
     return state
 
 
@@ -164,10 +171,16 @@ def tracks_policy_uuid(plan):
         "policy_uuid_generated" in plan or any("uuid" in (state or {}) for state in plan["predicted"].values()))
 
 
+def tracks_registered_fortios_uuid(plan):
+    return (plan["platform"] == "fortios" and plan["op"] == "create"
+            and fortios_tables.hooks(plan["table"]) is not None
+            and "uuid" in find_profile("fortios", plan["table"], plan["firmware"]).volatile)
+
+
 def observed_side(plan, snapshot_raw: bytes):
     """The side of the plan ("after" or "before") the snapshot matches exactly, or None.
 
-    1.0.12 G07: a block after an unknown result is lifted over MCP only when the device was read on one side; the
+    1.0.12 execution access: a block after an unknown result is lifted over MCP only when the device was read on one side; the
     side is reported, it never confirms or reverts the operation."""
     for side in ("after", "before"):
         if verify(plan, snapshot_raw, expect=side)["result"] == "match":
@@ -192,7 +205,16 @@ def _entry_state(snapshot, profile, entry):
     return state, unsupported + unknown
 
 
-def canonical_changes(profile, changes):
+def default_restorations(profile, changes, *, op, undo):
+    """Return the attributes that an internal undo update restores to an explicit measured default."""
+    if not (undo and op == "update" and profile.platform == "fortios"
+            and fortios_tables.hooks(profile.table) is not None):
+        return frozenset()
+    return frozenset(name for name, value in changes.items()
+                     if value is None and fortios_tables.explicit_default(profile.attributes.get(name)))
+
+
+def canonical_changes(profile, changes, defaults=frozenset()):
     canonical, reasons = {}, []
     for name, value in sorted(changes.items()):
         attribute = profile.attributes.get(name)
@@ -200,10 +222,10 @@ def canonical_changes(profile, changes):
             reasons.append("attribute %s is not in the profile" % name)
             continue
         if value is None:
-            if not attribute.unset:
-                reasons.append("attribute %s cannot be removed" % name)
-            else:
+            if attribute.unset or name in defaults:
                 canonical[name] = None
+            else:
+                reasons.append("attribute %s cannot be removed" % name)
             continue
         if (profile.platform, profile.table, name) == ("exos", exos_acl.POLICY, exos_acl.CONTENT):
             canonical[name] = exos_acl.content(value)
@@ -268,7 +290,7 @@ def _linked(snapshot, profile, key, before, after, guarded) -> set:
     if profile.table == "ports":
         modes = members.get(key, {})
         return set(modes.get("tagged", ())) | set(modes.get("untagged", ()))
-    # 1.0.12 G45 r2 (479-rv finding 3): a VRRP instance changes its VLAN, so the member ports of the VLAN are its links
+    # 1.0.12 switch ip routing r2 (review finding 3): a VRRP instance changes its VLAN, so the member ports of the VLAN are its links
     folded = (key.split(":", 1)[0] if profile.table == "vrrp" else key).casefold()
     return {port for port, modes in members.items()
             if any(name.casefold() == folded for names in modes.values() for name in names)}
@@ -302,7 +324,7 @@ def _digest(value) -> str:
 PLAN_DIGEST_SINCE = (1, 0, 10)
 
 
-# 1.0.12 G00-1: a firmware outside the tested versions of the profile is not refused; the plan carries
+# 1.0.12 startup-1: a firmware outside the tested versions of the profile is not refused; the plan carries
 # firmware_support and the digest binds its status, so approving the plan_sha256 approves the warning too
 # (decision Q1 a). A tested plan has no such key in its digest: its plan_sha256 is the one of 1.0.10 and 1.0.11.
 def plan_digest(plan) -> str:
@@ -356,7 +378,7 @@ def plan_digest(plan) -> str:
             stabilize = nxos_clear.stable if plan["platform"] == "nxos" else eos_clear.stable
             bound["before"], bound["after"] = stabilize(bound["before"]), stabilize(bound["after"])
         elif plan["platform"] == "junos":
-            # 1.0.12 G146: counters, time stamps, TTE and message counters change by themselves; the object binds
+            # 1.0.12 junos targeted clear: counters, time stamps, TTE and message counters change by themselves; the object binds
             bound["before"] = junos_clear.stable(plan["table"], bound["before"])
             bound["after"] = junos_clear.stable(plan["table"], bound["after"])
         elif plan["op"] == "clear" and plan["platform"] == "fortios":
@@ -397,15 +419,19 @@ def plan_digest(plan) -> str:
     return _digest(bound)
 
 
+MEASURED_PRECHECK = ("profile measured on firmware %s; the measurement covers the variants documented for this"
+                     " profile, not every variant of the request")
+
+
 def firmware_prechecks(profile, support) -> list:
     firmware = support["device_version"]
+    if not profile.measured:
+        return ["Live verification is pending for this Admin profile."]
     if not support["tested_versions"]:
         return [support["message"]]
-    if not profile.measured:
-        return ["firmware %s is named by this profile, but the profile is NOT MEASURED on a device"
-                " (simulation only)" % firmware]
     if tested.is_tested(support):
-        return ["firmware %s is measured for this profile" % firmware]
+        # The measurement is per profile: it covers the variants documented for the profile, not each variant.
+        return [MEASURED_PRECHECK % firmware]
     return ["firmware %s is not among the tested versions of this profile (tested: %s); the change runs with the"
             " same safeguard, postcheck and undo" % (firmware, ", ".join(support["tested_versions"]))]
 
@@ -444,14 +470,20 @@ def build_plan(platform: str, snapshot_raw: bytes, request, firmware: str | None
             raise Rejected(["a port list applies only to ExtremeXOS"])
         snapshot.inventory = frozenset(ports)
     profile = find_profile(platform, request.table, snapshot.firmware)
+    # 1.0.13 A1-R: a FortiOS table of the registry (fortios_tables) - its hooks replace table if-branches
+    registered = fortios_tables.hooks(profile.table) if platform == "fortios" else None
+    if registered is not None:
+        fortios_tables.check_profile(profile)
     if platform == "fortios":
-        refusal = fortios.webhook_refusal(profile, snapshot.firmware)
+        refusal = fortios.webhook_refusal(profile, snapshot.firmware, request.op)
         if refusal is not None:
             raise Rejected([refusal], reason_codes=[fortios.NO_REST_INVERSE])
     unmeasured_operation = platform == "junos" and (
         (profile.table == "interface" and bool({"speed", "auto-negotiation"} & request.changes.keys()))
         or (profile.table == junos.ROUTE_TABLE and ":" in request.key)
     )
+    if platform == "eos" and profile.table == "interface":
+        unmeasured_operation = "poe" in request.changes
     if platform == "fortios" and profile.table == fortios.SWITCH_PORT:
         unmeasured_operation = bool({"poe-status", "allowed-vlans-all"} & request.changes.keys())
     support = firmware_support(profile, snapshot.firmware, unmeasured_operation=unmeasured_operation)
@@ -488,7 +520,7 @@ def build_plan(platform: str, snapshot_raw: bytes, request, firmware: str | None
         raise Rejected(["key %r does not match %s" % (key, profile.key_pattern.pattern)])
     requested_changes = request.changes
     if platform == "fortios" and profile.table in fortios.NESTED:
-        # 1.0.12 G20: "<interface>@<mac>" and "<zone>@<hostname>" name the object the way the operator knows it
+        # 1.0.12 dhcp dns: "<interface>@<mac>" and "<zone>@<hostname>" name the object the way the operator knows it
         key, requested_changes = fortios.resolve_nested_key(snapshot, profile.table, key, op, request.changes)
     guarded = {name.casefold() for name in profile.protected_keys}
     guarded |= {name.casefold() for name in (protected or {}).get(profile.table, ())}
@@ -510,11 +542,11 @@ def build_plan(platform: str, snapshot_raw: bytes, request, firmware: str | None
     eos_action = ((platform == "eos" and profile.table in (eos.BOUNCE_TABLE, eos.POE_TABLE))
                   or (platform == "junos" and profile.table in (junos.POE_TABLE, *junos.CYCLE_TABLES)))
     if eos_action:
-        # 1.0.12 G123/G138: a protected interface is protected for its bounce and PoE cycle (and Junos PoE) too
+        # 1.0.12 eos port maintenance/junos port maintenance: a protected interface is protected for its bounce and PoE cycle (and Junos PoE) too
         guarded |= {name.casefold() for name in (protected or {}).get("interface", ())}
     ios_port_action = platform in ios.PLATFORMS and profile.table in ios.PORT_ACTION_TABLES
     if ios_port_action:
-        # 1.0.12 G61: a protected interface is protected for its bounce and its PoE changes too
+        # 1.0.12 ios port maintenance: a protected interface is protected for its bounce and its PoE changes too
         guarded |= {name.casefold() for name in (protected or {}).get("interface", ())}
     if key.casefold() in guarded:
         raise Rejected(["object %r is protected" % key],
@@ -528,9 +560,15 @@ def build_plan(platform: str, snapshot_raw: bytes, request, firmware: str | None
         exos.exos_g46.require_module(snapshot, profile.table, key)
     checks.append("key is valid and not protected")
     entries = snapshot.entries(profile.table)
+    if entries is None and registered is not None:
+        raise SnapshotRejected(["snapshot holds no %s section; it cannot be evaluated" % profile.table],
+                               SNAPSHOT_INCOMPLETE)
     if entries is None:
         raise Rejected(["snapshot holds no %s section; it cannot be evaluated" % profile.table])
     entry = _find_entry(entries, key)
+    if registered is not None:
+        # design A 1.3a: excluded attributes on any object the plan reads refuse the operation before any state exists
+        fortios_tables.plan_scope(snapshot, registered, profile, op, key, entry, requested_changes)
     switch_port = platform == "fortios" and profile.table in fortios.SWITCH_PORT_TABLES
     if switch_port and entry is not None:
         fortios.protect_switch_port(key, entry, protected)
@@ -542,7 +580,8 @@ def build_plan(platform: str, snapshot_raw: bytes, request, firmware: str | None
         source = requested_changes.pop("copy-from")
         requested_changes = fortios.phase2_copy(snapshot, profile, requested_changes, source)
     supplied, position = fortios.policy_position(op, requested_changes) if policy else (requested_changes, None)
-    changes = canonical_changes(profile, supplied)
+    restore_defaults = default_restorations(profile, supplied, op=op, undo=undo)
+    changes = canonical_changes(profile, supplied, restore_defaults)
     if (platform, profile.table) == ("fortios", fortios.SWITCH_POE_CYCLE) and changes != {"poe-status": "disable"}:
         raise Rejected(["a FortiSwitch PoE cycle requires update with poe-status=disable"],
                        reason_codes=["action_unsupported"])
@@ -573,7 +612,7 @@ def build_plan(platform: str, snapshot_raw: bytes, request, firmware: str | None
         changes = ios.ios_services.changes(changes)
         if profile.table == ios.ios_services.HOST and request.endpoint_impact is not None:
             raise Rejected(["static host changes do not take endpoint_impact"], reason_codes=["action_unsupported"])
-    # 1.0.12 G43: an ExtremeXOS VLAN rename or a VLAN plan with its ports ("rename", "ports" or None)
+    # 1.0.12 switch rest: an ExtremeXOS VLAN rename or a VLAN plan with its ports ("rename", "ports" or None)
     g43 = exos.vlan_change(profile, op, changes) if platform == "exos" else None
     reasons = []
     _check_value_requirements(profile, changes)
@@ -663,7 +702,7 @@ def build_plan(platform: str, snapshot_raw: bytes, request, firmware: str | None
                 junos.membership_target(before, after, undo)
             if platform in ios.PLATFORMS and profile.table in ios.POE_TABLES:
                 after = ios.poe_after(profile.table, key, before, after, changes)
-            # 1.0.12 G112: a passphrase reference is written but never read back, so it is not part of a stored state
+            # 1.0.12 wireless dhcp: a passphrase reference is written but never read back, so it is not part of a stored state
             write_only = platform == "ruckus" and any(changes.get(name) is not None for name in ruckus.WRITE_ONLY)
             if platform == "ruckus":
                 after = ruckus.settle(after)
@@ -689,7 +728,7 @@ def build_plan(platform: str, snapshot_raw: bytes, request, firmware: str | None
                 if platform == "fortios" and (profile.table in (*fortios.ADDRESS_TABLES, *fortios.NAT_TABLES) or switch_port):
                     rendered = {name: value for name, value in changes.items() if before.get(name) != after.get(name)}
                 if platform == "fortios" and profile.table == fortios.SWITCH_PORT:
-                    # firmware status follows only the fields that really change the port (G17/G18)
+                    # firmware status follows only the fields that really change the port (switch vlans/switch ports)
                     support = firmware_support(profile, snapshot.firmware, unmeasured_operation=bool(
                         {"poe-status", "allowed-vlans-all"} & rendered.keys()))
                     checks[0] = firmware_prechecks(profile, support)[0]
@@ -702,6 +741,9 @@ def build_plan(platform: str, snapshot_raw: bytes, request, firmware: str | None
                                 if name in required or before.get(name) != after.get(name)}
                 assign = {name: value for name, value in rendered.items() if value is not None}
                 remove = sorted(name for name, value in rendered.items() if value is None)
+                for name in restore_defaults & set(remove):
+                    assign[name] = profile.attributes[name].default
+                    remove.remove(name)
                 commands = adapter.render_update(profile, key, assign, remove)
                 kept = set(rendered) | (ruckus.inverse_names(before, changes) if platform == "ruckus" else set())
                 restore = {name: before[name] for name in kept if name in before}
@@ -714,12 +756,19 @@ def build_plan(platform: str, snapshot_raw: bytes, request, firmware: str | None
                         if profile.attributes[name].undo_to_default:
                             restore[name] = profile.attributes[name].default
                             clear.remove(name)
+                if registered is not None:
+                    # 1.0.13 A1-R r2 (design A 1.5b): an attribute changed from its default value returns by an
+                    # explicit set of the measured default unless undo_to_default records that unset restores it
+                    for name in sorted(clear):
+                        if fortios_tables.explicit_default(profile.attributes.get(name)):
+                            restore[name] = profile.attributes[name].default
+                            clear.remove(name)
                 inverse = adapter.render_update(profile, key, restore, sorted(clear))
                 if (platform, profile.action) == ("fortios", "poe-cycle"):
                     commands = [fortios.switch_poe_reset(key)]
                     after = before
                 if platform in ios.PLATFORMS and profile.table in ios.POE_TABLES:
-                    # 1.0.12 G61: one "power inline" line replaces the earlier one; the inverse writes the earlier line
+                    # 1.0.12 ios port maintenance: one "power inline" line replaces the earlier one; the inverse writes the earlier line
                     commands, inverse = ios.render_poe(key, after), ios.render_poe(key, before)
         elif op == "move":
             after = dict(before)
@@ -732,7 +781,8 @@ def build_plan(platform: str, snapshot_raw: bytes, request, firmware: str | None
             elif changes:
                 raise Rejected(["delete takes no attribute changes"])
             if references:
-                raise Rejected(["object %r is referenced in the configuration" % key])
+                raise Rejected(["object %r is referenced in the configuration" % key],
+                               reason_codes=["fortios_object_referenced"] if registered is not None else None)
             missing = [name for name, attribute in sorted(profile.attributes.items())
                        if attribute.required_on_create and not attribute.undo_to_default and name not in before]
             if missing:
@@ -815,7 +865,7 @@ def build_plan(platform: str, snapshot_raw: bytes, request, firmware: str | None
     group_impact = False
     if (platform == "fortios" and profile.table == fortios.GROUP_TABLE and op == "update"
             and fortios.group_members(before) != fortios.group_members(after)):
-        # 1.0.12 G24 r2 (705-rv finding 1): the members of a group decide which traffic the policies that use it match
+        # 1.0.12 firewall commit r2 (review finding 1): the members of a group decide which traffic the policies that use it match
         guarded_policies, active_policies = fortios.group_policy_use(snapshot, key, protected)
         if guarded_policies:
             raise Rejected(["address group %r is used by protected firewall policy %s"
@@ -846,7 +896,7 @@ def build_plan(platform: str, snapshot_raw: bytes, request, firmware: str | None
         commands = exos.render_vlan(key, before, after)
         inverse = exos.render_vlan(after[exos.RENAME] if g43 == "rename" else key, after, before)
     if platform == "junos" and profile.table in junos.STATE_TABLES:
-        # 1.0.12 G137: a Junos VLAN or port VLAN membership is rendered from its whole state before and after, in
+        # 1.0.12 junos vlan admin: a Junos VLAN or port VLAN membership is rendered from its whole state before and after, in
         # the source that configures it (the port, an interface-range or a group); a rename moves the references
         restore = (undo_plan["inverse"]
                    if undo_plan and profile.table in (junos.srx.POLICY, *junos.srx.NAT) else None)
@@ -911,7 +961,7 @@ def build_plan(platform: str, snapshot_raw: bytes, request, firmware: str | None
         commands = routing.render(profile.table, key, before, after)
         inverse = routing.render(profile.table, key, after, before)
     if platform == "exos" and g43 != "rename" and exos.touches_l3(profile.table, before, after):
-        # 1.0.12 G45: a static route, a VRRP instance or the IP attributes of a VLAN are rendered from the whole
+        # 1.0.12 switch ip routing: a static route, a VRRP instance or the IP attributes of a VLAN are rendered from the whole
         # states before and after (measured order and side effects); IP routing has its own tested firmware
         reasons.extend(exos.g45_prechecks(snapshot, profile, op, key, before, after, protected))
         if reasons:
@@ -1065,6 +1115,13 @@ def build_plan(platform: str, snapshot_raw: bytes, request, firmware: str | None
     switch_port_g18 = platform == "fortios" and profile.table == fortios.SWITCH_PORT
     if switch_port_g18:
         fortios.switch_vlan_prechecks(snapshot, key, before, after, protected)
+    if registered is not None:
+        # 1.0.13 A3-r2: a create of an explicit_create table is checked with the values it writes; the predicted state
+        # omits a measured default named in the request (ip6 ::/0 of an IPv6 prefix), as show does
+        checked = ({**after, **{name: value for name, value in changes.items() if value is not None}}
+                   if op == "create" and registered.explicit_create else after)
+        reasons.extend(fortios_tables.plan_prechecks(registered, snapshot, profile, op, key, before, checked, protected,
+                                                     getattr(request, "endpoint_impact", None), undo))
     if platform == "fortios" and profile.table in fortios.ADDRESS_TABLES:
         reasons.extend(fortios.address_prechecks(snapshot, profile, op, key, before, after, changes))
         support = fortios.address_support(profile, snapshot.firmware, op, before, after)
@@ -1075,6 +1132,9 @@ def build_plan(platform: str, snapshot_raw: bytes, request, firmware: str | None
         fortios.check_cli_inverse(inverse)
     elif policy:
         fortios.rest_inverse(profile, op, key, inverse, "")
+    elif registered is not None:
+        # design A 14.2: the safeguard of this plan and of its opposite operation must render on 8.0.1+
+        fortios.registered_rest_check(profile, op, key, commands, inverse)
     document = {
         "format": PLAN_FORMAT,
         "safeguard_id": None,
@@ -1094,6 +1154,7 @@ def build_plan(platform: str, snapshot_raw: bytes, request, firmware: str | None
         "rest_sha256": (_g43_rest(snapshot, key, before, after, "before") if g43 is not None
                         else snapshot.rest_digest(profile.table, key, **(
                             {"omit_empty_policy": True} if policy else {"switch_port_g18": True} if switch_port_g18
+                            else _singleton_scope(profile, before, after) if registered is not None
                             else _lag_scope(profile, before, after, before)),
                             **({"batch": True, "ignore_uuid": frozenset(tuple(item) for item in batch_volatile)}
                                if batch_step and platform == "fortios" else {}))),
@@ -1142,12 +1203,16 @@ def build_plan(platform: str, snapshot_raw: bytes, request, firmware: str | None
                                and junos.route_network(key).prefixlen == 0)
         ruckus_impact = platform == "ruckus" and profile.table == ruckus.TABLE and op == "update"
         fortios_dhcp = platform == "fortios" and profile.table == fortios.DHCP_TABLE
+        registered_impact = registered is not None and registered.impact
         if (not (ios_subinterface or port_change or junos_default_route or policy or fortios_dhcp or phase2 or nat_object
-                 or switch_port or ruckus_impact or group_impact)
+                 or switch_port or ruckus_impact or group_impact or registered_impact)
                 and platform != "exos"):
             raise Rejected(["endpoint_impact is not supported for this platform, table or object"])
-        document["endpoint_impact"] = key if fortios_dhcp else request.endpoint_impact
-        if policy:
+        document["endpoint_impact"] = key if fortios_dhcp or registered_impact else request.endpoint_impact
+        if registered_impact:
+            document["prechecks"].append("Explicit endpoint impact accepted for %s %s: the service or the traffic it"
+                                         " carries may change" % (profile.table, key))
+        elif policy:
             document["prechecks"].append("Explicit endpoint impact accepted for firewall policy " + key)
         elif junos_default_route:
             document["prechecks"].append("Explicit endpoint impact accepted for the default route " + key)
@@ -1194,10 +1259,31 @@ def build_plan(platform: str, snapshot_raw: bytes, request, firmware: str | None
         }
         if journaled is not None and document["member_digests"]["scope_after"] != journaled["scope_before"]:
             raise Rejected(["the inverse will not restore the original EtherChannel configuration"])
+    if registered is not None and not undo:
+        _validate_fortios_undo(profile, document, snapshot_raw, protected)
     document["plan_sha256"] = plan_digest(document)
     if ports is not None:
         document["ports"] = sorted(snapshot.inventory, key=exos.port_order)
     return document
+
+
+def _validate_fortios_undo(profile, plan, snapshot_raw, protected):
+    from netops_admin import prediction
+
+    before, after = plan["predicted"]["before"], plan["predicted"]["after"]
+    op, changes = inverse_profile_changes(plan["op"], before, after)
+    try:
+        request = profile_undo_request(profile, op, plan["key"], changes, device=plan["device"], before=before,
+                                       impact=plan.get("endpoint_impact"), change_id="0" * 32,
+                                       reason="Validate inverse request")
+        predicted = prediction.snapshot_after(decode_snapshot(snapshot_raw), plan)
+        inverse = build_plan("fortios", predicted.encode("utf-8"), request, firmware=plan["firmware"],
+                             protected=protected, undo=True, undo_plan=plan)
+    except Rejected as exc:
+        raise Rejected(["undo cannot be planned: " + reason for reason in exc.reasons],
+                       reason_codes=exc.reason_codes, reason_details=exc.reason_details) from None
+    if inverse["predicted"]["after"] != before:
+        raise Rejected(["undo would not restore the original object state"])
 
 
 BATCH_PLATFORMS = ("nxos", "eos", "junos", "fortios", *ios.PLATFORMS)
@@ -1209,7 +1295,7 @@ BATCH_ROLLBACK = {
     "fortios": "FortiOS automation stitch with the inverse of every step in reverse order",
     **{platform: "IOS archive and timed configuration return" for platform in ios.PLATFORMS},
 }
-# 1.0.12 G24: the related FortiOS objects of one change (address -> group -> policy) are one batch. Only the tables
+# 1.0.12 firewall commit: the related FortiOS objects of one change (address -> group -> policy) are one batch. Only the tables
 # whose plan, readback and return are measured on their own may be steps; a move or a NAT object is not one.
 FORTIOS_BATCH_TABLES = (*fortios.ADDRESS_TABLES, fortios.POLICY_TABLE)
 
@@ -1531,7 +1617,7 @@ def _exos_clear_prediction(request, target, before):
             raise Rejected(["the selected scope has no learned entry to clear"], reason_codes=["clear_no_entry"])
         if target.scope in ("mac", "ip") and len(dynamic) != 1:
             raise Rejected(["the selected address matches multiple learned entries"], reason_codes=["clear_ambiguous_entry"])
-        # EXOS 33.6.1.14 also evicts a static IPv6 neighbor at the selected address (G50 live measurement).
+        # EXOS 33.6.1.14 also evicts a static IPv6 neighbor at the selected address (switch maintenance live measurement).
         if request.table == "neighbor-discovery" and len(entries) != 1:
             raise Rejected(["the selected IPv6 address has other entries that clear could evict"],
                            reason_codes=["clear_ambiguous_entry"])
@@ -1539,7 +1625,7 @@ def _exos_clear_prediction(request, target, before):
     if request.table == "port-counters":
         scope = ["port %s: all %d traffic counters are reset" % (target.value, len(exos.CLEAR_COUNTER_NAMES))]
     else:
-        # 501-rv: the preview names how many learned entries the clear removes (a VLAN scope can be large)
+        # the preview names how many learned entries the clear removes (a VLAN scope can be large)
         scope = ["%s %s: %d learned (dynamic) entries will be cleared, %d other entries stay"
                  % (request.table, target.key, len(dynamic), len(entries) - len(dynamic))]
     return after, scope
@@ -1632,7 +1718,7 @@ def _read_plan(plan) -> dict:
         raise Rejected(["plan holds no endpoint impact confirmation for the FortiOS session clear"])
     fortios_impact = plan["platform"] == "fortios" and plan["table"] in (
         fortios.DHCP_TABLE, fortios.PHASE2_TABLE, fortios.GROUP_TABLE, fortios.IPSEC_TUNNEL, fortios_lease.TABLE,
-        *fortios.NAT_TABLES, *fortios.SWITCH_PORT_TABLES)
+        *fortios.NAT_TABLES, *fortios.SWITCH_PORT_TABLES, *fortios_tables.impact_tables())
     if "endpoint_impact" in plan and (
             (plan["platform"] not in IMPACT_PLATFORMS and not (exos_endpoint_impact or policy or fortios_clear
                                                              or fortios_impact or ruckus_impact))
@@ -1906,6 +1992,8 @@ def verify(plan, snapshot_raw: bytes, expect: str = "after") -> dict:
     if plan.get("state_schema") == fortios.SWITCH_PORT_STATE_SCHEMA:
         rest_options["switch_port_g18"] = True
     rest_options.update(_lag_scope(profile, plan["predicted"]["before"], plan["predicted"]["after"], wanted))
+    if plan["platform"] == "fortios" and fortios_tables.hooks(profile.table) is not None:
+        rest_options.update(_singleton_scope(profile, plan["predicted"]["before"], plan["predicted"]["after"]))
     if "policy_order" in plan:
         rest_options["omit_empty_policy"] = True
     if "batch_volatile" in plan:
@@ -1930,6 +2018,8 @@ def verify(plan, snapshot_raw: bytes, expect: str = "after") -> dict:
                                             include_empty_group=True, **rest_options) == expected_rest
     if not rest_matches:
         differences.append("configuration outside the planned object changed")
+    uuid = (fortios.object_uuid(entry.value("uuid"))
+            if expect == "after" and entry is not None and tracks_registered_fortios_uuid(plan) else None)
     return {
         "result": "match" if not differences else "mismatch",
         "object_matches": object_matches,
@@ -1940,7 +2030,15 @@ def verify(plan, snapshot_raw: bytes, expect: str = "after") -> dict:
         "snapshot_sha256": hashlib.sha256(snapshot_raw).hexdigest(),
         "differences": differences,
         **({"warnings": warnings} if warnings else {}),
+        **({"fortios_object_uuid": uuid} if uuid is not None else {}),
     }
+
+
+def _singleton_scope(profile, before, after) -> dict:
+    """1.0.13 A1-R: the rest digest of a registered singleton keeps its section without the attributes of the plan."""
+    if fortios_tables.hooks(profile.table).kind != "singleton":
+        return {}
+    return {"singleton_names": fortios_tables.state_names(profile, before, after)}
 
 
 def _lag_scope(profile, before, after, expected):
@@ -1964,7 +2062,7 @@ def _preserves_exos_vlan_l3(plan, snapshot) -> bool:
 
 
 def _g43_verify(plan, snapshot, profile, entries, expect, snapshot_raw, kind) -> dict:
-    """verify of a G43 VLAN plan: a rename looks the VLAN up by its name on the expected side and needs the other
+    """verify of a switch rest VLAN plan: a rename looks the VLAN up by its name on the expected side and needs the other
     name absent; a port plan compares the ports of the VLAN and the native VLAN of every untagged port it moves."""
     before, after, key = plan["predicted"]["before"], plan["predicted"]["after"], plan["key"]
     wanted = plan["predicted"][expect]

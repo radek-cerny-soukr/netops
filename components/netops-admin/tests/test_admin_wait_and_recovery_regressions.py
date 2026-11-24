@@ -15,6 +15,7 @@ from test_execute_exos import make_runtime as make_exos_runtime, request as exos
 
 from netops_admin import access, audit, exec_exos, execute
 from netops_admin.errors import Rejected
+from approved_apply import approved_apply, preview_hash
 
 LIMIT = execute.EXPIRY_WAIT_LIMIT_SECONDS
 
@@ -203,7 +204,7 @@ def test_an_apply_with_a_linked_audit_log_is_rejected_before_any_mutation(tmp_pa
     (tmp_path / "audit").mkdir(exist_ok=True)
     (tmp_path / "audit" / "audit.jsonl").symlink_to(vault)
     with pytest.raises(Rejected, match="audit log"):
-        execute.apply(runtime, "lab", request())
+        approved_apply(runtime, "lab", request())
     assert not device.applied_blocks and mode(vault) == 0o600 and vault.read_text() == "{}\n"
 
 
@@ -215,7 +216,7 @@ def interrupted_before_the_request_id_was_registered(tmp_path, device, monkeypat
 
     monkeypatch.setattr(runtime.store, "remember_request", killed)
     with pytest.raises(KeyboardInterrupt):
-        execute.apply(runtime, "lab", request(request_id=request_id))
+        approved_apply(runtime, "lab", request(request_id=request_id))
     runtime = make_runtime(tmp_path, device)
     assert runtime.store.request(request_id) is None
     assert [record["status"] for record in runtime.store.records() if record["request_id"] == request_id] == ["running"]
@@ -225,23 +226,23 @@ def interrupted_before_the_request_id_was_registered(tmp_path, device, monkeypat
 def test_a_request_id_reused_for_other_content_is_refused_in_sequence(tmp_path):
     device = FakeFortiOS()
     runtime = make_runtime(tmp_path, device)
-    assert execute.apply(runtime, "lab", request(request_id="req-seq-1"))["result"] == "confirmed"
+    assert approved_apply(runtime, "lab", request(request_id="req-seq-1"))["result"] == "confirmed"
     with pytest.raises(Rejected, match=execute.REUSED_REQUEST):
-        execute.apply(runtime, "lab", request(request_id="req-seq-1", key="other-host"))
+        approved_apply(runtime, "lab", request(request_id="req-seq-1", key="other-host"))
 
 
 def test_a_journaled_request_id_stays_used_after_an_interruption_before_its_registration(tmp_path, monkeypatch):
     device = FakeFortiOS()
     runtime = interrupted_before_the_request_id_was_registered(tmp_path, device, monkeypatch, "req-crash-1")
     with pytest.raises(Rejected, match=execute.REUSED_REQUEST):
-        execute.apply(runtime, "lab", request(request_id="req-crash-1", key="other-host"))
+        approved_apply(runtime, "lab", request(request_id="req-crash-1", key="other-host"))
     settled = execute.recover(runtime, "lab")
     assert [(record["result"], record["reason"]) for record in settled] == [("rejected", "interrupted before any mutation")]
     preview = execute.preview(runtime, "lab", request(request_id="req-crash-1", key="other-host"))
     assert preview["result"] == "rejected" and preview["reasons"] == [execute.REUSED_REQUEST]
     with pytest.raises(Rejected, match=execute.REUSED_REQUEST):
-        execute.apply(runtime, "lab", request(request_id="req-crash-1", key="other-host"))
-    again = execute.apply(runtime, "lab", request(request_id="req-crash-1"))
+        approved_apply(runtime, "lab", request(request_id="req-crash-1", key="other-host"))
+    again = approved_apply(runtime, "lab", request(request_id="req-crash-1"))
     assert again["change_id"] == settled[0]["change_id"] and again["result"] == "rejected"
     assert len([record for record in runtime.store.records() if record["request_id"] == "req-crash-1"]) == 1
     assert "new-host" not in device.addresses and "other-host" not in device.addresses and not device.applied_blocks
@@ -254,7 +255,7 @@ def test_a_journaled_request_id_on_another_device_is_refused(tmp_path, monkeypat
     record["device"] = "elsewhere"
     runtime.store.save(record)
     with pytest.raises(Rejected, match=execute.REUSED_REQUEST):
-        execute.apply(runtime, "lab", request(request_id="req-crash-2"))
+        approved_apply(runtime, "lab", request(request_id="req-crash-2"))
 
 
 BANNERS = {
@@ -303,7 +304,7 @@ def test_recover_confirms_a_verified_change_whose_stitch_was_already_removed(tmp
     device.on_apply = killed_in_the_removal(lines_done)
     runtime = make_runtime(tmp_path, device)
     with pytest.raises(KeyboardInterrupt):
-        execute.apply(runtime, "lab", request())
+        approved_apply(runtime, "lab", request())
     assert not device.stitches and (device.triggers or device.actions)
     device.on_apply = None
     settled = execute.recover(make_runtime(tmp_path, device), "lab")
@@ -318,7 +319,7 @@ def test_recover_still_waits_for_a_safeguard_whose_removal_had_not_begun(tmp_pat
     device.on_apply = killed_in_the_removal(0)
     runtime = make_runtime(tmp_path, device)
     with pytest.raises(KeyboardInterrupt):
-        execute.apply(runtime, "lab", request())
+        approved_apply(runtime, "lab", request())
     device.on_apply = None
     settled = execute.recover(make_runtime(tmp_path, device), "lab")
     assert [(record["result"], record["reason"]) for record in settled] == [("reverted", "interrupted")]
@@ -335,7 +336,7 @@ def test_recover_confirms_a_verified_change_whose_exos_timer_was_already_deleted
 
     device.on_apply = crash
     with pytest.raises(KeyboardInterrupt):
-        execute.apply(make_exos_runtime(tmp_path, device), "sw", exos_request())
+        approved_apply(make_exos_runtime(tmp_path, device), "sw", exos_request())
     assert not device.timers and device.profiles
     device.on_apply = None
     runtime = make_exos_runtime(tmp_path, device)
@@ -361,8 +362,9 @@ def during_the_last_snapshot(device, event):
 def test_a_safeguard_that_fires_during_the_last_snapshot_is_reported_as_fired(tmp_path):
     device = FakeFortiOS()
     runtime = make_runtime(tmp_path, device)
+    approved = preview_hash(runtime, "lab", request())
     during_the_last_snapshot(device, lambda fake: fake.advance(200))
-    record = execute.apply(runtime, "lab", request())
+    record = execute.apply(runtime, "lab", request(), expected_plan_sha256=approved)
     assert "final_check_failed" in steps(record) and "confirm_start" not in steps(record)
     assert (record["result"], record["reason"]) == ("reverted", "safeguard fired during confirmation")
     assert runtime.store.blocked("lab") is None
@@ -373,8 +375,9 @@ def test_a_safeguard_that_fires_during_the_last_snapshot_is_reported_as_fired(tm
 def test_a_foreign_change_during_the_last_snapshot_still_blocks(tmp_path):
     device = FakeFortiOS()
     runtime = make_runtime(tmp_path, device)
+    approved = preview_hash(runtime, "lab", request())
     during_the_last_snapshot(device, foreign_comment)
-    record = execute.apply(runtime, "lab", request())
+    record = execute.apply(runtime, "lab", request(), expected_plan_sha256=approved)
     assert "final_check_failed" in steps(record)
     assert (record["result"], record["reason"]) == ("reverted", "foreign change")
     assert runtime.store.blocked("lab")["reason"] == "foreign change"
@@ -389,8 +392,9 @@ def test_a_safeguard_that_fires_together_with_a_foreign_change_still_blocks(tmp_
         foreign_comment(fake)
         fake.advance(200)
 
+    approved = preview_hash(runtime, "lab", request())
     during_the_last_snapshot(device, both)
-    record = execute.apply(runtime, "lab", request())
+    record = execute.apply(runtime, "lab", request(), expected_plan_sha256=approved)
     assert (record["result"], record["reason"]) == ("reverted", "foreign change")
     assert runtime.store.blocked("lab")["reason"] == "foreign change"
 
@@ -398,8 +402,9 @@ def test_a_safeguard_that_fires_together_with_a_foreign_change_still_blocks(tmp_
 def test_a_quiet_last_snapshot_is_confirmed(tmp_path):
     device = FakeFortiOS()
     runtime = make_runtime(tmp_path, device)
+    approved = preview_hash(runtime, "lab", request())
     during_the_last_snapshot(device, lambda fake: None)
-    record = execute.apply(runtime, "lab", request())
+    record = execute.apply(runtime, "lab", request(), expected_plan_sha256=approved)
     assert (record["result"], record["reason"]) == ("confirmed", None)
     assert device.addresses["new-host"]["comment"] == "new host"
 
@@ -451,7 +456,7 @@ def test_recover_settles_only_a_device_state_that_matches_one_side_and_the_confi
     device = FakeFortiOS()
     device.on_apply = crash()
     with pytest.raises(KeyboardInterrupt):
-        execute.apply(make_runtime(tmp_path, device), "lab", request())
+        approved_apply(make_runtime(tmp_path, device), "lab", request())
     device.on_apply = None
     runtime = make_runtime(tmp_path, device)
     [running] = runtime.store.running("lab")

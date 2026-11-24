@@ -95,7 +95,7 @@ def run(auths, endpoint, budget, wired, stations, progress=lambda result: None, 
         c9800=None, c9800_port=None, *, expected_ip=None):
     """`stations(auth, mac, ip)` returns the joined station records of one controller;
     `wired(endpoint, progress)` is one run of the existing wired correlation;
-    `ruckus(auth, mac, ip)` (G108) returns the client/AP join of one Ruckus Unleashed controller."""
+    `ruckus(auth, mac, ip)` (wireless path) returns the client/AP join of one Ruckus Unleashed controller."""
     kind, value = tables.literal(endpoint)
     if not 1 <= len(auths) <= locate.MAX_TARGETS or len({a.alias for a in auths}) != len(auths):
         raise ValueError(f'locate_endpoint requires 1 to {locate.MAX_TARGETS} distinct enrolled targets')

@@ -1,0 +1,13 @@
+        Neighbor           Neighbor                           Neighbor
+Port    Chassis ID         Port ID            TTL     Age     System Name
+===============================================================================
+1       00:00:5E:00:53:20  Ethernet2          120     3       ceos
+3       00:00:5E:00:53:21  3                  120     25      exosvm-peer
+4       00:00:5E:00:53:21  4                  120     24      exosvm-peer
+5       00:00:5E:00:53:20  Ethernet14         120     27      ceos
+mgmt    00:00:5E:00:53:20  Management0        120     3       ceos
+mgmt    00:00:5E:00:53:22  Gi0/0              120     21      iosvl2.node1.invalid
+mgmt    00:00:5E:00:53:23  mgmt0              120     13      nexus9300v
+mgmt    00:00:5E:00:53:24  Gi0/0              120     19      iosv.node1.invalid
+===============================================================================
+NOTE: The Chassis ID and/or Port ID might be truncated to fit the screen.

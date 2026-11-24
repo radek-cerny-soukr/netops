@@ -1,0 +1,66 @@
+{
+  "nexus9300v-running": {
+    "rc": 0,
+    "sha256": "2896db66c90a390e554a9416f562d31c53587c2e1dacd3bcb3707ef9871e4eea"
+  },
+  "nexus9300v-startup": {
+    "rc": 0,
+    "sha256": "cf6327008b4d8f720ef8f6d2f33c37c26e06bf354028de5857a77ae3f57855ef"
+  },
+  "nexus9300v-native-diff": {
+    "rc": 0,
+    "sha256": "8049d1af812e1828981886828ecc2f9e71a9b123ad17256967ca82fbd35fefbb"
+  },
+  "nexus9300v-count-running": {
+    "rc": 0,
+    "sha256": "2fa7660fa51eaa80d3212ae92ef3e870b6d246404eb81efabda68d5319c7d07b"
+  },
+  "nexus9300v-count-startup": {
+    "rc": 0,
+    "sha256": "e595be81bf15aa95763adb4fc0ba525bbed1971cf5fccdf3a946cd37025fb2c9"
+  },
+  "nexus-peer-a-running": {
+    "rc": 0,
+    "sha256": "39272418ad5865609ca3e625728cd2d8b0294aa864bad0fcd9ba58194ad189f7"
+  },
+  "nexus-peer-a-startup": {
+    "rc": 0,
+    "sha256": "354232a1f6e50d50db2ff3ba8234c0fb63420a179a8ebbfc0415183f7204981a"
+  },
+  "nexus-peer-a-native-diff": {
+    "rc": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "nexus-peer-a-count-running": {
+    "rc": 0,
+    "sha256": "b0b8bff299a44d1aeff054facc6b4f8211ab4a5b03be5cac34618201ac8f4cef"
+  },
+  "nexus-peer-a-count-startup": {
+    "rc": 0,
+    "sha256": "b0b8bff299a44d1aeff054facc6b4f8211ab4a5b03be5cac34618201ac8f4cef"
+  },
+  "nexus-peer-b-running": {
+    "rc": 0,
+    "sha256": "ff37ef11e0dc1c9eeaf7a0fd6a699480f9ec8611668ba797541d46c72da8f3ea"
+  },
+  "nexus-peer-b-startup": {
+    "rc": 0,
+    "sha256": "89c20a193b29a3cffeda703b466bcecf922946e9191e30fad388d7029bdbf63e"
+  },
+  "nexus-peer-b-native-diff": {
+    "rc": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "nexus-peer-b-count-running": {
+    "rc": 0,
+    "sha256": "b0b8bff299a44d1aeff054facc6b4f8211ab4a5b03be5cac34618201ac8f4cef"
+  },
+  "nexus-peer-b-count-startup": {
+    "rc": 0,
+    "sha256": "b0b8bff299a44d1aeff054facc6b4f8211ab4a5b03be5cac34618201ac8f4cef"
+  },
+  "nexus9300v-startup-refused": {
+    "rc": 30,
+    "sha256": "821633f69fff550a9528b39dcd9dfc765f2b78c9eabfb1ed66748d58b38f75f6"
+  }
+}

@@ -47,5 +47,5 @@
   "volatile": [],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "EOS configuration session timer, running-config comparison and show dhcp server ipv4 from the check identity protect an IPv4 pool with one range and MAC/IP reservations."
+  "rollback_evidence": "Live write and return on cEOSLab 4.36.1F (2026-11-19): The DHCP pool or relay was changed, observed by the check identity and undone. EOS configuration session timer, running-config comparison and show dhcp server ipv4 from the check identity protect an IPv4 pool with one range and MAC/IP reservations."
 }

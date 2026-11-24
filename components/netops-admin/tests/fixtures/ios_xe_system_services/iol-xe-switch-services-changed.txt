@@ -1,0 +1,11 @@
+hostname host01
+clock timezone EET 2 0
+ip host netops-xe-system-services-host 192.0.2.40
+ip name-server 192.0.2.30
+ip domain name netops-xe-system-services.invalid
+logging trap warnings
+logging source-interface Loopback184
+logging host 192.0.2.20
+ntp source Loopback184
+ntp server 192.0.2.10
+end

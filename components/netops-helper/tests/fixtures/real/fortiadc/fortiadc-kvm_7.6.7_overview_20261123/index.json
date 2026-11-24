@@ -1,0 +1,9 @@
+{
+ "autoupdate_contract": {
+  "account": "administrator account, read-only commands",
+  "command": "execute autoupdate contract",
+  "lines": 5,
+  "note": "held interactive session: no exit status; 0 as for the other FortiOS/FortiADC captures",
+  "rc": 0
+ }
+}

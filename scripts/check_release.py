@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import hashlib
 import ipaddress
 import re
 
@@ -101,6 +102,19 @@ KNOWN_TLDS = frozenset(
         "cloud", "systems", "tools", "network", "email", "site", "online",
     )
 )
+class _OperatorAliasMarker:
+    """Match the legacy alias without storing its spelling in the source."""
+
+    candidate = re.compile(r"\bIT[- ]([a-z]{4})", re.IGNORECASE)
+    fingerprint = "ee641363d4dc946df7a620f6b4ee237b8c81e6b699a74dd7dd1c8de5edc2f470"
+
+    def search(self, text):
+        for match in self.candidate.finditer(text):
+            if hashlib.sha256(match[1].lower().encode("utf-8")).hexdigest() == self.fingerprint:
+                return match
+        return None
+
+
 PRIVATE_MARKERS = (
     re.compile(r"/workspace(?:/|$)", re.IGNORECASE),
     re.compile(r"/(?:work|out)(?:/|$)", re.IGNORECASE),
@@ -112,7 +126,7 @@ PRIVATE_MARKERS = (
     re.compile(r"\brpi(?:[-_ ]?\d+)?[-_]?[a-z]{3,}\b", re.IGNORECASE),
     re.compile(r"\braspberry(?:\s+|[-_]+)pi\b", re.IGNORECASE),
     re.compile(r"\b(?:home|local|personal|private)[-_ ]+lab\b", re.IGNORECASE),
-    re.compile(r"\bIT[- ]kufr", re.IGNORECASE),
+    _OperatorAliasMarker(),
     re.compile(r"\bwork/(?:claude|codex)-", re.IGNORECASE),
 )
 MAC_PATTERN = re.compile(r"(?<![0-9A-Za-z:])(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}(?![0-9A-Za-z:])")

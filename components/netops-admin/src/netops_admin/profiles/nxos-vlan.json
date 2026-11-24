@@ -22,5 +22,5 @@
   "volatile": [],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "The NX-OS checkpoint and scheduler protect changes to unused Ethernet VLANs. Both accounts read the VLAN database. A VLAN with the generated name VLANnnnn is a present VLAN with no configured name. The inverse of creating a VLAN removes it, and the inverse of deleting a VLAN recreates it with its original name or generated name."
+  "rollback_evidence": "Live write and return on Nexus 9000v NX-OS 9.3(12) (2026-11-19): The VLAN, channel, LACP member or local vPC ID was changed, read back and undone. The NX-OS checkpoint and scheduler protect changes to unused Ethernet VLANs. Both accounts read the VLAN database. A VLAN with the generated name VLANnnnn is a present VLAN with no configured name. The inverse of creating a VLAN removes it, and the inverse of deleting a VLAN recreates it with its original name or generated name."
 }

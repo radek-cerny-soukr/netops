@@ -1,4 +1,4 @@
-"""Port bounce (1.0.12 G123 E08) and PoE cycle (E07) of one Arista EOS port.
+"""Port bounce (1.0.12 eos port maintenance E08) and PoE cycle (E07) of one Arista EOS port.
 
 Both run as one journaled operation through the same admission as apply (target, enrollment, budgets, blocking, audit
 log, notification) and behind the timed safeguard session of EOS (configure session with commit timer), as the EXOS PoE
@@ -27,7 +27,7 @@ from netops_admin.request import parse_request
 BOUNCE = "port-bounce"
 POE = "poe-cycle"
 TABLES = {BOUNCE: eos.BOUNCE_TABLE, POE: eos.POE_TABLE}
-# measured on cEOS (task-evidence/g123/raw/probe2): disabled at the first read after shutdown
+# measured on cEOS (private measurement record): disabled at the first read after shutdown
 OFF_WAIT_SECONDS = 10
 # the pause while the port or its power stays off
 HOLD_SECONDS = 5
@@ -74,12 +74,14 @@ def required_safeguard_seconds(device, action) -> int:
     return cycle_seconds(action) + device.confirm_margin_seconds + 1
 
 
-def _admissible(runtime, device_name, action):
+def _admissible(runtime, device_name, action, cycle_request):
     """Platform and safeguard margin of the target, from the configuration only: no device read or write."""
     device = runtime.config.devices.get(device_name)
     if device is not None and device.platform != "eos":
         raise Rejected(["operation %s of this module is for Arista EOS switches" % action],
                        reason_codes=["action_unsupported"])
+    if device is not None:
+        execute._measured(runtime, device, cycle_request)
     if device is not None and cycle_seconds(action) + device.confirm_margin_seconds >= device.safeguard_seconds:
         raise Rejected(["the %s can take up to %d s and needs confirm_margin_seconds %d s on top, but the safeguard "
                         "gives only %d s; set safeguard_seconds of device %s to at least %d"
@@ -95,7 +97,7 @@ def _admissible(runtime, device_name, action):
 def preview(runtime, device_name: str, action: str, cycle_request) -> dict:
     """Every check of the operation against the device, without any change."""
     try:
-        _admissible(runtime, device_name, action)
+        _admissible(runtime, device_name, action, cycle_request)
         result, refused = execute._preview(runtime, device_name, cycle_request, action=action)
     except Rejected as exc:
         if not isinstance(exc, execute.BudgetExhausted):
@@ -113,7 +115,7 @@ def preview(runtime, device_name: str, action: str, cycle_request) -> dict:
 
 def apply(runtime, device_name: str, action: str, cycle_request, *, expected_plan_sha256=None) -> dict:
     try:
-        _admissible(runtime, device_name, action)
+        _admissible(runtime, device_name, action, cycle_request)
         if expected_plan_sha256 is None:
             raise Rejected(["EOS cycle apply requires the plan_sha256 from preview"], reason_codes=["plan_changed"])
         expected_plan = execute._expected_plan(cycle_request, expected_plan_sha256)

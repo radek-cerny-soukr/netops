@@ -10,6 +10,7 @@ from test_execute import make_runtime, request
 from test_execute_exos import make_runtime as make_exos_runtime
 from netops_admin import enrollment, execute
 from netops_admin.errors import Rejected
+from approved_apply import approved_apply
 
 
 def ready(tmp_path, platform="fortios"):
@@ -27,7 +28,7 @@ def ready(tmp_path, platform="fortios"):
 def test_apply_without_enrollment_cannot_install_a_safeguard(tmp_path):
     runtime, target, name = ready(tmp_path)
     with pytest.raises(Rejected, match="enroll"):
-        execute.apply(runtime, name, request())
+        approved_apply(runtime, name, request())
     assert target.applied_blocks == []
 
 
@@ -47,7 +48,7 @@ def test_enrollment_requires_observed_change_then_actual_timer_return(tmp_path, 
 def test_successful_enrollment_allows_a_normal_change(tmp_path):
     runtime, target, name = ready(tmp_path)
     enrollment.run(runtime, name, "192.0.2.254/32")
-    assert execute.apply(runtime, name, request())["result"] == "confirmed"
+    assert approved_apply(runtime, name, request())["result"] == "confirmed"
 
 
 def test_enrollment_is_refused_when_the_export_status_covers_another_audit_file(tmp_path):
@@ -75,7 +76,7 @@ def test_new_policy_requires_new_enrollment(tmp_path):
     changed = replace(runtime.config.devices[name], audit_policy={"version": 1, "platform": "fortios"})
     runtime.config = replace(runtime.config, devices={name: changed})
     with pytest.raises(Rejected, match="enroll"):
-        execute.apply(runtime, name, request())
+        approved_apply(runtime, name, request())
 
 
 def test_changed_build_invalidates_enrollment_binding(tmp_path):
@@ -100,7 +101,7 @@ def test_lost_check_account_during_probe_does_not_certify(tmp_path):
 def test_probe_namespace_cannot_be_requested_over_normal_apply(tmp_path):
     runtime, target, name = ready(tmp_path)
     with pytest.raises(Rejected, match="reserved"):
-        execute.apply(runtime, name, request(key="netops-enroll-example"))
+        approved_apply(runtime, name, request(key="netops-enroll-example"))
     assert target.applied_blocks == []
 
 @pytest.mark.parametrize("platform,probe", [("fortios", "192.0.2.254/32"), ("exos", "3998")])

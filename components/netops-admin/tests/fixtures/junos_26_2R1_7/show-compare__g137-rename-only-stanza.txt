@@ -1,7 +1,0 @@
-[edit vlans]
--   g137-trunk {
--       vlan-id 3903;
--   }
-+   g137-trunk2 {
-+       vlan-id 3903;
-+   }

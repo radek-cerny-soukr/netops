@@ -2,7 +2,7 @@ config router static
     edit 439
         set dst 203.0.113.0 255.255.255.0
         set device "wan2"
-        set comment "NetOps G19 test"
+        set comment "NetOps FIREWALL-ROUTING-ADMIN test"
         set dynamic-gateway enable
     next
 end

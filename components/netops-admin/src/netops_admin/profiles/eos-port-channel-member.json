@@ -35,5 +35,5 @@
   "volatile": [],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "G125: group names a pre-existing Port-Channel. Set group and mode on attachment, or unset both to detach. A mode change detaches and reattaches the member. EOS preserves the Port-Channel when its last member is detached."
+  "rollback_evidence": "Live write and return on cEOSLab 4.36.1F (2026-11-19): Channel and member mode changes were read back and undone. eos mlag admin: group names a pre-existing Port-Channel. Set group and mode on attachment, or unset both to detach. A mode change detaches and reattaches the member. EOS preserves the Port-Channel when its last member is detached."
 }

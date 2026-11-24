@@ -9,6 +9,7 @@ from test_execute import make_runtime, request
 from test_execute_exos import make_runtime as make_exos_runtime
 
 from netops_admin import execute, readiness
+from approved_apply import approved_apply
 
 
 def journal_is_empty(runtime, tmp_path):
@@ -30,14 +31,14 @@ def test_preview_returns_the_plan_and_changes_nothing(tmp_path):
     assert result["commands"] and result["inverse_commands"] > 0
     assert device.applied_blocks == [] and "new-host" not in device.addresses
     assert journal_is_empty(runtime, tmp_path)
-    assert execute.apply(runtime, "lab", request())["result"] == "confirmed"
+    assert approved_apply(runtime, "lab", request())["result"] == "confirmed"
 
 
 def test_preview_and_apply_share_the_plan(tmp_path):
     device = FakeFortiOS()
     runtime = make_runtime(tmp_path, device)
     previewed = execute.preview(runtime, "lab", request())
-    applied = execute.apply(runtime, "lab", request())
+    applied = approved_apply(runtime, "lab", request())
     assert applied["plan"]["plan_sha256"] == previewed["plan_sha256"]
     assert applied["plan"]["commands"] == previewed["commands"]
 
@@ -67,7 +68,7 @@ def test_preview_without_enrollment_still_shows_the_plan(tmp_path):
 def test_preview_of_a_started_request_names_its_operation(tmp_path):
     device = FakeFortiOS()
     runtime = make_runtime(tmp_path, device)
-    record = execute.apply(runtime, "lab", request())
+    record = approved_apply(runtime, "lab", request())
     blocks = len(device.applied_blocks)
     result = execute.preview(runtime, "lab", request())
     assert result["result"] == "known-request" and result["change_id"] == record["change_id"]

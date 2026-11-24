@@ -1,21 +1,21 @@
-"""Cisco IOS / IOS XE named ACL rules and their interface attachments (1.0.12 G64: IOS-M028, IOS-M029).
+"""Cisco IOS / IOS XE named ACL rules and their interface attachments (1.0.12 ios access control: IOS-M028, IOS-M029).
 
-Measured on IOSv 15.9(3)M12 (router, GNS3 d-iosv) and IOL XE 17.18.2 (router, GNS3 d-iolxe), task netops-20261119-590,
-task-evidence/g64. Two tables: ``ip-access-list`` (key ``ipv4:<name>`` or ``ipv6:<name>``, attribute ``rules``: the
+Measured on IOSv 15.9(3)M12 (router, GNS3 Cisco IOSv 15.9(3)M12) and IOL XE 17.18.2 (router, GNS3 Cisco IOL XE 17.18.2), verification,
+private measurement record Two tables: ``ip-access-list`` (key ``ipv4:<name>`` or ``ipv6:<name>``, attribute ``rules``: the
 comma separated, explicitly sequenced rules of one named extended IPv4 / IPv6 ACL) and ``interface-access-group``
 (key ``<interface>:ipv4|ipv6:in|out``, attribute ``acl``).
 
 What the measurements decide:
 
 * The running configuration does not carry the sequence numbers of IOS 15.9 (IPv4: none, IPv6: only the ones that
-  differ from the automatic 10, 20, ... numbering) and shows IOS XE numbers, so the sequence of a rule comes from
+  differ from the automatic 10, 20,... numbering) and shows IOS XE numbers, so the sequence of a rule comes from
   ``show ip access-lists`` / ``show ipv6 access-list`` (the same answer the check account reads). The Admin snapshot
   appends that listing as ``! netops-acl`` comments before ``end`` (like the VLAN database): the listing is the state,
   the configuration block must agree with it rule for rule, otherwise the ACL holds something outside the profile
-  (remark, log, port range, object group, ...) and is refused. The hit counters of the listing change with traffic
+  (remark, log, port range, object group,...) and is refused. The hit counters of the listing change with traffic
   and are removed.
 * IPv4 rules are ``<seq> permit|deny <ip|tcp|udp|icmp> SRC DST [eq PORT]`` and deleted with ``no <seq>``. IPv6 rules
-  are written ``sequence <seq> permit|deny <ipv6|tcp|udp|icmp> SRC DST [eq PORT]`` (``<seq> permit ...`` is refused
+  are written ``sequence <seq> permit|deny <ipv6|tcp|udp|icmp> SRC DST [eq PORT]`` (``<seq> permit...`` is refused
   by the IPv6 ACL mode, "% Invalid input") and deleted with ``no sequence <seq>``.
 * ``ip access-list extended NAME`` creates the ACL empty and an empty IPv4 ACL stays in the running configuration and
   is listed with its header only. An IPv6 ACL without rules does not exist: ``ipv6 access-list NAME`` without a rule

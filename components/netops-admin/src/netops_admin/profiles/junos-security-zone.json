@@ -1,6 +1,7 @@
 {
   "platform": "junos",
   "table": "security-zone",
+  "measured": false,
   "versions": [
     "26.2R1.7"
   ],
@@ -37,5 +38,5 @@
   "volatile": [],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "Uses the Junos commit confirmed safeguard and scoped inverse (G132). SRX only: the preview is refused on a device without the security hierarchy. Verified against Juniper documentation outputs only (no SRX in the lab). Security zone with logical interfaces and zone-level host-inbound system services; description, screen and tcp-rst stay untouched, interface-level options are outside the profile. A change of an existing zone needs endpoint_impact."
+  "rollback_evidence": "Live verification pending: vJunos-switch lacks the SRX security hierarchy; live refusals and automated SRX changes are documented. Uses the Junos commit confirmed safeguard and scoped inverse (junos routing). SRX only: the preview is refused on a device without the security hierarchy. Verified against Juniper documentation outputs only (no SRX in the lab). Security zone with logical interfaces and zone-level host-inbound system services; description, screen and tcp-rst stay untouched, interface-level options are outside the profile. A change of an existing zone needs endpoint_impact."
 }

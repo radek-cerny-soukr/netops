@@ -1,4 +1,4 @@
-"""IOS port rates, STP detail, LACP member state, PoE detail, DOM and per-port neighbors (1.0.12 G53).
+"""IOS port rates, STP detail, LACP member state, PoE detail, DOM and per-port neighbors (1.0.12 router ports).
 
 Registered next to eos_ports/exos_ports so the generic switch_read paths, filters and coverage of
 tables.py apply. Formats are those measured on IOSvL2 15.2 (rates, STP, neighbors, load-balance) and

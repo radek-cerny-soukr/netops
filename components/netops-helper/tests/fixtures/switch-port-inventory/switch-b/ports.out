@@ -1,0 +1,27 @@
+Port Summary
+Port     Display              VLAN Name           Port  Link  Speed  Duplex
+#        String               (or # VLANs)        State State Actual Actual
+===========================================================================
+1        FortiGate-80F        (0005)              E     A      1000   FULL 
+2        Jetson-Orin          LAN                 E     A      1000   FULL 
+3        exos-c               (0006)              E     A      1000   FULL 
+4                             LAN                 E     A      1000   FULL 
+5                             LAN                 E     R                               
+6                             LAN                 D     R                               
+7        MacMini              LAN                 E     A      1000   FULL 
+8                             LAN                 E     A      1000   FULL 
+9                             LAN                 E     A      1000   FULL 
+10                            LAN                 E     A      1000   FULL 
+11                            LAN                 E     A      1000   FULL 
+12       edge-device   LAN                 E     R                               
+13       Uplink-SWA           (0006)              E     A      1000   FULL 
+14                            (0006)              E     R                               
+15                            (0006)              E     A      1000   FULL 
+16                            (0006)              E     R                               
+========================================================================
+   Port State: D-Disabled, E-Enabled, F-Disabled by link-flap detection,
+               L-Disabled due to licensing
+   Link State: A-Active, R-Ready, NP-Port not present, L-Loopback,
+               D-ELSM enabled but not up,
+               d-Ethernet OAM enabled but not up,
+               B-MACsec enabled but blocked awaiting authentication

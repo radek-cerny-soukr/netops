@@ -1,6 +1,6 @@
-"""Task 490 (1.0.12 NX-OS): fail-closed SNMP community block and wrapped IPv6 BGP neighbors.
+"""verification (1.0.12 NX-OS): fail-closed SNMP community block and wrapped IPv6 BGP neighbors.
 
-Only the SSH transport is replaced; the outputs are d-nxos (NX-OS 9.3(12)) captures or declared derivations
+Only the SSH transport is replaced; the outputs are nexus9300v (NX-OS 9.3(12)) captures or declared derivations
 of them, see fixtures/real/cisco_nxos/nx490_9.3.12/PROVENANCE.md.
 """
 from dataclasses import replace
@@ -15,7 +15,7 @@ from netops_helper import engine, sanitize, tables
 from netops_helper.sanitize import redact_response
 
 FIX = Path(__file__).parent / 'fixtures/real/cisco_nxos/nx490_9.3.12'
-VERSION = Path(__file__).parent / 'fixtures/real/cisco_nxos/g90_9.3.12/raw/version.out'
+VERSION = Path(__file__).parent / 'fixtures/real/cisco_nxos/nxos_routing_9.3.12/raw/version.out'
 PROFILE = 'cisco_nxos'
 INVENTORY = {'vrfs': ('default', 'management')}
 WARNING = 'snmp_community_table_unrecognized'
@@ -218,7 +218,7 @@ def test_unparsed_line_numbers_are_those_of_the_capture():
 
 
 def test_vendor_glued_html_sample_is_still_not_guessed():
-    body = (Path(__file__).parent / 'fixtures/real/cisco_nxos/g90_9.3.12/vendor/bgp_ipv6_summary.out').read_text()
+    body = (Path(__file__).parent / 'fixtures/real/cisco_nxos/nxos_routing_9.3.12/vendor/bgp_ipv6_summary.out').read_text()
     result = tables.parse(PROFILE, 'bgp_peer', 'bgp_ipv6_summary', body)
     assert not result['ok'] and result['unparsed']
 
@@ -282,8 +282,8 @@ def test_pager_appended_to_a_masked_row_is_still_truncated(ssh_wire, shape):
     assert not leaked
 
 
-# --- (c) labelled community shape of a configured community (task 490-r3) -----------------------------------
-# raw/*_populated.out are the live d-nxos captures of task 490-r2 with the canary `nx490-populated-canary1`.
+# --- (c) labelled community shape of a configured community (verification) -----------------------------------
+# raw/*_populated.out are the live nexus9300v captures of verification with the canary `nx490-populated-canary1`.
 
 POPULATED_CANARY = 'nx490-populated-canary1'
 LABELLED = ['Community name: <REDACTED>', 'Community groupname: network-operator', 'Context mapped: ']
@@ -411,7 +411,7 @@ def test_pager_after_the_real_community_name_is_still_truncated(ssh_wire):
     assert 'nx490' not in json.dumps(result)
 
 
-# --- (d) community names below the general redaction floor and nested names (task 490-r5) -------------------
+# --- (d) community names below the general redaction floor and nested names (verification) -------------------
 
 def _populated_with(name, *, group=None, newline='\n'):
     body = fixture('raw/snmp_statistics_populated.out').replace(POPULATED_CANARY, name)

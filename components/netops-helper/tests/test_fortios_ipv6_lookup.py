@@ -1,4 +1,4 @@
-"""FortiOS IPv6 route lookup `ipv6_route_lookup` and its route records (task 109-09-83).
+"""FortiOS IPv6 route lookup `ipv6_route_lookup` and its route records (verification-09-83).
 
 Device text comes only from the real, anonymised FortiGate-60F 7.6.8 build 3744 capture in
 tests/fixtures/real/fortios/fg60f_7.6.8_ipv6_20261114 (VDOM disabled/root, IPv6 VRF 0):

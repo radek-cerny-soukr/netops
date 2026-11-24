@@ -1,0 +1,54 @@
+set version 26.2R1.7
+set system host-name host02
+set system root-authentication encrypted-password "$9$SENTINELSALT$SECRET-HASH-SENTINEL"
+set system login user user01 uid 2000
+set system login user user01 class super-user
+set system login user user01 authentication encrypted-password "$9$SENTINELSALT$SECRET-HASH-SENTINEL"
+set system login user user02 uid 2001
+set system login user user02 class read-only
+set system login user user02 authentication encrypted-password "$9$SENTINELSALT$SECRET-HASH-SENTINEL"
+set system services ssh
+set system arp aging-timer 5
+set system syslog file interactive-commands interactive-commands any
+set system syslog file messages any notice
+set system syslog file messages authorization info
+set system processes dhcp-service traceoptions file dhcp_logfile
+set system processes dhcp-service traceoptions file size 10m
+set system processes dhcp-service traceoptions level all
+set system processes dhcp-service traceoptions flag packet
+set interfaces ge-0/0/0 unit 0 family ethernet-switching interface-mode trunk
+set interfaces ge-0/0/0 unit 0 family ethernet-switching vlan members D10
+set interfaces ge-0/0/0 unit 0 family ethernet-switching vlan members D20
+set interfaces ge-0/0/1 unit 0 family ethernet-switching interface-mode access
+set interfaces ge-0/0/1 unit 0 family ethernet-switching vlan members D20
+set interfaces ge-0/0/2 unit 0 family ethernet-switching interface-mode access
+set interfaces ge-0/0/2 unit 0 family ethernet-switching vlan members default
+set interfaces ge-0/0/3 unit 0 family inet filter input junos-security-test
+set interfaces fxp0 unit 0 family inet address 192.0.2.56/24
+set interfaces fxp0 unit 0 family inet6 dhcpv6-client client-type stateful
+set interfaces fxp0 unit 0 family inet6 dhcpv6-client client-ia-type ia-na
+set interfaces fxp0 unit 0 family inet6 dhcpv6-client client-identifier duid-type duid-ll
+set interfaces fxp0 unit 0 family inet6 dhcpv6-client vendor-id Juniper:ex9214:SS0SS0SS00S1
+set interfaces irb unit 10 family inet address 198.51.100.6/24
+set interfaces irb unit 20 family inet address 203.0.113.6/24
+set interfaces lo0 unit 0 family inet address 203.0.113.254/32
+set multi-chassis mc-lag consistency-check
+set firewall family inet filter junos-security-test term t1 from protocol icmp
+set firewall family inet filter junos-security-test term t1 then policer junos-security-pol
+set firewall family inet filter junos-security-test term t1 then count junos-security-cnt
+set firewall family inet filter junos-security-test term t1 then accept
+set firewall family inet filter junos-security-test term rest then accept
+set firewall policer junos-security-pol if-exceeding bandwidth-limit 1m
+set firewall policer junos-security-pol if-exceeding burst-size-limit 15k
+set firewall policer junos-security-pol then discard
+set routing-options router-id 203.0.113.254
+set routing-options static route 0.0.0.0/0 next-hop 192.0.2.1
+set protocols router-advertisement interface fxp0.0 managed-configuration
+set protocols ospf area 0.0.0.0 interface irb.10
+set protocols ospf area 0.0.0.0 interface lo0.0 passive
+set protocols lldp interface all
+set protocols lldp-med interface all
+set vlans D10 vlan-id 10
+set vlans D10 l3-interface irb.10
+set vlans D20 vlan-id 20
+set vlans D20 l3-interface irb.20

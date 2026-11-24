@@ -1,0 +1,20 @@
+config system dns-database
+    edit "netops-dhcp-dns.test"
+        set status enable
+        set domain "netops-dhcp-dns.test"
+        set type primary
+        set view shadow
+        set ttl 86400
+        set authoritative enable
+        unset forwarder
+        set forwarder6 ::
+        set source-ip 0.0.0.0
+        set source-ip6 ::
+        set source-ip-interface ''
+        set interface-select-method auto
+        set vrf-select 0
+        unset allow-transfer
+        set primary-name "dns"
+        set contact "host"
+    next
+end

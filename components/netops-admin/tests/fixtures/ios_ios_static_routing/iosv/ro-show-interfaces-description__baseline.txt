@@ -1,0 +1,13 @@
+
+
+
+Interface                      Status         Protocol Description
+Gi0/0                          up             up       
+Gi0/1                          up             up       
+Gi0/1.10                       up             up       
+Gi0/1.20                       up             up       
+Gi0/2                          up             up       XE-ROUTING VRF blue link to host06  Eth0/2
+Gi0/3                          admin down     down     
+Lo0                            up             up       
+Lo52                           up             up       ROUTER-PROBES VRF blue probe target
+Lo53                           up             up       ROUTER-PROBES global IPv6 probe target

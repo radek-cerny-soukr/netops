@@ -1,0 +1,25 @@
+{
+  "date": "2026-11-17",
+  "source": "lab capture host, config accounts netops-admin; read-only device commands",
+  "privacy": "product StreamRedactor removes hidden original lines; site identifiers anonymized in memory; no original config retained; version CRLF normalized to LF, processor board ID explicitly anonymized",
+  "iosv": "successful real config_read output; replayable positive public Helper baseline restart fixture",
+  "iosvl2": "independent CLI redacted output only; public config_read refuses unsupported identity; not a successful config_read fixture",
+  "files": {
+    "iosvl2-version.out": {
+      "sha256": "a48fcb12bd585895251a519ffa454a2ea163df2cb1f1befe57eb7d29a5f4181e",
+      "bytes": 1707
+    },
+    "iosvl2-cli-redacted.out": {
+      "sha256": "884847e2458a6997aafdb3a8b10067107e60fbd8ff3abe166f5543c1774826f9",
+      "bytes": 3662
+    },
+    "iosv-config_read.out": {
+      "sha256": "e6e3cf461d6a528d54424f7efc5800ffea13363607b7646b06b6d24ef62e026f",
+      "bytes": 3783
+    },
+    "iosv-version.out": {
+      "sha256": "679fb14f22c27ff54260e6205dedcaff3ab3e455a9f63482ba5b32a8a6d77f8d",
+      "bytes": 1683
+    }
+  }
+}

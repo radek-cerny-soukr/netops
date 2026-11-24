@@ -1,0 +1,5 @@
+config log syslogd setting
+    set status disable
+    set vrf-select 0
+end
+

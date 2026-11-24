@@ -1,5 +1,5 @@
 0   2026-11-09 01:05:26 UTC by user01       via cli
-    d-lab D5 temporary
+    emulated-environment D5 temporary
 1   2026-11-08 23:32:13 UTC by root via cli
     home-20261108-30
 2   2026-11-08 23:28:25 UTC by root via cli

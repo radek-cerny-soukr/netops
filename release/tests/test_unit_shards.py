@@ -1,4 +1,5 @@
 import importlib.util
+import math
 import os
 from pathlib import Path
 import re
@@ -187,13 +188,57 @@ class SerialModules(unittest.TestCase):
 
 
 class RepositoryShards(unittest.TestCase):
-    def run_tool(self, *args):
+    def run_tool(self, *args, event=None):
+        environment = os.environ.copy()
+        if event is None:
+            environment.pop("GITHUB_EVENT_NAME", None)
+        else:
+            environment["GITHUB_EVENT_NAME"] = event
         return subprocess.run([sys.executable, "-B", str(ROOT / "release" / "unit_shards.py"), *args],
-                              capture_output=True, text=True, timeout=60)
+                              env=environment, capture_output=True, text=True, timeout=60)
 
     def test_weights_name_exactly_the_test_modules(self):
         self.assertEqual(sorted(shards.WEIGHTS), shards.modules())
         self.assertTrue(all(weight > 0 for weight in shards.WEIGHTS.values()))
+
+    def test_default_check_uses_the_ci_shard_count_and_estimates_partitioned_redaction(self):
+        count, _ = configured_shards()
+        default = self.run_tool("--check")
+        explicit = self.run_tool("--shards", str(count), "--check")
+        self.assertEqual((default.returncode, explicit.returncode), (0, 0), default.stderr + explicit.stderr)
+        self.assertEqual(default.stdout, explicit.stdout)
+        self.assertIn("redaction corpus split into %d partitions" % count, default.stdout)
+        estimates = [int(value) for value in re.findall(r"estimated (\d+) s", default.stdout)]
+        self.assertEqual(len(estimates), count)
+        serial_seconds = sum(shards.WEIGHTS[name] for name in shards.SERIAL_MODULES)
+        self.assertLessEqual(max(estimates) - min(estimates), math.ceil(serial_seconds))
+
+    def test_ci_modes_keep_redaction_within_the_workflow_timeouts(self):
+        count, _ = configured_shards()
+        unit_job = job_bodies()["unit"]
+        legacy_plan, _ = shards.assign(shards.modules(), count)
+        for event, timeout_key in (("push", "timeout"), ("pull_request", "timeout"),
+                                   ("workflow_dispatch", "legacy_timeout")):
+            with self.subTest(event=event):
+                manual = event == "workflow_dispatch"
+                args = ("--tests", "tests/v1", "--shards", str(count))
+                check_args = ("--ignore-stale-weights",) if manual else ()
+                report = self.run_tool(*args, "--check", *check_args, event=event)
+                self.assertEqual(report.returncode, 0, report.stdout + report.stderr)
+                self.assertEqual("redaction corpus split" in report.stdout, not manual)
+                estimates = [int(value) for value in re.findall(r"estimated (\d+) s", report.stdout)]
+                limits = [int(value) * 60 for value in re.findall(r"(?m)^ +" + timeout_key + r": (\d+)$", unit_job)]
+                self.assertEqual(len(estimates), count)
+                self.assertEqual(len(limits), count)
+                self.assertTrue(all(estimate < limit for estimate, limit in zip(estimates, limits)),
+                                (estimates, limits))
+                if manual:
+                    self.assertIn(shards.REDACTION_FLOOR, legacy_plan[0])
+                    self.assertGreaterEqual(estimates[0], round(shards.WEIGHTS[shards.REDACTION_FLOOR]))
+                    for number, expected in enumerate(legacy_plan, 1):
+                        plan = self.run_tool(*args, "--shard", str(number), event=event)
+                        self.assertEqual(plan.returncode, 0, plan.stderr)
+                        self.assertEqual(plan.stdout.splitlines(), expected)
 
     def test_union_of_the_configured_shards_is_every_test_module_once(self):
         count, _ = configured_shards()

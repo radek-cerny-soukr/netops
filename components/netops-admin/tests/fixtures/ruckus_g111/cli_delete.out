@@ -1,9 +1,0 @@
-config
-You have all rights in this mode.
-ruckus(config)# 
-no wlan netops-g111-test
-The WLAN service 'netops-g111-test' has been deleted.
-ruckus(config)# 
-exit
-Your changes have been saved.
-ruckus# 

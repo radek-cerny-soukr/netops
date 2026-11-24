@@ -1,7 +1,6 @@
-"""FortiOS targeted DHCP lease release (1.0.12 G20 FG-37): `execute dhcp lease-clear <IPv4>` for ONE lease.
+"""FortiOS targeted DHCP lease release (1.0.12 dhcp dns FG-37): `execute dhcp lease-clear <IPv4>` for ONE lease.
 
-Measured on a FortiGate-60F, FortiOS 7.6.8 build3744 (lab, accounts netops-test-ro/-rw, see
-task-evidence/g20/fg37/ and tests/fixtures/fortios_7_6_8_g20/lease-*.txt):
+Measured on a FortiGate-60F running FortiOS 7.6.8 build3744. The raw measurements are private. See `components/netops-admin/tests/fixtures/fortios_7_6_8_dhcp_dns/lease-*.txt` for the replay captures:
 
 * `execute dhcp lease-clear ?` offers `<IPv4> | <od-do> | all`; Admin renders only one explicit IPv4 address,
   never `all` and never a range.

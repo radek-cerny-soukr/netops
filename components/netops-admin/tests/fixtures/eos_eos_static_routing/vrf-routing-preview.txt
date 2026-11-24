@@ -1,0 +1,12 @@
+--- system:/running-config
++++ session:/eos-static-routing-routing-preview-session-config
++vrf instance eos-static-routing-route
+ !
++ip routing vrf eos-static-routing-route
++!
++ipv6 unicast-routing vrf eos-static-routing-route
+--- system:/running-config
++++ session:/eos-static-routing-routing-preview-session-config
++vrf instance eos-static-routing-route
+ !
++no ip routing vrf eos-static-routing-route

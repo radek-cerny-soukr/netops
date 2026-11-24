@@ -7,7 +7,7 @@ import pytest
 from conftest import FIXTURES, request_bytes
 from enrollment_helpers import certify
 from fake_020 import ExosMembership
-from test_exos_g43 import G43Exos
+from test_exos_switch_rest import G43Exos
 from test_execute_exos import make_runtime as make_exos_runtime
 from test_operations_020 import request
 
@@ -15,6 +15,7 @@ from netops_admin import audit_gate, engine, execute, exos, prediction, readines
 from netops_admin.cli import EXIT_REJECTED, main
 from netops_admin.errors import Rejected
 from netops_admin.request import parse_request
+from approved_apply import approved_apply
 
 MEASURED_PORTS = 'Port Summary\nPort     Display              VLAN Name           Port  Link  Speed  Duplex\n#        String               (or # VLANs)        State State Actual Actual\n===========================================================================\n1                             Default             E     R                               \n2                             Default             E     R                               \n3                             Default             E     R                               \n4                             Default             E     R                               \n5                             Default             E     R                               \n6                             Default             E     R                               \n7                             Default             E     R                               \n8                             Default             E     R                               \n9                             Default             E     R                               \n10                            Default             E     R                               \n11                            Default             E     R                               \n12                            Default             E     R                               \n========================================================================\n   Port State: D-Disabled, E-Enabled, F-Disabled by link-flap detection,\n               L-Disabled due to licensing\n   Link State: A-Active, R-Ready, NP-Port not present, L-Loopback,\n               D-ELSM enabled but not up,\n               d-Ethernet OAM enabled but not up,\n               B-MACsec enabled but blocked awaiting authentication\n'
 FIRMWARE = "33.6.1.14"
@@ -292,7 +293,7 @@ def test_factory_port_is_changed_and_undone(tmp_path, key, changes, router_verbs
     target = ExosMembership()
     target.router_verbs = router_verbs
     runtime = switch_runtime(tmp_path, target)
-    record = execute.apply(runtime, "sw", request("vlan-membership", key, changes))
+    record = approved_apply(runtime, "sw", request("vlan-membership", key, changes))
     assert (record["result"], record["reason"]) == ("confirmed", None)
     assert record["plan"]["ports"] == target.port_numbers
     undone = execute.undo(runtime, record["change_id"], "restore example")
@@ -304,7 +305,7 @@ def test_factory_port_is_changed_and_undone(tmp_path, key, changes, router_verbs
 def test_display_string_on_a_factory_port_in_the_audit_policy_is_changed_and_undone(tmp_path):
     target = ExosMembership()
     runtime = switch_runtime(tmp_path, target)
-    record = execute.apply(runtime, "sw", request("ports", "5", {"display-string": "desk"}))
+    record = approved_apply(runtime, "sw", request("ports", "5", {"display-string": "desk"}))
     assert (record["result"], record["reason"]) == ("confirmed", None)
     assert target.port_strings["5"] == "desk"
     undone = execute.undo(runtime, record["change_id"], "restore example")
@@ -339,7 +340,7 @@ def test_safeguard_returns_a_factory_port_to_the_default_vlan(tmp_path, key, cha
             fake.check_unreadable = True
 
     target.on_apply = fail_after_change
-    record = execute.apply(runtime, "sw", request("vlan-membership", key, changes))
+    record = approved_apply(runtime, "sw", request("vlan-membership", key, changes))
     assert (record["result"], record["reason"]) == ("reverted", "check identity unavailable")
     assert target.memberships[key] == {"untagged": "Default", "tagged": set()}
 

@@ -13,7 +13,7 @@ FIRMWARE = "33.7.1.6"
 TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
 NOT_INLINE_POWER_RC = 250
 FIXTURES = Path(__file__).parent / "fixtures" / "exos_port_poe"
-MANAGEMENT_FIXTURES = FIXTURES.parent / "exos_g42" / "x440"
+MANAGEMENT_FIXTURES = FIXTURES.parent / "exos_switch_vlan_admin" / "x440"
 
 
 def fixture(name: str) -> str:
@@ -42,7 +42,7 @@ class FakeExos:
         }
         self.accounts = ["admin", "netops-rw"]
         self.account_hashes = {}
-        self.port_strings = {"11": "Zyxel-5p", "12": "Uplink-SW3"}
+        self.port_strings = {"11": "Zyxel-5p", "12": "Uplink-SWB"}
         self.port_descriptions = {}
         self.port_numbers = [str(number) for number in range(1, 17)]
         self.foreign_session_users = []
@@ -260,7 +260,7 @@ class FakeExos:
         return text
 
     def query_status(self, command):
-        """Exit status and answer, as the real transport gives them (ref 171: a port without PoE ends with 250)."""
+        """Exit status and answer, as the real transport gives them (a port without PoE ends with 250)."""
         text = self.answer(command)
         if command.startswith("show inline-power info ports ") and "is not inline-power capable" in text:
             return NOT_INLINE_POWER_RC, text

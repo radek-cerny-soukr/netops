@@ -5,6 +5,6 @@ config router static
         set gateway 198.51.100.2
         set distance 20
         set device "n439-v"
-        set comment "NetOps G19 test"
+        set comment "NetOps FIREWALL-ROUTING-ADMIN test"
     next
 end

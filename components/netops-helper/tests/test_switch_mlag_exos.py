@@ -526,9 +526,9 @@ def test_public_other_query_and_other_platform_get_no_exos_mlag(tmp_path, monkey
     assert not {"peers", "configured_groups"} & set(answer["mlag"])
 
 
-# --- task 136-r2: _PAIR and _PAIR_SPLIT without overlapping backtracking ---
+# --- _PAIR and _PAIR_SPLIT without overlapping backtracking ---
 # The 93bc99c spellings, frozen independently of the production constants: same results, quadratic backtracking
-# (_PAIR in match/fullmatch/search; _PAIR_SPLIT in split/search over long blank runs, measured on PC-Radek).
+# (_PAIR in match/fullmatch/search; _PAIR_SPLIT in split/search over long blank runs).
 _PAIR_93BC99C = re.compile(r"^[ \t]*([A-Za-z][A-Za-z0-9 .()/_-]*?)[ \t]*:[ \t]*(.*?)[ \t]*$")
 _PAIR_SPLIT_93BC99C = re.compile(
     r"[ \t]{2,}(?=[A-Za-z](?:[A-Za-z0-9.()/_-]|[ \t](?![ \t]))*?[ \t]*:(?:[ \t]|$))")
@@ -608,10 +608,10 @@ def test_pair_regexes_are_equivalent_on_all_short_strings():
 
 
 @pytest.mark.parametrize("name, text", [
-    ("_PAIR", "    key " + " " * 19991 + "!"), ("_PAIR", "ge-0/0/0 Current " + " " * 19982 + "!"),
-    ("_PAIR", "k:a" + " " * 19996 + "!"), ("_PAIR", "Peer IP Address :" + " \t" * 10000 + "x"),
-    ("_PAIR_SPLIT", " " * 19999 + "!"), ("_PAIR_SPLIT", "a" + "\t" * 19998 + "!"),
-    ("_PAIR_SPLIT", "VLAN  : x" + " " * 9995 + "Peer" + " " * 9995),
+    ("_PAIR", "    key " + " " * 99991 + "!"), ("_PAIR", "ge-0/0/0 Current " + " " * 99982 + "!"),
+    ("_PAIR", "k:a" + " " * 99996 + "!"), ("_PAIR", "Peer IP Address :" + " \t" * 50000 + "x"),
+    ("_PAIR_SPLIT", " " * 99999 + "!"), ("_PAIR_SPLIT", "a" + "\t" * 99998 + "!"),
+    ("_PAIR_SPLIT", "VLAN  : x" + " " * 49995 + "Peer" + " " * 49995),
 ], ids=["pair-label-spaces", "pair-label-after-words", "pair-value-spaces", "pair-value-mixed-blanks",
         "split-spaces", "split-tabs-after-word", "split-label-without-colon"])
 def test_pair_regexes_are_linear_on_long_blank_runs(name, text):
@@ -621,9 +621,9 @@ def test_pair_regexes_are_linear_on_long_blank_runs(name, text):
     pattern = getattr(switch_mlag_exos, name)
 
     def expired(*_):
-        raise AssertionError(f"switch_mlag_exos.{name} exceeded 0.5s")
+        raise AssertionError(f"switch_mlag_exos.{name} exceeded the 10 s hard stop")
     previous = signal.signal(signal.SIGALRM, expired)
-    signal.setitimer(signal.ITIMER_REAL, 0.5)
+    signal.setitimer(signal.ITIMER_REAL, 10)  # hard stop only; the verdict below is the work done, not the speed
     try:
         started = time.perf_counter()
         for operation in ("match", "fullmatch", "search", "split"):
@@ -634,5 +634,7 @@ def test_pair_regexes_are_linear_on_long_blank_runs(name, text):
     finally:
         signal.setitimer(signal.ITIMER_REAL, 0)
         signal.signal(signal.SIGALRM, previous)
-    # 93bc99c, 20000 characters (PC-Radek): _PAIR 0.4-1.4 s per match, _PAIR_SPLIT 1.6-2.8 s per split
-    assert elapsed < 0.05, elapsed
+    # Speed-independent: 100000 characters make a quadratic pattern take tens of seconds on any machine
+    # (at 20000 characters the old code took 0.4-2.8 s), so the 10 s hard stop trips it; a linear one needs milliseconds.
+    # This bound has a reserve of three orders of magnitude for a slow or fully loaded runner.
+    assert elapsed < 5, elapsed

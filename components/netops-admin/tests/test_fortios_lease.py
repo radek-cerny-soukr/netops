@@ -1,6 +1,6 @@
-"""G20 FG-37 (1.0.12): release of ONE FortiOS DHCP lease (`execute dhcp lease-clear <IPv4>`).
+"""DHCP-DNS FG-37 (1.0.12): release of ONE FortiOS DHCP lease (`execute dhcp lease-clear <IPv4>`).
 
-The fake replays the layout measured on the lab FortiGate-60F, FortiOS 7.6.8 build3744 (fixtures/fortios_7_6_8_g20,
+The fake replays the layout measured on the lab FortiGate-60F, FortiOS 7.6.8 build3744 (fixtures/fortios_7_6_8_dhcp_dns,
 lease-*.txt, see PROVENANCE.md). Requests go through the real preview/apply path of Admin.
 """
 from __future__ import annotations
@@ -17,7 +17,7 @@ from netops_admin import engine, execute, fortios_lease
 from netops_admin.errors import Rejected
 from netops_core import prompt
 
-FIXTURES = Path(__file__).parent / "fixtures" / "fortios_7_6_8_g20"
+FIXTURES = Path(__file__).parent / "fixtures" / "fortios_7_6_8_dhcp_dns"
 TABLE = fortios_lease.TABLE
 TARGET = "192.0.2.211"
 KEEP = ("192.0.2.12", "192.0.2.13")
@@ -38,7 +38,7 @@ LEASES = [
      "expiry": "Wed Nov 25 21:07:19 2026"},
     {"interface": "fortilink", "ip": "192.0.2.13", "mac": "00:00:5e:00:53:13", "host": "SERIAL0000000001",
      "vci": "FortiSwitch-108E", "server": "2", "expiry": "Wed Nov 25 22:03:32 2026"},
-    {"interface": "quarantine", "ip": TARGET, "mac": "00:00:5e:00:53:37", "host": "netops-g37-test", "vci": "netops-g37",
+    {"interface": "quarantine", "ip": TARGET, "mac": "00:00:5e:00:53:37", "host": "netops-rtg-test", "vci": "netops-rtg",
      "server": "3", "expiry": "Fri Nov 27 09:05:45 2026"},
 ]
 
@@ -126,7 +126,7 @@ def test_the_real_lease_list_is_read_completely():
     assert [(lease["interface"], lease["ip"], lease["mac"], lease["server_id"]) for lease in seen] == [
         ("_default", "192.0.2.12", "00:00:5e:00:53:12", "6"), ("fortilink", "192.0.2.13", "00:00:5e:00:53:13", "2"),
         ("quarantine", TARGET, "00:00:5e:00:53:37", "3")]
-    assert seen[0]["detail"] == "host-a" and seen[2]["detail"] == "netops-g37-test netops-g37"
+    assert seen[0]["detail"] == "host-a" and seen[2]["detail"] == "netops-rtg-test netops-rtg"
     assert seen[2]["expiry"] == "Fri Nov 27 09:05:45 2026"
     assert [lease["ip"] for lease in fortios_lease.observation(fixture("lease-list-quarantine-only"))["leases"]] == [TARGET]
     assert fortios_lease.observation("")["leases"] == []
@@ -216,7 +216,7 @@ def test_preview_names_interface_and_mac_and_writes_nothing(tmp_path):
     assert result["firmware"] == "7.6.8 build3744" and result["firmware_support"]["status"] == "tested"
     scope = [line for line in result["prechecks"] if "will be released" in line]
     assert scope == ["DHCP lease 192.0.2.211 on interface quarantine, MAC 00:00:5e:00:53:37, DHCP server 3,"
-                     " netops-g37-test netops-g37 will be released; 2 other leases stay"]
+                     " netops-rtg-test netops-rtg will be released; 2 other leases stay"]
     leases = result["predicted"]["before"]["leases"]
     assert [lease["ip"] for lease in leases] == list(KEEP) + [TARGET]
     assert [lease["ip"] for lease in result["predicted"]["after"]["leases"]] == list(KEEP)

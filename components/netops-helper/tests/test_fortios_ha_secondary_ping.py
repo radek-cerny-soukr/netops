@@ -106,7 +106,7 @@ def test_another_refused_option_is_not_reported_as_an_interface_refusal() -> Non
     responses = session.member["responses"] = dict(session.member["responses"])
     responses["execute ping-options data-size 56"] = RECORDED["members"]["secondary"]["responses"][
         "execute ping-options interface ap-mgmt"].replace("interface ap-mgmt", "data-size 56").replace(
-        "before 'interface'", "before 'data-size'").replace("FGT80F0000002222(Secondary)", "FGT80F0000001111(Primary)")
+        "before 'interface'", "before 'data-size'").replace("FGTEXAMPLE0002222(Secondary)", "FGTEXAMPLE0001111(Primary)")
     with pytest.raises(ValueError) as refused:
         d.run(shell, "ping", ADDRESS, INTERFACE, 3, 5)
     assert not isinstance(refused.value, d.OptionRefused)

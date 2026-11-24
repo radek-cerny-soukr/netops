@@ -1,6 +1,7 @@
 {
   "platform": "junos",
   "table": "nat-source-rule",
+  "measured": false,
   "versions": [
     "26.2R1.7"
   ],
@@ -64,5 +65,5 @@
   "volatile": [],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "Uses the Junos commit confirmed safeguard and scoped inverse (G132). SRX only: the preview is refused on a device without the security hierarchy. Verified against Juniper documentation outputs only (no SRX in the lab). Source NAT rule RULESET@RULE (rule-set zones, source and optional destination prefix, interface NAT or off). A change of an existing rule needs endpoint_impact."
+  "rollback_evidence": "Live verification pending: vJunos-switch lacks the SRX security hierarchy; live refusals and automated SRX changes are documented. Uses the Junos commit confirmed safeguard and scoped inverse (junos routing). SRX only: the preview is refused on a device without the security hierarchy. Verified against Juniper documentation outputs only (no SRX in the lab). Source NAT rule RULESET@RULE (rule-set zones, source and optional destination prefix, interface NAT or off). A change of an existing rule needs endpoint_impact."
 }

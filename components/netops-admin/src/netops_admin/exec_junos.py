@@ -1,4 +1,4 @@
-"""Juniper Junos ELS execution adapter (measured on vJunos-switch 26.2R1.7, ref/mereni-c8).
+"""Juniper Junos ELS execution adapter (measured on vJunos-switch 26.2R1.7, private measurement record).
 
 Safeguard first, as execute.py needs it: an empty "commit confirmed N comment \"netops-<id>\"" in configure exclusive
 is committed before the change and verified by its row "rollback pending" in show system commit. The change runs line
@@ -14,7 +14,7 @@ then checks the state before), otherwise the inverse lines committed with "commi
 the row "rollback pending" must then be gone. An expired timer is an automatic rollback committed as "root via other"
 above the change (with the broadcast "Commit was not confirmed; automatic rollback complete"); Admin proves it with
 that commit row. The rollback returns the configuration before the NEWEST commit confirmed, not before the first one
-(measured in task 378: after an empty safeguard, a change and an inverse each committed with commit confirmed, the
+(measured in verification: after an empty safeguard, a change and an inverse each committed with commit confirmed, the
 expiry brought the change back); with the empty safeguard first and the change as the only later commit confirmed,
 that is the state before the change.
 
@@ -46,10 +46,10 @@ yet, the empty safeguard needs no return and is confirmed; else the inverse set/
 with the plain "commit comment \"netops-<id>-revert\"", which ends the own timer and keeps the inverse. It is not
 committed with commit confirmed: an inverse under a timer is undone by its expiry, which returns the state before the
 newest commit confirmed, so an interrupted return (no confirmation after the inverse) brought the change back
-(measured in task 378, S1). execute.py then judges the state by a fresh snapshot against the state before (reverted,
+(measured in verification, S1). execute.py then judges the state by a fresh snapshot against the state before (reverted,
 revert-failed, or unknown when it is not readable). When the read after the change commit failed, the change row
 becomes the head before the return only by a new read (adopt_change_head). Chosen over "rollback N": the inverse was
-measured (P3e, undo in the E2E of task 319) and touches only the planned object, while the index of rollback N moves
+measured (P3e, undo in the E2E of verification) and touches only the planned object, while the index of rollback N moves
 with every commit (measured: rollback 1 is wrong after a confirmation) and a rollback during a pending timer was not
 measured.
 
@@ -58,7 +58,7 @@ safeguard row, ended with "root via other" or the own plain "-revert" row above 
 the own "-ok" row above it.
 
 Timing (measured on the lab, where the vJunos runs under load 15-26): a commit takes 15-150 s (a change session took
-126-235 s in task 319), the timer counts whole minutes from the commit row and expires 0-60 s after N minutes, the
+126-235 s in verification), the timer counts whole minutes from the commit row and expires 0-60 s after N minutes, the
 automatic rollback commit takes another 55-273 s. N is 10 minutes (safeguard_seconds 600, required by the
 configuration). A commit is the save on Junos, so persist has nothing to do.
 
@@ -99,9 +99,9 @@ MIN_CONFIRM_MARGIN_SECONDS = 240
 COMMIT_LINE_SECONDS = 420
 LINE_SECONDS = 90
 # the slack of the wait for the proof of an expiry (execute.py: the longest timer plus grace plus this, 1820 s on the
-# monotonic clock of Admin from the start of the wait): 0-60 s of minute granularity (measured 7-9 s in task 319),
-# the automatic rollback commit (55-112 s in task 308, 93 and 273 s in task 319) and a change commit of up to about
-# 240 s (task 319) that restarted the timer; admin recover after SIGKILL in task 319 saw the proof 530 s after the
+# monotonic clock of Admin from the start of the wait): 0-60 s of minute granularity (measured 7-9 s in verification),
+# the automatic rollback commit (55-112 s in verification, 93 and 273 s in verification) and a change commit of up to about
+# 240 s (verification) that restarted the timer; admin recover after SIGKILL in verification saw the proof 530 s after the
 # expiry of the safeguard commit. The wait ends as soon as the proof is read.
 FIRING_SLACK_SECONDS = 900
 FIRING_OBSERVED = True
@@ -115,19 +115,19 @@ REFUSED_REASON_CODE = "foreign_config_session"
 # the timer runs on the device clock, whose drift was not measured on vJunos; the allowance of the IOS adapter (1.7 %
 # measured on IOSv) is used
 DRIFT_FRACTION = 0.02
-# the change session up to the end of its commit: 126-235 s in the E2E of task 319 (commits 15-150 s in task 308)
+# the change session up to the end of its commit: 126-235 s in the E2E of verification (commits 15-150 s in verification)
 SESSION_BUDGET_SECONDS = 240
 # a line up to the change commit is sent only with this much of the timer left (a commit took up to 150 s)
 COMMIT_BUDGET_SECONDS = 180
 # after the change commit: the timer read, the snapshot, the account check, the check account and the final snapshot
-# (63-90 s from the end of the change session to the confirmation in the E2E of task 319, with a device clock read)
+# (63-90 s from the end of the change session to the confirmation in the E2E of verification, with a device clock read)
 READBACK_BUDGET_SECONDS = 90
 # the restart of the timer is counted from two commit rows of whole seconds on the device clock
 RESTART_SLACK_SECONDS = 15
 # the immediate return commits the inverse while the own timer is pending: started only with a whole session left
 REVERT_NOW_SECONDS = SESSION_BUDGET_SECONDS
 # the inverse is committed with a plain commit, which ends the own timer (an inverse under the timer is undone by its
-# expiry, measured in task 378); execute.py judges the state by a fresh snapshot and confirms nothing afterwards
+# expiry, measured in verification); execute.py judges the state by a fresh snapshot and confirms nothing afterwards
 REVERT_NOW_KEEPS_SAFEGUARD = False
 
 
@@ -136,9 +136,9 @@ def _line_seconds(text: str) -> float:
 
 
 def prompt_spec(hostname: str, others=()) -> PromptSpec:
-    """measured prompts: "netops-admin@d-vjunos> " and, in configuration mode, "[edit]" above "netops-admin@d-vjunos# ".
+    """measured prompts: "netops-admin@vJunos-switch> " and, in configuration mode, "[edit]" above "netops-admin@vJunos-switch# ".
 
-    1.0.12 G145: the anchor is "@<host name>", the part of the prompt after the account. The bare host name was also
+    1.0.12 junos port ownership: the anchor is "@<host name>", the part of the prompt after the account. The bare host name was also
     found in the echo of a typed line ("set system host-name <name>"), and the end that follows it was then the "# "
     of the pending commit confirmed banner, not of the prompt. A host-name change shows the new name in the prompt
     right after its commit, in the same session (measured), so the sessions of such a plan accept both names
@@ -149,7 +149,7 @@ def prompt_spec(hostname: str, others=()) -> PromptSpec:
 
 
 def plan_hostnames(plan, hostname: str) -> tuple:
-    """The other host names the prompt of a session of the plan can show (1.0.12 G145: the old and the new host name
+    """The other host names the prompt of a session of the plan can show (1.0.12 junos port ownership: the old and the new host name
     of a system plan; the timer, the undo and the recovery can meet either)."""
     names = [(state or {}).get("host-name") for step in plan.get("batch_steps", [plan])
              if step.get("table") == junos.SYSTEM_TABLE for state in step["predicted"].values()]
@@ -230,7 +230,7 @@ def _login(access):
 
 def prechecks(access, device, snapshot_text, spec, *, clearing=False) -> list:
     login, klass, permissions = junos.authorization(_read(access, QUERY_AUTHORIZATION))
-    # 1.0.12 G146: a clear needs the clear permission, no configuration mode and no timer of its own
+    # 1.0.12 junos targeted clear: a clear needs the clear permission, no configuration mode and no timer of its own
     missing = [name for name in (("clear", "view", "view-configuration") if clearing else NEEDED_PERMISSIONS)
                if name not in permissions]
     if missing:
@@ -428,7 +428,7 @@ def _g140_prechecks(access, device, plan, snapshot_text):
 
 
 def _poe_capability(access, plan, key):
-    """1.0.12 G138 (J09, J10): the port has a PoE controller (show poe interface answers its block; vJunos answers only
+    """1.0.12 junos port maintenance (J09, J10): the port has a PoE controller (show poe interface answers its block; vJunos answers only
     a warning) and, for the cycle, the power is on before; a port with PoE disabled in the configuration cannot be
     cycled (the engine refuses it before)."""
     state = junos.poe_state(_read(access, "show poe interface %s" % key), key)
@@ -621,7 +621,7 @@ def _uses_management_irb(access, device, snapshot, terse, irbs, *, report_errors
 
 
 def _inheritance_matches(access, key, snapshot_text):
-    """1.0.12 G137 JP12: when a VLAN statement of the port is inherited (interface-range or group), the VLAN
+    """1.0.12 junos vlan admin JP12: when a VLAN statement of the port is inherited (interface-range or group), the VLAN
     statements of the device's own view (display inheritance) must equal the evaluation of Admin; otherwise the
     change is refused, nothing is assumed."""
     if not snapshot_text:
@@ -968,7 +968,8 @@ def remove_safeguard(access, record, spec) -> bool:
     """Confirm the own pending timer. A pending timer that is not proven the own one is never confirmed (False); the
     confirmation is sent only while the empty candidate still shows the banner of the pending timer (a plain commit
     during the automatic rollback would make it fail, measured). True only when the end of the own timer is proven
-    (_settled), so a timer that ended unconfirmed is never taken for a confirmation."""
+    (_settled), so a timer that ended unconfirmed is never taken for a confirmation; a confirmation line the device
+    refused (an error, or any warning but the known ones of junos.cli_error) is never a confirmation (False)."""
     label = safeguard_label(record["change_id"])
     login = _login(access)
     try:
@@ -979,6 +980,11 @@ def remove_safeguard(access, record, spec) -> bool:
             return False
         _session(access, [junos.SCREEN, junos.ENTER, junos.COMPARE_EMPTY, 'commit comment "%s"' % _confirmation(label),
                           junos.LEAVE], spec, True)
+    except AccessError as exc:
+        # the device answered a line with an error or a warning (also a commit that completed with a warning): the
+        # own -ok row in the history must not turn that answer into a confirmation
+        if "was refused by the device" in str(exc):
+            return False
     except Exception:
         pass
     try:
@@ -1022,7 +1028,7 @@ def revert_now(access, record, spec) -> bool:
     "commit comment netops-<id>-revert" (the empty candidate must still show the banner of the pending timer), which
     ends the own timer and keeps the inverse: the timer must not stay pending over the inverse, because its expiry
     returns the state before the newest commit confirmed and an inverse committed with commit confirmed then brings
-    the change back (measured in task 378). The new row must be that plain own row right above the head with no
+    the change back (measured in verification). The new row must be that plain own row right above the head with no
     rollback pending; it becomes the head. True when the return is committed, False otherwise (then execute.py waits
     for the end of the timer: its expiry, or the own -revert row when the commit went through unseen)."""
     item = record.get("safeguard") or {}
@@ -1231,7 +1237,7 @@ def _observe_vlan(access, plan):
     return state
 
 
-# 1.0.12 G145: the scoped configuration reads of an object (write account; the check account of class read-only
+# 1.0.12 junos port ownership: the scoped configuration reads of an object (write account; the check account of class read-only
 # cannot read the configuration, measured); each answer holds only set lines of the object's stanza
 G145_READS = {
     junos.SYSTEM_TABLE: ("show configuration system host-name | display set",
@@ -1248,9 +1254,9 @@ CHECK_HOSTNAME = re.compile(r"^Hostname:[ \t]+(\S+)[ \t]*$", re.MULTILINE)
 
 
 def _check_identity(access, host_rows):
-    """1.0.12 G145: the check account (class read-only) cannot read the configuration, so the stanza is read back by
+    """1.0.12 junos port ownership: the check account (class read-only) cannot read the configuration, so the stanza is read back by
     the write account; the check account confirms the device and its committed state by the Hostname of show version
-    (measured on d-vjunos: the new host name right after its commit), which must equal the configured host name. A
+    (measured on vJunos-switch: the new host name right after its commit), which must equal the configured host name. A
     check account that cannot log in or answer refuses the readback, so check_identity_passed is never recorded on
     reads of the write account alone."""
     configured = [junos.HOST_NAME.match(row) for row in host_rows]
@@ -1291,7 +1297,7 @@ def foreign_sessions(access, device) -> int:
     return junos.users(_read(access, QUERY_USERS))
 
 
-# G139 uses structured operational output for routes, IRB addresses and VLAN bindings.
+# junos static routing uses structured operational output for routes, IRB addresses and VLAN bindings.
 VRRP_QUERY = "show vrrp detail | no-more"
 VRRP_EMPTY = "warning: vrrp subsystem not running - not needed by configuration."
 VRRP_ADDRESS = re.compile(r"Physical interface: (\S+), Unit: ([0-9]+), .*?Address: (\S+)")
@@ -1578,7 +1584,7 @@ def _l3_plan_prechecks(access, device, plan, snapshot_text):
     return []
 
 
-# ---- 1.0.12 G146: targeted operational clear (junos_clear.py) ----
+# ---- 1.0.12 junos targeted clear: targeted operational clear (junos_clear.py) ----
 
 def observe_clear(access, table, target):
     try:
@@ -1607,7 +1613,7 @@ def _vlan_irbs(snapshot, vlan):
 
 
 def clear_prechecks(access, device, table, target, before, snapshot_text="") -> list:
-    """1.0.12 G146: the protections of the port path apply to every port, VLAN and routed interface that the clear
+    """1.0.12 junos targeted clear: the protections of the port path apply to every port, VLAN and routed interface that the clear
     touches: protected interfaces and VLANs, dedicated management interfaces, ports with an LLDP neighbor (uplink),
     trunk ports, the only port with a link, ports and VLANs whose IRB carries or may carry the management path.
     Anything that cannot be read leaves the clear refused (clear_readback_unreadable)."""

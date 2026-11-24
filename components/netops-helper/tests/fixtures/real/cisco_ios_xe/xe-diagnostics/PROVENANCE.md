@@ -1,0 +1,10 @@
+# xe diagnostics Cisco IOS XE operational output
+
+- `lab/ikev1_sa.out` and `lab/qos_queues.out` came from the pinned SSH EXEC connection to Cisco IOL XE 17.18.2 on 2026-11-19, IOL XE 17.18.2, on `netops-admin`. The commands were `show crypto isakmp sa` and `show platform hardware fed switch active qos queue stats interface Ethernet0/2`.
+- `lab/ro_qos_queues.out` is the same FED read on `netops-ro`, which the device also refused.
+- `vendor/qos_queues.out` is the complete Figure 3 output with nonzero drop counters on Catalyst 9300 running IOS XE 16.12.3. [Cisco Catalyst 9000 output drops](https://www.cisco.com/c/en/us/support/docs/switches/catalyst-9300-switch/216236-troubleshoot-output-drops-on-catalyst-90.html)
+- `vendor/qos_queues_avb.out` is the published Catalyst 9300 IOS XE 17.12.x AVB example, which ends after drop queue 4 while the enqueue table shows queues 0–7. [Cisco AVB verification](https://www.cisco.com/c/en/us/td/docs/switches/lan/catalyst9300/software/release/17-12/configuration_guide/lyr2/b_1712_lyr2_9300_cg/audio_video_bridging.html)
+- `vendor/ikev1_sa.out` is the three-peer example in the IOS XE 17.x DMVPN guide, with a slot column and no status column. [Cisco DMVPN verification](https://www.cisco.com/c/en/us/td/docs/routers/ios/config/17-x/sec-vpn/b-security-vpn/m_sec-conn-dmvpn-dmvpn-0.html)
+- `vendor/ipsec_sa.out` is Example 2 under Verify, with an active AES-GCM tunnel and extended replay-window fields. [Cisco IOS XE 17.x GRE over IPsec](https://www.cisco.com/c/en/us/td/docs/routers/sdwan/configuration/security/ios-xe-17/security-book-xe/m-gre-over-ipsec-tunnels.html)
+
+The HTML excerpts omit the command prompt and normalize common indentation, non-breaking spaces and trailing whitespace. The fixture anonymizer replaces identifying addresses and checks for residual identifiers. The wrapped-key regressions append synthetic values to the documented SA output. xe diagnostics also reuses the IOS XE QoS policy, NAT and IKEv2 fixtures from [router-diagnostics](../../cisco_ios/router-diagnostics/PROVENANCE.md).

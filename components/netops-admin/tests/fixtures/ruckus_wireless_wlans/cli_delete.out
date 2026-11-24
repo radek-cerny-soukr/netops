@@ -1,0 +1,9 @@
+config
+You have all rights in this mode.
+ruckus(config)# 
+no wlan netops-wireless-wlans-test
+The WLAN service 'netops-wireless-wlans-test' has been deleted.
+ruckus(config)# 
+exit
+Your changes have been saved.
+ruckus# 

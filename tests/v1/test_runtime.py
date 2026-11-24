@@ -10,6 +10,27 @@ from netops.files import read_private, write_private
 from netops.gateway import AuditBoundary
 from netops.redaction import redact, terminal_safe
 
+
+def run_on_virtual_clock(coroutine):
+    """Run a coroutine on an event loop whose clock jumps over every wait: the sleeps and the deadline of
+    the code under test are measured on this one fake clock, so the result is independent of machine speed.
+    Returns (result, virtual seconds elapsed)."""
+    loop = asyncio.new_event_loop()
+    now = [0.0]
+    loop.time = lambda: now[0]
+    select = loop._selector.select
+
+    def jump(timeout=None):
+        if timeout:
+            now[0] += timeout
+        return select(0)
+    loop._selector.select = jump
+    try:
+        return loop.run_until_complete(coroutine), now[0]
+    finally:
+        loop.close()
+
+
 class PrivateFiles(unittest.TestCase):
     def test_read_rejects_aliases_and_public_permissions(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -190,18 +211,23 @@ asyncio.run(main())
             await asyncio.sleep(2.5)
             return {"ready": True}
         with patch("netops.health.rpc", new=slow):
-            asyncio.run(check_roles(["helper"]))
+            _, virtual = run_on_virtual_clock(check_roles(["helper"]))
+        self.assertAlmostEqual(virtual, 2.5, places=3)
 
     def test_role_that_never_answers_status_fails_within_the_container_healthcheck_timeout(self):
         import time
         from netops.health import check_roles
         async def silent(role, message):
             await asyncio.Event().wait()
-        start = time.monotonic()
         with patch("netops.health.rpc", new=silent):
-            with self.assertRaises(TimeoutError):
-                asyncio.run(check_roles(["helper"]))
-        self.assertLess(time.monotonic() - start, 10)
+            async def timed():
+                loop = asyncio.get_running_loop()
+                started = loop.time()
+                with self.assertRaises(TimeoutError):
+                    await check_roles(["helper"])
+                return loop.time() - started
+            virtual = run_on_virtual_clock(timed())[0]
+        self.assertLess(virtual, 10)
 
     def test_roles_each_answering_within_five_seconds_are_ready_within_one_deadline(self):
         import time
@@ -209,10 +235,9 @@ asyncio.run(main())
         async def slow(role, message):
             await asyncio.sleep(3.5)
             return {"ready": True}
-        start = time.monotonic()
         with patch("netops.health.rpc", new=slow):
-            asyncio.run(check_roles(["helper", "auditor", "admin"]))
-        self.assertLess(time.monotonic() - start, 5.5)
+            _, virtual = run_on_virtual_clock(check_roles(["helper", "auditor", "admin"]))
+        self.assertAlmostEqual(virtual, 3.5, places=3)  # concurrent, so one deadline and not three
 
     def test_silent_role_after_slow_roles_fails_within_the_container_healthcheck_timeout(self):
         import time
@@ -222,11 +247,15 @@ asyncio.run(main())
                 await asyncio.Event().wait()
             await asyncio.sleep(3)
             return {"ready": True}
-        start = time.monotonic()
         with patch("netops.health.rpc", new=mixed):
-            with self.assertRaises(TimeoutError):
-                asyncio.run(check_roles(["helper", "auditor", "admin"]))
-        self.assertLess(time.monotonic() - start, 5.5)
+            async def timed():
+                loop = asyncio.get_running_loop()
+                started = loop.time()
+                with self.assertRaises(TimeoutError):
+                    await check_roles(["helper", "auditor", "admin"])
+                return loop.time() - started
+            virtual = run_on_virtual_clock(timed())[0]
+        self.assertAlmostEqual(virtual, 5, places=3)  # the one shared deadline, not 3 s plus a fresh deadline
 
 class AuditGate(unittest.IsolatedAsyncioTestCase):
     async def invoke(self, app, audit):

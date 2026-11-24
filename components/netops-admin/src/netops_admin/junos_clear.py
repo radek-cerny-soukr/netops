@@ -1,8 +1,8 @@
-"""Targeted operational clear on Junos ELS (1.0.12 G146: J34 counters, J35 MAC, J36 ARP/ND, J37 BGP refresh).
+"""Targeted operational clear on Junos ELS (1.0.12 junos targeted clear: J34 counters, J35 MAC, J36 ARP/ND, J37 BGP refresh).
 
 A clear changes no configuration and has no undo. It follows the clear flow of ExtremeXOS (engine.build_clear_plan,
 execute._execute_clear): live preview, the approved plan_sha256, one command for exactly one object, readback against
-the state BEFORE the command, no safeguard. Measured on vJunos-switch 26.2R1.7 (ref: task-evidence/g146/znalost):
+the state BEFORE the command, no safeguard. Measured on vJunos-switch 26.2R1.7 (ref: private measurement record):
 
 * the commands differ from the first notes of the plan: the MAC is positional ("clear ethernet-switching table
   <mac>", the keyword "address" is read as a MAC and refused) and the IPv6 neighbor needs the keyword host

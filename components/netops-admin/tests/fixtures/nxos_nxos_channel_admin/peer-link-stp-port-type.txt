@@ -1,0 +1,34 @@
+# Nexus 9000v, NX-OS 9.3(12), second switch of the vPC pair (vPC roles removed, memberless trunk port-channel201),
+# targeted "show running-config interface port-channel201" after each configuration step, 2026-11-22.
+# step: before (spanning-tree port type network)
+interface port-channel201
+  switchport mode trunk
+  switchport trunk allowed vlan 428
+  spanning-tree port type network
+# step: vpc peer-link
+interface port-channel201
+  switchport mode trunk
+  switchport trunk allowed vlan 428
+  spanning-tree port type network
+  vpc peer-link
+# step: no vpc peer-link
+interface port-channel201
+  switchport mode trunk
+  switchport trunk allowed vlan 428
+# step: vpc peer-link (without a spanning-tree port type line before; NX-OS answers "Warning: Bridge Assurance MUST be enabled at the remotely connected interface")
+interface port-channel201
+  switchport mode trunk
+  switchport trunk allowed vlan 428
+  spanning-tree port type network
+  vpc peer-link
+# step: spanning-tree port type edge trunk, vpc peer-link
+interface port-channel201
+  switchport mode trunk
+  switchport trunk allowed vlan 428
+  spanning-tree port type network
+  vpc peer-link
+# step: no vpc peer-link, spanning-tree port type network
+interface port-channel201
+  switchport mode trunk
+  switchport trunk allowed vlan 428
+  spanning-tree port type network

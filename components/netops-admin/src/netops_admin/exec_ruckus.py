@@ -1,7 +1,7 @@
-"""Ruckus Unleashed execution adapter of the common Admin engine (execute.ADAPTERS["ruckus"]), 1.0.12 G111 and G112.
+"""Ruckus Unleashed execution adapter of the common Admin engine (execute.ADAPTERS["ruckus"]), 1.0.12 wireless wlans and wireless dhcp.
 
 Unleashed 200.15.6.212 build 27 has no on-device timed return (the CLI offers no scheduler, no commit timer and no
-rollback; measured, task-evidence/g111). The adapter is therefore COMPENSATING like FortiADC: execute installs nothing
+rollback; measured, private measurement record). The adapter is therefore COMPENSATING like FortiADC: execute installs nothing
 on the device and returns an unverified change itself in the same run by writing the inverse of the plan and reading
 the WLAN listing back. Nothing returns a change when the Admin process or the management path is lost after the write
 until recover runs; this is a property of the platform, not a safeguard.
@@ -85,7 +85,7 @@ class PromptSpec:
     # performs the interactive login of the pty session (access.DeviceAccess._login calls it); None: the anchor logic
     login: object = None
     answer_secrets: object = None
-    # 1.0.12 G112: replaces a vault reference in a line by the secret just before the line is typed (access.apply)
+    # 1.0.12 wireless dhcp: replaces a vault reference in a line by the secret just before the line is typed (access.apply)
     resolve: object = None
 
 
@@ -125,7 +125,7 @@ def _passphrases(command: str) -> tuple[str, ...]:
 
 
 def login(shell, credential, timeout) -> bytes:
-    """Log in like the Helper (G107): the user name and the password at their prompts, then enable; returns what the
+    """Log in like the Helper (wireless inventory): the user name and the password at their prompts, then enable; returns what the
     device printed up to the privileged prompt (to be discarded)."""
     seen = b""
     for prompt, answer in ((LOGIN_PROMPT, credential.login), (PASSWORD_PROMPT, credential.use()),
@@ -198,7 +198,7 @@ def relay_listing(access) -> str:
 
 
 def with_dhcp(access, text: str) -> str:
-    """1.0.12 G112 R23: the snapshot of a DHCP relay plan holds the relay listing too. The relay section sits before
+    """1.0.12 wireless dhcp R23: the snapshot of a DHCP relay plan holds the relay listing too. The relay section sits before
     the group section, which stays last."""
     listing = relay_listing(access)
     head, marker, groups = text.partition(ruckus.GROUPS_HEADER)

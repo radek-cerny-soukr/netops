@@ -1,6 +1,7 @@
 {
   "platform": "nxos",
   "table": "vpc-peer-link",
+  "measured": true,
   "versions": [
     "9.3(12)"
   ],
@@ -26,5 +27,5 @@
   "volatile": [],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "Assigns or removes the local peer-link on a preconfigured, idle trunk with spanning-tree port type network. Refuses a domain with vPC member ports."
+  "rollback_evidence": "Live write and return on Nexus 9000v 9.3(12) (2026-11-23): On a pair member without vPC roles the peer-link was assigned to an idle trunk port-channel and, in a second run, removed from it; each was read back by the check identity and undone. NX-OS removes the spanning-tree port type with no vpc peer-link, so the removal writes spanning-tree port type network back. Assigns or removes the local peer-link on a preconfigured, idle trunk with spanning-tree port type network. Refuses a domain with vPC member ports."
 }

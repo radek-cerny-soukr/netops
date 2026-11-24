@@ -12,7 +12,7 @@ from contextvars import ContextVar
 from typing import Any, Awaitable, Callable
 
 # Upper bounds for triage progress and default reservations when there is no target-specific plan.
-TRIAGE_READS = {"triage_health": 10, "triage_routing": 5, "triage_vpn": 6, "triage_slb": 21}
+TRIAGE_READS = {"triage_health": 10, "triage_routing": 5, "triage_vpn": 6, "triage_slb": 21, "network_overview": 30}
 
 Report = Callable[[int, int, str], None]
 Sink = Callable[[int, int, str], Awaitable[Any]]
@@ -62,3 +62,9 @@ class Steps:
                 self.tool, self.done, self.total, label))
         except Exception:
             pass  # a broken progress channel never stops the triage
+
+
+def report(done: int, total: int, message: str) -> None:
+    sink = _REPORT.get()
+    if sink is not None:
+        sink(done, total, message)

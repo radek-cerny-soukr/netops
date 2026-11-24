@@ -107,7 +107,7 @@ def test_show_session_own_session_is_not_foreign(device):
 # ---------------------------------------------------------------------------
 
 @pytest.mark.parametrize("device,key,expected", [
-    # 1.0.12 G45: the check account also reads the Primary IP of the VLAN (same layout on 33.7.1.6 and 33.6.1.14)
+    # 1.0.12 SWITCH-IP-ROUTING: the check account also reads the Primary IP of the VLAN (same layout on 33.7.1.6 and 33.6.1.14)
     ("X435-8P-4S", "Default", {"tag": "1", "ipaddress": "192.0.2.110 255.255.255.0"}),
     ("X440-G2-12p-10G4", "Default", {"tag": "1", "ipaddress": "192.0.2.111 255.255.255.0"}),
     ("X440-G2-12p-10G4", "Mgmt", {"tag": "4095", "description": "Management VLAN"}),

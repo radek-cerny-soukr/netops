@@ -1,0 +1,14 @@
+Building configuration...
+Current configuration : 5806 bytes
+version 15.9
+hostname host03
+ip domain name host04
+ip host netops-ios-system-services-test 192.0.2.40
+ip name-server 192.0.2.30
+interface Loopback166
+logging trap warnings
+logging source-interface Loopback166
+logging host 192.0.2.20
+ntp source Loopback166
+ntp server 192.0.2.10
+end

@@ -1,4 +1,4 @@
-"""Ruckus Unleashed planning adapter of the common Admin engine (engine.ADAPTERS["ruckus"]), 1.0.12 G111 and G112.
+"""Ruckus Unleashed planning adapter of the common Admin engine (engine.ADAPTERS["ruckus"]), 1.0.12 wireless wlans and wireless dhcp.
 
 The snapshot is not a configuration export (Unleashed has no CLI command that prints the whole configuration to a
 write account in a parseable form): Admin composes it from the identity of ``show sysinfo`` and the WLAN listing of
@@ -8,7 +8,7 @@ description, the client VLAN and the service state of a WLAN, and
 creates a WLAN only with WPA2 and a passphrase generated at the moment of the write (never part of a plan).
 The rest digest covers every other WLAN as the device lists it, so a change outside the planned WLAN is seen.
 
-1.0.12 G112 adds to the table ``wlan`` the WPA2/WPA3 mode with the passphrase of a vault reference or an enterprise
+1.0.12 wireless dhcp adds to the table ``wlan`` the WPA2/WPA3 mode with the passphrase of a vault reference or an enterprise
 (802.1X) authentication server (R06), the L2/L3 ACL, the client isolation per AP (R22), the client limit and the
 per-client and per-WLAN rate limits (R24), and the table ``dhcp-relay`` for the DHCP relay server entries (R23).
 A passphrase is never part of a plan: the plan holds the name of the vault entry and the privileged transport
@@ -56,7 +56,7 @@ PSK_COMMANDS = {
     "wpa2": "open wpa2 passphrase %s algorithm aes" % PASSPHRASE_TOKEN,
     "wpa3": "open wpa3 passphrase %s algorithm aes" % PASSPHRASE_TOKEN,
 }
-# 1.0.12 G112: attributes of a WLAN beyond the G111 ones, with the device lines they are read from
+# 1.0.12 wireless dhcp: attributes of a WLAN beyond the wireless wlans ones, with the device lines they are read from
 AUTH_VALUES = {"open": "open", "802.1x-eap": "dot1x"}
 SECURITY_MODES = ("wpa2", "wpa3")
 SECURITY_GROUP = ("authentication", "encryption", "auth-server", "passphrase-ref")
@@ -73,7 +73,7 @@ NO_ACL = "No ACLS"
 G112_ATTRIBUTES = frozenset((*LIMIT_FIELDS, *ACL_FIELDS, *SECURITY_GROUP))
 RATE = re.compile(r"^([0-9]+)\.00Mbps$")
 WHOLE = re.compile(r"^[0-9]{1,4}$")
-# 1.0.12 G112 R23: DHCP relay server entries (`show dhcp all`, `dhcp <name>`, `first`, `second`)
+# 1.0.12 wireless dhcp R23: DHCP relay server entries (`show dhcp all`, `dhcp <name>`, `first`, `second`)
 RELAY_TABLE = "dhcp-relay"
 DHCP_HEADER = "\n#netops-ruckus-dhcp\n"
 DHCP_HEAD = "DHCP servers for DHCP relay agent:"
@@ -378,7 +378,7 @@ class Snapshot:
 
     @staticmethod
     def _g112_state(entry, values) -> None:
-        """1.0.12 G112: the ACLs, limits and enterprise server the listing shows. A value the profile cannot write back
+        """1.0.12 wireless dhcp: the ACLs, limits and enterprise server the listing shows. A value the profile cannot write back
         (a fractional rate, an unknown rate line) is outside the profile, so the WLAN is not changed blindly."""
         attributes = entry.attributes
         for name, field in LIMIT_FIELDS.items():
@@ -425,7 +425,7 @@ class Snapshot:
         return entries
 
     def relay_wlans(self) -> list:
-        """WLANs the listing shows with an enabled DHCP relay (the line exists only on WLANs created after G111)."""
+        """WLANs the listing shows with an enabled DHCP relay (the line exists only on WLANs created after wireless wlans)."""
         return sorted(name for name, block in self.wlans.items()
                       if block["values"].get("DHCP relay", "Disabled") != "Disabled")
 
@@ -574,7 +574,7 @@ def render_update(profile, key: str, assign: dict, remove: list) -> list:
     return _context(key) + lines + ["end", "exit"]
 
 
-# the default a removed (or restored-to-default) G112 attribute returns to, and the line that sets it
+# the default a removed (or restored-to-default) wireless dhcp attribute returns to, and the line that sets it
 G112_REMOVE = {"max-clients": "100", "isolation-ap": "disabled", "rate-perssid-uplink": "0",
                "rate-perssid-downlink": "0", "l2acl": None, "l3acl": None}
 
@@ -674,7 +674,7 @@ def _has_default_settings(entry: Entry, values: dict, mode: str) -> bool:
 
 
 def _security_prechecks(snapshot, key: str, before, after, changes: dict) -> list:
-    """1.0.12 G112 R06: the WPA2/WPA3 mode, the passphrase reference and the enterprise server of one WLAN."""
+    """1.0.12 wireless dhcp R06: the WPA2/WPA3 mode, the passphrase reference and the enterprise server of one WLAN."""
     named = [name for name in SECURITY_GROUP if name in changes]
     if not named:
         return []
@@ -722,7 +722,7 @@ def prechecks(snapshot, profile, op: str, key: str, after, before=None, changes=
     if op == "create" and (after or {}).get("service") != "disabled":
         reasons.append("a new WLAN is created with service disabled; enable it with a separate update")
     if op == "create" and G112_ATTRIBUTES & set(changes):
-        reasons.append("a new WLAN is created with the G111 attributes; change the other settings with an update")
+        reasons.append("a new WLAN is created with the supported creation attributes; change the other settings with an update")
     if op == "update" and after is not None:
         reasons.extend(_security_prechecks(snapshot, key, before, after, changes))
     return reasons

@@ -1,0 +1,4 @@
+
+IPv6 access list NETOPS-NXOS-ACCESS-CONTROL-V6
+	10 deny udp 2001:db8:1::64/128 any eq domain
+	30 permit ipv6 any any

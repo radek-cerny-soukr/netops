@@ -1,5 +1,0 @@
-### rc=0
-### show vrrp vlan g45m vrid 45
-%% Unrecognized command:  "show vrrp vlan g45m vrid 45"
-%% Invalid input detected.
-%% A number within the range of 1-4094 is expected.

@@ -35,5 +35,5 @@
   "volatile": [],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "cEOSLab 4.36.1F. A timed EOS configuration session and independent operational readback protect the change. The key is process:interface. Set passive to enabled or disabled, or unset it to restore the default."
+  "rollback_evidence": "Live write and return on cEOSLab 4.36.1F (2026-11-19): The OSPF process, network or interface change was read back and undone. cEOS 4.36.1F. A timed EOS configuration session and independent operational readback protect the change. The key is process:interface. Set passive to enabled or disabled, or unset it to restore the default."
 }

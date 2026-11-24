@@ -1,4 +1,4 @@
-"""The store in WAL: no copy of the store per MCP call, read-only reader, switch of an older store (task 297-r2).
+"""The store in WAL: no copy of the store per MCP call, read-only reader, switch of an older store (verification).
 
 The suite runs in the hardened test container (read-only root file system, the store under the
 writable /pytmp, UID 51000), so the reader tests here show the read-only reader (mode=ro) in that

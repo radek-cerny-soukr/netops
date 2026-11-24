@@ -188,7 +188,7 @@ def forti_outputs():
 
 
 @pytest.fixture(params=[0.0, 10_000_000.0])
-def kufr(monkeypatch, request):
+def fortigate_ha(monkeypatch, request):
     monkeypatch.setattr(engine, 'record', lambda *a, **kw: None)
     clock = Clock(request.param)
     install(monkeypatch, clock)
@@ -212,8 +212,8 @@ def seconds(clock):
     return 4.5 + clock.value - clock.start
 
 
-def test_the_fortiap_is_located_behind_its_port_in_eight_reads(kufr):
-    gate, calls, clock = kufr
+def test_the_fortiap_is_located_behind_its_port_in_eight_reads(fortigate_ha):
+    gate, calls, clock = fortigate_ha
     r = engine._locate_endpoint_run([gate], AP_IP)
     assert r['verdict'] == 'located', r['missing']
     assert r['missing'] == [] and r['own_interfaces'] == []
@@ -235,8 +235,8 @@ def test_the_fortiap_is_located_behind_its_port_in_eight_reads(kufr):
     assert r['reads'] == 8 and seconds(clock) == 44.5 < 45
 
 
-def test_the_managed_switch_mac_is_its_own_interface_in_three_reads(kufr):
-    gate, calls, clock = kufr
+def test_the_managed_switch_mac_is_its_own_interface_in_three_reads(fortigate_ha):
+    gate, calls, clock = fortigate_ha
     r = engine._locate_endpoint_run([gate], SWITCH2_MAC)
     assert r['verdict'] == 'own_interface_of_target', r['missing']
     assert r['own_interfaces'] == [{'target': 'gateway/' + SERIALS[1], 'interface': 'internal', 'ip': None,
@@ -247,8 +247,8 @@ def test_the_managed_switch_mac_is_its_own_interface_in_three_reads(kufr):
     assert r['reads'] == len(calls) == 3 and seconds(clock) == 19.5 < 45
 
 
-def test_the_fortiap_mac_without_arp_is_located_too(kufr):
-    gate, calls, clock = kufr
+def test_the_fortiap_mac_without_arp_is_located_too(fortigate_ha):
+    gate, calls, clock = fortigate_ha
     r = engine._locate_endpoint_run([gate], AP_MAC)
     assert r['verdict'] == 'located' and r['missing'] == []
     assert r['reads'] == 7 and seconds(clock) == 39.5

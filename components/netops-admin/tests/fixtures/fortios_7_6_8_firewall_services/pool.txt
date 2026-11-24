@@ -1,0 +1,7 @@
+config firewall ippool
+    edit "netops-firewall-services-679-pool"
+        set startip 198.51.100.179
+        set endip 198.51.100.179
+        set arp-reply disable
+    next
+end

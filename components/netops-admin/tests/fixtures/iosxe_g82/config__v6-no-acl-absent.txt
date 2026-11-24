@@ -1,2 +1,0 @@
-no ipv6 access-list NETOPS-G82-NOPE6
-host01(config)#

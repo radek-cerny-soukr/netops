@@ -1,4 +1,4 @@
-"""Task 140: Cisco IOS XE identity/profile adapter (single profile IOL-XE 17.18.2 fc3).
+"""verification: Cisco IOS XE identity/profile adapter (single profile IOL-XE 17.18.2 fc3).
 
 Identity: ``show version`` is the immutable REAL capture
 ``fixtures/real/cisco_xe/iolxe_17.18.2/version.txt``; every other identity text is DERIVED by editing it
@@ -67,7 +67,7 @@ def test_crlf_and_prompt_lines():
     (', RELEASE SOFTWARE (fc3)', '', TESTED_RECORD[:2] + (None,) + TESTED_RECORD[3:]),          # header without build
 ], ids=['release', 'release-a', 'build', 'image-family', 'train', 'no-build'])
 def test_derived_foreign_wellformed_is_untested(old, new, record):
-    """G00: another release, build, image family or train is read; firmware_support says untested."""
+    """STARTUP: another release, build, image family or train is read; firmware_support says untested."""
     assert old in IOLXE
     identity = IOLXE.replace(old, new)
     if old == '[IOSXE]':

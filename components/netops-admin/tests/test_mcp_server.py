@@ -23,6 +23,13 @@ def call(name, arguments):
     return asyncio.run(run())
 
 
+def approved_call(arguments):
+    """admin_apply with the plan_sha256 of admin_preview of the same request: every apply requires it."""
+    preview = call("admin_preview", arguments)
+    assert preview["result"] == "ready", preview
+    return call("admin_apply", dict(arguments, expected_plan_sha256=preview["plan_sha256"]))
+
+
 def listed():
     async def run():
         async with fastmcp.Client(mcp_server.mcp) as client:
@@ -55,7 +62,7 @@ def test_only_the_declared_tools_exist():
 
 def test_apply_and_status_carry_no_free_text(served, tmp_path):
     device, runtime = served
-    answer = call("admin_apply", arguments())
+    answer = approved_call(arguments())
     assert answer["result"] == "confirmed" and answer["status"] == "finished"
     assert "new-host" in device.addresses
     assert SECRET not in json.dumps(answer)
@@ -66,9 +73,11 @@ def test_apply_and_status_carry_no_free_text(served, tmp_path):
 
 def test_repeated_request_returns_the_same_operation(served):
     device, runtime = served
-    first = call("admin_apply", arguments())
+    approved = dict(arguments(), expected_plan_sha256=call("admin_preview", arguments())["plan_sha256"])
+    first = call("admin_apply", approved)
+    assert first["result"] == "confirmed"
     blocks = len(device.applied_blocks)
-    again = call("admin_apply", arguments())
+    again = call("admin_apply", approved)
     assert again["change_id"] == first["change_id"] and len(device.applied_blocks) == blocks
 
 
@@ -139,10 +148,11 @@ def test_schema_mcp_batch_and_preview_share_the_real_runtime(schema_served):
     preview=call("admin_schema_preview",arguments)
     assert preview["result"]=="ready"
     assert not list(context.store.records())
-    answer=call("admin_schema_apply",arguments)
+    approved=dict(arguments,expected_plan_sha256=preview["plan_sha256"])
+    answer=call("admin_schema_apply",approved)
     assert answer["result"]=="confirmed" and answer["budget_changes"]==2
     assert SECRET not in json.dumps(answer)
-    again=call("admin_schema_apply",arguments)
+    again=call("admin_schema_apply",approved)
     assert again["change_id"]==answer["change_id"]
     assert len(list(context.store.records()))==1
 
@@ -167,7 +177,7 @@ def test_schema_mcp_shares_the_server_operation_lock(schema_served):
 # 109-15 and 109-16 over MCP
 
 def test_ten_tools_include_the_undo_preview_and_the_bound_undo_and_unblock():
-    # 1.0.12 G07: admin_undo and admin_unblock exist, each bound to the hash of its approved preview
+    # 1.0.12 EXECUTION-ACCESS: admin_undo and admin_unblock exist, each bound to the hash of its approved preview
     assert len(mcp_server.TOOL_NAMES) == 10
     assert {"admin_undo_preview", "admin_undo", "admin_unblock_preview", "admin_unblock"} <= set(mcp_server.TOOL_NAMES)
     assert "admin_undo_preview" in mcp_server.INSTRUCTIONS
@@ -204,30 +214,35 @@ def test_apply_with_a_malformed_plan_hash_is_rejected(served, value):
     assert device.applied_blocks == [] and "new-host" not in device.addresses
 
 
-def test_apply_without_a_plan_hash_and_repeat_with_any_hash(served):
+def test_apply_without_a_plan_hash_is_refused_and_a_repeat_returns_with_any_hash(served):
     device, runtime = served
-    first = call("admin_apply", arguments())
+    missing = call("admin_apply", arguments())
+    assert missing["result"] == "rejected" and missing["reason_codes"] == ["plan_changed"]
+    assert device.applied_blocks == [] and "new-host" not in device.addresses
+    first = approved_call(arguments())
     assert first["result"] == "confirmed"
     blocks = len(device.applied_blocks)
     again = call("admin_apply", dict(arguments(), expected_plan_sha256="0" * 64))
     assert again["change_id"] == first["change_id"] and len(device.applied_blocks) == blocks
 
 
-def test_schema_apply_has_no_plan_binding():
+def test_profile_and_schema_apply_take_the_plan_hash_of_their_preview():
     async def run():
         async with fastmcp.Client(mcp_server.mcp) as client:
             return {tool.name: tool.input_schema for tool in await client.list_tools()}
 
     schemas = asyncio.run(run())
-    assert "expected_plan_sha256" in schemas["admin_apply"]["properties"]
-    assert "expected_plan_sha256" not in schemas["admin_apply"].get("required", [])
-    assert "expected_plan_sha256" not in schemas["admin_schema_apply"]["properties"]
+    # formally optional, so a missing hash is a controlled refusal with its reason code, not a schema error
+    for tool in ("admin_apply", "admin_schema_apply"):
+        assert "expected_plan_sha256" in schemas[tool]["properties"]
+        assert "expected_plan_sha256" not in schemas[tool].get("required", [])
+    assert "expected_plan_sha256" not in schemas["admin_schema_preview"]["properties"]
     assert set(schemas["admin_undo_preview"]["properties"]) == {"change_id", "reason"}
 
 
 def test_undo_preview_is_read_only_and_names_the_undo(served, tmp_path):
     device, runtime = served
-    first = call("admin_apply", arguments(op="update", key="spare-host", changes={"comment": "mine"}))
+    first = approved_call(arguments(op="update", key="spare-host", changes={"comment": "mine"}))
     assert first["result"] == "confirmed"
     blocks, records = len(device.applied_blocks), len(list(runtime.store.records()))
     audit = (tmp_path / "audit" / "audit.jsonl").read_text()
@@ -245,7 +260,7 @@ def test_undo_preview_of_an_unknown_or_undone_change_is_rejected(served):
 
     device, runtime = served
     assert call("admin_undo_preview", {"change_id": "0" * 32, "reason": "x"})["result"] == "rejected"
-    first = call("admin_apply", arguments(op="update", key="spare-host", changes={"comment": "mine"}))
+    first = approved_call(arguments(op="update", key="spare-host", changes={"comment": "mine"}))
     assert execute.undo(runtime, first["change_id"], "investigated")["result"] == "confirmed"
     answer = call("admin_undo_preview", {"change_id": first["change_id"], "reason": "x"})
     assert answer["result"] == "rejected" and answer["reason_codes"] == ["undo_already_done"]

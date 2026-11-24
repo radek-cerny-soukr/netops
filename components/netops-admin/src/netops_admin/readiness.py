@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from netops_admin import audit_gate, engine, enrollment, execute, fortiadc, fortios, prediction, privileges
+from netops_admin import audit_gate, engine, enrollment, execute, fortiadc, fortios, fortios_tables, prediction, privileges
 from netops_admin.access import operation
 from netops_admin.config import summary as configuration_summary
 from netops_admin.errors import Rejected, StateUnreadable, shown
@@ -14,6 +14,7 @@ SKIPPED = "skipped"
 WARNING = privileges.WARNING
 UNVERIFIED = privileges.UNVERIFIED
 ADVISORY = (OK, WARNING, UNVERIFIED)
+NOT_MEASURED = "profile_not_measured"
 RIGHTS = ("write account rights", "check account rights")
 IDENTITY_PROBES = {"fortios": ("firewall address", "all"), "exos": ("vlan", "Default"), "eos": ("interface", "Ethernet1"),
                    "nxos": ("interface", "Ethernet1/1"),
@@ -121,20 +122,42 @@ def _profiles(platform):
             if profile_platform == platform]
 
 
+def unmeasured(operations) -> str:
+    """The doctor entry of a table whose profile has no live measurement: refused like preview and apply."""
+    return "refused: %s is disabled until a live verification of this profile (%s)" % (operations, NOT_MEASURED)
+
+
 def _operations(platform, firmware) -> dict:
-    # A6 (G00): a firmware outside the tested versions of a profile does not make its operations unavailable;
+    # A6 (startup): a firmware outside the tested versions of a profile does not make its operations unavailable;
     # they are listed with "(untested on FIRMWARE)" and firmware_support of the report names the tested versions.
-    # Only the technical limit T1 (no REST inverse for the FortiOS webhook safeguard) is shown as refused.
+    # Shown as refused: a profile without live measurement (1.0.13, refused by preview and apply before any device
+    # contact, for every firmware) and the technical limit T1 (no REST inverse for the FortiOS webhook safeguard).
     tables = {}
     for table, profile in _profiles(platform):
         operations = profile.action or " ".join(profile.ops)
-        if platform == "fortios" and fortios.webhook_refusal(profile, firmware) is not None:
+        registered = fortios_tables.hooks(table) if platform == "fortios" else None
+        refused_ops = []
+        if registered is not None and fortios.webhook_firmware(firmware):
+            # 1.0.13 A1-R: on 8.0.1+ a registered table offers only the operations verified with their opposite
+            allowed = fortios_tables.allowed_operations(registered, profile.ops)
+            refused_ops = [op for op in profile.ops if op not in allowed]
+            operations = " ".join(allowed) or operations
+        if not profile.measured:
+            tables[table] = unmeasured(operations)
+        elif platform == "fortios" and fortios.webhook_refusal(profile, firmware) is not None:
             tables[table] = "refused on %s: the webhook safeguard has no REST inverse for this table (%s)" % (
                 firmware, fortios.NO_REST_INVERSE)
+        elif refused_ops and len(refused_ops) == len(profile.ops):
+            # 1.0.13 A1-R r2: an incomplete pair in rest_verified leaves no operation; the table is refused as a whole
+            tables[table] = ("refused on %s: the REST inverse of no operation and its opposite is verified for this"
+                             " table (%s)" % (firmware, fortios.NO_REST_INVERSE))
         elif not tested.is_tested(firmware_support(profile, firmware)):
             tables[table] = "%s (untested on %s)" % (operations, firmware)
         else:
             tables[table] = operations
+        if refused_ops and table in tables and not tables[table].startswith("refused"):
+            tables[table] += "; %s refused on %s: the REST inverse of the operation and its opposite is not verified (%s)" % (
+                " ".join(refused_ops), firmware, fortios.NO_REST_INVERSE)
         if platform == "exos" and table == "inline-power":
             tables["poe-cycle"] = tables[table].replace(operations, "poe-cycle", 1)
     return tables
@@ -171,7 +194,7 @@ def _doctor(runtime, device_name: str, *, local=False) -> dict:
         firmware,operations=schema_runtime.doctor(runtime,device,report)
         result=_result(report,device,firmware)
         result["operations"]=operations
-        result["firmware_support"]={}  # schema workflow: the library is bound to its exact build (kept, G00 §1.5)
+        result["firmware_support"]={}  # schema workflow: the library is bound to its exact build (kept, startup §1.5)
         return result
     preflight = getattr(adapter, "safeguard_preflight", None)
     rights = RIGHTS if device.platform in RIGHTS_CHECKS else ()

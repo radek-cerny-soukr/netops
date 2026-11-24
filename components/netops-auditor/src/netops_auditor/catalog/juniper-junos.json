@@ -1,0 +1,311 @@
+{
+  "rules": [
+    {
+      "id": "juniper-junos.mgmt.telnet-enabled",
+      "version": 1,
+      "check": "junos_telnet_enabled",
+      "severity": "high",
+      "class": "fakt",
+      "evidence_fields": [
+        "state"
+      ],
+      "title": "Telnet management is enabled",
+      "remediation": "Disable Telnet and use SSH for remote CLI access.",
+      "refs": [
+        "https://www.juniper.net/documentation/us/en/software/junos/user-access/topics/topic-map/junos-software-remote-access-overview.html"
+      ],
+      "sections": []
+    },
+    {
+      "id": "juniper-junos.mgmt.http-enabled",
+      "version": 1,
+      "check": "junos_http_enabled",
+      "severity": "high",
+      "class": "fakt",
+      "evidence_fields": [
+        "state"
+      ],
+      "title": "Unencrypted web management is enabled",
+      "remediation": "Remove the HTTP listener and use HTTPS for web management.",
+      "refs": [
+        "https://www.juniper.net/documentation/us/en/software/junos/user-access/topics/topic-map/junos-software-remote-access-overview.html"
+      ],
+      "sections": []
+    },
+    {
+      "id": "juniper-junos.mgmt.lockout",
+      "version": 1,
+      "check": "junos_lockout",
+      "severity": "low",
+      "class": "usudek",
+      "evidence_fields": [
+        "state"
+      ],
+      "title": "Remote password login has no timed lockout",
+      "remediation": "Set a lockout period in system login retry-options for applicable password logins.",
+      "refs": [
+        "https://www.juniper.net/documentation/us/en/software/junos/user-access/topics/topic-map/junos-os-login-settings.html"
+      ],
+      "sections": []
+    },
+    {
+      "id": "juniper-junos.mgmt.access-acl",
+      "version": 1,
+      "check": "junos_access_acl",
+      "severity": "medium",
+      "class": "usudek",
+      "evidence_fields": [
+        "state"
+      ],
+      "title": "Management input does not match the allowed prefixes",
+      "remediation": "Bind effective input filters to the management paths and check ordered terms for each management service.",
+      "refs": [
+        "https://www.juniper.net/documentation/us/en/software/junos/user-access/topics/example/permitted-ip-configuring.html"
+      ],
+      "sections": []
+    },
+    {
+      "id": "juniper-junos.aaa.default-account",
+      "version": 1,
+      "check": "junos_default_account",
+      "severity": "medium",
+      "class": "fakt",
+      "evidence_fields": [
+        "state"
+      ],
+      "title": "Root can log in to SSH with a password",
+      "remediation": "Set root-login to deny or deny-password and use an individual administrator account.",
+      "refs": [
+        "https://www.juniper.net/documentation/us/en/software/junos/user-access/topics/topic-map/junos-software-remote-access-overview.html"
+      ],
+      "sections": []
+    },
+    {
+      "id": "juniper-junos.aaa.external-login",
+      "version": 1,
+      "check": "junos_external_login",
+      "severity": "medium",
+      "class": "usudek",
+      "evidence_fields": [
+        "state"
+      ],
+      "title": "External login backend is missing or incomplete",
+      "remediation": "Select the required RADIUS or TACACS+ authentication order and configure a server and secret for each selected method.",
+      "refs": [
+        "https://www.juniper.net/documentation/us/en/software/junos/user-access/topics/topic-map/junos-os-authentication-order.html"
+      ],
+      "sections": []
+    },
+    {
+      "id": "juniper-junos.snmp.v1v2c-community",
+      "version": 1,
+      "check": "junos_v1v2c_community",
+      "severity": "medium",
+      "class": "fakt",
+      "evidence_fields": [
+        "state",
+        "count"
+      ],
+      "title": "Legacy SNMP communities are configured",
+      "remediation": "Remove legacy SNMP communities and use SNMPv3 authentication and privacy where monitoring is required.",
+      "refs": [
+        "https://www.juniper.net/documentation/us/en/software/junos/network-mgmt/topics/topic-map/configure-snmpv3.html"
+      ],
+      "sections": []
+    },
+    {
+      "id": "juniper-junos.snmp.v3-auth-priv",
+      "version": 1,
+      "check": "junos_v3_auth_priv",
+      "severity": "medium",
+      "class": "fakt",
+      "evidence_fields": [
+        "state",
+        "count"
+      ],
+      "title": "SNMPv3 authentication and privacy are not enforced",
+      "remediation": "Configure USM authentication and privacy and bind users to VACM access that requires privacy.",
+      "refs": [
+        "https://www.juniper.net/documentation/us/en/software/junos/network-mgmt/topics/topic-map/configure-snmpv3.html"
+      ],
+      "sections": []
+    },
+    {
+      "id": "juniper-junos.time.no-ntp-source",
+      "version": 1,
+      "check": "junos_no_ntp_source",
+      "severity": "medium",
+      "class": "fakt",
+      "evidence_fields": [
+        "state"
+      ],
+      "title": "No active NTP source",
+      "remediation": "Enable NTP and configure a reachable server or peer in the correct routing instance.",
+      "refs": [
+        "https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/statement/ntp-edit-system.html"
+      ],
+      "sections": []
+    },
+    {
+      "id": "juniper-junos.time.ntp-auth",
+      "version": 1,
+      "check": "junos_ntp_auth",
+      "severity": "medium",
+      "class": "usudek",
+      "evidence_fields": [
+        "state"
+      ],
+      "title": "An NTP source lacks required authentication",
+      "remediation": "Assign a configured trusted key to the source or enable NTS on a supported server and platform.",
+      "refs": [
+        "https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/statement/ntp-edit-system.html"
+      ],
+      "sections": []
+    },
+    {
+      "id": "juniper-junos.logging.no-syslog-target",
+      "version": 1,
+      "check": "junos_no_syslog_target",
+      "severity": "medium",
+      "class": "fakt",
+      "evidence_fields": [
+        "state"
+      ],
+      "title": "No remote syslog target",
+      "remediation": "Configure a remote syslog host with a facility and severity.",
+      "refs": [
+        "https://www.juniper.net/documentation/us/en/software/junos/network-mgmt/topics/topic-map/directing-system-log-messages-to-a-remote-destination.html"
+      ],
+      "sections": []
+    },
+    {
+      "id": "juniper-junos.logging.syslog-level",
+      "version": 1,
+      "check": "junos_syslog_level",
+      "severity": "medium",
+      "class": "usudek",
+      "evidence_fields": [
+        "state"
+      ],
+      "title": "Remote syslog coverage is narrower than requested",
+      "remediation": "Include authorization and daemon events at the required severity for each destination.",
+      "refs": [
+        "https://www.juniper.net/documentation/us/en/software/junos/network-mgmt/topics/topic-map/directing-system-log-messages-to-a-remote-destination.html"
+      ],
+      "sections": []
+    },
+    {
+      "id": "juniper-junos.services.edge-discovery",
+      "version": 1,
+      "check": "junos_edge_discovery",
+      "severity": "low",
+      "class": "usudek",
+      "evidence_fields": [
+        "state"
+      ],
+      "title": "LLDP is enabled on a restricted edge port",
+      "remediation": "Disable LLDP on edge ports where discovery is prohibited.",
+      "refs": [
+        "https://www.juniper.net/documentation/us/en/software/junos/multicast-l2/topics/task/layer-2-services-lldp-configuring.html"
+      ],
+      "sections": []
+    },
+    {
+      "id": "juniper-junos.l2.bpdu-guard",
+      "version": 1,
+      "check": "junos_bpdu_guard",
+      "severity": "medium",
+      "class": "usudek",
+      "evidence_fields": [
+        "state"
+      ],
+      "title": "A spanning-tree edge port lacks BPDU protection",
+      "remediation": "Enable BPDU protection in the applicable spanning-tree protocol or on the interface.",
+      "refs": [
+        "https://www.juniper.net/documentation/us/en/software/junos/stp-l2/topics/topic-map/spanning-tree-bpdu-protection.html"
+      ],
+      "sections": []
+    },
+    {
+      "id": "juniper-junos.l2.default-vlan",
+      "version": 1,
+      "check": "junos_default_vlan",
+      "severity": "medium",
+      "class": "usudek",
+      "evidence_fields": [
+        "state"
+      ],
+      "title": "A restricted access port uses VLAN 1",
+      "remediation": "Assign an approved access VLAN to the port.",
+      "refs": [
+        "https://www.juniper.net/documentation/us/en/software/junos/multicast-l2/topics/topic-map/bridging-and-vlans.html"
+      ],
+      "sections": []
+    },
+    {
+      "id": "juniper-junos.l2.trunk-native",
+      "version": 1,
+      "check": "junos_trunk_native",
+      "severity": "medium",
+      "class": "usudek",
+      "evidence_fields": [
+        "state"
+      ],
+      "title": "Effective trunk native VLAN differs from intent",
+      "remediation": "Set the approved native VLAN ID and include that VLAN in the trunk membership.",
+      "refs": [
+        "https://www.juniper.net/documentation/us/en/software/junos/multicast-l2/topics/topic-map/bridging-and-vlans.html"
+      ],
+      "sections": []
+    },
+    {
+      "id": "juniper-junos.l2.dhcp-snooping",
+      "version": 1,
+      "check": "junos_dhcp_snooping",
+      "severity": "medium",
+      "class": "usudek",
+      "evidence_fields": [
+        "state",
+        "count"
+      ],
+      "title": "DHCP snooping or port trust differs from intent",
+      "remediation": "Configure DHCP security in the requested VLAN and restrict trust to the approved server-facing ports.",
+      "refs": [
+        "https://www.juniper.net/documentation/us/en/software/junos/security-services/topics/concept/port-security-dhcp-snooping-els.html"
+      ],
+      "sections": []
+    },
+    {
+      "id": "juniper-junos.l2.storm-control",
+      "version": 1,
+      "check": "junos_storm_control",
+      "severity": "medium",
+      "class": "usudek",
+      "evidence_fields": [
+        "state"
+      ],
+      "title": "Required storm control is disabled",
+      "remediation": "Attach a storm control profile with a bandwidth limit to the switching interface.",
+      "refs": [
+        "https://www.juniper.net/documentation/us/en/software/junos/security-services/topics/task/rate-limiting-storm-control-disabling-cli-els.html"
+      ],
+      "sections": []
+    },
+    {
+      "id": "juniper-junos.ports.unused-up",
+      "version": 1,
+      "check": "junos_unused_up",
+      "severity": "medium",
+      "class": "usudek",
+      "evidence_fields": [
+        "state"
+      ],
+      "title": "A declared unused physical port is not disabled",
+      "remediation": "Disable the physical interface.",
+      "refs": [
+        "https://www.juniper.net/documentation/us/en/software/junos/cli/cli.pdf"
+      ],
+      "sections": []
+    }
+  ]
+}

@@ -29,11 +29,11 @@ numbers, states, column layout and error texts are unchanged. The mapping file w
 | `x435__47-disable-bad.out` | `disable ports 99` (refused) |
 | `*36-cfgvlan-dis.out`, `x435__44-cfgvlan-en.out` | `show configuration vlan` with and without `disable port N` |
 
-Added in 1.0.10 (task 305): `x435__57-ip-detail-en.out` and `x435__A6-ip-detail-post.out` are byte-for-byte copies of
-`ref/mereni-171/x435/57-ip-detail-en.out` and `A6-ip-detail-post.out`; their sha256 equals the `ops.log` entries of task
-171 (`ab9ce680…`, `1bf43a75…`). They hold no MAC address, address or system name, so they needed no anonymisation.
+Added in 1.0.10 (verification): `x435__57-ip-detail-en.out` and `x435__A6-ip-detail-post.out` are byte-for-byte copies of
+two captures of a private measurement record; their sha256 equals the entries of its operation log
+(`ab9ce680…`, `1bf43a75…`). They hold no MAC address, address or system name, so they needed no anonymisation.
 
-Added in 1.0.12 (task 441, B02): `x440__441-ip-nopoe-exec.stdout/.stderr` and `x435__441-ip-nopoe-exec.stdout/.stderr`
+Added in 1.0.12 (verification, B02): `x440__441-ip-nopoe-exec.stdout/.stderr` and `x435__441-ip-nopoe-exec.stdout/.stderr`
 are the write-account answer of `show inline-power info ports 13` (X440) and `ports 9` (X435) as `DeviceAccess.query_status`
 returned it live in the engine image on 2026-11-17 (exit status 250, stdout after `prompt.cleaned`, stderr = the OpenSSH
 post-quantum key exchange warning). They hold no address, MAC or system name.

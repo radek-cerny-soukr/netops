@@ -1,6 +1,6 @@
-"""1.0.12 G144 (J29, J30): Junos DHCP address pools, host reservations and DHCP relay groups.
+"""1.0.12 junos dhcp (J29, J30): Junos DHCP address pools, host reservations and DHCP relay groups.
 
-Four tables, each a set-format stanza of the configuration (measured on vJunos-switch 26.2R1.7, task-evidence/g144):
+Four tables, each a set-format stanza of the configuration (measured on vJunos-switch 26.2R1.7, private measurement record):
 
 - ``dhcp-pool`` (key: pool name): ``set access address-assignment pool <p> family inet network <prefix>``.
 - ``dhcp-reservation`` (key: ``<pool>@<host>``): ``... family inet host <h> hardware-address <mac>`` and ``ip-address``.

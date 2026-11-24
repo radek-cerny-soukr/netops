@@ -1,0 +1,20 @@
+config firewall policy
+    edit 7
+        set name "PVE-IPv6-to-WAN"
+        set uuid 00000000-0000-4000-8000-00005e005303
+        set srcintf "PVE-MGMT"
+        set dstintf "wan1"
+        set action accept
+        set srcaddr6 "all"
+        set dstaddr6 "all"
+        set schedule "always"
+        set service "ALL"
+        set utm-status enable
+        set ssl-ssh-profile "certificate-inspection"
+        set av-profile "default"
+        set ips-sensor "default"
+        set application-list "default"
+        set logtraffic all
+        set comments "IPv6 policy"
+    next
+end

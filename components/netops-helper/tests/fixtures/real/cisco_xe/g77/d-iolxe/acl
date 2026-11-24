@@ -1,5 +1,0 @@
-
-
-
-Extended IP access list G69-PBR-ACL
-    10 permit ip any 192.0.2.0 0.0.0.255 (7626 matches)

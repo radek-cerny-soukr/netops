@@ -1,0 +1,7 @@
+config router static6
+    edit 1
+        set gateway 2001:db8:1::1
+        set device "wan1"
+        set comment "IPv6 default route"
+    next
+end

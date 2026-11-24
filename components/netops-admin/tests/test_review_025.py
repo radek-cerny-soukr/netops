@@ -17,6 +17,7 @@ from netops_admin.cli import EXIT_REJECTED, main
 from netops_admin.config import load_config
 from netops_admin.errors import Rejected
 from netops_admin.request import parse_request
+from approved_apply import approved_apply
 
 UNREADABLE = [b"{broken", b"\xff\xfe", b'["x"]']
 OPERATION = "operations/" + "e" * 32 + ".json"
@@ -100,7 +101,7 @@ def _interrupted(tmp_path):
 
     device.on_apply = crash
     with pytest.raises(KeyboardInterrupt):
-        execute.apply(make_runtime(tmp_path, device), "lab", request())
+        approved_apply(make_runtime(tmp_path, device), "lab", request())
     device.on_apply = None
     return device
 
@@ -140,7 +141,7 @@ def test_enroll_with_an_invalid_probe_keeps_the_valid_enrollment(tmp_path):
     with pytest.raises(Rejected):
         enrollment.run(runtime, name, "banana")
     assert runtime.store.enrollment(name) == certificate
-    assert execute.apply(runtime, name, request())["result"] == "confirmed"
+    assert approved_apply(runtime, name, request())["result"] == "confirmed"
 
 
 def test_failed_enrollment_notification_keeps_the_valid_enrollment(tmp_path):
@@ -155,7 +156,7 @@ def test_failed_enrollment_notification_keeps_the_valid_enrollment(tmp_path):
     assert runtime.store.enrollment(name) == certificate
     runtime.notifier = lambda record: "sent"
     assert execute.notify_retry(runtime, refused["change_id"])["notification"] == "sent"
-    assert execute.apply(runtime, name, request())["result"] == "confirmed"
+    assert approved_apply(runtime, name, request())["result"] == "confirmed"
 
 
 def test_enrollment_probe_that_fails_on_the_device_removes_the_enrollment(tmp_path):
@@ -175,7 +176,7 @@ def test_enrollment_probe_that_fails_on_the_device_removes_the_enrollment(tmp_pa
 
 def test_unblock_of_a_device_that_is_not_blocked_keeps_its_account_reference(tmp_path):
     runtime = make_runtime(tmp_path, FakeFortiOS())
-    assert execute.apply(runtime, "lab", request())["result"] == "confirmed"
+    assert approved_apply(runtime, "lab", request())["result"] == "confirmed"
     kept = runtime.store.baseline("lab")
     assert kept is not None
     events = audit_lines(tmp_path)
@@ -186,7 +187,7 @@ def test_unblock_of_a_device_that_is_not_blocked_keeps_its_account_reference(tmp
 
 def test_unblock_of_a_blocked_device_still_drops_the_account_reference(tmp_path):
     runtime = make_runtime(tmp_path, FakeFortiOS())
-    assert execute.apply(runtime, "lab", request())["result"] == "confirmed"
+    assert approved_apply(runtime, "lab", request())["result"] == "confirmed"
     runtime.store.block("lab", None, "administrator table")
     assert execute.unblock(runtime, "lab", "investigated") is True
     assert runtime.store.baseline("lab") is None
@@ -196,13 +197,13 @@ def test_unblock_of_a_blocked_device_still_drops_the_account_reference(tmp_path)
 def test_preview_of_a_reused_request_id_with_other_content_is_refused_like_apply(tmp_path):
     device = FakeFortiOS()
     runtime = make_runtime(tmp_path, device)
-    assert execute.apply(runtime, "lab", request())["result"] == "confirmed"
+    assert approved_apply(runtime, "lab", request())["result"] == "confirmed"
     other = request(changes={"subnet": "192.0.2.31/32", "comment": "other host"})
     previewed = execute.preview(runtime, "lab", other)
     assert previewed["result"] == "rejected"
     assert previewed["reasons"] == ["request_id was already used for a different request"]
     with pytest.raises(Rejected) as caught:
-        execute.apply(runtime, "lab", other)
+        approved_apply(runtime, "lab", other)
     assert caught.value.reasons == previewed["reasons"]
     assert "192.0.2.31" not in json.dumps(device.addresses)
 
@@ -224,7 +225,7 @@ def test_unreadable_state_file_refuses_apply_with_a_clear_reason(tmp_path, name,
     runtime = make_runtime(tmp_path, device)
     _spoil(tmp_path, name, content)
     with pytest.raises(Rejected) as caught:
-        execute.apply(runtime, "lab", request())
+        approved_apply(runtime, "lab", request())
     assert _names(caught.value.reasons, name)
     assert device.applied_blocks == []
     assert (tmp_path / "state" / name).read_bytes() == content
@@ -266,7 +267,7 @@ def test_rejection_count_that_cannot_be_opened_refuses_apply_and_preview(tmp_pat
     runtime = make_runtime(tmp_path, device)
     (tmp_path / "state" / "rejections.json").mkdir()
     with pytest.raises(Rejected) as caught:
-        execute.apply(runtime, "lab", request())
+        approved_apply(runtime, "lab", request())
     assert any("rejections.json" in reason for reason in caught.value.reasons)
     result = execute.preview(runtime, "lab", request())
     assert result["result"] == "rejected" and "rejections.json" in result["reasons"][0]
@@ -324,7 +325,7 @@ def test_request_document_without_its_fields_refuses_apply_and_preview(tmp_path,
     document.update(change)
     _spoil(tmp_path, REQUEST_FILE, json.dumps({k: v for k, v in document.items() if v is not None}).encode())
     with pytest.raises(Rejected) as caught:
-        execute.apply(runtime, "lab", request())
+        approved_apply(runtime, "lab", request())
     assert _names(caught.value.reasons, REQUEST_FILE)
     result = execute.preview(runtime, "lab", request())
     assert result["result"] == "rejected" and _names(result["reasons"], REQUEST_FILE)
@@ -333,11 +334,11 @@ def test_request_document_without_its_fields_refuses_apply_and_preview(tmp_path,
 
 def test_request_whose_operation_file_is_missing_is_refused(tmp_path):
     runtime = make_runtime(tmp_path, FakeFortiOS())
-    record = execute.apply(runtime, "lab", request())
+    record = approved_apply(runtime, "lab", request())
     name = "operations/%s.json" % record["change_id"]
     (tmp_path / "state" / name).unlink()
     with pytest.raises(Rejected) as caught:
-        execute.apply(runtime, "lab", request())
+        approved_apply(runtime, "lab", request())
     assert _names(caught.value.reasons, name)
     result = execute.preview(runtime, "lab", request())
     assert result["result"] == "rejected" and _names(result["reasons"], name)
@@ -352,7 +353,7 @@ def test_operation_document_without_its_fields_refuses_recover_and_apply(tmp_pat
         execute.recover(runtime, "lab")
     assert _names(caught.value.reasons, OPERATION)
     with pytest.raises(Rejected) as caught:
-        execute.apply(runtime, "lab", request())
+        approved_apply(runtime, "lab", request())
     assert _names(caught.value.reasons, OPERATION)
 
 
@@ -408,10 +409,10 @@ def test_request_id_reused_on_another_device_is_refused_by_apply_and_preview(tmp
     targets = {"lab": first, "lab2": second}
     runtime.access_factory = lambda device: targets[device.name]
     certify(runtime, second, "lab2")
-    assert execute.apply(runtime, "lab", request())["result"] == "confirmed"
+    assert approved_apply(runtime, "lab", request())["result"] == "confirmed"
     previewed = execute.preview(runtime, "lab2", request())
     assert previewed["result"] == "rejected" and previewed["reasons"] == [execute.REUSED_REQUEST]
     with pytest.raises(Rejected) as caught:
-        execute.apply(runtime, "lab2", request())
+        approved_apply(runtime, "lab2", request())
     assert caught.value.reasons == [execute.REUSED_REQUEST]
     assert second.applied_blocks == [] and "new-host" not in second.addresses

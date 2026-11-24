@@ -6,7 +6,7 @@ import re
 from .triage_health import (missing_read, SDWAN_NOT_RUNNING, Unparsed, UnsupportedPlatform, _lines, _utc,
                             firmware_fields, firmware_support, in_vdom, sdwan_health, vdom_scope)
 
-# Tested identities (G00): not a gate; another model or build runs with firmware_support "untested" and a warning.
+# Tested identities (startup): not a gate; another model or build runs with firmware_support "untested" and a warning.
 IDENTITIES = frozenset({
     ("FortiGate-60F", "7.6.8", "3744"),
     ("FortiGate-80F", "8.0.2", "0251"),
@@ -451,7 +451,7 @@ def run(read, clock, address, alias):
     }
 
 
-# G51 IOS diagnostics are individual read-only catalogue queries, independent of
+# router routing IOS diagnostics are individual read-only catalogue queries, independent of
 # the FortiOS routing triage above. Full protocol/CEF/PBR details remain raw CLI;
 # only the address/RIB/VRF outputs below have normalized table adapters.
 IOS_TABLES = {
@@ -715,7 +715,7 @@ def run_cisco_routing(runbook, address, vrf, sla_id):
                     runbook.found("ip_sla", "operation_observed", start, line, id=sla_id, return_code=match[1])
                     return
         runbook.unknown("ip_sla", query, "operation_not_listed" if summary["complete"] else "unparsed")
-# --- G11 (1.0.12): routing information base and BGP neighbor detail ------------------------------------------------
+# --- firewall routing (1.0.12): routing information base and BGP neighbor detail ------------------------------------------------
 
 ROUTE_DATABASE_QUERIES = frozenset({"routing_table_database", "ipv6_routing_table_database"})
 BGP_NEIGHBOR_QUERIES = frozenset({"bgp_neighbor_detail", "ipv6_bgp_neighbor_detail"})
@@ -935,8 +935,8 @@ def bgp_neighbors(text, start, end):
             "unreadable_lines": unreadable, "neighbors": page}
 
 
-# --- G120 (1.0.12, EP10): EOS routing summaries of single ssh_read queries (not steps of the FortiOS triage) ------
-# Measured on cEOS 4.36.1F (GNS3 netops-d-lab, 2026-11-18). The raw redacted output stays in untrusted_device_output.
+# --- eos health (1.0.12, EP10): EOS routing summaries of single ssh_read queries (not steps of the FortiOS triage) ------
+# Measured on cEOS 4.36.1F (GNS3 netops-emulated environment, 2026-11-18). The raw redacted output stays in untrusted_device_output.
 def eos_ospf_neighbors(text):
     """Structure `show ip ospf neighbor` (cEOS 4.36.1F). FULL and 2WAY (DROTHER peers on a broadcast segment) are
     healthy; any other adjacency state is a finding. A row of another shape makes the state incomplete."""

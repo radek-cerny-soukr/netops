@@ -1,0 +1,5 @@
+SerialNumber=FDVMELTM00000001|Contract=AVDB-1-06-20270103:0:0:0:0*AVEN-1-06-20270103:0:0:0:0*NIDS-1-06-20270103:0:0:0:0*SPRT-1-20-20270103:0:0:0:0*ADDB-1-06-20270103:0:0:0:0*BOTS-1-06-20270103:0:0:0:0*DLDB-1-06-20270103:0:0:0:0*FCSD-1-06-20270103:0:0:0:0*FMWR-1-06-20270103:0:0:0:0*FRVS-1-06-20270103:0:0:0:0*FTAS-1-06-20270103:0:0:0:0*IRDB-1-06-20270103:0:0:0:0*SBCL-1-06-20270103:0:0:0:0*VMLS-1-06-20270103:0:4:4:0*ENHN-1-20-20270103:0:0:0:0*COMP-1-20-20270103:0:0:0:0|AccountID=user01@example.net|Industry=Technology|Company=Example|UserID=1000001|
+SupportLevelDesc=06:Web/Online*20:Premium
+SupportTypeDesc=ADDB:FortiADC WAF Security Service*AVDB:Advanced Malware Protection*BOTS:Advanced Bot Protection*COMP:*DLDB:DLP*ENHN:*FCSD:Credential Stuffing Defense*FMWR:Firmware & General Updates*FRVS:Vulnerability Management*FTAS:Threat Analytics Service*IRDB:IP Reputation*NIDS:FortiGuard IPS Service*SBCL:FortiSandbox Cloud*SPRT:*VMLS:VM license
+
+

@@ -1,6 +1,7 @@
 {
   "platform": "exos",
   "table": "ntp",
+  "measured": false,
   "versions": [
     "33.6.1.14",
     "33.7.1.6"
@@ -28,6 +29,6 @@
   "volatile": [],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "Per-VR NTP enable/disable. Active SNTP must be disabled separately to avoid interference. Readback uses the check account. Changes are applied to running configuration.",
+  "rollback_evidence": "Live verification pending: The NTP process state was never written live. Per-VR NTP enable/disable. Active SNTP must be disabled separately to avoid interference. Readback uses the check account. Changes are applied to running configuration.",
   "implicit_keys": true
 }

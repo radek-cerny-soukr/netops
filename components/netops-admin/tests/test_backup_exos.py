@@ -11,7 +11,7 @@ import pytest
 from netops_admin import cli
 from netops_core import sftp
 
-SOURCE = (Path(__file__).parent / 'fixtures' / 'exos-g41-derived.cfg').read_bytes()
+SOURCE = (Path(__file__).parent / 'fixtures' / 'exos-switch-config-derived.cfg').read_bytes()
 PIN = 'SHA256:' + 'd' * 43
 
 
@@ -76,7 +76,7 @@ def test_preview_confirm_extract_and_keep_one(operator, wire, capsys):
     assert first.stat().st_mode & 0o777 == 0o600
     assert SOURCE not in first.read_bytes()
     assert hashlib.sha256(first.read_bytes()).hexdigest() == archived['sha256']
-    restored = destination / 'g41-restored.cfg'
+    restored = destination / 'switch-config-restored.cfg'
     report = _invoke(capsys, ['backup-exos-unseal', '--input', str(first), '--output', str(restored)])
     assert report['bytes'] == len(SOURCE)
     assert restored.read_bytes() == SOURCE and restored.stat().st_mode & 0o777 == 0o600

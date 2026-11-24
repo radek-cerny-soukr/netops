@@ -1,3 +1,0 @@
-set vlans g137-data description "Data VLAN – Brno, kancelář 2.patro (test G137)"
-set vlans g137-data vlan-id 3901
-set vlans g137-data l3-interface irb.3901

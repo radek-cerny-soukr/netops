@@ -24,13 +24,13 @@ PRIVATE_PEM = re.compile(
 CISCO_SECRET = re.compile(
     r"(?im)^([^\S\n]*(?:enable\s+)?(?:secret|password)(?:\s+\d+)?\s+)\S+"
 )
-# The value after a secret/password type word, a level or an algorithm (task 302-r2): EOS
+# The value after a secret/password type word, a level or an algorithm (verification): EOS
 # `enable password sha512 $6$...`, IOS `enable secret level 15 5 $1$...`, IOS XE
 # `enable algorithm-type scrypt secret ...`. It hides only the value token (the hash or
-# password after the type), like CISCO_SECRET: what follows on the line stays (task 302-r3).
+# password after the type), like CISCO_SECRET: what follows on the line stays (verification).
 # A later rule of the 1.0.8 chain that took text after an anchor inside the value keeps what
-# it hid hidden through the floor of the 1.0.8 proxy and the product (_sanitize_text, task
-# 302-r6). A numeric type alone is left to CISCO_SECRET, which is kept verbatim (1.0.6
+# it hid hidden through the floor of the 1.0.8 proxy and the product (_sanitize_text, see the
+# review). A numeric type alone is left to CISCO_SECRET, which is kept verbatim (1.0.6
 # floor), runs afterwards and still hides its first token. The response chain computes its
 # 1.0.8 floor without this rule (typed=False, sanitize._proxy_1_0_8).
 CISCO_TYPED_SECRET = re.compile(
@@ -87,7 +87,7 @@ def _sanitize_text(value: str, secrets: Iterable[object] = (), *, typed=True, ty
 
     The product redacts the proxy's output on its way to the AI client. When the new rule
     changed the text, every character that the released 1.0.8 proxy rules and the product
-    hide of this text stays hidden (task 302-r6): both chains run over the text with origin
+    hide of this text stays hidden (verification): both chains run over the text with origin
     ranges, and a character that the current chain leaves visible is masked in the proxy's
     output (sanitize._covering_floor). A text that carries ranges of an outer chain (the
     response chain, SNMP) gets the whole 1.0.8 floor carried through the rules instead.

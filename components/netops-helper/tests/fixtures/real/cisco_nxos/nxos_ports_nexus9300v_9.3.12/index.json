@@ -1,0 +1,185 @@
+{
+  "utc": "2026-11-18T09:59:06.784585+00:00",
+  "captures": {
+    "single-interface": {
+      "command": "show interface Ethernet1/2",
+      "rc": 0,
+      "lines": 43
+    },
+    "single-interface-t2": {
+      "command": "show interface Ethernet1/2",
+      "rc": 0,
+      "lines": 43
+    },
+    "single-errors": {
+      "command": "show interface counters errors",
+      "rc": 0,
+      "lines": 271
+    },
+    "single-errors-port": {
+      "command": "show interface Ethernet1/2 counters errors",
+      "rc": 0,
+      "lines": 19
+    },
+    "single-stp-detail": {
+      "command": "show spanning-tree detail",
+      "rc": 0,
+      "lines": 54
+    },
+    "single-stp-port": {
+      "command": "show spanning-tree interface Ethernet1/2 detail",
+      "rc": 0,
+      "lines": 9
+    },
+    "single-stp-mst": {
+      "command": "show spanning-tree mst",
+      "rc": 244,
+      "lines": 4
+    },
+    "single-lag-database": {
+      "command": "show port-channel database",
+      "rc": 0,
+      "lines": 0
+    },
+    "single-lacp-unbundled": {
+      "command": "show lacp interface ethernet 1/2",
+      "rc": 16,
+      "lines": 4
+    },
+    "single-lag-load": {
+      "command": "show port-channel load-balance",
+      "rc": 0,
+      "lines": 7
+    },
+    "single-lldp-port": {
+      "command": "show lldp neighbors interface ethernet 1/2 detail",
+      "rc": 244,
+      "lines": 4
+    },
+    "single-cdp-port": {
+      "command": "show cdp neighbors interface ethernet 1/2 detail",
+      "rc": 0,
+      "lines": 1
+    },
+    "single-lldp": {
+      "command": "show lldp neighbors detail",
+      "rc": 0,
+      "lines": 22
+    },
+    "single-cdp": {
+      "command": "show cdp neighbors detail",
+      "rc": 0,
+      "lines": 86
+    },
+    "peer-a-interface": {
+      "command": "show interface Ethernet1/4",
+      "rc": 0,
+      "lines": 44
+    },
+    "peer-a-stp-detail": {
+      "command": "show spanning-tree detail",
+      "rc": 0,
+      "lines": 53
+    },
+    "peer-a-stp-port": {
+      "command": "show spanning-tree interface Ethernet1/4 detail",
+      "rc": 0,
+      "lines": 1
+    },
+    "peer-a-stp-po": {
+      "command": "show spanning-tree interface port-channel 128 detail",
+      "rc": 0,
+      "lines": 9
+    },
+    "peer-a-stp-mst": {
+      "command": "show spanning-tree mst",
+      "rc": 244,
+      "lines": 4
+    },
+    "peer-a-lag-database": {
+      "command": "show port-channel database",
+      "rc": 0,
+      "lines": 19
+    },
+    "peer-a-lacp-port": {
+      "command": "show lacp interface ethernet 1/4",
+      "rc": 0,
+      "lines": 36
+    },
+    "peer-a-lacp-peer": {
+      "command": "show lacp interface ethernet 1/2",
+      "rc": 0,
+      "lines": 36
+    },
+    "peer-a-lacp-unbundled": {
+      "command": "show lacp interface ethernet 1/5",
+      "rc": 0,
+      "lines": 36
+    },
+    "peer-a-lag-load": {
+      "command": "show port-channel load-balance",
+      "rc": 0,
+      "lines": 7
+    },
+    "peer-a-vpc-member": {
+      "command": "show vpc consistency-parameters vpc 128",
+      "rc": 0,
+      "lines": 30
+    },
+    "peer-a-vpc-interface": {
+      "command": "show vpc consistency-parameters interface port-channel 128",
+      "rc": 0,
+      "lines": 30
+    },
+    "peer-a-vpc-absent": {
+      "command": "show vpc consistency-parameters vpc 129",
+      "rc": 0,
+      "lines": 0
+    },
+    "peer-a-lldp-port": {
+      "command": "show lldp neighbors interface ethernet 1/2 detail",
+      "rc": 16,
+      "lines": 4
+    },
+    "peer-a-cdp-port": {
+      "command": "show cdp neighbors interface ethernet 1/2 detail",
+      "rc": 0,
+      "lines": 23
+    },
+    "peer-a-cdp-member": {
+      "command": "show cdp neighbors interface ethernet 1/3 detail",
+      "rc": 0,
+      "lines": 1
+    },
+    "peer-a-lldp": {
+      "command": "show lldp neighbors detail",
+      "rc": 16,
+      "lines": 4
+    },
+    "peer-a-cdp": {
+      "command": "show cdp neighbors detail",
+      "rc": 0,
+      "lines": 67
+    },
+    "peer-b-vpc-member": {
+      "command": "show vpc consistency-parameters vpc 128",
+      "rc": 0,
+      "lines": 30
+    },
+    "peer-b-vpc-interface": {
+      "command": "show vpc consistency-parameters interface port-channel 128",
+      "rc": 0,
+      "lines": 30
+    },
+    "peer-b-cdp-port": {
+      "command": "show cdp neighbors interface ethernet 1/2 detail",
+      "rc": 0,
+      "lines": 23
+    },
+    "peer-b-lldp-port": {
+      "command": "show lldp neighbors interface ethernet 1/2 detail",
+      "rc": 16,
+      "lines": 4
+    }
+  }
+}

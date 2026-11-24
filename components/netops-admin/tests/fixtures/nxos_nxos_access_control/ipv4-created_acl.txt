@@ -1,0 +1,4 @@
+
+IP access list NETOPS-NXOS-ACCESS-CONTROL-V4
+	10 deny tcp 192.0.2.64/32 any eq 443
+	30 permit ip any any

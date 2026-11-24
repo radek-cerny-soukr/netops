@@ -595,9 +595,19 @@ class Bench:
             self.fakes[name] = wrapper(self.fakes[name])
         return target
 
+    def preview_hash(self, capsys, device, request, template=None):
+        """plan_sha256 of a preview of the request on a fresh copy of the state: every apply carries it."""
+        self.fresh(template)
+        code = cli.main(["preview", "--config", self.config, "--device", device, "--request", request])
+        out = capsys.readouterr().out
+        assert code == 0, out
+        return json.loads(out)["plan_sha256"]
+
     def prepare(self, capsys):
+        self.approved = {"create": self.preview_hash(capsys, "lab", self.requests["create"])}
         self.fresh()
-        code = cli.main(["apply", "--config", self.config, "--device", "lab", "--request", self.requests["create"]])
+        code = cli.main(["apply", "--config", self.config, "--device", "lab", "--request", self.requests["create"],
+                         "--expect-plan-sha256", self.approved["create"]])
         out = capsys.readouterr().out
         assert code == 0, out
         self.record = json.loads(out)
@@ -608,6 +618,7 @@ class Bench:
         self.addresses = copy.deepcopy(self.fakes["lab"].addresses)
         self.template = self.root / "template"
         shutil.copytree(self.state, self.template)
+        self.approved["update"] = self.preview_hash(capsys, "lab", self.requests["update"], self.template)
         self.running = self.root / "template-running"
         shutil.copytree(self.state, self.running)
         path = self.running / "operations" / ("%s.json" % self.change_id)
@@ -790,8 +801,8 @@ def test_every_file_the_configuration_names_may_be_broken(tmp_path, capsys, benc
             bench.state = None
             for label, argv, codes in (
                 ("doctor", ["doctor", "--config", config, "--device", "lab"], DOCTOR_CODES),
-                ("apply", ["apply", "--config", config, "--device", "lab", "--request", bench.requests["update"]],
-                 APPLY_CODES),
+                ("apply", ["apply", "--config", config, "--device", "lab", "--request", bench.requests["update"],
+                           "--expect-plan-sha256", bench.approved["update"]], APPLY_CODES),
                 ("unblock", ["unblock", "--config", config, "--device", "lab", "--reason", "checked"], COMMAND_CODES),
             ):
                 bench.fakes = {"lab": bench._lab(), "sw": FakeExos()}
@@ -813,8 +824,8 @@ def _state_commands(bench):
         "unblock": (["unblock", "--config", config, "--device", "lab", "--reason", "checked"], COMMAND_CODES),
         "preview": (["preview", "--config", config, "--device", "lab", "--request", bench.requests["update"]],
                     PREVIEW_CODES),
-        "apply again": (["apply", "--config", config, "--device", "lab", "--request", bench.requests["create"]],
-                        APPLY_CODES),
+        "apply again": (["apply", "--config", config, "--device", "lab", "--request", bench.requests["create"],
+                         "--expect-plan-sha256", bench.approved["create"]], APPLY_CODES),
         "recover": (["recover", "--config", config, "--device", "lab"], RECOVER_CODES),
         "doctor": (["doctor", "--config", config, "--device", "lab"], DOCTOR_CODES),
     }
@@ -1010,8 +1021,10 @@ class Broken(Recorder):
 @pytest.mark.parametrize("device", ("lab", "sw"))
 def test_every_broken_answer_of_a_device_is_refused(capsys, bench, device):
     request = bench.requests["create" if device == "lab" else "vlan"]
+    approved = bench.preview_hash(capsys, device, request)
     commands = {
-        "apply": (["apply", "--config", bench.config, "--device", device, "--request", request], APPLY_CODES),
+        "apply": (["apply", "--config", bench.config, "--device", device, "--request", request,
+                   "--expect-plan-sha256", approved], APPLY_CODES),
         "doctor": (["doctor", "--config", bench.config, "--device", device], DOCTOR_CODES),
     }
     recorders = []
@@ -1070,7 +1083,8 @@ def test_every_command_line_argument_is_refused_or_accepted_without_a_traceback(
         "plan": (plan_argv("fortios", snapshot, request, "--policy", policy), PLAN_CODES),
         "plan exos": (plan_argv("exos", exos_snapshot, exos_request, "--ports", "1-12"), PLAN_CODES),
         "verify": (["verify", "--plan", plan, "--snapshot", snapshot, "--expect", "before"], VERIFY_CODES),
-        "apply": (["apply", "--config", config, "--device", "lab", "--request", bench.requests["update"]], APPLY_CODES),
+        "apply": (["apply", "--config", config, "--device", "lab", "--request", bench.requests["update"],
+                   "--expect-plan-sha256", bench.approved["update"]], APPLY_CODES),
         "preview": (["preview", "--config", config, "--device", "lab", "--request", bench.requests["update"]],
                     PREVIEW_CODES),
         "doctor": (["doctor", "--config", config, "--device", "lab"], DOCTOR_CODES),
@@ -1215,7 +1229,7 @@ def _tool_calls(bench):
                    changes={"comment": "reserved"}, reason="operator asked", user_request="please update",
                    request_id="req-mcp-0001-example")
     return {
-        "admin_apply": request,
+        "admin_apply": dict(request, expected_plan_sha256=bench.approved["update"]),
         "admin_preview": dict(request, request_id="req-mcp-0002-example"),
         "admin_status": {"change_id": bench.change_id, "request_id": bench.request_id},
         "admin_doctor": {"device": "lab"},

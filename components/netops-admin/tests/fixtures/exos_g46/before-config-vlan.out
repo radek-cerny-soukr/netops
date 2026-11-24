@@ -1,9 +1,0 @@
-#
-# Module vlan configuration.
-#
-create vlan "netops-g46"
-enable ipforwarding ipv6 vlan netops-g46
-configure vlan netops-g46 tag 3946
-configure vlan netops-g46 ipaddress 198.51.100.1 255.255.255.0
-enable ipforwarding vlan netops-g46
-configure vlan netops-g46 ipaddress eui64 fe80::/64

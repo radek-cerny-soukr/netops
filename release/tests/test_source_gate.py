@@ -43,14 +43,24 @@ class PublicLabIdentifiers(unittest.TestCase):
             ("192.168." + "1.9", ("internal address",)), ("10.255." + "1.9", ("internal address",)),
             ("FGT" + "0AB0000001", ("serial number",)), ("fgt" + "0ab0000001", ("serial number",)),
             ("netops-2026" + "1122-99", ("task reference",)),
-            ("netops-t" + "99-example", ("task reference",)), ("Task " + "471-r3", ("task reference",)),
-            ("task" + "-557", ("task reference",)), ("task #" + "105", ("task reference",)),
+            ("netops-t" + "99-example", ("task reference",)), ("Task " + "983-r3", ("task reference",)),
+            ("task" + "-981", ("task reference",)), ("task #" + "980", ("task reference",)),
             ("task-" + "evidence/report.json", ("evidence path",)),
             ("VM987 at 192.168." + "1.9", ("vm number", "internal address")),
         )
         for value, kinds in cases:
             with self.subTest(value=value):
                 self.assert_line_findings(value, kinds)
+
+    def test_shortened_task_and_review_references_are_task_references(self):
+        for value in ("987" + "-rv", "986" + "-r2", "985" + "-r2-rv", "98" + "-rv", "Review " + "984-RV",
+                      "report_" + "987-rv_notes", "test_" + "986_r3rv_inputs", "test_" + "985r2_case", "982" + "-r4rv"):
+            with self.subTest(value=value):
+                self.assert_line_findings(value, ("task reference",))
+        for value in ("A3-r2", "1234-r2", "15.2-r2", "15.12-r2", "verification-r2", "987-rv2", "5-rv", "r2-rv",
+                      "[20260619.173755_builder_junos_262_r1]"):
+            with self.subTest(value=value):
+                self.assertEqual(self.scan_file("docs/example.md", f"example `{value}` in text\n"), [])
 
     def test_fingerprinted_lab_names_match_whole_tokens_and_their_parts(self):
         with synthetic_fingerprints():
@@ -75,6 +85,14 @@ class PublicLabIdentifiers(unittest.TestCase):
             host = SYNTHETIC_HOST.replace("h", chr(92) + "x68")
             self.assertEqual(self.scan_file("docs/example.json", '{\n  "a": "' + escaped + '",\n  "b": "' + host + '"\n}\n'),
                              ["docs/example.json:2: " + VM_FINDING, "docs/example.json:3: lab identifier (host name)"])
+
+    def test_embedded_capture_keeps_its_source_line(self):
+        text = '{"reply": "banner\\r\\nFGT000000000001# "}\n'
+        self.assertEqual(
+            self.scan_file("tests/fixtures/reply.json", text),
+            ["tests/fixtures/reply.json:1: lab identifier (serial number)"],
+        )
+        self.assertEqual(self.scan_file("tests/fixtures/reply.json", text.replace("FGT000000000001", "FGTEXAMPLE0000001")), [])
 
     def test_fingerprint_list_holds_only_digests_of_known_types(self):
         self.assertTrue(gate.LAB_IDENTIFIER_FINGERPRINTS)
@@ -105,13 +123,24 @@ class PublicLabIdentifiers(unittest.TestCase):
             with self.subTest(text=text):
                 self.assertEqual(gate.privacy_text(rules, "README.md", text), [])
 
-    def test_tests_fixtures_and_code_are_out_of_scope(self):
+    def test_tests_fixtures_and_code_are_in_scope(self):
         for relative in ("tests/README.md", "tests/unit/fixtures/example.md", "release/tests/example.md",
                          "release/tests/fixtures/example.md", "components/netops-core/tests/example.md",
                          "components/netops-core/tests/fixtures/example.md", "docs/example.py",
                          "release/example.json", "components/x/example.json"):
             with self.subTest(relative=relative):
-                self.assertEqual(self.scan_file(relative, '"VM987"\n'), [])
+                self.assertEqual(self.scan_file(relative, '"VM987"\n'), [f"{relative}:1: {VM_FINDING}"])
+
+    def test_group_annotations_and_fixture_paths_are_scanned(self):
+        self.assertEqual(
+            self.scan_file("src/example.py", 'g999 = "G998"  # G997\n'),
+            ["src/example.py:1: lab identifier (group reference)"],
+        )
+        self.assertEqual(self.scan_file("src/example.py", "g999 = 0\n"), [])
+        self.assertEqual(
+            self.scan_file("tests/fixtures/router_g999/reply.raw", "neutral\n"),
+            ["tests/fixtures/router_g999/reply.raw:0: lab identifier (group reference)"],
+        )
 
     def test_ip_prefixes_inside_addresses_are_allowed(self):
         for address in ("7." + "10.255.1", "7." + "192.168.1", "110.255." + "1.2", "1192.168." + "1.2"):
@@ -175,7 +204,7 @@ class Privacy(unittest.TestCase):
                 self.assertEqual(gate.privacy_text(self.rules, "README.md", sample), [])
 
     def test_protocol_constants_and_derived_solicited_node_groups_are_accepted(self):
-        # task 749: constants of the Admin fixtures and tests that are not site material
+        # constants of the Admin fixtures and tests that are not site material
         for sample in ("ff:ff:ff:ff:ff:ff", "FF:FF:FF:FF:FF:FF", "01:00:5e:90:10:01", "01:00:5E:90:10:FF",
                        "firmware 200.15.6.212 build 27", "permit ip 203.0.113.176 0.0.0.254 any",
                        "FF02::1:FF00:1", "ff02::1:ff00:12", "ff02::1:ff00:0", "FF02::1:FF00:5300"):
@@ -486,7 +515,7 @@ class BuildInputs(unittest.TestCase):
 
 class SharedProductBoundaries(unittest.TestCase):
     def setUp(self):
-        import tempfile, shutil, subprocess
+        import tempfile, shutil, subprocess, tomllib
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
@@ -499,7 +528,13 @@ class SharedProductBoundaries(unittest.TestCase):
             target=self.root/name
             target.parent.mkdir(parents=True,exist_ok=True)
             shutil.copy2(ROOT/name,target)
+        version = tomllib.loads((self.root / "pyproject.toml").read_text())["project"]["version"]
+        for name in ("candidate.yml", "codeql.yml"):
+            workflow = self.root / ".github/workflows" / name
+            text = workflow.read_text(encoding="utf-8")
+            workflow.write_text(gate.CANDIDATE_BRANCH.sub(f"release/{version}-candidate", text), encoding="utf-8")
         subprocess.run(["git","init","-q",str(self.root)],check=True,capture_output=True)
+        (self.root / ".git/info/exclude").write_text("__pycache__/\n", encoding="utf-8")
         subprocess.run(["git","-C",str(self.root),"add","."],check=True,capture_output=True)
         self.assertEqual(gate.check(self.root),[])
 
@@ -513,11 +548,26 @@ class SharedProductBoundaries(unittest.TestCase):
         subprocess.run(["git", "-C", str(self.root), "add", relative], check=True, capture_output=True)
         self.assertEqual(gate.check(self.root), [f"{relative}:2: {VM_FINDING}"])
 
-    def test_only_root_task_artifacts_are_excluded_from_the_lab_identifier_check(self):
+    def test_tracked_extensionless_and_binary_fixtures_block_until_anonymized(self):
         import subprocess
 
-        public = ("docs/TASK.md", "docs/RESULT.md", "docs/ref/review.md")
-        for relative in ("TASK.md", "RESULT.md", "ref/review.md", "ref/nested/result.md", *public):
+        for relative in ("tests/fixtures/response", "tests/fixtures/response.raw"):
+            with self.subTest(relative=relative):
+                path = self.root / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                payload = b"VM987\n"
+                path.write_bytes(b"\xff" + payload if path.suffix else payload)
+                self.assertEqual(gate.check(self.root), [])
+                subprocess.run(["git", "-C", str(self.root), "add", relative], check=True, capture_output=True)
+                self.assertEqual(gate.check(self.root), [f"{relative}:1: {VM_FINDING}"])
+                path.write_bytes(b"\xffneutral\n" if path.suffix else b"neutral\n")
+                self.assertEqual(gate.check(self.root), [])
+
+    def test_only_known_task_artifacts_are_excluded_from_the_lab_identifier_check(self):
+        import subprocess
+
+        public = ("docs/TASK.md", "docs/RESULT.md", "docs/ref/review.md", "ref/review.md", "ref/nested/result.md")
+        for relative in ("TASK.md", "RESULT.md", "ref/src/release-check.sh", *public):
             path = self.root / relative
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text("Verified vm987.\n", encoding="utf-8")
@@ -664,8 +714,9 @@ class ReleaseVersionText(unittest.TestCase):
 
 TESTED = ("**Tested for NetOps %s (2026-01-02)** against a build.\n\n| Client | Version | Platform | Model | Result |\n"
           "|---|---|---|---|---|\n| Codex CLI | 1 | Linux | default | PASS |\n")
-PENDING = ("**NetOps %s:** the client acceptance (Codex CLI and Claude Code) runs once on the signed release candidate image; "
-           "its results are in the [release notes](release/notes-%s.md#acceptance).\n")
+PENDING = ("**NetOps %s:** client acceptance with Codex CLI and Claude Code is pending. "
+           "It runs on the release candidate image before the maintainer signs the release checksum list. "
+           "The results will be published in the [release notes](release/notes-%s.md#acceptance).\n")
 
 class ReleaseSupportText(unittest.TestCase):
     def setUp(self):
@@ -718,7 +769,7 @@ class ReleaseSupportText(unittest.TestCase):
                 ("neither", "For NetOps %s, no client application was tested.\n" % v, True, False),
                 ("table without result row", TESTED.split("|---")[0] % v, True, False),
                 ("pending line of another version", PENDING % ("0.9.9", "0.9.9"), True, False),
-                ("pending line altered", (PENDING % (v, v)).replace("runs once", "ran"), True, False),
+                ("pending line altered", (PENDING % (v, v)).replace("is pending", "passed"), True, False),
                 ("empty Result cell", (TESTED % v).replace("| PASS |", "| |"), True, False),
                 ("row of empty cells only", (TESTED % v).replace("| Codex CLI | 1 | Linux | default | PASS |", "| | | | | |"), True, False),
                 ("result not PASS or FAIL", (TESTED % v).replace("| PASS |", "| skipped |"), True, False),
@@ -787,15 +838,17 @@ class CandidateBranchTriggers(unittest.TestCase):
         self.version = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]["version"]
         self.texts = {name: (ROOT / ".github/workflows" / name).read_text(encoding="utf-8")
                       for name in ("ci.yml", "candidate.yml", "codeql.yml")}
+        branch = "release/" + self.version + "-candidate"
+        self.baseline = {name: gate.CANDIDATE_BRANCH.sub(branch, text) for name, text in self.texts.items()}
     def test_current_workflow_triggers(self):
         self.assertEqual(gate.workflow_branch_errors(self.texts, self.version), [])
     def test_wildcard_or_stale_candidate_branch_is_refused(self):
         branch = "release/" + self.version + "-candidate"
+        self.assertEqual(gate.workflow_branch_errors(self.baseline, self.version), [])
         for name in ("candidate.yml", "codeql.yml"):
             for replacement in ("release/*-candidate", "release/0.9.9-candidate", "main"):
                 with self.subTest(name=name, replacement=replacement):
-                    self.assertIn(branch, self.texts[name])
-                    texts = dict(self.texts, **{name: self.texts[name].replace(branch, replacement)})
+                    texts = dict(self.baseline, **{name: self.baseline[name].replace(branch, replacement)})
                     errors = gate.workflow_branch_errors(texts, self.version)
                     self.assertTrue(any(error.startswith(name + " ") for error in errors))
     def test_ci_must_include_every_branch(self):
@@ -805,7 +858,7 @@ class CandidateBranchTriggers(unittest.TestCase):
                             '    branches:\n      - "main"\n', ""):
             with self.subTest(replacement=replacement):
                 self.assertIn(branches, self.texts["ci.yml"])
-                texts = dict(self.texts, **{"ci.yml": self.texts["ci.yml"].replace(branches, replacement)})
+                texts = dict(self.baseline, **{"ci.yml": self.baseline["ci.yml"].replace(branches, replacement)})
                 self.assertEqual(gate.workflow_branch_errors(texts, self.version),
                                  ["ci.yml must run on pushes to all branches and tags"])
 

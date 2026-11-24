@@ -54,7 +54,7 @@ def run(interface, domain, read_table, read_raw):
             'verdict': 'incomplete' if missing else 'findings' if findings else 'no_fault_observed'}
 
 
-# G118 EP02: EOS port triage over the existing EOS reads. Absent optional features are
+# eos ports EP02: EOS port triage over the existing EOS reads. Absent optional features are
 # reported with the device's own answer and never turned into a fault or a healthy claim.
 EOS_TABLES = ('interface', 'port_vlan', 'interface_errors', 'stp_port_counters', 'mac_entry')
 EOS_RAW = ('lldp_neighbors_interface', 'lacp_peer_interface', 'mlag_interfaces', 'interface_poe',

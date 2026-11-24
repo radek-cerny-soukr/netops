@@ -30,6 +30,100 @@ class ArgumentGuidance(unittest.IsolatedAsyncioTestCase):
     def remote(self, role, descriptor):
         return gateway.RemoteTool(name=descriptor["name"], parameters=descriptor["inputSchema"], role=role)
 
+    async def test_auditor_platform_filter_through_https_and_worker(self):
+        import asyncio
+        import socket
+        import ssl
+
+        import uvicorn
+
+        from netops import certificates, ipc, worker
+        from netops_auditor import mcp_server
+        from netops_auditor.store import Store
+
+        with tempfile.TemporaryDirectory() as raw:
+            state = Path(raw)
+            role = state / "auditor"
+            role.mkdir(mode=0o700)
+            gateway_dir = state / "gateway"
+            gateway_dir.mkdir(mode=0o700)
+            token = "synthetic-gateway-audit-token-for-tests"
+            source = "SYNTHETIC-SOURCE-CANARY"
+            uid = os.geteuid()
+            write_private(gateway_dir / "token", token.encode())
+            with Store(role / "store.sqlite") as store:
+                for name, platform in (("switch", "exos"), ("firewall", "fortios")):
+                    store.record_run("default", name, "b" * 64, source, f"{platform}:1:" + "a" * 64, (),
+                                     rule_status={platform + ".mgmt.test": {
+                                         "status": "evaluated", "reason": "", "required": True}})
+
+            listener = socket.socket()
+            self.addCleanup(listener.close)
+            listener.bind(("127.0.0.1", 0))
+            port = listener.getsockname()[1]
+            with (patch.dict(worker.UIDS, {"gateway": uid, "auditor": uid}),
+                  patch.dict(os.environ, {}),
+                  patch.object(os, "getgroups", return_value=[]),
+                  patch.object(worker, "role_environment", return_value=role),
+                  patch.object(worker, "RUNTIME", state), patch.object(ipc, "RUNTIME", state),
+                  patch.object(gateway, "STATE", state), patch.object(certificates, "DIRECTORY", gateway_dir),
+                  patch.object(mcp_server, "_CONFIGURATION", None)):
+                certificates.create_ca("localhost")
+                certificates.renew("localhost")
+                worker_task = asyncio.create_task(worker.run("auditor"))
+                server_task = None
+                try:
+                    async with asyncio.timeout(10):
+                        while not (role / "worker.sock").exists():
+                            if worker_task.done():
+                                worker_task.result()
+                            await asyncio.sleep(0.01)
+                    app = await gateway.application({"audit": {"mode": "local"}}, ["auditor"], [])
+                    server = uvicorn.Server(uvicorn.Config(
+                        app, ssl_certfile=str(gateway_dir / "server.pem"), ssl_keyfile=str(gateway_dir / "server.key"),
+                        access_log=False, log_level="warning", ws="none",
+                    ))
+                    server_task = asyncio.create_task(server.serve(sockets=[listener]))
+                    async with asyncio.timeout(10):
+                        while not server.started:
+                            if server_task.done():
+                                server_task.result()
+                                self.fail("HTTPS gateway did not start")
+                            await asyncio.sleep(0.01)
+                    verify = ssl.create_default_context(cafile=str(gateway_dir / "ca.pem"))
+                    headers = {"Authorization": "Bearer " + token, "Accept": "application/json, text/event-stream"}
+                    async with httpx.AsyncClient(base_url=f"https://localhost:{port}", headers=headers,
+                                                 verify=verify, trust_env=False) as client:
+                        initialized = await client.post("/mcp", json={
+                            "jsonrpc": "2.0", "id": 1, "method": "initialize",
+                            "params": {"protocolVersion": "2025-03-26", "capabilities": {},
+                                       "clientInfo": {"name": "Auditor test", "version": "1.0.0"}},
+                        })
+                        self.assertEqual(initialized.status_code, 200)
+                        client.headers["MCP-Protocol-Version"] = initialized.json()["result"]["protocolVersion"]
+                        ready = await client.post("/mcp", json={"jsonrpc": "2.0", "method": "notifications/initialized"})
+                        self.assertEqual(ready.status_code, 202)
+                        listed = await client.post("/mcp", json={"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
+                        tools = {tool["name"]: tool["inputSchema"] for tool in listed.json()["result"]["tools"]}
+                        self.assertEqual(set(tools), set(mcp_server.TOOL_NAMES))
+                        for name in ("audit_status", "list_rules", "rule_detail", "findings_summary"):
+                            self.assertIn("platform", tools[name]["properties"])
+                        result = await client.post("/mcp", json={
+                            "jsonrpc": "2.0", "id": 3, "method": "tools/call",
+                            "params": {"name": "audit_status", "arguments": {"platform": "exos"}},
+                        })
+                        self.assertEqual(result.status_code, 200)
+                        self.assertNotIn(source, result.text)
+                        devices = result.json()["result"]["structuredContent"]["devices"]
+                        self.assertEqual([item["device"] for item in devices], ["switch"])
+                        self.assertEqual(devices[0]["coverage"]["counts"]["evaluated"], 1)
+                finally:
+                    if server_task is not None:
+                        server.should_exit = True
+                        await asyncio.wait_for(server_task, timeout=10)
+                    worker_task.cancel()
+                    await asyncio.gather(worker_task, return_exceptions=True)
+
     async def test_tcp_timeout_descriptor_advertises_existing_inclusive_bounds(self):
         descriptor = await self.descriptor("helper", "tcp_probe")
         schema = descriptor["inputSchema"]
@@ -258,8 +352,10 @@ class ArgumentGuidance(unittest.IsolatedAsyncioTestCase):
             delay = await pulse
         self.assertTrue(result.is_error)
         self.assertEqual(json.loads(result.content[0].text)["data"]["category"], "invalid_params")
-        self.assertLess(delay, 0.5)
-        self.assertLess(elapsed, 3)
+        # Large reserves instead of tight budgets: a validation that blocks the loop for the whole
+        # million-item array keeps the heartbeat waiting for the entire call, far beyond 10 s on any runner.
+        self.assertLess(delay, 10)
+        self.assertLess(elapsed, 60)
         rpc.assert_not_awaited()
 
 

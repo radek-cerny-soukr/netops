@@ -1,0 +1,2 @@
+config firewall addrgrp6
+end

@@ -1,7 +1,7 @@
 """Cisco NX-OS plan adapter: interface description, admin state and access VLAN from show running-config.
 
-Measured on a Nexus 9000v (N9K-C9300v) with NX-OS 9.3(12) (GNS3 lab, task netops-provoz-20261116-314/317,
-ref/mereni-c6): the running configuration starts with the header "!Command: show running-config", the lines
+Measured on a Nexus 9000v (N9K-C9300v) with NX-OS 9.3(12) (in the virtual topology, verification/317,
+private measurement record): the running configuration starts with the header "!Command: show running-config", the lines
 "!Running configuration last done at:" and "!Time:", then "version 9.3(12) Bios:version". Top-level statements are
 followed by their own lines indented by two spaces; blocks are separated by empty lines and the answer has no
 closing "end". A scheduler job is closed by the top-level line "end-job". NX-OS accepts a VLAN that does not exist
@@ -23,8 +23,11 @@ PLATFORM = "nxos"
 SAVE_TABLE = "startup-config"
 SAVE_KIND = "nxos-save"
 COMMAND_LINE = "!Command: show running-config"
-# lines of the header that change without a configuration change
-VOLATILE_HEADER = ("!Command:", "!Running configuration last done at:", "!Time:")
+# lines of the header that change without a configuration change; a switch without any configuration change since
+# its reload prints "!No configuration change since last restart" instead of the "last done at" line (Nexus 9000v
+# 9.3(12), measured), so the first change after a reload replaces that line
+VOLATILE_HEADER = ("!Command:", "!Running configuration last done at:", "!No configuration change since last restart",
+                   "!Time:")
 VERSION_LINE = re.compile(r"^version ([0-9]{1,2}\.[0-9]{1,2}\([0-9]{1,3}[a-z]?\))(?: Bios:.*)?$")
 # fixed lines NX-OS prints in every running configuration after the interfaces; a cut-off answer misses them
 REQUIRED_LINES = (re.compile(r"^interface mgmt0$"), re.compile(r"^line vty$"), re.compile(r"^boot nxos \S+"))
@@ -475,8 +478,9 @@ def link_prechecks(snapshot, table, key, before, after, protected):
                            reason_codes=["nxos_vpc_dependency"])
     elif (mode != "trunk" or "spanning-tree port type network" not in snapshot.interface_lines(channel)
           or any(name != channel or role != "vpc peer-link" for name, role in roles.items())):
-        raise Rejected(["the peer-link needs an idle STP network trunk and a domain without other vPC roles"],
-                       reason_codes=["nxos_vpc_dependency"])
+        raise Rejected(["the peer-link needs an idle trunk port-channel that already has spanning-tree port type "
+                        "network (NX-OS sets that port type with vpc peer-link and removes it with no vpc peer-link) "
+                        "and a domain without other vPC roles"], reason_codes=["nxos_vpc_dependency"])
 
 
 def _link_target(table, key):
@@ -506,8 +510,11 @@ def render_link(snapshot, table, key, before, after):
         return ["configure terminal", "no " + target, "end"]
     lines = _link_lines(snapshot, table, after)
     if not lines and before:
+        # NX-OS 9.3(12) drops any spanning-tree port type line together with "vpc peer-link" (measured); the peer-link
+        # profile only uses channels that already have the network port type, so the removal writes it back and the
+        # rest of the channel stays as it was before the assignment
         lines = {CHANNEL_MEMBER_TABLE: ["no channel-group"], VPC_PORT_TABLE: ["no vpc " + before.get("vpc-id", "")],
-                 VPC_PEER_LINK_TABLE: ["no vpc peer-link"]}[table]
+                 VPC_PEER_LINK_TABLE: ["no vpc peer-link", "spanning-tree port type network"]}[table]
     elif table == VPC_PORT_TABLE and before and after:
         lines.insert(0, "no vpc " + before["vpc-id"])
     return ["configure terminal", target, *lines, "end"]
@@ -546,7 +553,7 @@ def link_configuration(snapshot, table, key, after=None, *, predict=False, safeg
     if not found and owns_block and predict and after is not None:
         index = len(result)
         if table == CHANNEL_TABLE:
-            # G98 d-nxos/B04 captures list port-channels by number before Ethernet.
+            # nxos config Nexus 9300v, NX-OS 9.3(12)/switch-pair captures list port-channels by number before Ethernet.
             number = int(PORT_CHANNEL.fullmatch(key)[1])
             for offset, line in enumerate(result):
                 if not line.startswith("interface "):
@@ -877,7 +884,7 @@ def canonical_address(name: str, value) -> str:
         network = address.network
         if family == 4 and network.prefixlen <= 30 and address.ip in (network.network_address,
                                                                         network.broadcast_address):
-            # measured: "All 0s host part is invalid" / "All 1s host part is invalid" (G102 r3)
+            # measured: "All 0s host part is invalid" / "All 1s host part is invalid" (nxos routing admin r3)
             raise Rejected(["%s %s is not a host address of its subnet (all 0s or all 1s host part)"
                             % (name, value)])
         return str(address)
@@ -1044,7 +1051,7 @@ def state_prechecks(snapshot, table, op, key, after) -> list:
             hop = ipaddress.ip_address(after["next-hop"])
             for name, other_vrf, address in interface_addresses(snapshot):
                 if other_vrf == (vrf or None) and address.ip == hop:
-                    # measured: "ipv4 Nexthop: cannot be local address in same VRF" (G102 r3)
+                    # measured: "ipv4 Nexthop: cannot be local address in same VRF" (nxos routing admin r3)
                     raise Rejected(["the next hop %s is the own address of interface %s in the same VRF"
                                     % (hop, name)])
         if (vrf or "default") == (_interface_vrf(snapshot, "mgmt0") or "default"):
@@ -1078,7 +1085,7 @@ def state_prechecks(snapshot, table, op, key, after) -> list:
             raise Rejected(["the SVI does not exist"])
         _check_vrf(snapshot, _interface_vrf(snapshot, interface))
         if str((after or {}).get("vrf") or "").casefold() == "default":
-            # measured: NX-OS stores "use-vrf default" as a relay without VRF (G102 r3)
+            # measured: NX-OS stores "use-vrf default" as a relay without VRF (nxos routing admin r3)
             raise Rejected(["omit vrf for the default VRF; NX-OS stores use-vrf default as a relay without VRF"])
         current = snapshot.entries(table).get(key)
         if current is not None:
@@ -1115,7 +1122,7 @@ def state_prechecks(snapshot, table, op, key, after) -> list:
             raise Rejected(["the port has configuration that a mode change could discard"])
         if "no system default switchport" in snapshot.lines or L2_SHUTDOWN_DEFAULT in snapshot.lines:
             raise Rejected(["the switch has different Ethernet defaults from the measured mode conversion"])
-    # measured: NX-OS refuses an overlapping subnet in the same VRF and accepts it in another VRF (G102 r3)
+    # measured: NX-OS refuses an overlapping subnet in the same VRF and accepts it in another VRF (nxos routing admin r3)
     vrf = after.get("vrf")
     for name in IP_ATTRIBUTES:
         if name not in after or after[name] == before.get(name):
@@ -1727,7 +1734,7 @@ def service_snapshot_after(text, plan):
     return "\n".join(result) + "\n"
 
 
-# ---- answers of the device (measured fixtures, ref/mereni-c6/fixtures) ----
+# ---- answers of the device (measured fixtures, private measurement record) ----
 
 ERROR_LINES = (
     re.compile(r"^% "),                       # Invalid command, Incomplete command, Permission denied, Invalid number
@@ -1745,7 +1752,7 @@ def cli_error(text: str):
     """A refused line: the measured error forms of NX-OS 9.3(12), with and without "%".
 
     A carriage return ends a line too: the interactive session writes "\r" before every prompt, also right after
-    the last output line when that line has no newline (read in task 318)."""
+    the last output line when that line has no newline (read in verification)."""
     for line in re.split(r"[\r\n]", text)[1:]:
         stripped = line.strip()
         if any(pattern.search(stripped) for pattern in ERROR_LINES):

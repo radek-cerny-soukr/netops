@@ -1,0 +1,52 @@
+*** Startup-config
+--- Running-config
+***************
+*** 28,46 ****
+--- 27,49 ----
+  [redacted]
+  [redacted]
+  [redacted]
+  [redacted]
+  ip domain-lookup
++ ip domain-name nxos-services-admin.example
++ ip name-server 198.51.100.30 use-vrf management
+  copp profile strict
+  [redacted]
+  [redacted]
+  [redacted]
+  [redacted]
+  [redacted]
+  [redacted]
+  [redacted]
+  [redacted]
++ ntp server 198.51.100.10 use-vrf management
++ ntp source-interface loopback104
+  
+  vlan 1,10,20
+  vlan 10
+    name D10
+  vlan 20
+***************
+*** 200,215 ****
+--- 203,223 ----
+    ip address 192.0.2.55/24
+  
+  interface loopback0
+    ip address 198.51.100.5/32
+    ip router ospf 29 area 0.0.0.0
++ 
++ interface loopback104
++   ip address 192.0.2.104/32
+  icam monitor scale
+  
+  line console
+  line vty
+  boot nxos bootflash:/nxos.9.3.12.bin 
+  router ospf 29
+    router-id 198.51.100.5
+  
++ logging server 198.51.100.20 5 use-vrf management
++ logging source-interface loopback104
+  
+  
+  

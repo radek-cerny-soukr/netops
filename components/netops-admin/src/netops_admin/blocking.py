@@ -8,9 +8,9 @@ from netops_admin.errors import SNAPSHOT_CATEGORIES
 BLOCKING_RESULTS = ("unknown", "revert-failed")
 BLOCKING_REASONS = ("administrator table", "foreign change", "not persisted", "foreign change during save",
                     "saved configuration unverified", "postcheck rejected") + SNAPSHOT_CATEGORIES
-# 1.0.12 G07: MCP admin_unblock lifts only the block of an operation that ended with one of these results; every
+# 1.0.12 execution access: MCP admin_unblock lifts only the block of an operation that ended with one of these results; every
 # other block (administrator table, foreign change, not persisted, ...) stays the operator command admin unblock.
-# G07 r2 (502-rv finding 2): revert-failed is not among them, a failed return needs a person (admin recover,
+# execution access r2 (review finding 2): revert-failed is not among them, a failed return needs a person (admin recover,
 # admin unblock); and only the state after of a profile plan qualifies (execute._unblock_check)
 MCP_UNBLOCK_RESULTS = ("unknown",)
 MCP_UNBLOCK_SIDE = "after"

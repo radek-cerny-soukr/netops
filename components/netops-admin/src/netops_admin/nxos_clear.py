@@ -1,4 +1,4 @@
-"""Cisco NX-OS targeted clear (1.0.12 G105): interface counters, one dynamic MAC or the MACs of one port, one ARP
+"""Cisco NX-OS targeted clear (1.0.12 nxos targeted clear): interface counters, one dynamic MAC or the MACs of one port, one ARP
 or IPv6 neighbor entry in a named VRF.
 
 Syntax verified on a Nexus 9000v (N9K-C9300v) with NX-OS 9.3(12) by the interactive help of the device (nothing was

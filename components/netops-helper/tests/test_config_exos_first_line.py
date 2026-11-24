@@ -1,4 +1,4 @@
-"""Task 211: derived first-line refusal scenarios, real EXOS identity fixtures, fake SSH."""
+"""verification: derived first-line refusal scenarios, real EXOS identity fixtures, fake SSH."""
 
 import pytest
 

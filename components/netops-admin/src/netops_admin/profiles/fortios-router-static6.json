@@ -1,0 +1,90 @@
+{
+  "platform": "fortios",
+  "table": "router static6",
+  "versions": [
+    "7.6.8 build3744"
+  ],
+  "ops": [
+    "create",
+    "update",
+    "delete"
+  ],
+  "key_pattern": "^[1-9][0-9]{0,9}$",
+  "protected_keys": [],
+  "attributes": {
+    "dst": {
+      "type": "ipv6-network",
+      "required_on_create": true,
+      "update": true,
+      "unset": false,
+      "referenced_update": true,
+      "default": "::/0"
+    },
+    "gateway": {
+      "type": "ipv6-address",
+      "required_on_create": false,
+      "update": true,
+      "unset": false,
+      "referenced_update": true,
+      "default": "::"
+    },
+    "device": {
+      "type": "text",
+      "required_on_create": false,
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "max_length": 35,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,34}$"
+    },
+    "distance": {
+      "type": "integer",
+      "required_on_create": false,
+      "update": true,
+      "unset": false,
+      "referenced_update": true,
+      "default": "10",
+      "minimum": 1,
+      "maximum": 255
+    },
+    "status": {
+      "type": "text",
+      "required_on_create": false,
+      "update": true,
+      "unset": false,
+      "referenced_update": true,
+      "default": "enable",
+      "max_length": 7,
+      "pattern": "^(?:enable|disable)$"
+    },
+    "blackhole": {
+      "type": "text",
+      "required_on_create": false,
+      "update": true,
+      "unset": false,
+      "referenced_update": true,
+      "default": "disable",
+      "max_length": 7,
+      "pattern": "^(?:enable|disable)$"
+    },
+    "comment": {
+      "type": "text",
+      "required_on_create": false,
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "max_length": 255
+    }
+  },
+  "fixed": {
+    "vrf": "0"
+  },
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "Measured on FortiGate-60F v7.6.8,build3744 on 2026-11-23 with the full admin orchestration and the cli-script safeguard, Admin reaching the device over IPv4 literals: create of the blackhole route 2001:db8:a3::/48 with status disable and a comment, without device and gateway, and its undo (delete) ended confirmed, and the check account showed the predicted route. FortiOS shows a blackhole route with set vrf 0 (fixed); before that was in the profile, the postcheck found vrf outside the profile and the safeguard returned the create each time. Refused before any write: apply without the approved preview hash (fortios_object_preview_required), the default route ::/0 and a route through wan1, the protected interface of the management path (fortios_route6_protected); the existing IPv6 default route through wan1 did not refuse the other route. show and show full-configuration of router static6 equalled the output before the run. Routes through a device, update and the delete request outside an undo are covered by the simulated device only. FortiOS 8.0.1 and later: refused before any write (safeguard_no_rest_inverse), verified by preview on FortiOS 8.0.2 build0251.",
+  "exact_versions": true,
+  "provisional": true,
+  "measured": true,
+  "table_scoped_key": true
+}

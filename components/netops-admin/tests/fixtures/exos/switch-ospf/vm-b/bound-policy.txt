@@ -1,0 +1,4 @@
+Policies at Policy Server:
+PolicyName                       ClientUsage     Client          BindCount
+--------------------------------------------------------------------------
+netops-switch-ospf-capture               1               acl             1

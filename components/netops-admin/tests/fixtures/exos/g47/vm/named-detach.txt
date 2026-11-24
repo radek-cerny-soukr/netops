@@ -1,2 +1,0 @@
-%% Unrecognized command:  "unconfigure access-list netops-g47-capture vlan netops-g47 ingress"
-%% Invalid input detected.

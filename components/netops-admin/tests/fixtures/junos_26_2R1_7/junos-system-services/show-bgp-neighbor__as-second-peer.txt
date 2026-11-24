@@ -1,0 +1,18 @@
+
+Warning: License key missing; requires 'BGP' license
+
+Peer: 192.0.2.58 AS 64513      Local: unspecified AS 64500
+  Group: measurement-bgp       Routing-Instance: master
+  Forwarding routing-instance: master
+  Type: External    State: Idle           Flags: <PeerInterfaceError>
+  Last State: NoState       Last Event: NoEvent
+  Last Error: None
+  Options: <PeerAS Refresh>
+  Options: <GracefulShutdownRcv>
+  Holdtime: 90 Preference: 170
+  Graceful Shutdown Receiver local-preference: 0
+  Number of flaps: 0
+  Up/Down Time : 1
+  Receive eBGP Origin Validation community: Reject
+  Malformed attributes    log interval: 300  route limit: 1000
+

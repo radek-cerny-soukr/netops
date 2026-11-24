@@ -421,7 +421,8 @@ def configure_auditor():
         if not isinstance(settings, dict) or not {"tenant", "catalog"} <= set(settings) or set(settings) - {"tenant", "catalog", "inventory", "vault"} or ("inventory" in settings) != ("vault" in settings):
             raise _configuration_message("auditor-envelope")
         from netops_auditor.findings import checked_component
-        from netops_auditor.mcp_server import available_platforms, _rules
+        from netops_auditor.mcp_server import ConfigurationError, _rules
+        from netops_auditor.platforms import PLATFORMS
         from netops_auditor.findings import FingerprintError
         if not isinstance(settings["tenant"], str):
             raise _configuration_error(field="auditor.tenant", code="fingerprint-component")
@@ -429,9 +430,13 @@ def configure_auditor():
             checked_component("tenant", settings["tenant"])
         except FingerprintError:
             raise _configuration_error(field="auditor.tenant", code="fingerprint-component") from None
-        if settings["catalog"] not in available_platforms():
+        catalog = settings["catalog"]
+        if not isinstance(catalog, str) or catalog not in PLATFORMS:
             raise _configuration_error(field="auditor.catalog", code="auditor-platform")
-        _rules(settings["catalog"])
+        try:
+            _rules(catalog)
+        except ConfigurationError as error:
+            raise RoleConfigurationError(f"Invalid role configuration: auditor.catalog: {error}") from None
         directory = STATE / "auditor"
         if "inventory" in settings:
             staging = Path(tempfile.mkdtemp(prefix=".configure-", dir=directory))

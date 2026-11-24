@@ -12,6 +12,7 @@ from test_schema_plan import TEXT as SCHEMA_TEXT, op
 from test_schema_runtime import request as schema_request, setup as schema_setup
 
 from netops_admin import audit_gate, execute, schema_runtime
+from approved_apply import approved_apply
 
 DEFAULT_ADMIN = "fortios.mgmt.default-admin-account"
 UNPROVEN = "admin-visibility-unproven"
@@ -52,7 +53,7 @@ def test_the_write_account_view_is_tolerated_and_reported(tmp_path):
     answer = execute.preview(runtime, "lab", request())
     assert answer["result"] != "rejected"
     assert answer["audit_unevaluated"][DEFAULT_ADMIN] == UNPROVEN
-    record = execute.apply(runtime, "lab", request())
+    record = approved_apply(runtime, "lab", request())
     assert record["result"] == "confirmed"
     assert tuple(record["audit_before"]["not-evaluated:" + DEFAULT_ADMIN]) == (DEFAULT_ADMIN, "not-evaluated", UNPROVEN)
     passed = [step for step in record["steps"] if step["step"] == "audit_passed"]

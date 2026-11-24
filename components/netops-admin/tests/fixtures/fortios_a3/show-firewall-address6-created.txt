@@ -1,0 +1,7 @@
+config firewall address6
+    edit "netops-a3-net"
+        set uuid 00000000-0000-4000-8000-a30000000001
+        set ip6 2001:db8:a3::/64
+        set comment "netops A3 test"
+    next
+end

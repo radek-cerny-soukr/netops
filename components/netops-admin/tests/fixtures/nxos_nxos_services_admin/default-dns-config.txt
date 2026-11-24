@@ -1,0 +1,2 @@
+ip domain-name nxos-services-admin.example
+ip name-server 198.51.100.30

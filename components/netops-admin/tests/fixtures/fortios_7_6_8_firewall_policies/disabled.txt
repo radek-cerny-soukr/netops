@@ -1,0 +1,15 @@
+config firewall policy
+    edit 220061
+        set status disable
+        set name "netops-firewall-policies-first"
+        set uuid 00000000-0000-4000-8000-000000000001
+        set srcintf "dmz"
+        set dstintf "wan2"
+        set action accept
+        set srcaddr "netops-firewall-policies-src"
+        set dstaddr "netops-firewall-policies-dst"
+        set schedule "always"
+        set service "HTTPS"
+        set logtraffic all
+    next
+end

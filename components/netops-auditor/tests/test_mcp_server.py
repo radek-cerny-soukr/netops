@@ -15,7 +15,7 @@ pytest.importorskip("fastmcp")
 from fastmcp.exceptions import ToolError
 
 from netops_auditor import mcp_server, query
-from netops_auditor.engine import load_catalog
+from netops_auditor.engine import CATALOG_DIR, load_catalog
 from netops_auditor.findings import Finding
 from netops_auditor.state import STATE_GONE, STATE_NEW, STATE_OPEN_KNOWN, STATE_SUPPRESSED
 from netops_auditor.findings import fingerprint_of
@@ -239,7 +239,7 @@ def test_every_tool_carries_a_description():
 
 def test_the_module_imports_no_device_reaching_module_statically():
     closure = _import_closure("mcp_server")
-    assert {"query", "store", "engine", "suppressions", "checks_fortios"} <= closure
+    assert {"query", "store", "engine", "suppressions", "platforms"} <= closure
     for name in DEVICE_REACHING_MODULES:
         assert name not in closure
         assert (PACKAGE_ROOT / ("%s.py" % name)).is_file()
@@ -556,8 +556,30 @@ def test_configure_rejects_an_unknown_platform(audited):
     with pytest.raises(mcp_server.ConfigurationError) as error:
         mcp_server.configure(values)
     message = str(error.value)
-    assert "junos" in message
+    assert "unavailable platform" in message
+    assert "junos" not in message.split("for:")[0]
     assert PLATFORM in message
+
+
+def test_configure_loads_only_the_selected_catalog(audited, tmp_path, monkeypatch):
+    from netops_auditor import engine
+
+    (tmp_path / f"{PLATFORM}.json").write_bytes(engine.catalog_path(PLATFORM).read_bytes())
+    (tmp_path / "arista-eos.json").write_text("{")
+    monkeypatch.setattr(engine, "CATALOG_DIR", tmp_path)
+    loaded = []
+
+    def load(platform):
+        loaded.append(platform)
+        return engine.load_catalog(platform)
+
+    monkeypatch.setattr(mcp_server, "load_catalog", load)
+    values = _environment(audited)
+    mcp_server.configure(values)
+    assert loaded == [PLATFORM]
+    values[mcp_server.CATALOG_VARIABLE] = "arista-eos"
+    with pytest.raises(mcp_server.ConfigurationError, match="catalog arista-eos: catalog is not readable JSON"):
+        mcp_server.configure(values)
 
 
 def test_configure_rejects_an_unreadable_suppression_file(audited, tmp_path):
@@ -678,7 +700,7 @@ def test_main_configures_before_it_serves(audited, monkeypatch):
 
 
 def test_the_server_offers_a_catalog_for_both_platforms():
-    assert mcp_server.available_platforms() == ("exos", "fortiadc", "fortios")
+    assert mcp_server.available_platforms() == tuple(sorted(path.stem for path in CATALOG_DIR.glob("*.json")))
 
 
 def test_configure_accepts_the_exos_catalog(audited):
@@ -687,12 +709,7 @@ def test_configure_accepts_the_exos_catalog(audited):
     mcp_server.configure(values)
     current = mcp_server.configuration()
     assert current.platform == "exos"
-    assert [rule.id for rule in current.rules if ".management." not in rule.id] == [
-        "exos.snmp.default-community",
-        "exos.mgmt.telnet-enabled",
-        "exos.logging.no-syslog-target",
-        "exos.time.no-sntp-client",
-    ]
+    assert current.rules == load_catalog("exos")
 
 
 def test_schema_report_without_operator_manifest_is_refused(configured, monkeypatch):

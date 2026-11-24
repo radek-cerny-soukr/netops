@@ -1,4 +1,4 @@
-"""Task 153: Cisco NX-OS identity/profile adapter (single profile Nexus9000 C9300v, NX-OS 9.3(12)).
+"""verification: Cisco NX-OS identity/profile adapter (single profile Nexus9000 C9300v, NX-OS 9.3(12)).
 
 Identity: ``show version`` is the immutable REAL capture
 ``fixtures/real/cisco_nxos/nexus9300v_9.3.12/version.txt``; every other identity text is DERIVED by
@@ -64,7 +64,7 @@ def test_crlf_and_prompt_lines():
     (RELEASE, ' NXOS: version 7.0(3)I7(9)', ('Nexus9000 C9300v', '7.0(3)I7(9)')),             # old train
 ], ids=['model-c9500v', 'model-hw', 'release', 'train', 'old-train'])
 def test_derived_foreign_wellformed_is_untested(old, new, record):
-    """G00: another model or release is read; firmware_support says untested."""
+    """STARTUP: another model or release is read; firmware_support says untested."""
     assert old in NXOS
     firmware, meta = ad.verify_identity(NXOS.replace(old, new))
     assert firmware == record and meta == ad.metadata() and ad.firmware_record(firmware)

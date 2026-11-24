@@ -1,0 +1,2 @@
+sftp> ls -ln netops-switch-ospf-capture.pol
+-rwxr-xr-x    ? 1001     1001          132 Nov 19 18:14 netops-switch-ospf-capture.pol

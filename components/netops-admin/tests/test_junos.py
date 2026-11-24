@@ -15,13 +15,15 @@ from netops_admin.config import DEFAULT_LIMITS, Config, Device
 from netops_admin.engine import build_plan, verify
 from netops_admin.errors import Rejected, SnapshotRejected
 from netops_admin.request import parse_request
+from approved_apply import approved_apply, plan_hash
 
 ACCOUNTS = ("netops-admin", "netops-ro")
 SECRET_TEXT = "k7c Junos Vb8Wn"
 NAME = "lab-vjunos"
 
 
-def make_runtime(tmp_path, device, accounts=ACCOUNTS, firmware=FIRMWARE, protected=None, margin=300):
+def make_runtime(tmp_path, device, accounts=ACCOUNTS, firmware=FIRMWARE, protected=None, margin=300,
+                 *, simulate_unmeasured_profiles=False):
     config = Config(
         state_dir=str(tmp_path / "state"), audit_file=str(tmp_path / "audit" / "audit.jsonl"),
         export_status_file=None, notify=None, limits=dict(DEFAULT_LIMITS),
@@ -33,7 +35,8 @@ def make_runtime(tmp_path, device, accounts=ACCOUNTS, firmware=FIRMWARE, protect
         )},
     )
     from enrollment_helpers import certify
-    runtime = execute.Runtime(config, lambda _device: device, sleep=device.advance, require_export=False)
+    runtime = execute.Runtime(config, lambda _device: device, sleep=device.advance, require_export=False,
+                              simulate_unmeasured_profiles=simulate_unmeasured_profiles)
     runtime.monotonic = lambda: device.uptime
     return certify(runtime, device, NAME)
 
@@ -55,6 +58,16 @@ CHANGE = 'commit confirmed 10 comment "netops-change"'
 PROBE = [SCREEN, "configure", LEAVE]
 
 
+def approved_apply_junos(device, runtime, name, item):
+    """Apply with the plan_sha256 of the preview of item. The preview enters and leaves configuration mode once (the
+    same read-only block as the enrollment probe); that block is taken off the record, so the blocks the test checks
+    stay those of the apply."""
+    digest, _issued = plan_hash(runtime, name, item)
+    assert device.applied_blocks[-1] == PROBE
+    device.applied_blocks.pop()
+    return execute.apply(runtime, name, item, expected_plan_sha256=digest)
+
+
 # ---- plan adapter on the set-format configuration ----
 
 def test_snapshot_of_the_lab_configuration():
@@ -65,7 +78,7 @@ def test_snapshot_of_the_lab_configuration():
     entries = snapshot.entries("vlan-membership")
     assert entries["ge-0/0/2"].attributes == {"access-vlan": "default"}
     assert entries["ge-0/0/1"].attributes == {"access-vlan": "D20"}
-    # 1.0.12 G137 (J07): a trunk lists its mode and tagged VLANs instead of nothing
+    # 1.0.12 JUNOS-VLAN-ADMIN (J07): a trunk lists its mode and tagged VLANs instead of nothing
     assert entries["ge-0/0/0"].attributes == {"mode": "trunk", "trunk-vlans": "D10 D20"}
     assert entries["ge-0/0/0"].unsupported == []
     assert snapshot.entries("interface")["ge-0/0/2"].attributes == {}
@@ -166,7 +179,7 @@ def test_enabling_a_disabled_trunk_is_refused_in_the_plan():
 
 
 def test_shared_configuration_of_the_port_is_outside_the_profile():
-    # 1.0.12 G137 (JP12): an inherited description, a deactivated statement and apply-groups-except are refused;
+    # 1.0.12 JUNOS-VLAN-ADMIN (JP12): an inherited description, a deactivated statement and apply-groups-except are refused;
     # inheritance that does not touch the description (an empty interface-range, a group that is not applied)
     # no longer blocks the description of the port
     for extra in ("set interfaces interface-range access member ge-0/0/2\n"
@@ -312,7 +325,7 @@ def test_preview_writes_nothing_and_only_enters_the_shared_configuration_mode(tm
 def test_description_is_confirmed_and_undone(tmp_path):
     device = FakeJunos()
     runtime = make_runtime(tmp_path, device)
-    record = execute.apply(runtime, NAME, request(changes={"description": "netops c8b"}))
+    record = approved_apply_junos(device, runtime, NAME, request(changes={"description": "netops c8b"}))
     assert record["result"] == "confirmed", (record["reason"], steps(record))
     label = record["safeguard"]["name"]
     assert device.applied_blocks[1] == [SCREEN, ENTER, EMPTY, 'commit confirmed 10 comment "%s"' % label, LEAVE]
@@ -336,10 +349,10 @@ def test_description_is_confirmed_and_undone(tmp_path):
 def test_disable_and_enable(tmp_path):
     device = FakeJunos()
     runtime = make_runtime(tmp_path, device)
-    down = execute.apply(runtime, NAME, request(changes={"admin-state": "disabled"}, request_id="req-down-1"))
+    down = approved_apply(runtime, NAME, request(changes={"admin-state": "disabled"}, request_id="req-down-1"))
     assert down["result"] == "confirmed" and "disable" in device.interface("ge-0/0/2")
     assert "port ge-0/0/2 has no LLDP neighbor and no learned MAC address" in down["plan"]["prechecks"]
-    up = execute.apply(runtime, NAME, request(changes={"admin-state": "enabled"}, request_id="req-up-1"))
+    up = approved_apply(runtime, NAME, request(changes={"admin-state": "enabled"}, request_id="req-up-1"))
     assert up["result"] == "confirmed" and "disable" not in device.interface("ge-0/0/2")
     assert "delete interfaces ge-0/0/2 disable" in device.applied_blocks[-2]
 
@@ -347,7 +360,7 @@ def test_disable_and_enable(tmp_path):
 def test_access_vlan_is_confirmed_and_undone(tmp_path):
     device = FakeJunos()
     runtime = make_runtime(tmp_path, device)
-    record = execute.apply(runtime, NAME, request(table="vlan-membership", changes={"access-vlan": "D10"}))
+    record = approved_apply(runtime, NAME, request(table="vlan-membership", changes={"access-vlan": "D10"}))
     assert record["result"] == "confirmed", (record["reason"], steps(record))
     assert "unit 0 family ethernet-switching vlan members D10" in device.interface("ge-0/0/2")
     assert "show ethernet-switching interface ge-0/0/2" in device.check_queries
@@ -359,7 +372,7 @@ def test_access_vlan_is_confirmed_and_undone(tmp_path):
 def test_lost_check_account_is_returned_at_once_by_the_inverse_under_the_timer(tmp_path):
     # review pattern 3: a failed readback is returned at once while the own timer is pending, not after the expiry:
     # the inverse set/delete lines are committed with a plain commit, which ends the own timer and keeps the inverse
-    # (task 378: an inverse committed with commit confirmed is undone by the expiry), then a fresh snapshot proves
+    # (verification: an inverse committed with commit confirmed is undone by the expiry), then a fresh snapshot proves
     # the state before
     device = FakeJunos()
 
@@ -368,7 +381,7 @@ def test_lost_check_account_is_returned_at_once_by_the_inverse_under_the_timer(t
             fake.check_unreadable = True
 
     device.on_apply = lose_check_account
-    record = execute.apply(make_runtime(tmp_path, device), NAME,
+    record = approved_apply_junos(device, make_runtime(tmp_path, device), NAME,
                            request(changes={"description": "netops-c8b-b", "admin-state": "disabled"}))
     assert record["result"] == "reverted" and record["reason"] == "check identity unavailable", steps(record)
     label = record["safeguard"]["name"]
@@ -396,7 +409,7 @@ def test_check_account_mismatch_is_returned(tmp_path):
             fake.check_override = {"show interfaces descriptions": "\n"}
 
     device.on_apply = stale
-    record = execute.apply(make_runtime(tmp_path, device), NAME, request())
+    record = approved_apply(make_runtime(tmp_path, device), NAME, request())
     assert record["result"] == "reverted" and record["reason"] == "check identity mismatch"
     assert device.interface("ge-0/0/2") == ["unit 0 family ethernet-switching interface-mode access",
                                             "unit 0 family ethernet-switching vlan members default"]
@@ -410,7 +423,7 @@ def test_a_commit_refused_by_the_device_is_returned_by_the_safeguard(tmp_path):
             fake.lines = [line for line in fake.lines if not line.startswith("set vlans D10 ")]
 
     device.on_apply = drop_vlan
-    record = execute.apply(make_runtime(tmp_path, device), NAME,
+    record = approved_apply(make_runtime(tmp_path, device), NAME,
                            request(table="vlan-membership", changes={"access-vlan": "D10"}))
     # no change commit exists; the confirmation of the empty safeguard is refused as well (the running configuration
     # lost the VLAN that the port uses), so the timer returns it
@@ -433,7 +446,7 @@ def test_a_refused_change_commit_confirms_the_empty_safeguard_at_once(tmp_path):
             raise AccessError("line 6 was refused by the device: the commit did not answer 'commit complete'", 5)
 
     device.before_line = refuse
-    record = execute.apply(make_runtime(tmp_path, device), NAME, request())
+    record = approved_apply(make_runtime(tmp_path, device), NAME, request())
     assert record["result"] == "reverted" and record["reason"] == "change failed", steps(record)
     label = record["safeguard"]["name"]
     assert [item["comment"] for item in device.history[:2]] == [label + "-ok", label] and not device.pending()
@@ -449,7 +462,7 @@ def test_a_slow_device_skips_the_confirmation_and_the_timer_returns_the_change(t
             fake.read_delay = 120
 
     device.on_apply = slow_reads
-    record = execute.apply(make_runtime(tmp_path, device), NAME, request())
+    record = approved_apply(make_runtime(tmp_path, device), NAME, request())
     assert record["result"] == "reverted" and record["reason"] == "no time left to confirm", steps(record)
     assert device.lines == BASELINE.rstrip("\n").split("\n")
 
@@ -464,7 +477,7 @@ def test_a_foreign_commit_between_safeguard_and_change_is_not_confirmed(tmp_path
             fake.timer = None
 
     device.on_apply = foreign_commit
-    record = execute.apply(make_runtime(tmp_path, device), NAME, request())
+    record = approved_apply(make_runtime(tmp_path, device), NAME, request())
     assert record["result"] != "confirmed"
     assert "safeguard_rearm_unverified" in steps(record)
     assert not any(block[3:4] == ['commit comment "%s-ok"' % record["safeguard"]["name"]]
@@ -487,7 +500,7 @@ def test_interrupted_change_is_recovered_after_the_timer(tmp_path):
     device.on_apply = stop_after_change
     runtime = make_runtime(tmp_path, device)
     with pytest.raises(Interrupted):
-        execute.apply(runtime, NAME, request(request_id="req-kill-1"))
+        approved_apply(runtime, NAME, request(request_id="req-kill-1"))
     assert runtime.store.running(NAME) and device.pending()
     del device.check_query
     settled = execute.recover(runtime, NAME)
@@ -504,7 +517,7 @@ def test_port_in_use_is_refused_before_any_write(tmp_path, prepare, code):
     device = FakeJunos()
     prepare(device)
     with pytest.raises(Rejected) as caught:
-        execute.apply(make_runtime(tmp_path, device), NAME, request(changes={"admin-state": "disabled"}))
+        approved_apply_junos(device, make_runtime(tmp_path, device), NAME, request(changes={"admin-state": "disabled"}))
     assert caught.value.reason_codes == [code]
     assert device.applied_blocks == [PROBE]
 
@@ -520,7 +533,7 @@ def test_missing_vlan_management_and_missing_port_are_refused_with_zero_writes(t
     preview = execute.preview(runtime, NAME, request(**fields))
     assert preview["result"] == "rejected" and preview["reason_codes"] == [code]
     with pytest.raises(Rejected):
-        execute.apply(runtime, NAME, request(**fields))
+        approved_apply(runtime, NAME, request(**fields))
     assert all(block == PROBE for block in device.applied_blocks)
     assert device.history[0]["at"] == "2026-11-11 14:04:21"
 
@@ -529,7 +542,7 @@ def test_vlan_missing_on_the_device_is_refused(tmp_path):
     device = FakeJunos()
     device.vlans = lambda: {"default", "D20"}
     with pytest.raises(Rejected) as caught:
-        execute.apply(make_runtime(tmp_path, device), NAME,
+        approved_apply(make_runtime(tmp_path, device), NAME,
                       request(table="vlan-membership", changes={"access-vlan": "D10"}))
     assert caught.value.reason_codes == ["vlan_missing"] and "show vlans D10" in caught.value.reasons[0]
 
@@ -545,7 +558,7 @@ def test_someone_in_configuration_mode_or_an_uncommitted_change_is_refused(tmp_p
     preview = execute.preview(runtime, NAME, request())
     assert preview["result"] == "rejected" and preview["reason_codes"] == ["foreign_config_session"]
     with pytest.raises(Rejected) as caught:
-        execute.apply(runtime, NAME, request())
+        approved_apply(runtime, NAME, request())
     assert caught.value.reason_codes == ["foreign_config_session"]
     assert all(block[:2] == [SCREEN, "configure"] for block in device.applied_blocks)
     assert device.history[0]["at"] == "2026-11-11 14:04:21"
@@ -556,12 +569,12 @@ def test_foreign_pending_commit_confirmed_and_own_leftover_are_refused(tmp_path)
     device._record("operator", "cli", minutes=5, comment="maintenance", pending=True)
     device.timer = {"minutes": 5, "expire": device.epoch + 300, "target": list(device.lines)}
     with pytest.raises(Rejected) as caught:
-        execute.apply(make_runtime(tmp_path / "a", device), NAME, request())
+        approved_apply(make_runtime(tmp_path / "a", device), NAME, request())
     assert caught.value.reason_codes == ["foreign_config_session"] and device.applied_blocks == []
     device = FakeJunos()
     device._record("netops-admin", "cli", minutes=10, comment="netops-0123456789ab", pending=True)
     with pytest.raises(Rejected) as caught:
-        execute.apply(make_runtime(tmp_path / "b", device), NAME, request())
+        approved_apply(make_runtime(tmp_path / "b", device), NAME, request())
     assert "netops-0123456789ab" in caught.value.reasons[0] and device.applied_blocks == []
 
 
@@ -569,12 +582,12 @@ def test_missing_permission_and_another_release_are_refused(tmp_path):
     device = FakeJunos()
     device.permissions_missing = ("configure",)
     with pytest.raises(Rejected) as caught:
-        execute.apply(make_runtime(tmp_path / "a", device), NAME, request())
+        approved_apply(make_runtime(tmp_path / "a", device), NAME, request())
     assert caught.value.reason_codes == ["write_account_privilege"]
     device = FakeJunos()
     device.firmware = "26.2R1.8"
     with pytest.raises(Rejected) as caught:
-        execute.apply(make_runtime(tmp_path / "b", device), NAME, request())
+        approved_apply(make_runtime(tmp_path / "b", device), NAME, request())
     assert "runs Junos 26.2R1.8" in caught.value.reasons[0]
     assert device.applied_blocks == []
 
@@ -583,7 +596,7 @@ def test_unexpected_account_blocks_the_device(tmp_path):
     device = FakeJunos()
     runtime = make_runtime(tmp_path, device, accounts=("netops-admin",))
     with pytest.raises(Rejected) as caught:
-        execute.apply(runtime, NAME, request())
+        approved_apply(runtime, NAME, request())
     assert "accounts differ" in caught.value.reasons[0]
     assert runtime.store.blocked(NAME)["reason"] == "administrator table"
 
@@ -602,7 +615,7 @@ def test_account_digest_leaves_out_the_password_hashes():
 def test_audit_log_holds_no_text_and_no_secret(tmp_path):
     device = FakeJunos()
     runtime = make_runtime(tmp_path, device)
-    record = execute.apply(runtime, NAME, request(changes={"description": SECRET_TEXT}))
+    record = approved_apply(runtime, NAME, request(changes={"description": SECRET_TEXT}))
     assert record["result"] == "confirmed"
     log = (tmp_path / "audit" / "audit.jsonl").read_text()
     assert SECRET_TEXT not in log and "REDIGOVANO" not in log and "encrypted-password" not in log
@@ -648,11 +661,11 @@ def test_doctor_is_ready_after_enrollment(tmp_path):
                                     "static-route": "create update delete", "irb": "create update delete",
                                     "vrrp": "create update delete",
                                     **{table: "create update delete" for table in (*junos.routing.TABLES, *junos.fltr.TABLES)},
-                                    "poe": "update (untested on %s)" % FIRMWARE,
-                                    "inline-power": "poe-cycle (untested on %s)" % FIRMWARE,
+                                    "poe": readiness.unmeasured("update"),
+                                    "inline-power": readiness.unmeasured("poe-cycle"),
                                     "port-bounce": "port-bounce",
                                     "lag": "create update delete", "rstp": "update", "rstp-interface": "update",
-                                    **{table: "create update delete" for table in junos.srx.TABLES},
+                                    **{table: readiness.unmeasured("create update delete") for table in junos.srx.TABLES},
                                     **{table: "create update delete" for table in junos.dhcp.TABLES}}
 
 
@@ -701,7 +714,7 @@ def test_device_access_gives_junos_reads_and_commit_lines_longer_limits(monkeypa
 
 
 def test_change_interrupted_before_its_timer_refresh_is_recovered_on_a_slow_device(tmp_path):
-    # measured in task 319: the change commit took about 4 minutes and the automatic rollback 273 s, so the proof came
+    # measured in verification: the change commit took about 4 minutes and the automatic rollback 273 s, so the proof came
     # 530 s after the fire_at of the safeguard commit that an interrupted record still holds
     device = FakeJunos()
     device.commit_seconds, device.rollback_seconds = 240, 300
@@ -721,7 +734,7 @@ def test_change_interrupted_before_its_timer_refresh_is_recovered_on_a_slow_devi
     device.query = query
     runtime = make_runtime(tmp_path, device)
     with pytest.raises(Interrupted):
-        execute.apply(runtime, NAME, request(request_id="req-kill-2"))
+        approved_apply(runtime, NAME, request(request_id="req-kill-2"))
     record = runtime.store.running(NAME)[0]
     assert "safeguard_rearmed" not in steps(record) and device.pending()
     device.recovering = True
@@ -735,7 +748,7 @@ def test_change_interrupted_before_its_timer_refresh_is_recovered_on_a_slow_devi
     assert exec_junos.FIRING_SLACK_SECONDS > late > 480
 
 
-# ---- task 319-r2: the four safeguard protections of the IOS and NX-OS reviews, through the shared hooks ----
+# ---- verification: the four safeguard protections of the IOS and NX-OS reviews, through the shared hooks ----
 
 FOREIGN = "netops-ffffffffffff"
 
@@ -771,7 +784,7 @@ def test_a_foreign_timer_that_appears_after_the_prechecks_is_never_committed_ove
 
     device.on_apply = appear
     runtime = make_runtime(tmp_path, device)
-    record = execute.apply(runtime, NAME, request())
+    record = approved_apply_junos(device, runtime, NAME, request())
     assert record["result"] == "rejected" and record["reason"] == "safeguard refused by the device", steps(record)
     assert record["reason_codes"] == ["foreign_config_session"]
     assert device.history[0]["comment"] == FOREIGN and device.pending()
@@ -794,7 +807,7 @@ def test_a_foreign_timer_of_the_same_account_after_the_change_is_never_confirmed
         return original(command)
 
     device.check_query = check_query
-    record = execute.apply(make_runtime(tmp_path, device), NAME, request())
+    record = approved_apply_junos(device, make_runtime(tmp_path, device), NAME, request())
     label = record["safeguard"]["name"]
     assert record["result"] == "revert-failed", (record["reason"], steps(record))
     assert "confirm_unverified" in steps(record) and "revert_now_unverified" in steps(record)
@@ -821,7 +834,7 @@ def test_an_unproven_installation_is_never_confirmed_by_recover(tmp_path):
 
     device.query = query
     runtime = make_runtime(tmp_path, device)
-    record = execute.apply(runtime, NAME, request())
+    record = approved_apply(runtime, NAME, request())
     assert record["result"] == "unknown" and record["reason"] == "safeguard not verified", steps(record)
     assert record["safeguard"].get("verified") is None and runtime.store.blocked(NAME) is not None
     blocks = len(device.applied_blocks)
@@ -863,7 +876,7 @@ def test_too_little_time_after_a_slow_safeguard_commit_writes_nothing(tmp_path):
     device.empty_commit_seconds = 200
     runtime = make_runtime(tmp_path, device)
     queries = _queries(device)
-    record = execute.apply(runtime, NAME, request())
+    record = approved_apply(runtime, NAME, request())
     assert record["result"] == "reverted" and record["reason"] == "no time left to write", steps(record)
     detail = next(step["detail"] for step in record["steps"] if step["step"] == "change_not_written")
     assert "405 s needed" in detail
@@ -882,7 +895,7 @@ def test_no_line_of_the_change_is_sent_without_the_time_of_its_commit(tmp_path):
             fake.advance(420)
 
     device.before_line = slow
-    record = execute.apply(make_runtime(tmp_path, device), NAME, request())
+    record = approved_apply(make_runtime(tmp_path, device), NAME, request())
     assert record["result"] == "reverted" and record["reason"] == "change failed", steps(record)
     failed = next(step["detail"] for step in record["steps"] if step["step"] == "change_failed")
     assert failed.startswith("AccessError after 3 lines")
@@ -921,7 +934,7 @@ def test_the_restarted_timer_is_counted_between_two_lower_bounds():
 
 
 def test_budgets_cover_the_measured_session_and_leave_the_margin(tmp_path):
-    # 600 s less 2 % drift; the measured E2E of task 319 left 271-286 s at the confirmation when counted from the
+    # 600 s less 2 % drift; the measured E2E of verification left 271-286 s at the confirmation when counted from the
     # change session, more with the restart offset of the two commit rows
     device = FakeJunos()
     target = make_runtime(tmp_path, device).config.devices[NAME]
@@ -948,7 +961,7 @@ def test_a_failed_inverse_is_left_to_the_timer(tmp_path):
 
     device.on_apply = lose_check_account
     device.before_line = refuse
-    record = execute.apply(make_runtime(tmp_path, device), NAME, request())
+    record = approved_apply(make_runtime(tmp_path, device), NAME, request())
     assert record["result"] == "reverted" and record["reason"] == "check identity unavailable", steps(record)
     assert "revert_now_unverified" in steps(record)
     assert (device.history[0]["user"], device.history[0]["via"]) == ("root", "other")
@@ -967,7 +980,7 @@ def test_the_confirmation_is_not_sent_once_the_own_timer_ended_in_the_session(tm
             fake.advance(fake.timer["expire"] - fake.epoch)
 
     device.on_apply = expire
-    record = execute.apply(make_runtime(tmp_path, device), NAME, request())
+    record = approved_apply(make_runtime(tmp_path, device), NAME, request())
     assert record["result"] in ("reverted", "unknown"), (record["reason"], steps(record))
     assert record["result"] != "confirmed" and "confirm_unverified" in steps(record)
     label = record["safeguard"]["name"]
@@ -1005,7 +1018,7 @@ def test_recover_decides_by_the_commit_history_without_the_device_clock(tmp_path
     device.on_apply = stop_after_change
     runtime = make_runtime(tmp_path, device)
     with pytest.raises(Interrupted):
-        execute.apply(runtime, NAME, request(request_id="req-kill-3"))
+        approved_apply(runtime, NAME, request(request_id="req-kill-3"))
     del device.check_query
     device.recovering = True
     settled = execute.recover(runtime, NAME)
@@ -1033,7 +1046,7 @@ def test_recover_waits_for_a_rollback_pending_above_the_own_safeguard_and_never_
     device.on_apply = stop_after_change
     runtime = make_runtime(tmp_path, device)
     with pytest.raises(Interrupted):
-        execute.apply(runtime, NAME, request(request_id="req-kill-4"))
+        approved_apply(runtime, NAME, request(request_id="req-kill-4"))
     del device.check_query
     blocks = len(device.applied_blocks)
     settled = execute.recover(runtime, NAME)
@@ -1041,7 +1054,7 @@ def test_recover_waits_for_a_rollback_pending_above_the_own_safeguard_and_never_
     assert "revert_now_start" not in steps(settled[0])
 
 
-# ---- task 319-r3: the change commit is adopted as the head after a failed read, before the immediate return ----
+# ---- verification: the change commit is adopted as the head after a failed read, before the immediate return ----
 
 def _fail_first_history_after_change(device, failures=1):
     """Fail the given number of initial commit-history reads after the change commit."""
@@ -1075,12 +1088,12 @@ def _returned_at_once(device, record):
 
 
 def test_a_failed_read_after_the_change_commit_adopts_it_and_returns_at_once(tmp_path):
-    # review 319-r2rv finding 1 (a): the read of safeguard_rearmed fails once after the own change commit; before the
+    # review finding 1 (a): the read of safeguard_rearmed fails once after the own change commit; before the
     # immediate return show system commit is read again, the change row right above the own safeguard row (own change
     # comment, write account, rollback pending) becomes the head and the inverse is committed at once
     device = FakeJunos()
     state = _fail_first_history_after_change(device)
-    record = execute.apply(make_runtime(tmp_path, device), NAME, request())
+    record = approved_apply_junos(device, make_runtime(tmp_path, device), NAME, request())
     assert record["result"] == "reverted", (record["reason"], steps(record))
     assert record["reason"] == "safeguard not verified after the change" and state["failed"] == 1
     assert "safeguard_rearm_unverified" in steps(record) and "safeguard_rearmed" not in steps(record)
@@ -1092,7 +1105,7 @@ def test_failed_junos_change_head_reread_leaves_the_return_to_its_timer(tmp_path
     runtime = make_runtime(tmp_path, device)
     state = _fail_first_history_after_change(device, failures=2)
 
-    record = execute.apply(runtime, NAME, request())
+    record = approved_apply(runtime, NAME, request())
 
     assert (record["result"], record["reason"]) == ("reverted", "safeguard not verified after the change")
     names = steps(record)
@@ -1106,7 +1119,7 @@ def test_failed_junos_change_head_reread_leaves_the_return_to_its_timer(tmp_path
 
 
 def test_a_failed_exit_after_the_change_commit_adopts_it_and_returns_at_once(tmp_path):
-    # review 319-r2rv finding 1 (b): the connection fails on exit configuration-mode after the change commit answered
+    # review finding 1 (b): the connection fails on exit configuration-mode after the change commit answered
     # commit complete; the change counts as failed, its commit is adopted as the head and returned by the inverse
     from netops_admin.access import AccessError
 
@@ -1123,7 +1136,7 @@ def test_a_failed_exit_after_the_change_commit_adopts_it_and_returns_at_once(tmp
             raise AccessError("line 7 was not answered: ssh: connection reset", 6)
 
     device.after_line, device.before_line = after, cut
-    record = execute.apply(make_runtime(tmp_path, device), NAME, request())
+    record = approved_apply_junos(device, make_runtime(tmp_path, device), NAME, request())
     assert record["result"] == "reverted" and record["reason"] == "change failed", (record["reason"], steps(record))
     assert "change_failed" in steps(record) and "safeguard_rearmed" not in steps(record)
     _returned_at_once(device, record)
@@ -1131,7 +1144,7 @@ def test_a_failed_exit_after_the_change_commit_adopts_it_and_returns_at_once(tmp
 
 @pytest.mark.parametrize("landing", ["foreign-above-change", "other-user-change-comment", "own-account-foreign"])
 def test_a_foreign_commit_above_the_safeguard_is_never_adopted(tmp_path, landing):
-    # review 319-r2rv finding 1 (c): after the failed read anything else than exactly the own change row right above
+    # review finding 1 (c): after the failed read anything else than exactly the own change row right above
     # the own safeguard row (a foreign commit confirmed above the change, a netops-change row of another user, a
     # foreign comment of the write account) is never adopted: no immediate return, the timer returns
     from netops_admin.access import AccessError
@@ -1154,12 +1167,12 @@ def test_a_foreign_commit_above_the_safeguard_is_never_adopted(tmp_path, landing
 
     def above(fake, step):
         if step == CHANGE and landing == "foreign-above-change":
-            # the expiry returns the state before the newest commit confirmed (task 378): the foreign one, which
+            # the expiry returns the state before the newest commit confirmed (verification): the foreign one, which
             # holds the own change
             _foreign_pending(fake, comment="netops-change")
 
     device.before_line, device.after_line = land, above
-    record = execute.apply(make_runtime(tmp_path, device), NAME, request())
+    record = approved_apply(make_runtime(tmp_path, device), NAME, request())
     label = record["safeguard"]["name"]
     names = steps(record)
     assert "change_head_adopted" not in names and "revert_now_unverified" in names, (record["reason"], names)
@@ -1178,7 +1191,7 @@ def test_a_foreign_commit_above_the_safeguard_is_never_adopted(tmp_path, landing
         assert device.lines == BASELINE.rstrip("\n").split("\n")
 
 
-# ---- task 378: the expiry returns the state before the NEWEST commit confirmed (measured on vJunos 26.2R1.7) ----
+# ---- verification: the expiry returns the state before the NEWEST commit confirmed (measured on vJunos 26.2R1.7) ----
 
 S1_LABEL, S2_LABEL = "netops-t378s1", "netops-t378s2"
 
@@ -1197,7 +1210,7 @@ def _measured_port(name):
 
 
 def _measured_sequence(device, label, change, inverse_committed):
-    """The measured command sequence of task 378 on the fake (the lines of exec_junos, commit confirmed 2): an empty
+    """The measured command sequence of verification on the fake (the lines of exec_junos, commit confirmed 2): an empty
     safeguard, the description change, the inverse committed or the session ended right before its commit."""
     spec = exec_junos.prompt_spec(device.hostname)
     device.apply([SCREEN, ENTER, EMPTY, 'commit confirmed 2 comment "%s"' % label, LEAVE], spec)
@@ -1319,7 +1332,7 @@ def _interrupt_after_the_inverse(device):
 
 
 def test_an_interrupted_immediate_return_keeps_the_state_before_and_recover_proves_it(tmp_path):
-    # task 378, S1 on the fixed adapter: the inverse is committed with a plain commit, so a process killed right after
+    # verification, S1 on the fixed adapter: the inverse is committed with a plain commit, so a process killed right after
     # it leaves no pending timer that could bring the change back; recover sends nothing and reports reverted
     device = FakeJunos()
 
@@ -1331,7 +1344,7 @@ def test_an_interrupted_immediate_return_keeps_the_state_before_and_recover_prov
     interrupted = _interrupt_after_the_inverse(device)
     runtime = make_runtime(tmp_path, device)
     with pytest.raises(interrupted):
-        execute.apply(runtime, NAME, request(request_id="req-kill-378"))
+        approved_apply(runtime, NAME, request(request_id="req-kill-378"))
     record = runtime.store.running(NAME)[0]
     label = record["safeguard"]["name"]
     assert "revert_now_done" in steps(record) and not device.pending()
@@ -1368,7 +1381,7 @@ def test_an_unreadable_state_after_the_immediate_return_is_unknown_and_stays_ret
 
     device.on_apply = lose_check_account
     device.snapshot = snapshot
-    record = execute.apply(make_runtime(tmp_path, device), NAME, request())
+    record = approved_apply(make_runtime(tmp_path, device), NAME, request())
     assert record["result"] == "unknown" and record["reason"] == "check identity unavailable", steps(record)
     assert "revert_unverified" in steps(record) and not device.pending()
     device.advance(1200)

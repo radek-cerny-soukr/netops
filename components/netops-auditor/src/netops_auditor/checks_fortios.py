@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from .engine import EVALUATED, NOT_EVALUATED, check
+from .engine import EVALUATED, NOT_EVALUATED, check, section_missing
+from .fortios_audit import ADMIN, SAFEGUARDS, effective_tree, live_admin_gap
+from .platforms import VISIBLE
 
 _BUILTIN_OBJECTS = frozenset(("all", "none", "any", "always"))
 
@@ -397,8 +399,17 @@ def admin_visibility_status(tree, policy=None):
     return NOT_EVALUATED, _ADMIN_VISIBILITY_UNPROVEN
 
 
-@check("default_admin_account", status=admin_visibility_status)
-def default_admin_account(tree):
+def _default_admin_status(tree, context):
+    if tree.section(ADMIN) is None:
+        return NOT_EVALUATED, section_missing(ADMIN)
+    if live_admin_gap(tree, context):
+        return NOT_EVALUATED, _ADMIN_VISIBILITY_UNPROVEN
+    return admin_visibility_status(tree)
+
+
+@check("default_admin_account", status=_default_admin_status, audit_context=True,
+       offline_scope=lambda tree: True)
+def default_admin_account(tree, context=None):
     account = _entries(tree, _ADMIN_SECTION).get(_DEFAULT_ADMIN)
     if account is None:
         return
@@ -475,13 +486,20 @@ def ldap_without_tls(tree):
 
 
 _SAFEGUARD_PREFIX = "netops-sg-"
-_SAFEGUARD_SECTIONS = ("system accprofile", "system api-user", "system automation-action",
-                       "system automation-trigger", "system automation-stitch")
+def _safeguard_status(tree, context):
+    if context.live and context.snapshot is not None:
+        for section in SAFEGUARDS:
+            visibility = context.visibility(section)
+            if visibility.state != VISIBLE:
+                return NOT_EVALUATED, visibility.reason
+    return EVALUATED, ""
 
 
-@check("netops_safeguard_leftover")
-def netops_safeguard_leftover(tree):
-    for section in _SAFEGUARD_SECTIONS:
+@check("netops_safeguard_leftover", status=_safeguard_status, audit_context=True, partial=True)
+def netops_safeguard_leftover(tree, context=None):
+    if context is not None:
+        tree = effective_tree(tree, context)
+    for section in SAFEGUARDS:
         for name, entry in sorted(_entries(tree, section).items()):
             if not name.startswith(_SAFEGUARD_PREFIX):
                 continue
@@ -513,3 +531,6 @@ from .checks_cis import av_detection_disabled
 from .checks_cis import policy_wan_missing_profile
 from .checks_cis import dnsfilter_log_all_domain
 from .checks_cis import appctrl_default_port
+from .checks_fortios_taxonomy import (
+    external_login, ntp_auth, snmp_v3_auth_priv, ssh_v1, syslog_level, unused_up,
+)

@@ -3,7 +3,7 @@ config system interface
         set vdom "root"
         set ip 198.51.100.1 255.255.255.248
         set allowaccess ping
-        set description "NetOps G19 test"
+        set description "NetOps FIREWALL-ROUTING-ADMIN test"
         set alias "netops 439"
         set device-identification enable
         set snmp-index 28

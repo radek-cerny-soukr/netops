@@ -1,0 +1,50 @@
+config
+You have all rights in this mode.
+ruckus(config)# dhcp netops-wireless-dhcp-d2
+The DHCP server 'netops-wireless-dhcp-d2' has been loaded. To save the DHCP server, type 'end' or 'exit'.
+ruckus(config-dhcp)# second 192.0.2.74
+The command was executed successfully. To save the changes, type 'end' or 'exit'.
+ruckus(config-dhcp)# end
+'is-partial' API body invalid
+ruckus(config-dhcp)# abort
+ruckus(config)# no dhcp netops-wireless-dhcp-d2
+The DHCP server 'netops-wireless-dhcp-d2' has been deleted.
+ruckus(config)# dhcp netops-wireless-dhcp-d2
+The DHCP server 'netops-wireless-dhcp-d2' has been created. To save the DHCP server, type 'end' or 'exit'.
+ruckus(config-dhcp)# first 192.0.2.75
+The command was executed successfully. To save the changes, type 'end' or 'exit'.
+ruckus(config-dhcp)# second 192.0.2.76
+The command was executed successfully. To save the changes, type 'end' or 'exit'.
+ruckus(config-dhcp)# end
+The DHCP server 'netops-wireless-dhcp-d2' has been updated and saved.
+Your changes have been saved.
+ruckus(config)# exit
+Your changes have been saved.
+ruckus# show dhcp all
+DHCP servers for DHCP relay agent:
+  ID:
+    1:
+      Name= netops-wireless-dhcp-dhcp
+      Description= wireless-dhcp-test
+      IP Address= 192.0.2.53
+      IP Address= 192.0.2.54
+ 
+    2:
+      Name= netops-wireless-dhcp-d2
+      Description= 
+      IP Address= 192.0.2.75
+      IP Address= 192.0.2.76
+ 
+ 
+ruckus# config
+You have all rights in this mode.
+ruckus(config)# no dhcp netops-wireless-dhcp-d2
+The DHCP server 'netops-wireless-dhcp-d2' has been deleted.
+ruckus(config)# no dhcp netops-wireless-dhcp-dhcp
+The DHCP server 'netops-wireless-dhcp-dhcp' has been deleted.
+ruckus(config)# exit
+Your changes have been saved.
+ruckus# show dhcp all
+DHCP servers for DHCP relay agent:
+ 
+ruckus# 

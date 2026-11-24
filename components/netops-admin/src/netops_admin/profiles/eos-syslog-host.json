@@ -17,5 +17,5 @@
   "volatile": [],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "EOS timed configuration safeguard and a scoped inverse from running-config. Operational readback uses the separate check account. G129 fixtures identify measured and documented cases."
+  "rollback_evidence": "Live write and return on cEOSLab 4.36.1F (2026-11-19): A management server entry was applied, verified by the check identity and undone. EOS timed configuration safeguard and a scoped inverse from running-config. Operational readback uses the separate check account. eos system services fixtures identify measured and documented cases."
 }

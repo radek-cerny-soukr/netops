@@ -1,6 +1,7 @@
 {
   "platform": "nxos",
   "table": "vpc-domain",
+  "measured": true,
   "versions": [
     "9.3(12)"
   ],
@@ -42,5 +43,5 @@
   "volatile": [],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "Configures an unused local vPC domain and its IPv4 keepalive tuple. Existing peer-links, member vPCs and unmanaged domain settings protect the domain from changes."
+  "rollback_evidence": "Live write and return on Nexus 9000v 9.3(12) (2026-11-23): An unpaired vPC domain with its IPv4 keepalive was created on a standalone switch, read back by the check identity (domain from show vpc brief JSON without tables, keepalive destination and VRF) and undone. Configures an unused local vPC domain and its IPv4 keepalive tuple. Existing peer-links, member vPCs and unmanaged domain settings protect the domain from changes."
 }

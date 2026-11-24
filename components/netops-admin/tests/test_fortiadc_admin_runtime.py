@@ -1,6 +1,6 @@
 """FortiADC pool members through the common Admin engine: preview with plan_sha256, apply from a fresh plan,
 readback by the check account, audit and journal through Runtime, undo, enroll, recover and the compensating return
-of a platform without an on-device timer (task 306)."""
+of a platform without an on-device timer (verification)."""
 from __future__ import annotations
 
 import copy
@@ -15,6 +15,7 @@ from netops_admin.config import DEFAULT_LIMITS, Config, Device
 from netops_admin.errors import Rejected
 from netops_admin.profiles import find_profile, firmware_support, load_profiles
 from netops_admin.request import parse_request
+from approved_apply import approved_apply, preview_hash
 
 SECRET = "SECRET-MARKER-0306"
 TABLE = "load-balance pool/pool_member"
@@ -58,7 +59,7 @@ def audit_lines(tmp_path):
 
 
 class Stub:
-    """Returns the measured answers of FortiADC-KVM 7.6.7 build0676 (VM220, task 306, anonymized)."""
+    """Returns the measured answers of FortiADC-KVM 7.6.7 build0676 (fortiadc-kvm, verification, anonymized)."""
 
     ANSWERS = {
         "get system status": "get_system_status.txt",
@@ -206,7 +207,7 @@ def test_changed_plan_is_refused_before_any_write(tmp_path):
 def test_undo_preview_and_undo_return_the_status(tmp_path):
     device = FakeADC()
     runtime = make_runtime(tmp_path, device)
-    record = execute.apply(runtime, "adc", request())
+    record = approved_apply(runtime, "adc", request())
     preview = execute.preview_undo(runtime, record["change_id"], "back in service")
     assert preview["result"] == "ready" and preview["commands"][4] == "set status enable"
     undone = execute.undo(runtime, record["change_id"], "back in service")
@@ -220,12 +221,12 @@ def test_add_disabled_member_and_remove_it_return_the_pool(tmp_path):
     device = FakeADC()
     before = copy.deepcopy(device.pools)
     runtime = make_runtime(tmp_path, device)
-    add = execute.apply(runtime, "adc", request(op="create", key="pool-a:9", request_id="req-adc-add-1", changes={
+    add = approved_apply(runtime, "adc", request(op="create", key="pool-a:9", request_id="req-adc-add-1", changes={
         "real-server": "rs-new", "pool-member-service-port": 8080, "status": "disable"}))
     assert add["result"] == "confirmed", steps(add)
     assert device.pools["pool-a"][9] == {"status": "disable", "real-server": "rs-new",
                                          "pool_member_service_port": "8080", "pool_member_cookie": "rs9"}
-    remove = execute.apply(runtime, "adc", request(op="delete", key="pool-a:9", changes={},
+    remove = approved_apply(runtime, "adc", request(op="delete", key="pool-a:9", changes={},
                                                    request_id="req-adc-remove-1"))
     assert remove["result"] == "confirmed", steps(remove)
     assert device.pools == before
@@ -235,7 +236,7 @@ def test_undo_of_an_add_removes_the_member(tmp_path):
     device = FakeADC()
     before = copy.deepcopy(device.pools)
     runtime = make_runtime(tmp_path, device)
-    add = execute.apply(runtime, "adc", request(op="create", key="pool-a:9", request_id="req-adc-add-2", changes={
+    add = approved_apply(runtime, "adc", request(op="create", key="pool-a:9", request_id="req-adc-add-2", changes={
         "real-server": "rs-new", "pool-member-service-port": 8080, "status": "disable"}))
     assert execute.undo(runtime, add["change_id"], "not needed")["result"] == "confirmed"
     assert device.pools == before
@@ -245,7 +246,7 @@ def test_undo_of_a_remove_recreates_the_member_with_its_settings(tmp_path):
     device = FakeADC()
     before = copy.deepcopy(device.pools)
     runtime = make_runtime(tmp_path, device)
-    removed = execute.apply(runtime, "adc", request(op="delete", key="pool-a:2", changes={},
+    removed = approved_apply(runtime, "adc", request(op="delete", key="pool-a:2", changes={},
                                                     request_id="req-adc-remove-2"))
     assert removed["result"] == "confirmed" and 2 not in device.pools["pool-a"]
     assert execute.undo(runtime, removed["change_id"], "still needed")["result"] == "confirmed"
@@ -273,7 +274,7 @@ def test_refusals_write_nothing(tmp_path, fields, phrase):
     device = FakeADC()
     runtime = make_runtime(tmp_path, device)
     with pytest.raises(Rejected) as refused:
-        execute.apply(runtime, "adc", request(**fields))
+        approved_apply(runtime, "adc", request(**fields))
     assert any(phrase in reason for reason in refused.value.reasons), refused.value.reasons
     assert device.applied_blocks == [] and runtime.store.records() == []
 
@@ -286,7 +287,7 @@ def test_last_healthy_member_is_never_disabled(tmp_path):
     preview = execute.preview(runtime, "adc", request())
     assert preview["result"] == "rejected" and preview["reason_codes"] == ["no_healthy_member"]
     with pytest.raises(Rejected) as refused:
-        execute.apply(runtime, "adc", request())
+        approved_apply(runtime, "adc", request())
     assert "without a healthy enabled member" in refused.value.reasons[0]
     assert device.applied_blocks == []
 
@@ -295,14 +296,14 @@ def test_unreadable_health_refuses_the_status_change(tmp_path):
     device = FakeADC()
     device.vs_stat_error = True
     with pytest.raises(Rejected) as refused:
-        execute.apply(make_runtime(tmp_path, device), "adc", request())
+        approved_apply(make_runtime(tmp_path, device), "adc", request())
     assert "health" in refused.value.reasons[0] and device.applied_blocks == []
 
 
 def test_apply_needs_enrollment(tmp_path):
     device = FakeADC()
     with pytest.raises(Rejected) as refused:
-        execute.apply(make_runtime(tmp_path, device, certified=False), "adc", request())
+        approved_apply(make_runtime(tmp_path, device, certified=False), "adc", request())
     assert refused.value.reason_codes == ["enrollment_required"] and device.applied_blocks == []
 
 
@@ -311,7 +312,7 @@ def test_other_administrators_refuse_and_block(tmp_path):
     runtime = make_runtime(tmp_path, device)
     device.admins["intruder"] = {"is-system-admin": "yes"}
     with pytest.raises(Rejected):
-        execute.apply(runtime, "adc", request())
+        approved_apply(runtime, "adc", request())
     assert runtime.store.blocked("adc") is not None and device.applied_blocks == []
 
 
@@ -320,7 +321,7 @@ def test_other_administrators_refuse_and_block(tmp_path):
 def test_ignored_write_is_reverted_without_a_second_write(tmp_path):
     device = FakeADC()
     device.ignore_writes = True
-    record = execute.apply(make_runtime(tmp_path, device), "adc", request())
+    record = approved_apply(make_runtime(tmp_path, device), "adc", request())
     assert (record["result"], record["reason"]) == ("reverted", "prediction mismatch")
     assert "compensation_not_needed" in steps(record) and len(device.applied_blocks) == 1
 
@@ -335,7 +336,7 @@ def test_lost_check_account_after_the_write_is_compensated(tmp_path):
         return answer
 
     device.apply = apply
-    record = execute.apply(make_runtime(tmp_path, device), "adc", request())
+    record = approved_apply(make_runtime(tmp_path, device), "adc", request())
     assert (record["result"], record["reason"]) == ("reverted", "check identity unavailable"), steps(record)
     assert steps(record)[-3:] == ["compensation_start", "compensation_applied", "compensation_verified"]
     assert device.pools["pool-a"][1]["status"] == "enable"
@@ -345,7 +346,7 @@ def test_lost_check_account_after_the_write_is_compensated(tmp_path):
 def test_refused_write_is_compensated_and_verified(tmp_path):
     device = FakeADC()
     device.fail_after_write = {1}
-    record = execute.apply(make_runtime(tmp_path, device), "adc", request())
+    record = approved_apply(make_runtime(tmp_path, device), "adc", request())
     assert (record["result"], record["reason"]) == ("reverted", "change failed")
     assert device.pools["pool-a"][1]["status"] == "enable"
 
@@ -353,11 +354,12 @@ def test_refused_write_is_compensated_and_verified(tmp_path):
 def test_unreadable_state_after_the_write_is_unknown_and_blocks(tmp_path):
     device = FakeADC()
     runtime = make_runtime(tmp_path, device)
+    approved = preview_hash(runtime, "adc", request())
     device.fail_snapshot_after = device.snapshots + 1
-    record = execute.apply(runtime, "adc", request())
+    record = execute.apply(runtime, "adc", request(), expected_plan_sha256=approved)
     assert record["result"] == "unknown" and runtime.store.blocked("adc") is not None
     with pytest.raises(Rejected) as blocked:
-        execute.apply(runtime, "adc", request(request_id="req-adc-0002"))
+        approved_apply(runtime, "adc", request(request_id="req-adc-0002"))
     assert blocked.value.reason_codes == ["device_blocked"]
 
 
@@ -376,7 +378,7 @@ def test_failed_compensation_is_revert_failed(tmp_path):
 
     device.apply = apply
     runtime = make_runtime(tmp_path, device)
-    record = execute.apply(runtime, "adc", request())
+    record = approved_apply(runtime, "adc", request())
     assert record["result"] == "revert-failed" and "compensation_failed" in steps(record)
     assert runtime.store.blocked("adc") is not None
 
@@ -397,7 +399,7 @@ def test_recover_returns_an_interrupted_change(tmp_path):
 
     device.check_query = check_query
     with pytest.raises(Interrupted):
-        execute.apply(runtime, "adc", request())
+        approved_apply(runtime, "adc", request())
     assert device.pools["pool-a"][1]["status"] == "disable"
     device.check_query = original
     settled = execute.recover(runtime, "adc")
@@ -418,7 +420,7 @@ def test_enroll_creates_and_returns_a_disabled_probe_member(tmp_path):
                                              "set status disable"]
     assert device.applied_blocks[1][3] == "delete 99"
     assert device.pools == before
-    assert execute.apply(runtime, "adc", request())["result"] == "confirmed"
+    assert approved_apply(runtime, "adc", request())["result"] == "confirmed"
 
 
 def test_enroll_without_notification_is_refused(tmp_path):
@@ -482,8 +484,19 @@ def test_legacy_commands_still_work_and_say_they_are_deprecated(tmp_path, monkey
     device.prompts = False
     monkeypatch.setattr(config_module, "load_config", lambda _path: runtime.config)
     monkeypatch.setattr(cli, "open_access", lambda _device: device)
-    code = cli.main(["pool-member", "--config", str(tmp_path / "admin.json"), "--device", "adc", "--pool", "pool-a",
-                     "--member", "2", "--status", "maintain"])
+    argv = ["pool-member", "--config", str(tmp_path / "admin.json"), "--device", "adc", "--pool", "pool-a",
+            "--member", "2", "--status", "maintain"]
+    # like every apply, the legacy write needs the plan_sha256 of its own approved preview: without it nothing is written
+    code = cli.main(argv)
+    out = capsys.readouterr()
+    refused = json.loads(out.out)
+    assert (code, refused["result"], refused["reason_codes"]) == (cli.EXIT_REJECTED, "rejected", ["plan_changed"])
+    assert device.applied_blocks == [] and "deprecated" in out.err and TABLE in out.err
+    code = cli.main(argv + ["--preview"])
+    previewed = json.loads(capsys.readouterr().out)
+    assert (code, previewed["result"], device.applied_blocks) == (0, "ready", [])
+    code = cli.main(argv + ["--expect-plan-sha256", previewed["plan_sha256"]])
     out = capsys.readouterr()
     assert code == 0 and json.loads(out.out)["result"] == "confirmed"
+    assert len(device.applied_blocks) == 1
     assert "deprecated" in out.err and TABLE in out.err

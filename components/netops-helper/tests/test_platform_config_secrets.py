@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Account and AAA credential lines in platform configuration text (task 109-06).
+"""Account and AAA credential lines in platform configuration text (verification-06).
 
 Every credential below is synthetic and intentionally invalid (FAKE...NOTREAL);
 none of it is a captured vendor configuration. The tests call the real public
@@ -34,7 +34,7 @@ LEAK_CASES = {
         f"username admin secret sha512 {SHA512_HASH}",
         (SHA512_HASH, "FAKEHASHPAYLOAD", "sha512xNOTREAL"),
         # 1.0.8 hid the token after `secret` (here `sha512`) on a CLI line; the 1.0.8 floor keeps
-        # that (review 165-rv, finding 2), the account rule hides the hash.
+        # that (review finding 2), the account rule hides the hash.
         ("username admin", "secret"),
         "username admin secret <REDACTED> <REDACTED>",
     ),
@@ -326,7 +326,7 @@ def test_existing_exos_community_path(name: str) -> None:
     assert cleaned.endswith("\nshow vlan")
 
 
-# Review 59 / N1: two account edits in one JSON string token around an original
+# Review finding N1: two account edits in one JSON string token around an original
 # EXOS SNMP community span must not widen that span over harmless configuration.
 REVIEW59_OUTPUT = (
     "configure account alice encrypted FAKEFIRSTNOTREAL\n"

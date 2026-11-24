@@ -1,0 +1,23 @@
+{
+ "managed_switch_poe": {
+  "account": "read-only account",
+  "command": "diagnose switch-controller switch-info poe summary <serial>",
+  "lines": 4,
+  "note": "held interactive session: no exit status; 0 as for the other FortiOS/FortiADC captures",
+  "rc": 0
+ },
+ "managed_switch_port_stats": {
+  "account": "read-only account",
+  "command": "diagnose switch-controller switch-info port-stats <serial>",
+  "lines": 136,
+  "note": "held interactive session: no exit status; 0 as for the other FortiOS/FortiADC captures",
+  "rc": 0
+ },
+ "wifi_ap_status": {
+  "account": "read-only account",
+  "command": "get wireless-controller wtp-status",
+  "lines": 1,
+  "note": "held interactive session: no exit status; 0 as for the other FortiOS/FortiADC captures",
+  "rc": 0
+ }
+}

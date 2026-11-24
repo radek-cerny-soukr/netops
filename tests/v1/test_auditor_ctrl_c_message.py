@@ -1,11 +1,11 @@
-"""Ctrl+C in an operator `auditor` command ends with one line and rc 130, not a Python traceback (task 209)."""
+"""Ctrl+C in an operator `auditor` command ends with one line and rc 130, not a Python traceback (verification)."""
 import io
 import sys
 import unittest
 from contextlib import redirect_stderr
 from unittest.mock import patch
 
-# Installed-image unit test: netops.operator needs fastmcp, which only the product image has (task 258, P3).
+# Installed-image unit test: netops.operator needs fastmcp, which only the product image has (verification, P3).
 from netops import cli
 
 

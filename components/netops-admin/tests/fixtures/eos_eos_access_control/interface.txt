@@ -1,0 +1,3 @@
+interface Ethernet5
+   ip access-group netops-eos-access-control-v4 in
+   ipv6 access-group netops-eos-access-control-v6 in

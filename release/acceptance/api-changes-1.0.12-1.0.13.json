@@ -1,0 +1,202 @@
+{
+ "from": "1.0.12",
+ "to": "1.0.13",
+ "changes": [
+  {
+   "tool": "network_overview",
+   "kind": "added",
+   "reason": "Expose a bounded, paginated operational snapshot of enrolled Helper targets with per-device read coverage."
+  },
+  {
+   "tool": "admin_apply",
+   "kind": "definition",
+   "reason": "Require the approved preview's plan_sha256 for every change, name the refusal codes of a missing hash and the PoE operations that return profile_not_measured.",
+   "changed_keys": {
+    "/description": {
+     "sha256": "1ff87cf5a957b18762a3c21faa95106efe5a97fa31d97cea421dff04fef58754"
+    }
+   }
+  },
+  {
+   "tool": "admin_preview",
+   "kind": "definition",
+   "reason": "State that admin_apply requires the returned plan_sha256 as expected_plan_sha256.",
+   "changed_keys": {
+    "/description": {
+     "sha256": "8583b439d262c0a5554b9d07289f8b54ebe285117d60c34d706cd6718df52bd6"
+    }
+   }
+  },
+  {
+   "tool": "admin_schema_apply",
+   "kind": "definition",
+   "reason": "Accept and require expected_plan_sha256, the plan_sha256 of the approved schema preview of the same request; state that NetOps 1.0 has no supported provisioning path for the schema library.",
+   "added_keys": {
+    "/inputSchema/properties/expected_plan_sha256": {
+     "sha256": "8df079e90ae598d81db07cf8abf57ab17d9efaef8841009037533af591d9bb77"
+    }
+   },
+   "changed_keys": {
+    "/description": {
+     "sha256": "0e9a24f928447fc785bcca7190d8d4e7203770ce1214c0757c109083483b4fb9"
+    }
+   }
+  },
+  {
+   "tool": "admin_schema_preview",
+   "kind": "definition",
+   "reason": "State that the returned plan_sha256 is required by admin_schema_apply of the same request and that NetOps 1.0 has no supported provisioning path for the schema library.",
+   "changed_keys": {
+    "/description": {
+     "sha256": "423804c5d2edc39dbfbfafd64234978007844f341f033d9012abc5849e8b3d80"
+    }
+   }
+  },
+  {
+   "tool": "audit_status",
+   "kind": "definition",
+   "reason": "Accept an optional platform so the status of devices audited with another rule catalog than the configured one can be read.",
+   "added_keys": {
+    "/inputSchema/properties/platform": {
+     "sha256": "8df079e90ae598d81db07cf8abf57ab17d9efaef8841009037533af591d9bb77"
+    }
+   }
+  },
+  {
+   "tool": "findings_summary",
+   "kind": "definition",
+   "reason": "Accept an optional platform so findings of devices audited with another rule catalog than the configured one are summarized against that catalog.",
+   "added_keys": {
+    "/inputSchema/properties/platform": {
+     "sha256": "8df079e90ae598d81db07cf8abf57ab17d9efaef8841009037533af591d9bb77"
+    }
+   }
+  },
+  {
+   "tool": "list_rules",
+   "kind": "definition",
+   "reason": "Accept an optional platform to list the rules of another available catalog (Cisco IOS/IOS XE, NX-OS, Arista EOS, Juniper Junos, FortiOS, ExtremeXOS, FortiADC).",
+   "added_keys": {
+    "/inputSchema/properties/platform": {
+     "sha256": "8df079e90ae598d81db07cf8abf57ab17d9efaef8841009037533af591d9bb77"
+    }
+   }
+  },
+  {
+   "tool": "rule_detail",
+   "kind": "definition",
+   "reason": "Accept an optional platform to describe a rule of another available catalog than the configured one.",
+   "added_keys": {
+    "/inputSchema/properties/platform": {
+     "sha256": "8df079e90ae598d81db07cf8abf57ab17d9efaef8841009037533af591d9bb77"
+    }
+   }
+  },
+  {
+   "tool": "audit_status",
+   "kind": "response",
+   "reason": "Add coverage.counts to each device with an audit run: the numbers of evaluated, not-evaluated and unsupported rules recorded for the device's last run. The counts are null for a run without recorded rule status. For a device without an audit run, coverage remains null. The other fields of the device rows are unchanged; the devices list is compared as one value.",
+   "changed_keys": {
+    "/devices": {
+     "sha256": "cbe6e57e6b35fe7a1d7018000005372004a783930ebe1e2551ae9e6dc5d11fdb",
+     "value": [
+      {
+       "age_hours": "<dynamic:number>",
+       "coverage": {
+        "actionable_gaps": [
+         {
+          "reason": "visibility:networking",
+          "rule_id": "fortiadc.lb.pool-no-health-check"
+         }
+        ],
+        "complete": false,
+        "counts": {
+         "evaluated": 1,
+         "not_evaluated": 2,
+         "unsupported": 0
+        },
+        "inherent_gaps": [
+         {
+          "reason": "factory-provenance-unproven",
+          "rule_id": "fortiadc.tls.factory-certificate"
+         }
+        ]
+       },
+       "device": "upgrade-adc",
+       "findings_total": 0,
+       "last_audit": "2026-01-01T00:00:00Z",
+       "rule_status": {
+        "fortiadc.lb.pool-no-health-check": {
+         "reason": "visibility:networking",
+         "required": true,
+         "status": "not-evaluated"
+        },
+        "fortiadc.mgmt.trusted-hosts-open": {
+         "reason": "",
+         "required": true,
+         "status": "evaluated"
+        },
+        "fortiadc.tls.factory-certificate": {
+         "reason": "factory-provenance-unproven",
+         "required": true,
+         "status": "not-evaluated"
+        }
+       },
+       "run_id": 2,
+       "severity_counts": {
+        "high": 0,
+        "info": 0,
+        "low": 0,
+        "medium": 0
+       },
+       "state": "incomplete",
+       "state_counts": {
+        "gone": 0,
+        "new": 0,
+        "open-known": 0,
+        "suppressed": 0
+       }
+      },
+      {
+       "age_hours": "<dynamic:number>",
+       "coverage": {
+        "actionable_gaps": [],
+        "complete": true,
+        "counts": {
+         "evaluated": 1,
+         "not_evaluated": 0,
+         "unsupported": 0
+        },
+        "inherent_gaps": []
+       },
+       "device": "upgrade-fw",
+       "findings_total": 1,
+       "last_audit": "2026-01-01T00:00:00Z",
+       "rule_status": {
+        "fortios.ref.dangling": {
+         "reason": "",
+         "required": true,
+         "status": "evaluated"
+        }
+       },
+       "run_id": 1,
+       "severity_counts": {
+        "high": 1,
+        "info": 0,
+        "low": 0,
+        "medium": 0
+       },
+       "state": "stale",
+       "state_counts": {
+        "gone": 0,
+        "new": 1,
+        "open-known": 0,
+        "suppressed": 0
+       }
+      }
+     ]
+    }
+   }
+  }
+ ]
+}

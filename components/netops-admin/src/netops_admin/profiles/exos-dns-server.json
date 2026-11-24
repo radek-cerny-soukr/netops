@@ -17,5 +17,5 @@
   "volatile": [],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "Targeted static resolver add/delete in a VR. Undo preserves the resolver order. Readback uses the check account. Changes are applied to running configuration."
+  "rollback_evidence": "Live write and return on ExtremeXOS 33.6.1.14 / 33.7.1.6 (2026-11): The resolver, NTP server or syslog target was changed, verified and undone. Targeted static resolver add/delete in a VR. Undo preserves the resolver order. Readback uses the check account. Changes are applied to running configuration."
 }

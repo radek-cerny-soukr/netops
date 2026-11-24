@@ -8,7 +8,6 @@ import time
 from pathlib import Path
 from dataclasses import dataclass, fields
 from datetime import datetime, timedelta, timezone
-from types import SimpleNamespace
 
 import pytest
 
@@ -464,9 +463,12 @@ from netops_auditor.collect import (
     collect_fortios_rest,
     collect_ssh,
 )
+from unittest import mock
+
+from netops_auditor import fortios_audit, platforms
 from netops_core.hostkey import PREFIX as HOST_KEY_PREFIX
 from netops_core.legacy_ssh import OPENSSH_OPTIONS, PROFILES
-from netops_core.session import SessionError
+from netops_core.session import FortinetResult, SessionError
 from netops_core.ssh import SAID_CHARS
 
 CANARY_TOKEN = "CANARY-TOKEN-MUST-NOT-LEAK"
@@ -983,6 +985,7 @@ class FakeRunner:
         stdout=None,
         stderr=b"",
         error=None,
+        version=None,
     ):
         self.steps = SSH_STEPS[platform]
         self.scan = ("%s ssh-ed25519 %s\n" % (HOST, blob)).encode("utf-8") if scan is None else scan
@@ -995,6 +998,7 @@ class FakeRunner:
         self.stdout = config_text().encode("utf-8") if stdout is None else stdout
         self.stderr = stderr
         self.error = error
+        self.version = version
         self.calls = []
         self.known_hosts = None
         self.identity = None
@@ -1027,7 +1031,8 @@ class FakeRunner:
             raise SessionError("Fortinet SSH read failed") from None
         if not isinstance(result.stdout, bytes):
             raise SessionError("Fortinet SSH read failed")
-        return SimpleNamespace(rc=result.returncode, stdout=result.stdout)
+        # The type the held Fortinet session returns: one terminal stream, so stderr is empty.
+        return FortinetResult(rc=result.returncode, stdout=result.stdout, said="", started_at="", finished_at="")
 
     def _answer(self, command):
         if self.steps[0].field and command == self.steps[0].command:
@@ -1036,6 +1041,8 @@ class FakeRunner:
             return FakeResult(self.console_code, self.console)
         if self.error is not None:
             raise self.error
+        if command == "show version" and self.version is not None:
+            return FakeResult(0, self.version)
         return FakeResult(self.code, self.stdout, self.stderr)
 
     def _look(self, argv, environment):
@@ -1070,11 +1077,20 @@ def ssh_call(
     address=HOST,
     port=22,
     pin=KEY_PIN,
+    audit_table=False,
     **kwargs
 ):
     holder = SshCredential() if credential is None else credential
     if platform == "fortios":
         kwargs.setdefault("session", runner)
+        if not audit_table:
+            # These tests specify the generic SSH step engine with its own FortiOS table
+            # (console preflight, then show: SSH_STEPS["fortios"]). The shipped FortiOS collector
+            # supplies the longer fortios_audit.SSH_STEPS instead; audit_table=True runs that one.
+            with mock.patch.object(platforms, "optional_collector", lambda name: None):
+                return collect_ssh(
+                    DEVICE, platform, address, port, holder, pin, run=runner, keyscan=runner, **kwargs
+                )
     return collect_ssh(
         DEVICE, platform, address, port, holder, pin, run=runner, keyscan=runner, **kwargs
     )
@@ -1103,15 +1119,18 @@ LEGACY_OPTIONS = ("HostKeyAlgorithms=+ssh-rsa", "PubkeyAcceptedAlgorithms=+ssh-r
 
 
 def test_ssh_steps_are_a_table_per_platform():
-    assert tuple(SSH_STEPS) == ("fortios", "exos")
+    assert set(SSH_STEPS) == {"fortios", "exos", "cisco-ios", "cisco-nxos", "arista-eos", "juniper-junos"}
     assert [step.command for step in SSH_STEPS["fortios"]] == ["get system console", "show"]
-    assert [step.command for step in SSH_STEPS["exos"]] == ["show configuration"]
+    assert [step.command for step in SSH_STEPS["exos"]] == ["show configuration", "show version", "show switch"]
     assert (SSH_STEPS["fortios"][0].field, SSH_STEPS["fortios"][0].expect) == ("output", "standard")
     assert (SSH_STEPS["exos"][0].field, SSH_STEPS["exos"][0].expect) == ("", "")
     assert [step.snapshot for step in SSH_STEPS["fortios"]] == [False, True]
-    assert [step.snapshot for step in SSH_STEPS["exos"]] == [True]
+    assert [step.snapshot for step in SSH_STEPS["exos"]] == [True, False, False]
     assert [step.prompt for step in SSH_STEPS["fortios"]] == [True, True]
-    assert [step.prompt for step in SSH_STEPS["exos"]] == [True]
+    assert [step.prompt for step in SSH_STEPS["exos"]] == [True, False, False]
+    # Version and model determine whether the end of the captured dump can be verified.
+    assert SSH_STEPS["exos"][1].section == "version"
+    assert SSH_STEPS["exos"][2].section == "model"
     for steps in SSH_STEPS.values():
         assert sum(1 for step in steps if step.snapshot) == 1
 
@@ -1165,11 +1184,12 @@ def test_ssh_fortios_asks_the_console_before_it_reads_the_configuration():
 def test_ssh_exos_reads_the_configuration_with_no_preamble():
     runner = FakeRunner(platform="exos", stdout=EXOS_CONFIG)
     snapshot, events = ssh_call(runner, platform="exos")
-    assert runner.commands() == ["ssh-keyscan", "show configuration"]
+    assert runner.commands() == ["ssh-keyscan", "show configuration", "show version"]
     assert snapshot.platform == "exos"
     assert snapshot.text == EXOS_CONFIG.decode("utf-8")
-    assert [event.request for event in events] == ["%s show configuration" % SSH_SOURCE]
-    assert [event.outcome for event in events] == ["ok"]
+    assert [event.request for event in events] == ["%s show configuration" % SSH_SOURCE,
+                                                   "%s show version" % SSH_SOURCE]
+    assert [event.outcome for event in events] == ["ok", "ok"]
 
 
 def test_ssh_exos_still_needs_a_configuration_to_come_back():
@@ -1238,7 +1258,7 @@ def test_ssh_console_answer_is_never_logged():
 def test_ssh_exec_argv_binds_every_mandated_option():
     runner = FakeRunner(platform="exos", stdout=EXOS_CONFIG)
     ssh_call(runner, platform="exos")
-    argv = runner.argv()
+    argv = runner.argv(1)
     assert argv[0] == "ssh"
     assert argv[1:3] == ["-F", "/dev/null"]
     for option in MANDATED_KEY_OPTIONS:
@@ -1285,7 +1305,7 @@ def test_ssh_password_authenticates_and_never_reaches_argv_or_the_environment():
     credential = SshCredential(secret=CANARY_PASSWORD, kind="password")
     snapshot, events = ssh_call(runner, credential=credential, platform="exos")
     assert snapshot.profile == LOGIN
-    assert [event.outcome for event in events] == ["ok"]
+    assert [event.outcome for event in events] == ["ok", "ok"]
     for call in runner.calls:
         for item in call["argv"]:
             assert CANARY_PASSWORD not in item
@@ -1356,6 +1376,72 @@ def test_ssh_credential_never_leaks_from_a_successful_call():
             assert CANARY_KEY not in value
 
 
+class FailingReadback(FakeRunner):
+    """The held session fails one readback; every other step answers as usual."""
+
+    def __init__(self, command, failure=None, answer=None, **kwargs):
+        super().__init__(**kwargs)
+        self.failing, self.failure, self.answer = command, failure, answer
+
+    def run(self, command, *, timeout_seconds):
+        if command != self.failing:
+            return super().run(command, timeout_seconds=timeout_seconds)
+        self.calls.append({"argv": ["session", command], "timeout": timeout_seconds})
+        if self.failure is not None:
+            raise self.failure
+        return FortinetResult(rc=0, stdout=self.answer, said="", started_at="", finished_at="")
+
+
+READBACK = "show full-configuration system global"
+
+
+@pytest.mark.parametrize(("runner", "reason"), (
+    (FailingReadback(READBACK, SessionError("read stopped", code="command_timeout")), "timeout"),
+    (FailingReadback(READBACK, SessionError("pager", code="page_limit")), "pager"),
+    (FailingReadback(READBACK, SessionError("Fortinet SSH read failed")), "transport-error"),
+    (FailingReadback(READBACK, answer=b"config system global\n    set hostname \"\xff\"\nend\n"), "invalid-utf8"),
+), ids=("timeout", "pager", "transport", "invalid-utf8"))
+def test_ssh_shipped_fortios_table_marks_a_failed_readback_and_keeps_the_snapshot(runner, reason):
+    # A failed targeted readback leaves its section unproven with the reason of the failure; the
+    # snapshot and the other readbacks of the held session stay.
+    snapshot, events = ssh_call(runner, audit_table=True)
+    commands = [step.command for step in fortios_audit.SSH_STEPS]
+    assert runner.commands() == commands
+    outcomes = {event.request.split(" ", 1)[1]: event.outcome for event in events}
+    assert outcomes.pop(READBACK) == "failed"
+    assert set(outcomes.values()) == {"ok"}
+    visibility = snapshot.metadata.visibility("system global")
+    assert (visibility.state != "visible", visibility.reason) == (True, reason)
+    assert snapshot.text == config_text()
+    for event in events:
+        assert CANARY_KEY not in repr(event)
+
+
+def test_ssh_shipped_fortios_table_reads_each_step_verbatim_without_leaking():
+    # The table the product uses for FortiOS: every step in one held session, in order, with
+    # one event per step; no credential, console answer or configuration text in any event.
+    assert platforms.optional_collector(PLATFORM) is fortios_audit
+    credential = SshCredential()
+    text = config_text()
+    runner = FakeRunner(stdout=text.encode("utf-8"))
+    snapshot, events = ssh_call(runner, credential=credential, audit_table=True)
+    commands = [step.command for step in fortios_audit.SSH_STEPS]
+    assert runner.commands() == commands
+    assert [call["argv"][0] for call in runner.calls] == ["session"] * len(commands)
+    assert [event.request for event in events] == ["%s %s" % (SSH_SOURCE, command) for command in commands]
+    assert snapshot.text == text
+    shown = events[commands.index(SSH_COMMAND)]
+    assert (shown.response_sha256, shown.response_bytes) == (snapshot.sha256, snapshot.size_bytes)
+    assert CANARY_KEY not in repr(snapshot) + snapshot.text
+    for event in events:
+        assert event.channel == CHANNEL_SSH
+        assert CANARY_KEY not in repr(event)
+        for value in event_values(event):
+            assert CANARY_KEY not in value
+            assert "baudrate" not in value
+            assert "config system global" not in value
+
+
 def test_ssh_host_key_mismatch_stops_before_the_connection():
     runner = FakeRunner(platform="exos", blob=OTHER_BLOB)
     credential = SshCredential()
@@ -1382,7 +1468,7 @@ def test_ssh_host_key_scan_is_bounded_and_targets_the_device():
     assert scan[-1] == HOST
     assert ["-T", "17"] == scan[1:3]
     assert ["-p", "22"] == scan[3:5]
-    assert [call["timeout"] for call in runner.calls] == [17.0, 17.0]
+    assert [call["timeout"] for call in runner.calls] == [17.0, 17.0, 17.0]
 
 
 def test_ssh_workspace_is_removed_after_the_call():
@@ -1459,7 +1545,8 @@ def test_ssh_default_timeout_is_finite_and_reaches_the_runner():
     assert 0 < SSH_TIMEOUT_SECONDS < float("inf")
     runner = FakeRunner()
     collect_ssh(DEVICE, PLATFORM, HOST, 22, SshCredential(), KEY_PIN, session=runner)
-    assert [call["timeout"] for call in runner.calls] == [SSH_TIMEOUT_SECONDS] * 2
+    # The shipped FortiOS table: every step of the held session gets the default timeout.
+    assert [call["timeout"] for call in runner.calls] == [SSH_TIMEOUT_SECONDS] * len(fortios_audit.SSH_STEPS)
 
 
 @pytest.mark.parametrize("timeout", BAD_TIMEOUTS)
@@ -1530,7 +1617,7 @@ def test_ssh_refuses_a_login_that_could_become_an_option(login):
 
 @pytest.mark.parametrize("platform", ("fortios", "exos"))
 def test_ssh_sends_the_commands_of_the_table_verbatim(platform):
-    runner = FakeRunner(platform=platform, stdout=EXOS_CONFIG)
+    runner = FakeRunner(platform=platform, stdout=EXOS_CONFIG, version=b"Image : ExtremeXOS version 33.7.1.6\n")
     _, events = ssh_call(runner, platform=platform)
     sent = [command for command in runner.commands() if command != "ssh-keyscan"]
     assert sent == [step.command for step in SSH_STEPS[platform]]
@@ -1732,7 +1819,7 @@ def test_the_family_holds_the_options_behind_the_profile_name():
 def test_legacy_profile_adds_its_options_behind_the_bound_ones():
     runner = FakeRunner(platform="exos", stdout=EXOS_CONFIG)
     ssh_call(runner, platform="exos", legacy_ssh=LEGACY_PROFILE)
-    argv = runner.argv()
+    argv = runner.argv(1)
     assert algorithm_options(argv) == list(LEGACY_OPTIONS)
     for option in LEGACY_OPTIONS:
         assert argv.count(option) == 1

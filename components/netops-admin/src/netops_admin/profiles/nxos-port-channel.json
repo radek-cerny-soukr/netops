@@ -28,5 +28,5 @@
   "volatile": [],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "Creates or removes an empty Layer 2 port-channel and verifies its existence and mode. The inverse preserves a pre-existing empty port-channel."
+  "rollback_evidence": "Live write and return on Nexus 9000v NX-OS 9.3(12) (2026-11-19): The VLAN, channel, LACP member or local vPC ID was changed, read back and undone. Creates or removes an empty Layer 2 port-channel and verifies its existence and mode. The inverse preserves a pre-existing empty port-channel."
 }

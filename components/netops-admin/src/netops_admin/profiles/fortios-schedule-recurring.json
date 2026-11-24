@@ -1,0 +1,65 @@
+{
+  "platform": "fortios",
+  "versions": [
+    "7.6.8 build3744"
+  ],
+  "ops": [
+    "create",
+    "update",
+    "delete"
+  ],
+  "exact_versions": true,
+  "provisional": true,
+  "measured": true,
+  "table": "firewall schedule recurring",
+  "key_pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,30}$",
+  "protected_keys": [
+    "always",
+    "none",
+    "default-darrp-optimize"
+  ],
+  "attributes": {
+    "day": {
+      "type": "name-list",
+      "required_on_create": true,
+      "update": true,
+      "unset": false,
+      "referenced_update": true
+    },
+    "start": {
+      "type": "text",
+      "required_on_create": false,
+      "update": true,
+      "unset": false,
+      "referenced_update": true,
+      "max_length": 5,
+      "default": "00:00",
+      "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$"
+    },
+    "end": {
+      "type": "text",
+      "required_on_create": false,
+      "update": true,
+      "unset": false,
+      "referenced_update": true,
+      "max_length": 5,
+      "default": "00:00",
+      "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$"
+    }
+  },
+  "fixed": {
+    "label-day": "none",
+    "color": "0",
+    "fabric-object": "disable"
+  },
+  "volatile": [
+    "uuid"
+  ],
+  "reserved_values": {},
+  "inverse_identity_changes": {
+    "delete": [
+      "uuid"
+    ]
+  },
+  "rollback_evidence": "Measured on FortiGate-60F 7.6.8 build3744 on 2026-11-23 with the check account: show firewall schedule recurring prints uuid, start and end unless 00:00, and day as weekday names in week order whatever order they were set in; show full-configuration lists start 00:00, end 00:00, label-day none, color 0 and fabric-object disable. A new schedule opened by edit and closed by abort accepted quoted day names and quoted times and normalized 8:5 to 08:05. Live through Admin on the same FortiGate-60F on 2026-11-23 (preview, apply with the approved plan hash, readback by the check account in its own held session, undo): create with two weekdays and times, an end update and its undo, the undo of the create; a schedule used by a firewall policy was refused for delete (fortios_object_referenced); apply without the plan hash was refused. show and show full-configuration of the table had the same sha256 before and after the run. On FortiOS 8.0.2 build0251 the preview was refused with safeguard_no_rest_inverse."
+}

@@ -32,7 +32,7 @@ POLL_SECONDS = 2
 DELIVERING = "delivering"
 PD_NOT_BACK = "powered device not delivering after the cycle"
 # Time budget of one cycle from the margin check before the disable until the safeguard is removed. Measured in
-# task 171 (ops.log, ssh exec from the Admin host, 1 s resolution): a show command took at most 2 s, show
+# verification (ops.log, ssh exec from the Admin host, 1 s resolution): a show command took at most 2 s, show
 # configuration at most 4 s. An interactive write (login and one line) was not timed on its own; it is budgeted
 # as two reads. The waits are the pauses of _observe; every read of a wait comes on top of its pauses.
 READ_SECONDS = 2

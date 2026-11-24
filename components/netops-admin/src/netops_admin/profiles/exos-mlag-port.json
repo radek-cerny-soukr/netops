@@ -1,9 +1,9 @@
 {
   "platform": "exos",
   "table": "mlag-port",
+  "measured": true,
   "versions": [
-    "33.6.1.14",
-    "33.7.1.6"
+    "33.6.1.14"
   ],
   "ops": [
     "create",
@@ -37,5 +37,5 @@
   "volatile": [],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "Read the MLAG ID and peer for the logical port. Undo restores its former binding or removes a newly created binding."
+  "rollback_evidence": "Measured on ExtremeXOS VM 33.6.1.14. Admin bound an unused port to an existing peer of an active VM pair. The check account confirmed the peer and MLAG ID with show mlag ports. Undo removed the binding and restored the original running configuration SHA-256."
 }

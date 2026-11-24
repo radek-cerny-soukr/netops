@@ -1,0 +1,3 @@
+Vlan Name    Port   Policy Name          Dir      Rules  Dyn Rules
+===================================================================
+netops-switch-ospf   *      netops-switch-ospf-capture   ingress  1      0

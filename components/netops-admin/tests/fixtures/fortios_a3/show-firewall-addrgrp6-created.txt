@@ -1,0 +1,6 @@
+config firewall addrgrp6
+    edit "netops-a3-grp"
+        set uuid 00000000-0000-4000-8000-a30000000003
+        set member "netops-a3-net"
+    next
+end

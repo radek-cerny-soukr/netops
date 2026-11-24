@@ -1,0 +1,17 @@
+VLAN:  switch-ip-multicast	VRID:  45	VRRP:  Enabled	State:  INIT
+Virtual Router:  VR-Default
+Priority:  200(backup)	Advertisement Interval:  1 sec
+Version: v3-v2	Preempt:  Yes	Preempt Delay: 0 sec
+ Virtual IP Addresses:
+  198.51.100.254
+ Accept mode:  Off            Group : None
+ Host-Mobility:  Off
+ Host-Mobility Exclude-Ports:
+ Checksum:  Include pseudo-header
+ Tracking mode:  ALL
+ Tracked Pings:  -
+ Tracked IP Routes:  -
+ Tracked VLANs:  -
+ Fabric Routing: Off
+
+  * indicates a tracking condition has failed

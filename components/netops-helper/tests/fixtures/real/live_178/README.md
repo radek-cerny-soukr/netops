@@ -1,6 +1,6 @@
-# Live scenarios of task 178 (GNS3 D-lab, 2026-11-14), used by task 186
+# Live scenarios of verification (GNS3 emulated environment, 2026-11-14), used by verification
 
-Source: the raw CLI records `cli.jsonl` of task 178 (not included) (independent `ssh` exec reads next
+Source: the raw CLI records `cli.jsonl` of verification (not included) (independent `ssh` exec reads next
 to the NetOps MCP calls; the `config_diff` scenario of 1.0.9 item 07 and the MLAG/vPC views of item 10).
 Every file was sanitized and anonymised with `tests/support/anonymize_fixture.py` (host names `hostNN`, user names
 `userNN`, IPv4 into the RFC 5737 ranges; the anonymiser keeps column alignment, so a few replaced words are
@@ -11,7 +11,7 @@ as `.txt` files: every `*.txt` under `tests/fixtures` is also a capture of the c
 (`test_classification_baseline`, `output_status_baseline.json`), which these new captures are not part of.
 The fixture privacy check (`test_anonymize_fixture`) reads the JSON strings like `.txt` files.
 
-## `config_diff/...` - `show running-config`, account netops-admin (task 178, run r2)
+## `config_diff/...` - `show running-config`, account netops-admin (verification, run r2)
 
 | File | Device | 178 record | Note |
 |---|---|---|---|
@@ -26,14 +26,14 @@ The fixture privacy check (`test_anonymize_fixture`) reads the JSON strings like
 | `nxos_reverted.txt` | N9300v 9.3(12) | `07-nxos-r2:cli-D` | after `no description` |
 
 The device rewrote its own header lines between the reads (`Current configuration : N bytes`,
-`! Last configuration change ...`, NX-OS `!Running configuration last done at:` and `!Time:`), and the IOS/IOS XE
+`! Last configuration change...`, NX-OS `!Running configuration last done at:` and `!Time:`), and the IOS/IOS XE
 exec channel printed three or two leading empty lines; both are kept as captured.  IOSv and IOL XE sent CRLF
 line ends, NX-OS LF; the files hold LF and the tests restore CRLF for IOSv and IOL XE.
 
-DERIVED edits (the task 178 log had already replaced each credential line by `<REDACTED-LINE>`): those lines
+DERIVED edits (the verification log had already replaced each credential line by `<REDACTED-LINE>`): those lines
 were rewritten as synthetic credential lines with the sentinel values of the public tests
-(`enable secret 9 $9$SECRET-ENABLE-SENTINEL`, `username ... password 0 SECRET-PASSWORD-SENTINEL`, NX-OS
-`username ... password 5 SECRET-PASSWORD-SENTINEL  role ...`, `snmp-server user <user> <role> auth md5
+(`enable secret 9 $9$SECRET-ENABLE-SENTINEL`, `username... password 0 SECRET-PASSWORD-SENTINEL`, NX-OS
+`username... password 5 SECRET-PASSWORD-SENTINEL  role...`, `snmp-server user <user> <role> auth md5
 0xSECRET-SNMP-SENTINEL priv 0xSECRET-SNMP-SENTINEL localizedkey`, `ssh key rsa 2048`, IOL XE trustpoint
 ` hash sha256`); the IOL XE self-signed certificate body was replaced by `A` characters of the same shape.
 No other line was edited.

@@ -1,4 +1,4 @@
-"""Port bounce (1.0.12 G61, IOS-C021) and PoE cycle (IOS-M024) of one Cisco IOS or IOS XE port.
+"""Port bounce (1.0.12 ios port maintenance, IOS-C021) and PoE cycle (IOS-M024) of one Cisco IOS or IOS XE port.
 
 Both run as ONE journaled operation through the same admission as apply (target, enrollment, budgets, blocking, audit
 log, notification) and behind the revert timer of Admin (exec_ios: configure terminal revert timer, confirmed with
@@ -41,7 +41,7 @@ POE_ON_WAIT_SECONDS = 30
 # the pause while the port or its power stays off (the Cisco guide recommends 2-4 s between shut and no shut)
 HOLD_SECONDS = 5
 POLL_SECONDS = 2
-# measured on IOSvL2 (ref/mereni-c4c5): the revert timer installation 9 s + 3 reads, a write session 8 s, an exec read
+# measured on IOSvL2 (private measurement record): the revert timer installation 9 s + 3 reads, a write session 8 s, an exec read
 # 1.1 s, show running-config 6.1 s
 INSTALL_SECONDS = 13
 READ_SECONDS = 2
@@ -86,12 +86,14 @@ def required_safeguard_seconds(device, action) -> int:
     return max(exec_ios.MIN_MINUTES, minutes) * 60
 
 
-def _admissible(runtime, device_name, action):
+def _admissible(runtime, device_name, action, cycle_request):
     """Platform and timer margin of the target, from the configuration only: no device read or write."""
     device = runtime.config.devices.get(device_name)
     if device is not None and device.platform not in ios.PLATFORMS:
         raise Rejected(["operation %s of this module is for Cisco IOS and IOS XE switches" % action],
                        reason_codes=["action_unsupported"])
+    if device is not None:
+        execute._measured(runtime, device, cycle_request)
     if device is not None and cycle_seconds(action) + device.confirm_margin_seconds >= exec_ios.timer_seconds(device):
         raise Rejected(["the %s can take up to %d s and needs confirm_margin_seconds %d s on top, but the revert timer "
                         "of safeguard_seconds %d covers %d s; set safeguard_seconds of device %s to at least %d"
@@ -107,7 +109,7 @@ def _admissible(runtime, device_name, action):
 def preview(runtime, device_name: str, action: str, cycle_request) -> dict:
     """Every check of the operation against the device, without any change."""
     try:
-        _admissible(runtime, device_name, action)
+        _admissible(runtime, device_name, action, cycle_request)
         result, refused = execute._preview(runtime, device_name, cycle_request, action=action)
     except Rejected as exc:
         if not isinstance(exc, execute.BudgetExhausted):
@@ -125,7 +127,7 @@ def preview(runtime, device_name: str, action: str, cycle_request) -> dict:
 
 def apply(runtime, device_name: str, action: str, cycle_request, *, expected_plan_sha256=None) -> dict:
     try:
-        _admissible(runtime, device_name, action)
+        _admissible(runtime, device_name, action, cycle_request)
         if expected_plan_sha256 is None:
             raise Rejected(["IOS cycle apply requires the plan_sha256 from preview"], reason_codes=["plan_changed"])
         expected_plan = execute._expected_plan(cycle_request, expected_plan_sha256)

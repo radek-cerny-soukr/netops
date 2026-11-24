@@ -27,5 +27,5 @@
   "volatile": [],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "cEOSLab 4.36.1F. A timed EOS configuration session and independent operational readback protect the change. Rules are comma-separated sequence, permit or deny, and exact IPv4 CIDR. Attached policies are protected."
+  "rollback_evidence": "Live write and return on cEOSLab 4.36.1F (2026-11-19): The prefix list or route map was changed, read back and undone. cEOS 4.36.1F. A timed EOS configuration session and independent operational readback protect the change. Rules are comma-separated sequence, permit or deny, and exact IPv4 CIDR. Attached policies are protected."
 }

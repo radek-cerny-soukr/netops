@@ -1,0 +1,5 @@
+set policy-options prefix-list NETOPS-JUNOS-SYSTEM-SERVICES-PREFIXES 203.0.113.1/32
+set policy-options prefix-list NETOPS-JUNOS-SYSTEM-SERVICES-PREFIXES 203.0.113.2/32
+set policy-options policy-statement NETOPS-JUNOS-SYSTEM-SERVICES-POLICY term match from prefix-list NETOPS-JUNOS-SYSTEM-SERVICES-PREFIXES
+set policy-options policy-statement NETOPS-JUNOS-SYSTEM-SERVICES-POLICY term match then accept
+set policy-options policy-statement NETOPS-JUNOS-SYSTEM-SERVICES-POLICY term default then reject

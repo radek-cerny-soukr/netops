@@ -1,0 +1,27 @@
+FortiADC-KVM # config load-balance pool
+  edit "LAB_POOL_SMTP"
+    set health-check-ctrl enable
+    set health-check-list LAB_HC_SMTP
+    set real-server-ssl-profile NONE
+    config  pool_member
+      edit 1
+        set pool_member_service_port 25
+        set pool_member_cookie rs1
+        set real-server RS_A
+      next
+      edit 2
+        set pool_member_service_port 25
+        set pool_member_cookie rs2
+        set real-server RS_B
+      next
+      edit 13
+        set status disable
+        set pool_member_service_port 2525
+        set pool_member_cookie rs13
+        set real-server NETOPS_TEST_ADC_POOL_MEMBERS_IP
+      next
+    end
+  next
+--More--          end
+
+FortiADC-KVM #

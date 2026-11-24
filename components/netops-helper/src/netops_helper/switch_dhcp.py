@@ -376,7 +376,7 @@ def nxos_dai(text, vlan_id):
     return result, complete and bool(rows) and all(_NXOS_DAI_REQUIRED <= row.keys() for row in rows.values())
 
 
-# 1.0.12 G20 (FP-12): `execute dhcp lease-list` without an interface prints every lease, one section per DHCP server
+# 1.0.12 dhcp dns (FP-12): `execute dhcp lease-list` without an interface prints every lease, one section per DHCP server
 # interface. Measured on FortiGate-60F 7.6.8 build3744 (tests/fixtures/real/fortinet/fortigate60f_7.6.8_g20): the
 # section name is the interface, then the header `IP MAC-Address Hostname VCI SSID AP SERVER-ID Expiry`, then one row
 # per lease. The IP and MAC are separated by tabs; the remaining columns are 20 characters wide counted from the first

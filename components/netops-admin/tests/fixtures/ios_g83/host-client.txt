@@ -1,4 +1,0 @@
-ip dhcp pool NETOPS-G83-HOST
- host 192.0.2.42    255.255.255.0
- client-identifier 0102.0000.5318.32
-end

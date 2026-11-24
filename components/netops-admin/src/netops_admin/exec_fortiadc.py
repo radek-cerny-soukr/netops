@@ -1,6 +1,6 @@
 """FortiADC execution adapter of the common Admin engine (execute.ADAPTERS["fortiadc"]).
 
-FortiADC-KVM 7.6.7 build0676 offers Admin no on-device timed return (task 306: no automation-stitch, scheduler or
+FortiADC-KVM 7.6.7 build0676 offers Admin no on-device timed return (verification: no automation-stitch, scheduler or
 cron in the CLI; the documented alert policy of type schedule with a CLI script action is not measured). The adapter
 is therefore COMPENSATING: execute installs nothing on the device and returns an unverified change itself in the same
 run by writing the inverse of the plan and verifying the snapshot before (``execute._compensate``); recover does
@@ -242,7 +242,7 @@ def observe_clear(access, spec, target):
 def readback_clear(access, spec, target, expected, sleep):
     observed = observe_clear(access, spec, target)
     if target.table == fortiadc.WAF_BLOCK_IP:
-        # VM220 still listed the released block at 23 s and dropped the row by 38 s.
+        # FortiADC-KVM 7.6.7 still listed the released block at 23 s and dropped the row by 38 s.
         # Allow up to 60 s of refresh time and require a complete listing without the target.
         for _ in range(6):
             if observed == expected:
@@ -316,14 +316,14 @@ def _require_health(access, vs, pool, candidates):
 
 
 def _outage(vs) -> Rejected:
-    # 1.0.12 G34 r2 (503-rv finding 1): losing the last healthy member is a service outage of the virtual server
+    # 1.0.12 adc pool members r2 (review finding 1): losing the last healthy member is a service outage of the virtual server
     return Rejected(["the change would leave virtual server %s without a healthy enabled member (service outage:"
                      " the virtual server would not serve its clients)" % vs], reason_codes=["no_healthy_member"],
                     reason_details=[{"code": "no_healthy_member", "virtual_server": vs, "service_outage": True}])
 
 
 def _refuse_protected(device, kind, key, names, *, reason_codes=None):
-    # 1.0.12 G34 r2 (503-rv finding 2): engine.build_plan checks only the key of the changed object. A status or
+    # 1.0.12 adc pool members r2 (review finding 2): engine.build_plan checks only the key of the changed object. A status or
     # address of a real server, a pool member or a virtual server also changes the pools, members and virtual servers
     # it serves; a protected name of any table among them refuses the change (as engine._protected_references).
     guarded = {name.casefold() for names in (getattr(device, "protected", None) or {}).values() for name in names}
@@ -333,8 +333,8 @@ def _refuse_protected(device, kind, key, names, *, reason_codes=None):
                        reason_codes=reason_codes)
 
 
-# 1.0.12 G34 r2: a virtual server with content routing or schedule names its pools in these entries; vs_stat names the
-# stored load-balance-pool, which show hides when schedule-list is enabled (measured 7.6.7 build0676, task 173)
+# 1.0.12 adc pool members r2: a virtual server with content routing or schedule names its pools in these entries; vs_stat names the
+# stored load-balance-pool, which show hides when schedule-list is enabled (measured 7.6.7 build0676, verification)
 CONTENT_ROUTING = "load-balance content-routing"
 SCHEDULE_POOL = "load-balance schedule-pool"
 DYNAMIC_ENTRIES = (("content-routing-list", CONTENT_ROUTING), ("schedule-pool-list", SCHEDULE_POOL))
@@ -452,7 +452,7 @@ def _virtual_server_precheck(access, device, snapshot, plan):
     if _status(after) == "enable" and not _enabled_members(snapshot, pool):
         raise Rejected(["virtual server %s has no enabled backend in pool %s" % (name, pool)],
                        reason_codes=["no_healthy_member"])
-    # 1.0.12 G34 r2 (503-rv finding 1): maintain or disable of a serving virtual server stops the service
+    # 1.0.12 adc pool members r2 (review finding 1): maintain or disable of a serving virtual server stops the service
     outage = _status(before) == "enable" and _status(after) in fortiadc_plan.INACTIVE
     plan["service_outage"] = [name] if outage else []
     if outage:
@@ -479,7 +479,7 @@ def _real_server_precheck(access, device, snapshot, plan, undo=False):
     if pools:
         for vs, attributes in servers:
             if _dynamic_pool(attributes):
-                # 1.0.12 G34 r2: refused only when the virtual server may select a pool of this real server
+                # 1.0.12 adc pool members r2: refused only when the virtual server may select a pool of this real server
                 selected = _dynamic_pools(access, vs, attributes)
                 if selected & pools:
                     raise Rejected(["the virtual server %s selects pools by content routing or schedule; "

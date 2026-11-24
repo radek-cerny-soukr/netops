@@ -8,7 +8,7 @@ from . import jsontext
 from .engine import EVALUATED, NOT_EVALUATED, check
 from .inputs import InputError, read_regular
 
-# The identity (platform, version, build) the catalog was tested on.  G00 (decision of 2026-11-17): another
+# The identity (platform, version, build) the catalog was tested on.  startup (decision of 2026-11-17): another
 # FortiADC version or build is no scope gate; the rules are evaluated and the untested-version rule reports it.
 TESTED = ("FortiADC-KVM", "7.6.7", "0676")
 TESTED_NAME = "FortiADC"
@@ -159,7 +159,7 @@ def _version_reason(context):
     """The scope reason that keeps every rule from being evaluated, None when the identity is usable.
 
     No metadata: snapshot-context-missing.  A platform that is not a FortiADC: identity-mismatch (another
-    product, not another version).  Another FortiADC model, version or build is usable (G00): the rules run
+    product, not another version).  Another FortiADC model, version or build is usable (startup): the rules run
     and fortiadc.scope.untested-version reports the untested identity.
     """
     if context is None:

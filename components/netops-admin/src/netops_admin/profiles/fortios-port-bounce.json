@@ -37,6 +37,6 @@
       "undo_to_default": true
     }
   },
-  "rollback_evidence": "FortiLink-managed physical port. Admin proves software administrative down then up through the independent check identity, and compares the restored configuration before disarming the timed return.",
+  "rollback_evidence": "Live write and return on FortiOS 7.6.8 build3744 (2026-11-20): The unused managed switch port went from up to down to up under the safeguard. FortiLink-managed physical port. Admin proves software administrative down then up through the independent check identity, and compares the restored configuration before disarming the timed return.",
   "action": "port-bounce"
 }

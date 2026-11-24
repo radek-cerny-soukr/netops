@@ -8,6 +8,8 @@ import unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
+sys.path.insert(0, os.path.dirname(HERE))
+import blackbox
 import mock_server
 
 TOOL = os.path.join(HERE, "..", "blackbox.py")
@@ -52,6 +54,16 @@ def free_port():
 
 
 class Blackbox(unittest.TestCase):
+    def test_progress_stream_decodes_only_the_final_rpc_response(self):
+        progress = {"jsonrpc": "2.0", "method": "notifications/progress", "params": {"progress": 1}}
+        response = {"jsonrpc": "2.0", "id": 1, "result": {"status": "complete"}}
+        events = "".join(f"event: message\ndata: {json.dumps(event)}\n\n" for event in (progress, response))
+        for newline in ("\r\n", "\n", "\r"):
+            with self.subTest(newline=newline):
+                headers = {"content-type": "text/event-stream"}
+                body = events.replace("\n", newline).encode()
+                self.assertEqual(blackbox.decode_rpc(headers, body), response)
+
     def run_against(self, constrained, leaf_days, lax):
         with tempfile.TemporaryDirectory() as d:
             make_pki(d, constrained, leaf_days)

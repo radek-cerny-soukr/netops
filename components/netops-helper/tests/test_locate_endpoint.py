@@ -404,10 +404,13 @@ def test_real_worker_returns_structured_result_without_audit_or_network_access(t
     # /proc cannot create an audit file, so the real child must fail its audit
     # preflight before any SSH operation, even in a network-enabled environment.
     monkeypatch.setenv('NETOPS_HELPER_AUDIT_PATH', '/proc/netops-fixture-no-audit/audit.jsonl')
-    result = w.call(args['targets'], MAC, args['auth_context'], seconds=5)
+    # Use the caller's normal budget for starting the real child. The
+    # virtual-clock test above verifies the worker's deadline separately.
+    result = w.call(args['targets'], MAC, args['auth_context'])
+    assert result['error_code'] == 'audit_preflight_failed'
     assert result['verdict'] == 'incomplete' and result['reads'] == 0
     assert result['endpoint'] == {'mac': MAC}
-    assert result['ok'] is False and result['error_code'] == 'audit_preflight_failed'
+    assert result['ok'] is False
     assert all(m['reason'] == 'audit_preflight_failed' for m in result['missing'])
     assert result['limits']['reads'] == 40
 

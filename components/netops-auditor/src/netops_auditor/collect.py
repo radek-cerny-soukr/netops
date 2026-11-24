@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import http.client
 import io
+import json
 import re
 import ssl
 import time
@@ -16,7 +17,11 @@ from netops_core import hostkey, prompt, ssh
 from netops_core import legacy_ssh as legacy
 from netops_core.session import FORTINET_LOGIN_SECONDS, SessionError, fortinet_session
 
-from . import l1_exos, l1_fortios
+from . import l1_cli, l1_exos, l1_fortios, l1_junos, platforms
+from .platforms import (
+    HIDDEN, INCOMPLETE, NOT_SUPPORTED, UNPROVEN, VISIBLE,
+    SectionVisibility, SnapshotMetadata, SSHStep,
+)
 from .inputs import InputError, read_regular
 
 MOMENT_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
@@ -70,6 +75,7 @@ class Snapshot:
     collected_at: str
     profile: str
     text: str = field(repr=False)
+    metadata: SnapshotMetadata | None = field(default=None, repr=False)
 
 
 @dataclass(frozen=True)
@@ -519,23 +525,20 @@ def collect_fortios_rest(
         profile=profile,
         text=text,
     )
+    implementation = platforms.optional_collector(PLATFORM_FORTIOS)
+    if implementation is not None:
+        snapshot = replace(snapshot, metadata=implementation.snapshot_metadata(snapshot, {}, {}))
     return snapshot, event
 
 
-@dataclass(frozen=True)
-class _Step:
-    command: str
-    field: str = ""
-    expect: str = ""
-    known: tuple = ()
-    remedy: str = ""
-    snapshot: bool = False
-    prompt: bool = False
-
+RUNNING = "show running-config"
+SNMP_USERS = SSHStep("show snmp user", section="snmp users")
+JUNOS_CONFIG = "show configuration | display set | no-more"
+JUNOS_INHERITANCE = "show configuration | display inheritance | display set | no-more"
 
 SSH_STEPS = {
     PLATFORM_FORTIOS: (
-        _Step(
+        SSHStep(
             command="get system console",
             field="output",
             expect="standard",
@@ -543,12 +546,30 @@ SSH_STEPS = {
             remedy="set console output to standard first",
             prompt=True,
         ),
-        _Step(command="show", snapshot=True, prompt=True),
+        SSHStep(command="show", snapshot=True, prompt=True),
     ),
     PLATFORM_EXOS: (
-        _Step(command="show configuration", snapshot=True, prompt=True),
+        SSHStep(command="show configuration", snapshot=True, prompt=True),
+        SSHStep("show version", section="version"),
+        SSHStep("show switch", section="model"),
+    ),
+    "cisco-ios": (
+        SSHStep(RUNNING, snapshot=True), SSHStep("show privilege", section="privilege"),
+        SSHStep("show parser view", section="cli view"), SNMP_USERS,
+        SSHStep("show ip ssh", section="ip ssh"),
+    ),
+    "cisco-nxos": (
+        SSHStep(RUNNING, snapshot=True), SNMP_USERS, SSHStep("show nxapi", section="nxapi listener"),
+        SSHStep("show user-account", section="session role"),
+    ),
+    "arista-eos": (SSHStep(RUNNING, snapshot=True), SNMP_USERS,
+                   SSHStep("show users detail | json", section="session role")),
+    "juniper-junos": (
+        SSHStep(JUNOS_CONFIG, snapshot=True), SSHStep(JUNOS_INHERITANCE, section="inheritance"),
+        SSHStep("show cli authorization", section="session role"),
     ),
 }
+
 SSH_PLATFORMS = tuple(SSH_STEPS)
 
 
@@ -631,6 +652,8 @@ def collect_ssh(
     *,
     host_key=None,
     session=None,
+    inventory_platform=None,
+    max_response_bytes=REST_MAX_BODY_BYTES,
 ) -> tuple:
     """Collect over SSH, optionally borrowing the caller's pinned FortiOS session.
 
@@ -640,6 +663,12 @@ def collect_ssh(
     """
     _checked_text("device", device)
     steps = _checked_platform(platform)
+    if platform == PLATFORM_FORTIOS:
+        implementation = platforms.optional_collector(platform)
+        if implementation is not None:
+            steps = implementation.SSH_STEPS
+    modern = platform in EXEC_PLATFORMS
+    budget = _checked_budget(max_response_bytes)
     seconds = _checked_timeout(timeout)
     _checked_credential(credential)
     try:
@@ -663,6 +692,7 @@ def collect_ssh(
             CHANNEL_SSH,
         )
 
+    deadline = time.monotonic() + seconds
     with ExitStack() as stack:
         try:
             if platform == PLATFORM_FORTIOS:
@@ -673,28 +703,60 @@ def collect_ssh(
                     )
                     session = stack.enter_context(fortinet_session(
                         target, credential, connect_timeout_seconds=min(seconds, FORTINET_LOGIN_SECONDS),
-                        timeout_seconds=seconds, idle_timeout_seconds=seconds,
+                        timeout_seconds=seconds, idle_timeout_seconds=min(seconds, 15.0),
+                        capture_max_bytes=budget,
                     ))
                 execute = partial(session.run, timeout_seconds=seconds)
             else:
                 host_key_line = hostkey.scan(
                     address, port, host_key_fingerprint, seconds, run=keyscan, legacy=profile
                 )
-                execute = partial(
-                    ssh.run_command, address, port, login, credential, host_key_line,
-                    legacy_ssh=profile, timeout_seconds=seconds, run=run,
-                )
+                if modern:
+                    def execute(command, remaining):
+                        available = deadline - time.monotonic()
+                        if available <= 0:
+                            raise ssh.SshError("SSH collection timeout")
+                        return ssh.run_command(
+                            address, port, login, credential, host_key_line, command,
+                            legacy_ssh=profile, timeout_seconds=available,
+                            idle_timeout_seconds=min(available, 15.0), capture_max_bytes=remaining,
+                            suppress_login_banner=True, run=run,
+                        )
+                else:
+                    execute = partial(
+                        ssh.run_command, address, port, login, credential, host_key_line,
+                        legacy_ssh=profile, timeout_seconds=seconds, run=run,
+                    )
         except hostkey.HostKeyError as error:
             raise CollectError(str(error), failed()) from None
         except SessionError as error:
             raise CollectError("%s %s: %s" % (source, steps[0].command, error), failed()) from None
-        return _collect_ssh_steps(device, platform, steps, source, login, clock, failed, execute)
+        if modern:
+            return _collect_exec(device, platform, inventory_platform or platform, steps,
+                                 source, login, clock, execute, budget)
+        builder = implementation.snapshot_metadata if platform == PLATFORM_FORTIOS and implementation else None
+        return _collect_ssh_steps(device, platform, steps, source, login, clock, failed, execute, builder, budget)
 
 
-def _collect_ssh_steps(device, platform, steps, source, login, clock, failed, execute) -> tuple:
+def _collect_ssh_steps(device, platform, steps, source, login, clock, failed, execute, builder, budget) -> tuple:
     events, payload, taken, marked = [], b"", None, False
+    answers, visibility = {}, {}
     for step in steps:
+        if platform == PLATFORM_EXOS and step.section == "model":
+            version = answers.get("version", "")
+            if len(set(EXOS_VERSION.findall(version))) != 1 or EXOS_MODEL.search(version):
+                continue
         request = "%s %s" % (source, _checked_command(step.command))
+        if step.section and not step.snapshot:
+            started = _moment(clock)
+            data, answer, reason = _read_exec(lambda command, _: execute(command), step.command, budget)
+            budget -= len(data)
+            events.append(_finished(device, request, started, clock, hashlib.sha256(data).hexdigest(), len(data),
+                                    OUTCOME_FAILED if reason else OUTCOME_OK, CHANNEL_SSH))
+            if not reason:
+                answers[step.section] = answer
+            visibility[step.section] = _auxiliary_visibility(reason)
+            continue
         try:
             data, event = _ssh_step(device, request, step.command, clock, step.snapshot, execute)
         except CollectError as error:
@@ -722,6 +784,7 @@ def _collect_ssh_steps(device, platform, steps, source, login, clock, failed, ex
         events.append(event)
         if step.snapshot:
             payload, taken, marked = data, event, step.prompt
+            budget -= len(data)
     if taken is None:
         marker = failed()
         raise CollectError(
@@ -750,10 +813,307 @@ def _collect_ssh_steps(device, platform, steps, source, login, clock, failed, ex
         profile=login,
         text=text,
     )
+    if builder is not None:
+        snapshot = replace(snapshot, metadata=builder(snapshot, answers, visibility))
+    elif platform == PLATFORM_EXOS:
+        snapshot = replace(snapshot, metadata=_exos_metadata(text, answers))
     return snapshot, tuple(events)
 
 
+def _exos_metadata(text, answers):
+    """A terminal module header proves that the preceding modules were printed to their ends."""
+    if PAGER.search(text):
+        return SnapshotMetadata(PLATFORM_EXOS, integrity_reason="pager")
+    incomplete = SnapshotMetadata(PLATFORM_EXOS, integrity_reason="truncated")
+    if not text.endswith("\n") or re.search(r"[\x00-\x08\x0b-\x1f\x7f]", text):
+        return incomplete
+    try:
+        tree = l1_exos.parse(text)
+    except l1_exos.ParseError:
+        return incomplete
+    if (tree.unterminated_upm or tree.modules[:1] != ("devmgr",)
+            or any(command.module == l1_exos.NO_MODULE for command in tree.commands)
+            or any(EXOS_ERROR.match(command.text) or DENIED.match(command.text) for command in tree.active)):
+        return incomplete
+    version = answers.get("version", "")
+    unknown_end = SnapshotMetadata(PLATFORM_EXOS, integrity_reason="unknown-end-format")
+    if len(set(EXOS_VERSION.findall(version))) != 1:
+        return unknown_end
+    models = {model.upper() for model in EXOS_MODEL.findall(version)}
+    if not models:
+        models = {model.upper() for model in EXOS_MODEL.findall(answers.get("model", ""))}
+    if len(models) != 1:
+        return unknown_end
+    model = models.pop()
+    if model.startswith("X435-"):
+        last_module = "upm"
+    elif model == "EXOS-VM" or model.startswith("X440G2-"):
+        last_module = "vpex"
+    else:
+        return unknown_end
+    if tree.last_module != last_module:
+        return incomplete
+    finished = (module for module in tree.modules if module != last_module)
+    sections = dict.fromkeys(finished, SectionVisibility(VISIBLE, "verified-profile"))
+    return SnapshotMetadata(PLATFORM_EXOS, sections, complete=True, tree=tree)
+
+
+EXEC_PLATFORMS = frozenset({"cisco-ios", "cisco-nxos", "arista-eos", "juniper-junos"})
+ANSI = re.compile(r"\[[0-9;]*[A-Za-z]")
+PAGER = re.compile(r"(?:^|[\r\n]) *--[ \t]*More[ \t]*--(?=[ \t]*(?:[\r\n\x08]|$))", re.I | re.M)
+UNAVAILABLE = re.compile(r"^(?:% (?:Invalid input|Incomplete command|Ambiguous command|Invalid command)"
+                         r"|(?:syntax error|unknown command|invalid command)\b)", re.I)
+DENIED = re.compile(r"^(?:(?:% )?(?:permission denied|access denied|authorization failed"
+                    r"|command authorization failed|not authorized)|Cmd exec error\.|"
+                    r"Line has invalid autocommand|error: (?:permission|access) denied)", re.I)
+SSH_AUTH_REJECTED = re.compile(r"(?:\S+@\S+: )?Permission denied \([\w,-]+\)\.?", re.I)
+JUNOS_PROMPT = re.compile(r"[\w.-]+@[\w.:-]+>")
+IOS_HEADER = re.compile(r"Building configuration\.\.\.\s*\n\s*Current configuration\s*:\s*[1-9][0-9]* bytes[ \t]*\n")
+EOS_HEADER = re.compile(r"! Command: show running-config(?: at line 1)?")
+
+
+def _frame(platform, text, tree):
+    data = text.lstrip("\n \t")
+    if not text.endswith("\n"):
+        return False
+    if platform == "juniper-junos":
+        return tree.malformed is None and bool(tree.statements or tree.hidden)
+    if tree.unterminated is not None:
+        return False
+    if platform == "cisco-ios":
+        header = IOS_HEADER.match(data)
+        return (header is not None and data[header.end():].startswith("!\n")
+                and data.rstrip().endswith("\nend") and _has(tree, "version") and _has(tree, "hostname"))
+    if platform == "cisco-nxos":
+        return (bool(data) and data.splitlines()[0].rstrip() == "!Command: show running-config"
+                and all(_has(tree, word) for word in ("version", "hostname", "interface")))
+    data = data.removeprefix("> show running-config\n")
+    return bool(data and EOS_HEADER.fullmatch(data.splitlines()[0].rstrip()) and data.rstrip().endswith("\nend"))
+
+
+def _has(tree, *words):
+    return any(item.mode == "set" for item in tree.matching(*words))
+
+
+def _run_auxiliary(step, platform, tree, answers):
+    if step.section in ("privilege", "session role"):
+        return True
+    if step.section == "ip ssh":
+        return not tree.matching("ip", "ssh", "version")
+    if step.section == "cli view":
+        return "privilege" in answers
+    if step.section == "nxapi listener":
+        return _has(tree, "feature", "nxapi") and not any(
+            item.tokens[1:3] == ("http", "port") or item.tokens == ("nxapi", "http") and item.mode == "no"
+            for item in tree.matching("nxapi")
+        )
+    if platform == "arista-eos":
+        return any(item.mode == "set" and item.tokens[1:2] in (("user",), ("group",))
+                   for item in tree.matching("snmp-server"))
+    if step.section == "inheritance":
+        return bool(tree.inheritance)
+    return True
+
+
+def _read_exec(execute, command, remaining, *, configuration=False):
+    try:
+        if remaining <= 0:
+            return b"", "", "output-limit"
+        result = execute(command, remaining)
+    except ssh.OutputLimitError:
+        return b"", "", "output-limit"
+    except SessionError as error:
+        reason = {"output_limit": "output-limit", "page_limit": "pager", "idle_timeout": "timeout",
+                  "command_timeout": "timeout"}.get(error.code, "transport-error")
+        return b"", "", reason
+    except ssh.SshError as error:
+        if error.rc == ssh.CLIENT_FAILURE_CODE and SSH_AUTH_REJECTED.fullmatch(error.final):
+            return b"", "", "authentication-failed"
+        return b"", "", "timeout" if re.search(r"timeout|within|idle", str(error), re.I) else "transport-error"
+    data = result.stdout
+    if len(data) > remaining:
+        return data, "", "output-limit"
+    try:
+        answer = data.decode("utf-8").replace("\r\r\n", "\n").replace("\r\n", "\n")
+    except UnicodeDecodeError:
+        return data, "", "invalid-utf8"
+    stdout = [line.strip() for line in answer.split("\n") if line.strip()]
+    # Device diagnostics may echo arbitrary secrets. Only classify their shape.
+    error_lines = result.stderr.decode("utf-8", "replace").splitlines()
+    first = next((line for line in stdout if line != "> " + command), "")
+    if not configuration or not first.startswith(("Building configuration", "!", "set ", "## ", "inactive:")):
+        error_lines.extend(stdout)
+    if PAGER.search(ANSI.sub("", answer)) or "\x08" in answer:
+        return data, "", "pager"
+    if any(DENIED.match(line.strip()) for line in error_lines):
+        return data, "", "permission-denied"
+    if any(UNAVAILABLE.match(line.strip()) for line in error_lines):
+        return data, "", "command-unavailable"
+    if result.rc:
+        return data, "", "transport-error"
+    if re.search(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]|\r", answer):
+        return data, "", "truncated"
+    if command.startswith("show configuration |") and stdout and JUNOS_PROMPT.fullmatch(stdout[-1]):
+        answer = answer.rstrip().rpartition("\n")[0] + "\n"
+    return data, answer, ""
+
+
+def _auxiliary_visibility(reason):
+    if not reason:
+        return SectionVisibility(VISIBLE, "auxiliary-output")
+    state = {"permission-denied": HIDDEN, "command-unavailable": NOT_SUPPORTED}.get(reason, INCOMPLETE)
+    return SectionVisibility(state, reason)
+
+
+# A complete snapshot read in a session whose full role the device reports, with a readable
+# software version and the documented end of the output, proves the defaults the device does not print.
+NXOS_FULL_ROLES = frozenset({"network-admin", "vdc-admin"})
+NXOS_VERSION = re.compile(r"[0-9]+\.[0-9]+\([0-9A-Za-z.]+\)\S*")
+EOS_DEVICE = re.compile(r"! device: \S+ \(.*\bEOS-[0-9]+\.[0-9]+\.[0-9]+.*\)")
+JUNOS_VERSION = re.compile(r"[0-9]+\.[0-9]+[A-Z][0-9][0-9A-Za-z.-]*")
+JUNOS_AUTHORIZATION = re.compile(r"Current user: '([^']*)' class '([^']*)'")
+# The last hierarchy of a Junos switch configuration; its own last lines are not proven.
+JUNOS_LAST_SECTION = "vlans"
+# NX-OS ends show running-config with at least two empty lines after the sections behind line vty.
+NXOS_END = re.compile(r"\n(?:[ \t]*\n){2,}\Z")
+EXOS_ERROR = re.compile(r"^(?:Error:|%|\^)")
+EXOS_VERSION = re.compile(r"^Image\s*:\s*ExtremeXOS version ([0-9]+(?:\.[0-9]+){3})(?![0-9.])", re.M)
+EXOS_MODEL = re.compile(r"^(?:System Type|Model|Switch)[ \t]*:[ \t]*(EXOS-VM|X[0-9][A-Z0-9]*-[A-Z0-9-]+)(?=[ \t]|$)",
+                        re.M | re.I)
+
+
+def _session_full(platform, answers, login):
+    """Whether the device reports a full role for the session that read the snapshot."""
+    answer = answers.get("session role", "")
+    if platform == "arista-eos":
+        try:
+            sessions = json.loads(answer)
+        except (ValueError, RecursionError):
+            return False
+        vtys = sessions.get("vtys") if isinstance(sessions, dict) else None
+        if not isinstance(vtys, dict) or not all(isinstance(row, dict) for row in vtys.values()):
+            return False
+        matching = [row for row in vtys.values() if row.get("username") == login]
+        if len(matching) != 1:
+            return False
+        row = matching[0]
+        return (row.get("service") == "sshd" and row.get("state") == "established"
+                and row.get("role") == "network-admin")
+    if platform == "juniper-junos":
+        found = JUNOS_AUTHORIZATION.match(answer.lstrip())
+        return found is not None and found.group(1).strip() == login and found.group(2) == "super-user"
+    user, roles = None, set()
+    for line in answer.splitlines():
+        line = line.strip()
+        if line.startswith("user:"):
+            user = line[len("user:"):].strip()
+        elif line.startswith("roles:") and user == login:
+            roles.update(line[len("roles:"):].split())
+    return bool(roles & NXOS_FULL_ROLES)
+
+
+def _documented_end(platform, tree, text):
+    if platform == "cisco-nxos":
+        return NXOS_END.search(text) is not None and _has(tree, "line", "vty")
+    if platform == "juniper-junos":
+        lines = [line.strip() for line in text.split("\n")]
+        last = next((line for line in reversed(lines)
+                     if line and not line.startswith("##") and not l1_junos.SCOPE.fullmatch(line)), "")
+        return last.split()[:2] in (["set", JUNOS_LAST_SECTION], ["deactivate", JUNOS_LAST_SECTION])
+    return True  # EOS: _frame already requires the closing "end".
+
+
+def _verified_exec(platform, tree, text, login, answers):
+    if not isinstance(login, str) or not login:
+        return False
+    if platform == "juniper-junos":
+        version = [item.tokens[1:] for item in tree.matching("version")]
+        known = (not tree.hidden and not tree.denied and tree.malformed is None
+                 and len(version) == 1 and len(version[0]) == 1 and JUNOS_VERSION.fullmatch(version[0][0]))
+    elif platform == "cisco-nxos":
+        version = [item for item in tree.matching("version") if item.mode == "set" and not item.parents]
+        known = len(version) == 1 and len(version[0].tokens) > 1 and NXOS_VERSION.fullmatch(version[0].tokens[1])
+    elif platform == "arista-eos":
+        head = text.lstrip("\n \t").removeprefix("> show running-config\n").splitlines()[1:2]
+        known = bool(head) and EOS_DEVICE.fullmatch(head[0].rstrip()) is not None
+    else:
+        return False
+    return bool(known) and _documented_end(platform, tree, text) and _session_full(platform, answers, login)
+
+
+def _section_visibility(platform, tree, auxiliary, answers, text="", login=None):
+    present = SectionVisibility(VISIBLE, "content")
+    verified = SectionVisibility(VISIBLE, "verified-profile")
+    sections = dict.fromkeys(tree.sections, present)
+    if platform == "cisco-ios":
+        privilege = answers.get("privilege", "")
+        view = answers.get("cli view", "")
+        if (re.search(r"(?m)^Current privilege level is 15\s*$", privilege)
+                and re.search(r"(?mi)^Current view is [\"']?root[\"']?\s*$", view)):
+            sections.update(dict.fromkeys(l1_cli.SECTIONS - sections.keys(), verified))
+    elif _verified_exec(platform, tree, text, login, answers):
+        families = l1_junos.SECTIONS if platform == "juniper-junos" else l1_cli.SECTIONS
+        sections = dict.fromkeys(families | tree.sections, verified)
+        if platform == "juniper-junos":
+            sections[JUNOS_LAST_SECTION] = present
+    if platform == "juniper-junos":
+        sections.update(dict.fromkeys(tree.inheritance, SectionVisibility(UNPROVEN, "inheritance-unresolved")))
+        sections.update(dict.fromkeys(tree.hidden, SectionVisibility(HIDDEN, "access-denied")))
+    sections.update(auxiliary)
+    return sections
+
+
+def _collect_exec(device, platform, inventory_platform, steps, source, login, clock, execute, budget):
+    parser = platforms.PLATFORMS[platform].parser
+    events, auxiliary, answers = [], {}, {}
+    tree = None
+    for step in steps:
+        if not step.snapshot and not _run_auxiliary(step, platform, tree, answers):
+            continue
+        started = _moment(clock)
+        data, answer, reason = _read_exec(execute, step.command, budget,
+                                          configuration=step.snapshot or step.section == "inheritance")
+        budget -= len(data)
+        if not reason and step.snapshot:
+            parsed = parser.parse(answer)
+            if not _frame(platform, answer, parsed):
+                reason = "truncated"
+            else:
+                tree, text = parsed, answer
+        if not reason and step.section == "inheritance":
+            inherited = parser.parse(answer)
+            if not _frame(platform, answer, inherited):
+                reason = "truncated"
+            else:
+                tree = l1_junos.with_inheritance(tree, inherited)
+        event = _finished(device, "%s %s" % (source, step.command), started, clock,
+                          hashlib.sha256(data).hexdigest(), len(data),
+                          OUTCOME_FAILED if reason else OUTCOME_OK, CHANNEL_SSH)
+        events.append(event)
+        if step.snapshot:
+            if reason in ("pager", "truncated"):
+                metadata = SnapshotMetadata(inventory_platform, integrity_reason=reason)
+                return Snapshot(device, platform, CHANNEL_SSH, source, event.response_sha256,
+                                len(data), event.finished_at, login, "", metadata), tuple(events)
+            if reason:
+                raise CollectError("%s: %s" % (step.command, reason), event, events)
+            collected_at = event.finished_at
+        else:
+            if not reason:
+                answers[step.section] = answer
+            auxiliary[step.section] = _auxiliary_visibility(reason)
+    sections = _section_visibility(platform, tree, auxiliary, answers, text, login)
+    metadata = SnapshotMetadata(inventory_platform, sections, answers, complete=True, tree=tree)
+    body = text.encode("utf-8")
+    return Snapshot(device, platform, CHANNEL_SSH, source, hashlib.sha256(body).hexdigest(),
+                    len(body), collected_at, login, text, metadata), tuple(events)
+
+
 SECTION_HEADERS = {
+    "cisco-ios": l1_cli.parse,
+    "cisco-nxos": l1_cli.parse,
+    "arista-eos": l1_cli.parse,
+    "juniper-junos": l1_junos.parse,
     PLATFORM_FORTIOS: ("config ", ""),
     PLATFORM_EXOS: ("# Module ", " configuration."),
 }
@@ -805,6 +1165,9 @@ def _statements(text, platform) -> list:
 
 
 def unterminated_line(text, platform):
+    if platform in EXEC_PLATFORMS:
+        tree = SECTION_HEADERS[platform](text)
+        return tree.malformed if platform == "juniper-junos" else tree.unterminated
     if platform != PLATFORM_FORTIOS:
         return None
     try:
@@ -822,7 +1185,10 @@ def unterminated_line(text, platform):
 def missing_sections(text, required_sections, platform) -> tuple:
     if not isinstance(text, str):
         raise CollectError("text must be a string, got %r" % (text,))
-    prefix, suffix = _checked_header(platform)
+    header = _checked_header(platform)
+    if callable(header):
+        return tuple(dict.fromkeys(name for name in required_sections if name not in header(text).sections))
+    prefix, suffix = header
     present = set()
     for line in _statements(text, platform):
         normalized = _normalized(line)

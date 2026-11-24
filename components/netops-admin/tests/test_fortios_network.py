@@ -1,5 +1,5 @@
-"""1.0.12 G19 (FG-08..FG-11): Admin FortiOS system interface (alias/description, admin up/down, VLAN create/delete)
-and router static (create/update/disable/delete) on the measured FortiGate-60F 7.6.8 build3744 (task 439).
+"""1.0.12 FIREWALL-ROUTING-ADMIN (FG-08..FG-11): Admin FortiOS system interface (alias/description, admin up/down, VLAN create/delete)
+and router static (create/update/disable/delete) on the measured FortiGate-60F 7.6.8 build3744 (verification).
 
 The device is FakeFortiOSNet: the real anonymised interface and route tables of the lab 60F plus the measured
 behaviour of that build (fixtures/fortios_7_6_8_net/README.md)."""
@@ -13,14 +13,15 @@ from netops_admin import config, engine, execute, fortios, profiles
 from netops_admin.config import _device
 from netops_admin.errors import Rejected
 from netops_auditor import l1_fortios
+from approved_apply import approved_apply
 
 IF = "system interface"
 RT = "router static"
 FIRMWARE = "7.6.8 build3744"
 VLAN = {"vdom": "root", "interface": "internal", "vlanid": 3439, "ip": "198.51.100.137/29", "allowaccess": "ping",
-        "alias": "netops 439", "description": "NetOps G19 test"}
+        "alias": "netops 439", "description": "NetOps FIREWALL-ROUTING-ADMIN test"}
 ROUTE = {"dst": "198.51.100.192/26", "gateway": "198.51.100.138", "device": "n439-v", "distance": 20,
-         "comment": "NetOps G19 test"}
+         "comment": "NetOps FIREWALL-ROUTING-ADMIN test"}
 # host01 is the anonymised PVE-MGMT (VLAN 100 on fortilink, the path to the lab hosts); wan1 the uplink
 PROTECTED = {"system interface": ["host01", "wan1"]}
 
@@ -31,20 +32,20 @@ def runtime(tmp_path, device, **fields):
     return make_runtime(tmp_path, device, **fields)
 
 
-def ask(table, key, op="create", changes=None, request_id="req-g19-0001"):
+def ask(table, key, op="create", changes=None, request_id="req-firewall-routing-admin-0001"):
     return request(table=table, key=key, op=op, changes=changes if changes is not None else {}, request_id=request_id)
 
 
 def rejected(rt, req):
     with pytest.raises(Rejected) as caught:
-        execute.apply(rt, "lab", req)
+        approved_apply(rt, "lab", req)
     return " ".join(caught.value.reasons)
 
 
 def created(tmp_path):
     device = FakeFortiOSNet()
     rt = runtime(tmp_path, device)
-    record = execute.apply(rt, "lab", ask(IF, "n439-v", changes=dict(VLAN)))
+    record = approved_apply(rt, "lab", ask(IF, "n439-v", changes=dict(VLAN)))
     assert record["result"] == "confirmed", record
     return device, rt, record
 
@@ -74,7 +75,7 @@ def test_profiles_are_exact_opt_in_and_need_the_protected_management_path():
             _device("lab", dict(data, opt_in=[table]))
         assert "%s changes need protected system interface" % table in " ".join(caught.value.reasons)
         assert _device("lab", dict(data, opt_in=[table], protected=PROTECTED)).opt_in == (table,)
-    # G00-1: another build is untested (warning), not refused
+    # STARTUP-1: another build is untested (warning), not refused
     assert profiles.firmware_support(interface, "7.6.9 build3800")["status"] == "untested"
 
 
@@ -83,18 +84,18 @@ def test_measured_readbacks_normalize_inside_the_profile():
     route = profiles.find_profile("fortios", RT, FIRMWARE)
     created_vlan = shown(fixture("show-system-interface-n439-v__created-role-undefined.txt"), IF, "n439-v")
     assert engine.normalize(interface, created_vlan) == ({
-        "vdom": "root", "ip": "198.51.100.1 255.255.255.248", "allowaccess": "ping", "description": "NetOps G19 test",
+        "vdom": "root", "ip": "198.51.100.1 255.255.255.248", "allowaccess": "ping", "description": "NetOps FIREWALL-ROUTING-ADMIN test",
         "alias": "netops 439", "interface": "internal", "vlanid": "3439"}, [])
     inherited = shown(fixture("show-system-interface-n439-v__status-down-inherited-role-lan.txt"), IF, "n439-v")
     state, unknown = engine.normalize(interface, inherited)
     assert unknown == ["role lan"] and state["status"] == "down"
     assert engine.normalize(route, shown(fixture("show-router-static-439__created.txt"), RT, "439")) == ({
         "dst": "203.0.113.0 255.255.255.0", "gateway": "198.51.100.2", "distance": "20", "device": "n439-v",
-        "comment": "NetOps G19 test"}, [])
+        "comment": "NetOps FIREWALL-ROUTING-ADMIN test"}, [])
     assert engine.normalize(route, shown(fixture("show-router-static-439__disabled.txt"), RT, "439"))[0]["status"] \
         == "disable"
     assert engine.normalize(route, shown(fixture("show-router-static-439__dynamic-gateway.txt"), RT, "439")) == ({
-        "dst": "203.0.113.0 255.255.255.0", "device": "wan2", "comment": "NetOps G19 test",
+        "dst": "203.0.113.0 255.255.255.0", "device": "wan2", "comment": "NetOps FIREWALL-ROUTING-ADMIN test",
         "dynamic-gateway": "enable"}, [])
     assert shown(fixture("show-router-static-439__not-found.txt"), RT, "439") is None
     assert fortios.cli_error(fixture("delete-system-interface__referenced.txt"))
@@ -104,17 +105,17 @@ def test_create_renders_the_measured_command_order_with_role_undefined():
     interface = profiles.find_profile("fortios", IF, FIRMWARE)
     route = profiles.find_profile("fortios", RT, FIRMWARE)
     lines = fortios.render_create(interface, "n439-v", {
-        "alias": "netops 439", "allowaccess": "ping", "description": "NetOps G19 test", "interface": "internal",
+        "alias": "netops 439", "allowaccess": "ping", "description": "NetOps FIREWALL-ROUTING-ADMIN test", "interface": "internal",
         "ip": "198.51.100.1 255.255.255.248", "vdom": "root", "vlanid": "3439"})
-    # the order and spelling sent to the lab 60F in task 439 (task-evidence/g19/60f-cli/07-calib3.cmds)
+    # the order and spelling sent to the lab 60F in verification (private measurement record)
     assert [line.strip() for line in lines] == [
         "config system interface", 'edit "n439-v"', 'set alias "netops 439"', 'set allowaccess "ping"',
-        'set description "NetOps G19 test"', 'set interface "internal"', "set ip 198.51.100.1 255.255.255.248",
+        'set description "NetOps FIREWALL-ROUTING-ADMIN test"', 'set interface "internal"', "set ip 198.51.100.1 255.255.255.248",
         'set role "undefined"', 'set vdom "root"', "set vlanid 3439", "next", "end"]
     assert [line.strip() for line in fortios.render_create(route, "439", {
-        "comment": "NetOps G19 test", "device": "n439-v", "distance": "20", "dst": "203.0.113.0 255.255.255.0",
+        "comment": "NetOps FIREWALL-ROUTING-ADMIN test", "device": "n439-v", "distance": "20", "dst": "203.0.113.0 255.255.255.0",
         "gateway": "198.51.100.2"})] == [
-        "config router static", 'edit "439"', 'set comment "NetOps G19 test"', 'set device "n439-v"',
+        "config router static", 'edit "439"', 'set comment "NetOps FIREWALL-ROUTING-ADMIN test"', 'set device "n439-v"',
         "set distance 20", "set dst 203.0.113.0 255.255.255.0", "set gateway 198.51.100.2", "next", "end"]
 
 
@@ -136,10 +137,10 @@ def test_vlan_create_alias_status_and_undo(tmp_path):
     assert vlan["device-identification"] == "enable" and "role" not in vlan and vlan["vlanid"] == "3439"
     assert "n439-v address" not in device.addresses
     assert not device.stitches and not device.triggers and not device.actions
-    alias = execute.apply(rt, "lab", ask(IF, "n439-v", "update", {"alias": "lab test"}, "req-g19-0002"))
+    alias = approved_apply(rt, "lab", ask(IF, "n439-v", "update", {"alias": "lab test"}, "req-firewall-routing-admin-0002"))
     assert alias["result"] == "confirmed" and vlan is not None
     assert device.net[IF]["n439-v"]["attrs"]["alias"] == "lab test"
-    down = execute.apply(rt, "lab", ask(IF, "n439-v", "update", {"status": "down"}, "req-g19-0003"))
+    down = approved_apply(rt, "lab", ask(IF, "n439-v", "update", {"status": "down"}, "req-firewall-routing-admin-0003"))
     assert down["result"] == "confirmed" and device.net[IF]["n439-v"]["attrs"]["status"] == "down"
     assert execute.undo(rt, down["change_id"], "back up")["result"] == "confirmed"
     assert "status" not in device.net[IF]["n439-v"]["attrs"]
@@ -152,7 +153,7 @@ def test_vlan_create_alias_status_and_undo(tmp_path):
 def test_delete_of_a_vlan_and_its_undo_recreate_it(tmp_path):
     device, rt, _record = created(tmp_path)
     shown_before = device.show(IF, "n439-v")
-    gone = execute.apply(rt, "lab", ask(IF, "n439-v", "delete", {}, "req-g19-0004"))
+    gone = approved_apply(rt, "lab", ask(IF, "n439-v", "delete", {}, "req-firewall-routing-admin-0004"))
     assert gone["result"] == "confirmed" and "n439-v" not in device.net[IF]
     assert 'set role "undefined"' in "\n".join(gone["plan"]["inverse"])
     back = execute.undo(rt, gone["change_id"], "restore")
@@ -163,7 +164,7 @@ def test_delete_of_a_vlan_and_its_undo_recreate_it(tmp_path):
 def test_isolated_update_of_an_existing_physical_port(tmp_path):
     device = FakeFortiOSNet()
     rt = runtime(tmp_path, device)
-    record = execute.apply(rt, "lab", ask(IF, "internal5", "update", {"description": "spare port"}))
+    record = approved_apply(rt, "lab", ask(IF, "internal5", "update", {"description": "spare port"}))
     assert record["result"] == "confirmed"
     assert device.net[IF]["internal5"]["attrs"] == {"vdom": "root", "type": "physical", "description": "spare port",
                                                     "snmp-index": "8"}
@@ -173,18 +174,18 @@ def test_isolated_update_of_an_existing_physical_port(tmp_path):
 
 def test_route_create_disable_undo_and_delete(tmp_path):
     device, rt, _record = created(tmp_path)
-    record = execute.apply(rt, "lab", ask(RT, "439", changes=dict(ROUTE), request_id="req-g19-0010"))
+    record = approved_apply(rt, "lab", ask(RT, "439", changes=dict(ROUTE), request_id="req-firewall-routing-admin-0010"))
     assert record["result"] == "confirmed", record
     assert device.net[RT]["439"]["attrs"] == {"dst": "198.51.100.192 255.255.255.192", "gateway": "198.51.100.138",
-                                             "distance": "20", "device": "n439-v", "comment": "NetOps G19 test"}
-    off = execute.apply(rt, "lab", ask(RT, "439", "update", {"status": "disable"}, "req-g19-0011"))
+                                             "distance": "20", "device": "n439-v", "comment": "NetOps FIREWALL-ROUTING-ADMIN test"}
+    off = approved_apply(rt, "lab", ask(RT, "439", "update", {"status": "disable"}, "req-firewall-routing-admin-0011"))
     assert off["result"] == "confirmed" and device.net[RT]["439"]["attrs"]["status"] == "disable"
     assert execute.undo(rt, off["change_id"], "enable again")["result"] == "confirmed"
     assert "status" not in device.net[RT]["439"]["attrs"]
     # the VLAN is named by the route: its delete is refused before any write
-    reasons = rejected(rt, ask(IF, "n439-v", "delete", {}, "req-g19-0012"))
+    reasons = rejected(rt, ask(IF, "n439-v", "delete", {}, "req-firewall-routing-admin-0012"))
     assert "referenced" in reasons
-    gone = execute.apply(rt, "lab", ask(RT, "439", "delete", {}, "req-g19-0013"))
+    gone = approved_apply(rt, "lab", ask(RT, "439", "delete", {}, "req-firewall-routing-admin-0013"))
     assert gone["result"] == "confirmed" and "439" not in device.net[RT]
     assert execute.undo(rt, gone["change_id"], "restore")["result"] == "confirmed"
     assert device.net[RT]["439"]["attrs"]["distance"] == "20"
@@ -194,7 +195,7 @@ def test_firing_reverts_a_route_create_when_the_check_account_is_lost(tmp_path):
     device, rt, _record = created(tmp_path)
     device.on_apply = lambda fake, block: setattr(
         fake, "check_unreadable", fake.check_unreadable or block[0] == "config " + RT)
-    record = execute.apply(rt, "lab", ask(RT, "439", changes=dict(ROUTE), request_id="req-g19-0020"))
+    record = approved_apply(rt, "lab", ask(RT, "439", changes=dict(ROUTE), request_id="req-firewall-routing-admin-0020"))
     assert record["result"] == "reverted" and "439" not in device.net[RT]
 
 
@@ -204,7 +205,7 @@ def test_device_refusal_of_a_referenced_interface_delete_is_not_a_change(tmp_pat
     device.addresses["n439-v address"] = {"uuid": device._uuid(), "subnet": "198.51.100.136 255.255.255.248"}
     original = device._users
     device._users = lambda name: ["hidden"] if name == "n439-v" else original(name)
-    record = execute.apply(rt, "lab", ask(IF, "n439-v", "delete", {}, "req-g19-0030"))
+    record = approved_apply(rt, "lab", ask(IF, "n439-v", "delete", {}, "req-firewall-routing-admin-0030"))
     assert record["result"] != "confirmed"
     assert "n439-v" in device.net[IF]
 
@@ -266,7 +267,7 @@ def test_schema_transactions_cannot_bypass_the_profiles(path):
                              "check_credential": "ro", "opt_in": [IF, RT], "protected": PROTECTED})
     transaction = Transaction(device="lab", operations=[{"path": path, "scope": "root", "owners": ["1"], "op": "update",
                                                          "changes": {"comment": "x"}}],
-                              reason="r", user_request="u", request_id="req-g19-schema")
+                              reason="r", user_request="u", request_id="req-firewall-routing-admin-schema")
     with pytest.raises(Rejected) as caught:
         execute._opt_in(device, transaction)
     assert "changes need the" in " ".join(caught.value.reasons)
@@ -280,10 +281,10 @@ def test_fixture_tables_parse():
     assert set(root.sub["system interface"].entries) == set(interfaces)
 
 
-# --- task 439-r2: blocking findings of the review 439-rv ---------------------------------------------------------
+# --- verification: blocking findings of the review ---------------------------------------------------------
 
 def test_static_default_route_through_wan_does_not_refuse_other_routes(tmp_path):
-    """439-rv finding 1: the usual static default route through the protected wan1 (no dst) stays protected itself,
+    """Review finding 1: the usual static default route through the protected wan1 (no dst) stays protected itself,
     but its 0.0.0.0/0 does not refuse every other destination."""
     device, rt, _record = created(tmp_path)
     # show router static of a default route on 7.6.8: dst 0.0.0.0 0.0.0.0 is omitted (fixture route 21 for format)
@@ -291,33 +292,33 @@ def test_static_default_route_through_wan_does_not_refuse_other_routes(tmp_path)
         "config router static\n", 'config router static\n    edit 1\n        set gateway 203.0.113.254\n'
         '        set device "wan1"\n    next\n', 1))
     assert device.net[RT]["1"]["attrs"] == {"gateway": "203.0.113.254", "device": "wan1"}
-    record = execute.apply(rt, "lab", ask(RT, "439", changes=dict(ROUTE), request_id="req-g19-r2-01"))
+    record = approved_apply(rt, "lab", ask(RT, "439", changes=dict(ROUTE), request_id="req-firewall-routing-admin-r2-01"))
     assert record["result"] == "confirmed", record
-    changed = execute.apply(rt, "lab", ask(RT, "439", "update", {"comment": "r2"}, "req-g19-r2-02"))
+    changed = approved_apply(rt, "lab", ask(RT, "439", "update", {"comment": "r2"}, "req-firewall-routing-admin-r2-02"))
     assert changed["result"] == "confirmed"
-    gone = execute.apply(rt, "lab", ask(RT, "439", "delete", {}, "req-g19-r2-03"))
+    gone = approved_apply(rt, "lab", ask(RT, "439", "delete", {}, "req-firewall-routing-admin-r2-03"))
     assert gone["result"] == "confirmed" and "439" not in device.net[RT]
     # the default route itself, a new default route and a route into route 21 stay refused before any write
     before = device.snapshot()
     blocks = len(device.applied_blocks)
-    assert "leaves through interface wan1" in rejected(rt, ask(RT, "1", "update", {"comment": "x"}, "req-g19-r2-04"))
-    assert "cannot be recreated by the inverse: it has no dst" in rejected(rt, ask(RT, "1", "delete", {}, "req-g19-r2-05"))
+    assert "leaves through interface wan1" in rejected(rt, ask(RT, "1", "update", {"comment": "x"}, "req-firewall-routing-admin-r2-04"))
+    assert "cannot be recreated by the inverse: it has no dst" in rejected(rt, ask(RT, "1", "delete", {}, "req-firewall-routing-admin-r2-05"))
     assert "never changes a default route" in rejected(
-        rt, ask(RT, "22", changes=dict(ROUTE, dst="0.0.0.0/0"), request_id="req-g19-r2-06"))
+        rt, ask(RT, "22", changes=dict(ROUTE, dst="0.0.0.0/0"), request_id="req-firewall-routing-admin-r2-06"))
     assert "overlaps route 21" in rejected(
-        rt, ask(RT, "22", changes=dict(ROUTE, dst="192.0.2.0/25"), request_id="req-g19-r2-07"))
+        rt, ask(RT, "22", changes=dict(ROUTE, dst="192.0.2.0/25"), request_id="req-firewall-routing-admin-r2-07"))
     assert len(device.applied_blocks) == blocks and device.snapshot() == before
 
 
 def test_undo_removes_an_added_interface_address(tmp_path):
-    """439-rv finding 2: an unprotected VLAN without references and without an address gets ip; its undo unsets it."""
+    """Review finding 2: an unprotected VLAN without references and without an address gets ip; its undo unsets it."""
     device = FakeFortiOSNet()
     rt = runtime(tmp_path, device)
     bare = {name: value for name, value in VLAN.items() if name != "ip"}
-    assert execute.apply(rt, "lab", ask(IF, "n439-v", changes=bare))["result"] == "confirmed"
+    assert approved_apply(rt, "lab", ask(IF, "n439-v", changes=bare))["result"] == "confirmed"
     shown_before = device.show(IF, "n439-v")
     assert "set ip" not in shown_before
-    added = execute.apply(rt, "lab", ask(IF, "n439-v", "update", {"ip": "198.51.100.137/29"}, "req-g19-r2-11"))
+    added = approved_apply(rt, "lab", ask(IF, "n439-v", "update", {"ip": "198.51.100.137/29"}, "req-firewall-routing-admin-r2-11"))
     assert added["result"] == "confirmed"
     assert device.net[IF]["n439-v"]["attrs"]["ip"] == "198.51.100.137 255.255.255.248"
     assert "        unset ip" in added["plan"]["inverse"]
@@ -327,14 +328,14 @@ def test_undo_removes_an_added_interface_address(tmp_path):
 
 
 def test_undo_removes_an_added_route_gateway(tmp_path):
-    """439-rv finding 2: a route through an Ethernet port without a gateway gets one; its undo unsets it."""
+    """Review finding 2: a route through an Ethernet port without a gateway gets one; its undo unsets it."""
     device = FakeFortiOSNet()
     rt = runtime(tmp_path, device)
-    plain = {"dst": "198.51.100.192/26", "device": "internal5", "comment": "NetOps G19 test"}
-    assert execute.apply(rt, "lab", ask(RT, "439", changes=plain))["result"] == "confirmed"
+    plain = {"dst": "198.51.100.192/26", "device": "internal5", "comment": "NetOps FIREWALL-ROUTING-ADMIN test"}
+    assert approved_apply(rt, "lab", ask(RT, "439", changes=plain))["result"] == "confirmed"
     shown_before = device.show(RT, "439")
     assert "gateway" not in shown_before
-    added = execute.apply(rt, "lab", ask(RT, "439", "update", {"gateway": "198.51.100.194"}, "req-g19-r2-21"))
+    added = approved_apply(rt, "lab", ask(RT, "439", "update", {"gateway": "198.51.100.194"}, "req-firewall-routing-admin-r2-21"))
     assert added["result"] == "confirmed" and device.net[RT]["439"]["attrs"]["gateway"] == "198.51.100.194"
     back = execute.undo(rt, added["change_id"], "remove the gateway again")
     assert back["result"] == "confirmed", back
@@ -342,7 +343,7 @@ def test_undo_removes_an_added_route_gateway(tmp_path):
 
 
 def test_isolated_update_of_a_vlan_with_role_lan(tmp_path):
-    """439-rv finding 3: an existing unprotected VLAN with role lan (measured readback) gets an alias change and its
+    """Review finding 3: an existing unprotected VLAN with role lan (measured readback) gets an alias change and its
     undo; role lan is kept in the predicted state and compared unchanged by the check account."""
     device = FakeFortiOSNet()
     vlan = parse_table(fixture("show-system-interface-n439-v__status-down-inherited-role-lan.txt"))["n439-v"]
@@ -352,10 +353,10 @@ def test_isolated_update_of_a_vlan_with_role_lan(tmp_path):
                                           address["n439-v address"]["attrs"].items()}
     shown_before = device.show(IF, "n439-v")
     rt = runtime(tmp_path, device)
-    preview = execute.preview(rt, "lab", ask(IF, "n439-v", "update", {"alias": "netops r2"}, "req-g19-r2-30"))
+    preview = execute.preview(rt, "lab", ask(IF, "n439-v", "update", {"alias": "netops r2"}, "req-firewall-routing-admin-r2-30"))
     assert preview["result"] == "ready", preview
     assert not device.applied_blocks
-    record = execute.apply(rt, "lab", ask(IF, "n439-v", "update", {"alias": "netops r2"}, "req-g19-r2-31"))
+    record = approved_apply(rt, "lab", ask(IF, "n439-v", "update", {"alias": "netops r2"}, "req-firewall-routing-admin-r2-31"))
     assert record["result"] == "confirmed", record
     assert record["plan"]["predicted"]["before"]["role"] == "lan"
     assert record["plan"]["predicted"]["after"]["role"] == "lan"
@@ -367,12 +368,12 @@ def test_isolated_update_of_a_vlan_with_role_lan(tmp_path):
     # a non-isolated change of the same VLAN still refuses role lan before any write
     blocks = len(device.applied_blocks)
     assert "outside the profile: role lan" in rejected(
-        rt, ask(IF, "n439-v", "update", {"ip": "198.51.100.137/29"}, "req-g19-r2-32"))
+        rt, ask(IF, "n439-v", "update", {"ip": "198.51.100.137/29"}, "req-firewall-routing-admin-r2-32"))
     assert len(device.applied_blocks) == blocks
 
 
 def test_isolated_readback_compares_a_changed_role():
-    """439-rv finding 3: the readback of an isolated plan sees a role that changed against the prediction."""
+    """Review finding 3: the readback of an isolated plan sees a role that changed against the prediction."""
     profile = profiles.find_profile("fortios", IF, FIRMWARE)
     attributes = shown(fixture("show-system-interface-n439-v__status-down-inherited-role-lan.txt"), IF, "n439-v")
     state = engine.full_state(profile, attributes)

@@ -27,6 +27,6 @@
   "volatile": [],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "G102 NX-M022, Nexus 9000v NX-OS 9.3(12). Per-SVI relay addresses with and without use-vrf were added and removed. The DHCP feature and relay agent must already be enabled. NX-OS scheduler and configure replace protect the change. Confirmation compares show ip dhcp relay address from the check identity with show running-config dhcp.",
+  "rollback_evidence": "Live write and return on Nexus 9000v NX-OS 9.3(12) (2026-11-18): The route, L3 interface or relay address was changed, read back and undone. nxos routing admin NX-M022, Nexus 9000v NX-OS 9.3(12). Per-SVI relay addresses with and without use-vrf were added and removed. The DHCP feature and relay agent must already be enabled. NX-OS scheduler and configure replace protect the change. Confirmation compares show ip dhcp relay address from the check identity with show running-config dhcp.",
   "table_scoped_key": true
 }

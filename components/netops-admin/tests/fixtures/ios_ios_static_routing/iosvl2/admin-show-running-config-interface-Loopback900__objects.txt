@@ -1,0 +1,9 @@
+
+Building configuration...
+
+Current configuration : 115 bytes
+!
+interface Loopback900
+ description netops-ios-static-routing test
+ ip address 198.51.100.81 255.255.255.240
+end

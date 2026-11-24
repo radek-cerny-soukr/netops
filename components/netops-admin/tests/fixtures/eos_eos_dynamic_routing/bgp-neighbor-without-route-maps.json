@@ -1,0 +1,20 @@
+{
+  "vrfs": {
+    "default": {
+      "peerList": [
+        {
+          "peerAddress": "198.51.100.6",
+          "asn": "65127",
+          "localAsn": "65126",
+          "linkType": "external",
+          "vrf": "default",
+          "state": "Active",
+          "updateSource": "198.51.100.5",
+          "ttl": 1,
+          "holdTime": 0,
+          "keepaliveTime": 0
+        }
+      ]
+    }
+  }
+}

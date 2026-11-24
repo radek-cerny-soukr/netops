@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import sys
+import sysconfig
 import pytest
 
 class Results:
@@ -37,7 +38,7 @@ def main():
     args = parser.parse_args()
     root = Path("/repo")
     distribution = root / "components" / ("netops-" + args.role)
-    installed = Path("/usr/local/lib/python3.14/site-packages")
+    installed = Path(sysconfig.get_path("purelib", vars={"base": sys.base_prefix}))
     mismatches = []
     for path in (distribution / "src").rglob("*"):
         if not path.is_file() or "__pycache__" in path.parts or path.suffix == ".pyc":

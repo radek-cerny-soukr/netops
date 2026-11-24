@@ -46,5 +46,5 @@
   "volatile": [],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "G83, GNS3 IOL XE 17.18.2. A manual host binding with one hexadecimal client identifier or one Ethernet hardware address. Clear the old attribute with null when changing identifier type. Uses the IOS confirmed revert timer and exact running-configuration readback of the affected object."
+  "rollback_evidence": "Live write and return on Cisco IOS XE 17.18.2 (2026-11-20): The DHCP configuration was applied and its original state restored. xe dhcp, GNS3 IOL XE 17.18.2. A manual host binding with one hexadecimal client identifier or one Ethernet hardware address. Clear the old attribute with null when changing identifier type. Uses the IOS confirmed revert timer and exact running-configuration readback of the affected object."
 }

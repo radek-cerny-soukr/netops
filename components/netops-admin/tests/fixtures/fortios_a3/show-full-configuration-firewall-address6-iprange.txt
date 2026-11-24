@@ -1,0 +1,11 @@
+config firewall address6
+    edit "netops-a3-net2"
+        set uuid 00000000-0000-4000-8000-a30000000002
+        set type iprange
+        set color 0
+        set comment ''
+        set fabric-object disable
+        set start-ip 2001:db8:a3::10
+        set end-ip 2001:db8:a3::20
+    next
+end

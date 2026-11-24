@@ -1,0 +1,7 @@
+[edit vlans]
+-   junos-vlan-admin-trunk {
+-       vlan-id 3903;
+-   }
++   junos-vlan-admin-trunk2 {
++       vlan-id 3903;
++   }

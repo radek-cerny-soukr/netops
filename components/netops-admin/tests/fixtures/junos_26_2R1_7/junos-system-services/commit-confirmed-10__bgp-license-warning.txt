@@ -1,0 +1,7 @@
+[edit protocols]
+  'bgp'
+    warning: requires 'BGP' license
+commit confirmed will be automatically rolled back in 10 minutes unless confirmed
+commit complete
+
+# commit confirmed will be rolled back in 10 minutes

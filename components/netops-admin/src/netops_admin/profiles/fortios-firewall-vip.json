@@ -105,5 +105,5 @@
     ]
   },
   "provisional": true,
-  "rollback_evidence": "FortiOS 7.6.8 static NAT object with scoped CLI readback and the FortiOS Admin timed inverse."
+  "rollback_evidence": "Live write and return on FortiOS 7.6.8 build3744 (2026-11-20): The NAT object was created, updated and restored by undo on the 7.6.8 build. FortiOS 7.6.8 static NAT object with scoped CLI readback and the FortiOS Admin timed inverse."
 }

@@ -55,6 +55,6 @@
   "volatile": [],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "Read the configured AutoNeg, Speed and Duplex columns and per-port Jumbo setting. Undo restores the prior configured values.",
+  "rollback_evidence": "Live write and return on ExtremeXOS 33.6.1.14 / 33.7.1.6 (2026-11-19): The ELRP session, port link settings, LAG or STP configuration was changed, read back and undone. Read the configured AutoNeg, Speed and Duplex columns and per-port Jumbo setting. Undo restores the prior configured values.",
   "implicit_keys": true
 }

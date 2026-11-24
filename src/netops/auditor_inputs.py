@@ -10,6 +10,7 @@ from .diagnostics import OPERATION_SUFFIX
 
 SAFE_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,63}")
 COMMANDS = ("import-snapshot", "import-policy")
+POLICY_PLATFORMS = ("fortios", "exos", "cisco-ios", "cisco-nxos", "arista-eos", "juniper-junos")
 
 
 class ImportRefused(ValueError):
@@ -26,15 +27,15 @@ def _arguments(arguments):
     parser = _Parser(prog="netops auditor " + kind)
     parser.add_argument("--name", required=True)
     if kind == "import-policy":
-        parser.add_argument("--platform", required=True, choices=("fortios", "exos"))
+        parser.add_argument("--platform", required=True, choices=POLICY_PLATFORMS)
     return parser.parse_args(arguments[1:])
 
 
 def help_text():
     return ("NetOps operator imports:\n"
             "  import-snapshot --name NAME < snapshot.cfg\n"
-            "  import-policy --name NAME --platform fortios|exos < policy.json\n"
-            "Imports are private and create-only; use a new name to change an input.\n")
+            "  import-policy --name NAME --platform %s < policy.json\n"
+            "Imports are private and create-only; use a new name to change an input.\n" % "|".join(POLICY_PLATFORMS))
 
 
 def _private_directory(descriptor):
@@ -112,9 +113,9 @@ def _publish(directory, arguments, stream):
             remaining = remaining[count:]
         os.fsync(opened)
         if policy:
-            from netops_auditor.management import load_policy
+            from netops_auditor.management import load_audit_policy
             try:
-                load_policy("/proc/self/fd/" + str(opened), options.platform)
+                load_audit_policy("/proc/self/fd/" + str(opened), options.platform)
             except (ValueError, UnicodeError):
                 raise ImportRefused("Invalid Auditor management policy") from None
         try:

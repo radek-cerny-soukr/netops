@@ -1,4 +1,4 @@
-"""Task123: targeted regression cases for review120 findings 120-1, 120-2 and 120-3.
+"""verification: targeted regression cases for three review findings.
 
 REAL input: tests/fixtures/real/cisco_ios/iosv_15.9.3M12/version.txt (read only, never written).
 All other inputs are DERIVED from it in memory.  The real adapter is used, without mocks.

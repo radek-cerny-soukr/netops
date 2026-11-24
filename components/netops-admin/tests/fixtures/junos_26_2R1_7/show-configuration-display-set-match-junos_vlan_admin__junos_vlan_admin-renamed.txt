@@ -1,0 +1,17 @@
+set groups junos-vlan-admin-grp interfaces ge-0/0/7 unit 0 family ethernet-switching interface-mode access
+set groups junos-vlan-admin-grp interfaces ge-0/0/7 unit 0 family ethernet-switching vlan members junos-vlan-admin-data2
+set groups junos-vlan-admin-grpw interfaces "<ge-0/0/[89]>" unit 0 family ethernet-switching vlan members junos-vlan-admin-trunk2
+set apply-groups junos-vlan-admin-grp
+set interfaces interface-range junos-vlan-admin-rng member ge-0/0/9
+set interfaces interface-range junos-vlan-admin-rng unit 0 family ethernet-switching interface-mode access
+set interfaces interface-range junos-vlan-admin-rng unit 0 family ethernet-switching vlan members junos-vlan-admin-voice
+set interfaces ge-0/0/2 description "Kancelář 2.patro – učebna Žďár nad Sázavou, zásuvka 12/3 (VoIP + PC); správce: Ředitelství & IT; pozn.: přepojeno 2026-11-18, kabel č. 47, patch A-12 → sw ge-0/0/2; kontakt: helpdesk / tel. 1234; ověřeno JUNOS-VLAN-ADMIN Ťuk ďábel ÚŮ"
+set interfaces ge-0/0/2 unit 0 family ethernet-switching vlan members junos-vlan-admin-trunk2
+set interfaces ge-0/0/2 unit 0 family ethernet-switching vlan members junos-vlan-admin-data2
+set interfaces ge-0/0/8 apply-groups junos-vlan-admin-grpw
+set interfaces irb unit 3901 description junos-vlan-admin-irb
+set vlans junos-vlan-admin-data2 description "Data VLAN – Brno, kancelář 2.patro (test JUNOS-VLAN-ADMIN)"
+set vlans junos-vlan-admin-data2 vlan-id 3901
+set vlans junos-vlan-admin-data2 l3-interface irb.3901
+set vlans junos-vlan-admin-trunk2 vlan-id 3903
+set vlans junos-vlan-admin-voice vlan-id 3902

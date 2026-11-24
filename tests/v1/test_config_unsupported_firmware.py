@@ -1,4 +1,4 @@
-"""FortiOS and FortiADC configuration reads on a version outside the tested ones (G00-2, decision of 2026-11-17).
+"""FortiOS and FortiADC configuration reads on a version outside the tested ones (STARTUP-2, decision of 2026-11-17).
 
 Since 1.0.12 an untested version or build is not refused: the read returns the data with firmware_support
 "untested", one warnings[] item and the field policy of the nearest tested version (policy_firmware). The

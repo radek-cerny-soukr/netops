@@ -16,5 +16,5 @@
   "volatile": [],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "The approved running configuration overwrites startup-config. Readback compares the saved configuration against the approved running configuration. This operation has no automatic inverse."
+  "rollback_evidence": "Live write and return on Cisco IOS XE 17.18.2 (2026-11-16 / 2026-11): A standalone save was confirmed on IOSv or IOL-L2 XE; earlier change-and-undo runs verified matching restored running and startup states. The approved running configuration overwrites startup-config. Readback compares the saved configuration against the approved running configuration. This operation has no automatic inverse."
 }

@@ -35,7 +35,7 @@ def test_real_iosv_tested():
 
 
 def test_real_iosvl2_is_read_as_untested():
-    """G00: the real IOSvL2 capture (another software, image family and release) is no refusal."""
+    """STARTUP: the real IOSvL2 capture (another software, image family and release) is no refusal."""
     firmware, meta = ad.verify_identity(IOSVL2)
     assert firmware == ('IOSv', '15.2(20200924:215240)', None, 'vios_l2-ADVENTERPRISEK9-M')
     assert meta == ad.metadata() and ad.firmware_record(firmware)

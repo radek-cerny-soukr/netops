@@ -1,4 +1,4 @@
-"""Conservative ExtremeXOS ``show configuration`` stream consumer (task 109-06).
+"""Conservative ExtremeXOS ``show configuration`` stream consumer (verification-06).
 
 This is a building block only.  It is not registered as a platform, stream or I/O path and it does
 not decide whether a capture is complete or whether the account could see everything; the engine

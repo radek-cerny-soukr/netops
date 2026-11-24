@@ -155,7 +155,7 @@ def test_the_check_account_uses_its_own_management_address(monkeypatch):
 
 
 def test_query_status_gives_the_exit_status_of_a_port_without_poe(monkeypatch):
-    """Measured (ref 171): show inline-power info ports N of a port without PoE ends with exit status 250."""
+    """Measured: show inline-power info ports N of a port without PoE ends with exit status 250."""
     answers = {"show inline-power info ports 13": (250, b"Port 13 is not inline-power capable\n", b""),
                "show inline-power info ports 10": (0, b"Port  State\n", b"")}
 
@@ -238,7 +238,7 @@ def test_stderr_only_answers_stay_joined_for_the_readers_that_need_them(monkeypa
     assert "admin" in handle.own_query("show accounts")
 
 
-# task 441 (B02): the refusal exactly as the runtime engine image received it live on 2026-11-17 from X440 port 13 and
+# verification (B02): the refusal exactly as the runtime engine image received it live on 2026-11-17 from X440 port 13 and
 # X435 port 9 over ai-login (EXOS 33.7.1.6-patch1-11): stdout "Port N is not inline-power capable", exit status 250,
 # and the OpenSSH post-quantum warning on stderr. The replay goes through DeviceAccess._query, as the live call did.
 def _replay(name):
@@ -261,7 +261,7 @@ def test_live_refusal_with_ssh_warning_replays_as_poe_not_capable(monkeypatch, n
     with pytest.raises(exos.NotInlinePower) as refused:
         exec_exos._poe_prechecks(handle, None, plan, "")
     assert refused.value.reason_codes == ["poe_not_capable"] and plan["prechecks"] == []
-    # root cause of N01 (task 184, source 72c1fca): the answer joined with stderr is not the single measured line,
+    # root cause of N01 (verification, source 72c1fca): the answer joined with stderr is not the single measured line,
     # so the detector refused it and the precheck fell through to the generic refusal
     joined = handle._query(handle.credential, command, any_status=True, with_stderr=True)
     assert not exos.poe_not_capable_answer(250, joined, port)

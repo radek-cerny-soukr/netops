@@ -152,6 +152,47 @@ class AuditorImports(unittest.TestCase):
                 self.assertFalse((self.root / "inputs/example.policy.json").exists())
                 self.assert_clean_staging()
 
+    def test_audit_intent_alone_or_with_a_policy_is_imported(self):
+        from netops_auditor.management import load_audit_policy
+        intent = {"ntp_auth_required": True, "ports": {"1": {"role": "edge", "discovery_allowed": False}}}
+        exos_policy = {"version": 1, "platform": "exos", "required_rules": ["vlan-policy"], "vlan_tags": [[1, 100]]}
+        for name, platform, document, policy in (
+            ("intent-only", "exos", {"audit_intent": intent}, None),
+            ("intent-versioned", "juniper-junos", {"version": 1, "platform": "juniper-junos",
+                                                   "audit_intent": intent}, None),
+            ("intent-ios", "cisco-ios", {"audit_intent": intent}, None),
+            ("combined", "exos", {**exos_policy, "audit_intent": intent}, exos_policy),
+        ):
+            with self.subTest(name=name):
+                data = json.dumps(document).encode()
+                code, output, errors = self.invoke("import-policy", data, name=name, options=("--platform", platform))
+                self.assertEqual((code, errors), (0, ""))
+                path = Path(output.strip())
+                self.assertEqual(path, self.root / "inputs" / (name + ".policy.json"))
+                self.assertEqual(path.read_bytes(), data)
+                self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+                self.assertEqual(load_audit_policy(path, platform), (policy, intent))
+        self.assert_clean_staging()
+
+    def test_invalid_audit_intent_is_refused_without_publishing(self):
+        for platform, document in (
+            ("exos", {"audit_intent": {"unknown": CANARY}}),
+            ("exos", {"audit_intent": {"ntp_auth_required": CANARY}}),
+            ("exos", {"audit_intent": {"ports": {"1": {"role": CANARY}}}}),
+            ("fortios", {"audit_intent": {"account_lockout_required": ["admin"]}}),
+            ("exos", {"version": 1, "platform": "fortios", "audit_intent": {}}),
+            ("cisco-ios", {"version": 1, "platform": "cisco-ios", "vlan_tags": [[1, 2]], "audit_intent": {}}),
+            ("exos", {"audit_intent": []}),
+            ("fortiadc", {"audit_intent": {}}),
+        ):
+            with self.subTest(platform=platform, document=sorted(document)):
+                data = json.dumps(document).encode()
+                code, _, errors = self.invoke("import-policy", data, options=("--platform", platform))
+                self.assertEqual(code, 2)
+                self.assertTrue(errors.startswith("netops: Invalid Auditor"))
+                self.assertFalse((self.root / "inputs/example.policy.json").exists())
+                self.assert_clean_staging()
+
     def test_exact_byte_limits_and_limit_plus_one(self):
         from netops_auditor import collect, management
         for kind, owner, constant, options, data in (

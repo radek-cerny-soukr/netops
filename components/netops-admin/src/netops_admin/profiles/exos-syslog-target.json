@@ -41,5 +41,5 @@
   "volatile": [],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "UDP syslog target identified by VR, IP, UDP port and facility. The default filter, match and format are supported. Readback uses the check account. Changes are applied to running configuration."
+  "rollback_evidence": "Live write and return on ExtremeXOS 33.6.1.14 / 33.7.1.6 (2026-11): The resolver, NTP server or syslog target was changed, verified and undone. UDP syslog target identified by VR, IP, UDP port and facility. The default filter, match and format are supported. Readback uses the check account. Changes are applied to running configuration."
 }

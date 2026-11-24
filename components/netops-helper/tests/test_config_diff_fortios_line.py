@@ -204,8 +204,8 @@ def test_fortiadc_reports_only_the_changed_line(schedule_wire, insert):
     assert _body(diff) == ('+' if insert else '-') + '    set starttime-of-startdate 00:00\n'
 
 
-# Task 298-r2: the full profile numbers its hidden values (<REDACTED:credential#N>); an added or removed hidden
-# line renumbers the later markers.  The input of review-298-rv (SYNTHETIC, made-up secrets FAKE-*): the
+# verification: the full profile numbers its hidden values (<REDACTED:credential#N>); an added or removed hidden
+# line renumbers the later markers.  The input of the review (SYNTHETIC, made-up secrets FAKE-*): the
 # psksecret of peer-a removed, one added to peer-c, the peers between them unchanged.  Both snapshots go through
 # the real config_read (full profile of the FortiGate-80F 8.0.2 build 0251 policy) and config_diff.
 IPSEC = 'vpn ipsec phase1-interface'
@@ -256,7 +256,7 @@ def test_full_profile_added_and_removed_hidden_lines_do_not_renumber_unchanged_p
 
 
 def test_full_profile_does_not_show_a_changed_hidden_value(wire):
-    # Documented limit (unchanged by 298-r2): the full profile keeps no secrets_changed records, so a pair that
+    # Documented limit (unchanged by the follow-up review): the full profile keeps no secrets_changed records, so a pair that
     # differs only in a hidden value is reported identical; the minimal profile reports it (next test).
     auth = _auth()
     first = _read_full(wire, auth, _peers(1, first_secret='FAKE-A', last_secret=None))
@@ -292,7 +292,7 @@ def test_minimal_profile_same_scenario_stays_correct(wire):
         assert 'FAKE' not in shown and 'peer-' not in shown
 
 
-# Task 298-r3: the input of review-298-r2rv finding 1 (SYNTHETIC, made-up secret FAKE-*).  A psksecret added to
+# verification: the input of a review finding (SYNTHETIC, made-up secret FAKE-*).  A psksecret added to
 # peer-a changes credential_redactions (1 -> 2); for a FortiOS full pair that count is not part of the
 # comparability identity any more, so the pair is one '+' (or, reversed, one '-') line instead of
 # config_snapshot_incomparable.  The stored counts are still returned per capture.

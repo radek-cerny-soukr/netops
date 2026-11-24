@@ -1,0 +1,5 @@
+Policy Name       Vlan Name        Port   Direction
+    Counter Name                   Packet Count         Byte Count
+==================================================================
+netops-switch-ospf-capture netops-switch-ospf       *      ingress
+    switch_ospf_capture                    0

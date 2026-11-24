@@ -10,8 +10,11 @@ import json
 import re
 import inspect
 import sys
+import time
+from threading import Event
 from typing import Annotated, Any, Literal
 
+from anyio import CancelScope
 from fastmcp import Context, FastMCP
 from fastmcp.dependencies import CurrentContext
 from fastmcp.exceptions import ToolError
@@ -50,6 +53,7 @@ from .engine import (
 )
 from .read_policy import public_query_catalog, public_query_metadata, normalize_platform
 from .tables import FIELDS as SWITCH_TABLE_FIELDS
+from .overview import model as overview
 
 # Published argument limits: the gateway checks them against tools/list before a call reaches the Helper.
 PageOffset = Annotated[int, Field(strict=True, ge=0, le=8_000_000)]
@@ -165,6 +169,51 @@ async def _triage(ctx: Context, function, *arguments) -> dict[str, Any]:
         if not started:
             queue.put_nowait(None)
         await relaying
+
+
+OverviewAlias = Annotated[str, Field(strict=True, min_length=1, max_length=128, pattern=overview.ALIAS_PATTERN)]
+OverviewTargets = Annotated[list[OverviewAlias], Field(min_length=1, max_length=overview.MAX_TARGETS,
+                                                      json_schema_extra={"uniqueItems": True})]
+OverviewGroups = Annotated[list[Literal["switch", "router", "firewall"]],
+                           Field(min_length=1, max_length=3, json_schema_extra={"uniqueItems": True})]
+OverviewLimit = Annotated[int, Field(strict=True, ge=1, le=overview.MAX_TARGETS)]
+OverviewTimeout = Annotated[int, Field(strict=True, ge=5, le=120)]
+
+
+@mcp.tool
+async def network_overview(
+    targets: OverviewTargets = Field(default_factory=lambda: None),
+    groups: OverviewGroups = Field(default_factory=lambda: None),
+    limit: OverviewLimit = overview.DEFAULT_LIMIT,
+    after: OverviewAlias = Field(default_factory=lambda: None),
+    timeout_seconds: OverviewTimeout = overview.DEFAULT_TIMEOUT,
+    overview_plan: dict[str, Any] = Field(default_factory=dict),
+    ctx: Context = CurrentContext(),
+) -> dict[str, Any]:
+    """Collect a bounded operational snapshot from enrolled Helper targets and groups."""
+    from .overview import runner
+
+    if set(overview_plan) != {"remaining_ms", "started_at", "rows", "selection", "secrets"}:
+        raise ToolError("The overview requires an authorization-bound plan from the Helper proxy")
+    remaining = overview_plan["remaining_ms"]
+    if type(remaining) is not int or not 0 <= remaining <= timeout_seconds * 1000:
+        raise ToolError("Invalid internal overview time budget")
+    deadline = time.monotonic() + remaining / 1000
+    cancelled = Event()
+    operation = asyncio.create_task(_triage(ctx, runner.run, overview_plan, cancelled, deadline))
+    try:
+        return await asyncio.shield(operation)
+    except asyncio.CancelledError:
+        cancelled.set()
+        with CancelScope(shield=True):
+            while not operation.done():
+                try:
+                    await asyncio.wait((operation,))
+                except asyncio.CancelledError:
+                    continue
+        if not operation.cancelled():
+            operation.exception()
+        raise
 
 
 @mcp.tool

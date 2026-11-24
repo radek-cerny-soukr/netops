@@ -1,6 +1,7 @@
 {
   "platform": "eos",
   "table": "mlag-peer",
+  "measured": false,
   "versions": [
     "4.36.1F"
   ],
@@ -42,6 +43,6 @@
   "volatile": [],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "G125: changes selected parameters of an inactive MLAG domain. Domain ID, heartbeat and other peer configuration are preserved. The EOS session timer and scoped peer readback apply.",
+  "rollback_evidence": "Live verification pending: The live pair verified MLAG IDs; its peer parameter changes have automated coverage. eos mlag admin: changes selected parameters of an inactive MLAG domain. Domain ID, heartbeat and other peer configuration are preserved. The EOS session timer and scoped peer readback apply.",
   "implicit_keys": true
 }

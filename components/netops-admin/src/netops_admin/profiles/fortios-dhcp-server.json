@@ -1,0 +1,160 @@
+{
+  "platform": "fortios",
+  "table": "system dhcp server",
+  "versions": [
+    "7.6.8 build3744"
+  ],
+  "exact_versions": true,
+  "provisional": true,
+  "measured": true,
+  "ops": [
+    "create",
+    "update",
+    "delete"
+  ],
+  "key_pattern": "^[1-9][0-9]{0,9}$",
+  "protected_keys": [],
+  "attributes": {
+    "interface": {
+      "type": "text",
+      "required_on_create": true,
+      "update": false,
+      "unset": false,
+      "referenced_update": true,
+      "max_length": 15
+    },
+    "status": {
+      "type": "text",
+      "default": "enable",
+      "required_on_create": false,
+      "update": true,
+      "unset": false,
+      "referenced_update": true,
+      "pattern": "^(enable|disable)$",
+      "max_length": 7
+    },
+    "default-gateway": {
+      "type": "ipv4-address",
+      "default": "0.0.0.0",
+      "required_on_create": true,
+      "update": true,
+      "unset": false,
+      "referenced_update": true
+    },
+    "netmask": {
+      "type": "ipv4-address",
+      "required_on_create": true,
+      "update": true,
+      "unset": false,
+      "referenced_update": true
+    },
+    "lease-time": {
+      "type": "integer",
+      "default": "604800",
+      "required_on_create": false,
+      "update": true,
+      "unset": false,
+      "referenced_update": true,
+      "minimum": 300,
+      "maximum": 8640000
+    },
+    "dns-service": {
+      "type": "text",
+      "default": "specify",
+      "required_on_create": false,
+      "update": true,
+      "unset": false,
+      "referenced_update": true,
+      "pattern": "^(local|default|specify)$",
+      "max_length": 7
+    },
+    "dns-server1": {
+      "type": "ipv4-address",
+      "default": "0.0.0.0",
+      "required_on_create": false,
+      "update": true,
+      "unset": false,
+      "referenced_update": true
+    },
+    "dns-server2": {
+      "type": "ipv4-address",
+      "default": "0.0.0.0",
+      "required_on_create": false,
+      "update": true,
+      "unset": false,
+      "referenced_update": true
+    },
+    "dns-server3": {
+      "type": "ipv4-address",
+      "default": "0.0.0.0",
+      "required_on_create": false,
+      "update": true,
+      "unset": false,
+      "referenced_update": true
+    },
+    "ntp-service": {
+      "type": "text",
+      "default": "specify",
+      "required_on_create": false,
+      "update": true,
+      "unset": false,
+      "referenced_update": true,
+      "pattern": "^(local|default|specify)$",
+      "max_length": 7
+    },
+    "ntp-server1": {
+      "type": "ipv4-address",
+      "default": "0.0.0.0",
+      "required_on_create": false,
+      "update": true,
+      "unset": false,
+      "referenced_update": true
+    },
+    "ntp-server2": {
+      "type": "ipv4-address",
+      "default": "0.0.0.0",
+      "required_on_create": false,
+      "update": true,
+      "unset": false,
+      "referenced_update": true
+    },
+    "ntp-server3": {
+      "type": "ipv4-address",
+      "default": "0.0.0.0",
+      "required_on_create": false,
+      "update": true,
+      "unset": false,
+      "referenced_update": true
+    },
+    "domain": {
+      "type": "text",
+      "default": "",
+      "required_on_create": false,
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "max_length": 35
+    },
+    "timezone-option": {
+      "type": "text",
+      "default": "disable",
+      "required_on_create": false,
+      "update": true,
+      "unset": false,
+      "referenced_update": true,
+      "pattern": "^(disable|default)$",
+      "max_length": 7
+    }
+  },
+  "fixed": {
+    "server-type": "regular"
+  },
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "Verified live through Admin on the FortiGate-60F 7.6.8 build3744: create with status disable on a test VLAN, update to status enable with endpoint_impact, readback by the check account and undo of both (the undo of the create deletes the disabled server without ranges); the safeguard returned an interrupted status change at its expiry and admin recover settled it as reverted.",
+  "table_scoped_key": true,
+  "create_values": {
+    "status": "disable"
+  }
+}

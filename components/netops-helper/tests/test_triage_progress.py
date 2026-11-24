@@ -44,7 +44,8 @@ def collect():
 # ---- the reporter -------------------------------------------------------------------------------
 
 def test_every_triage_has_a_plan_and_the_proxy_charges_exactly_that_plan():
-    assert set(progress.TRIAGE_READS) == {"triage_health", "triage_routing", "triage_vpn", "triage_slb"}
+    assert set(progress.TRIAGE_READS) == {"triage_health", "triage_routing", "triage_vpn", "triage_slb", "network_overview"}
+    assert progress.TRIAGE_READS["network_overview"] == 30
     assert proxy_module.TRIAGE_READS == {**progress.TRIAGE_READS, "triage_flow": 5, "wifi_triage": 7, "triage_port": 16}
     assert proxy_module.TRIAGE_SLB_RATE_COST == 21 and proxy_module.TRIAGE_HEALTH_READS == 10
 
@@ -57,7 +58,7 @@ def test_steps_report_start_and_each_read_never_beyond_the_plan_and_survive_a_br
             steps.read(query)
     finally:
         progress.unbind(token)
-    # G14: the plan of triage_vpn has 6 reads (4 summary reads + 2 optional detail reads)
+    # IPSEC-STATUS: the plan of triage_vpn has 6 reads (4 summary reads + 2 optional detail reads)
     assert [item[0] for item in reports] == [0, 1, 2, 3, 4, 5, 6, 6, 6]
     assert {item[1] for item in reports} == {6}
     assert reports[0][2].startswith("triage_vpn: 0 of at most 6 reads")
@@ -111,7 +112,7 @@ def test_triage_vpn_reports_each_read(audit_log, monkeypatch):
         progress.unbind(token)
     assert result["ok"] is True
     done = [item[0] for item in reports]
-    # G14: the two detail queries are not enrolled; their refused reads still count as plan steps
+    # IPSEC-STATUS: the two detail queries are not enrolled; their refused reads still count as plan steps
     assert done == sorted(done) and done[0] == 0 and done[-1] == 6 and {item[1] for item in reports} == {6}
 
 

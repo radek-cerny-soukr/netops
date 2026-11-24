@@ -55,5 +55,5 @@
   "volatile": [],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "Junos commit confirmed and independent LACP/interface readback. A new LAG uses an Ethernet-switching logical unit. The plan raises chassis device-count only for a higher ae number and restores the original count on undo if no other aggregate needs the added capacity."
+  "rollback_evidence": "Live write and return on vJunos-switch 26.2R1.7 (2026-11-19): The LAG membership or RSTP settings were changed, read back and undone. Junos commit confirmed and independent LACP/interface readback. A new LAG uses an Ethernet-switching logical unit. The plan raises chassis device-count only for a higher ae number and restores the original count on undo if no other aggregate needs the added capacity."
 }

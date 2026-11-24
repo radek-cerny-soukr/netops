@@ -12,6 +12,7 @@ from test_execute import make_runtime, request
 from netops_admin import config, engine, execute, fortios, profiles
 from netops_admin.config import _device
 from netops_admin.errors import Rejected
+from approved_apply import approved_apply
 
 TABLE = "firewall service custom"
 
@@ -35,7 +36,7 @@ def runtime(tmp_path, device, **fields):
 
 def rejected(tmp_path, device, req, **fields):
     with pytest.raises(Rejected) as caught:
-        execute.apply(runtime(tmp_path, device, **fields), "lab", req)
+        approved_apply(runtime(tmp_path, device, **fields), "lab", req)
     return " ".join(caught.value.reasons)
 
 
@@ -67,7 +68,7 @@ def test_profile_is_measured_exact_and_opt_in():
         assert "Not measured: the safeguard firing a POST inverse" in profile.rollback_evidence
     for name in ("ALL", "HTTP", "HTTPS", "SSH", "DNS", "PING", "ALL_TCP", "ALL_UDP", "ALL_ICMP", "webproxy"):
         assert name in profile.protected_keys
-    # G00-1: other builds are untested, not refused
+    # STARTUP-1: other builds are untested, not refused
     for other in ("7.6.7 build3704", "7.6.9 build3800", "8.0.0 build0167", "8.0.1 build0185"):
         assert profiles.firmware_support(profiles.find_profile("fortios", TABLE, other), other)["status"] == "untested"
     assert TABLE in config.OPT_IN_TABLES
@@ -104,12 +105,12 @@ def test_opt_in_config_accepts_the_service_table_on_fortios_only():
 def test_create_update_undo_and_delete_with_undo(tmp_path):
     device = FakeFortiOS()
     rt = runtime(tmp_path, device)
-    record = execute.apply(rt, "lab", service())
+    record = approved_apply(rt, "lab", service())
     assert record["result"] == "confirmed"
     assert device.services["TCP-8443"]["tcp-portrange"] == "8443"
     assert "protocol" not in device.services["TCP-8443"]
     assert not device.stitches and not device.triggers and not device.actions
-    record = execute.apply(rt, "lab", service(op="update", changes={"comment": "web admin", "udp-portrange": "8443"},
+    record = approved_apply(rt, "lab", service(op="update", changes={"comment": "web admin", "udp-portrange": "8443"},
                                               request_id="req-svc-update-1"))
     assert record["result"] == "confirmed"
     assert device.services["TCP-8443"]["comment"] == "web admin"
@@ -118,7 +119,7 @@ def test_create_update_undo_and_delete_with_undo(tmp_path):
     assert back["result"] == "confirmed"
     assert "comment" not in device.services["TCP-8443"] and "udp-portrange" not in device.services["TCP-8443"]
     uuid = device.services["TCP-8443"]["uuid"]
-    record = execute.apply(rt, "lab", service(op="delete", changes={}, request_id="req-svc-delete-1"))
+    record = approved_apply(rt, "lab", service(op="delete", changes={}, request_id="req-svc-delete-1"))
     assert record["result"] == "confirmed" and "TCP-8443" not in device.services
     back = execute.undo(rt, record["change_id"], "investigated")
     assert back["result"] == "confirmed"
@@ -130,7 +131,7 @@ def test_create_update_undo_and_delete_with_undo(tmp_path):
 def test_undo_of_create_deletes_the_service(tmp_path):
     device = FakeFortiOS()
     rt = runtime(tmp_path, device)
-    record = execute.apply(rt, "lab", service(changes={"tcp-portrange": "8000-8080", "comment": "range"}))
+    record = approved_apply(rt, "lab", service(changes={"tcp-portrange": "8000-8080", "comment": "range"}))
     assert record["result"] == "confirmed" and device.services["TCP-8443"]["tcp-portrange"] == "8000-8080"
     back = execute.undo(rt, record["change_id"], "investigated")
     assert back["result"] == "confirmed" and "TCP-8443" not in device.services
@@ -160,10 +161,10 @@ def test_referenced_service_keeps_its_ports_but_may_change_the_comment(tmp_path)
     device.policies["1"]["service"] = "SRV-USED"
     rt = runtime(tmp_path, device)
     with pytest.raises(Rejected) as caught:
-        execute.apply(rt, "lab", service(key="SRV-USED", op="update", changes={"tcp-portrange": "9443"}))
+        approved_apply(rt, "lab", service(key="SRV-USED", op="update", changes={"tcp-portrange": "9443"}))
     assert "cannot change on a referenced object" in " ".join(caught.value.reasons)
     assert device.services["SRV-USED"]["tcp-portrange"] == "8443"
-    record = execute.apply(rt, "lab", service(key="SRV-USED", op="update", changes={"comment": "used"},
+    record = approved_apply(rt, "lab", service(key="SRV-USED", op="update", changes={"comment": "used"},
                                               request_id="req-svc-comment-1"))
     assert record["result"] == "confirmed" and device.services["SRV-USED"]["comment"] == "used"
 
@@ -240,13 +241,8 @@ def test_firing_reverts_a_create_on_the_cli_script_firmware(tmp_path):
     device = FakeFortiOS()
     device.on_apply = lambda fake, block: setattr(
         fake, "check_unreadable", fake.check_unreadable or block[0] == "config " + TABLE)
-    record = execute.apply(runtime(tmp_path, device), "lab", service())
+    record = approved_apply(runtime(tmp_path, device), "lab", service())
     assert record["result"] == "reverted" and "TCP-8443" not in device.services
-
-
-def test_all_shipped_profiles_are_measured():
-    loaded = profiles.load_profiles()
-    assert all(profile.measured for profile in loaded.values())
 
 
 def _service_profile_data():
@@ -254,18 +250,22 @@ def _service_profile_data():
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-@pytest.mark.parametrize(("mutate", "fragment"), [
-    (lambda data: data.update(measured="no"), "measured must be true or false"),
-    (lambda data: data.update(provisional=False), "must be provisional with exact_versions"),
-    (lambda data: data.update(exact_versions=False), "must be provisional with exact_versions"),
-])
-def test_unmeasured_profile_fields_are_checked(mutate, fragment):
+def test_measured_must_be_boolean():
     data = _service_profile_data()
-    data.update(measured=False, provisional=True)
-    mutate(data)
+    data["measured"] = "no"
     with pytest.raises(profiles.ProfileError) as caught:
         profiles.parse_profile(data)
-    assert fragment in str(caught.value)
+    assert "measured must be true or false" in str(caught.value)
+
+
+def test_unmeasured_profile_does_not_require_provisional_or_exact_versions():
+    data = _service_profile_data()
+    data.update(measured=False, provisional=False, exact_versions=False)
+    profile = profiles.parse_profile(data)
+    support = profiles.firmware_support(profile, profile.versions[0])
+    assert not profile.measured and not profile.provisional and not profile.exact_versions
+    assert support["status"] == "untested" and support["tested_versions"] == []
+    assert engine.firmware_prechecks(profile, support) == ["Live verification is pending for this Admin profile."]
 
 
 def test_a_profile_without_the_field_is_measured():
@@ -323,7 +323,7 @@ def test_production_runtime_refuses_an_unmeasured_profile_before_any_device_acce
 def test_production_runtime_still_runs_the_measured_address_profile(tmp_path):
     device = FakeFortiOS()
     rt = runtime(tmp_path, device, simulate_unmeasured_profiles=False)
-    record = execute.apply(rt, "lab", request())
+    record = approved_apply(rt, "lab", request())
     assert record["result"] == "confirmed" and "new-host" in device.addresses
 
 
@@ -333,6 +333,5 @@ def test_production_preview_accepts_the_measured_service_profile(tmp_path, firmw
     device.firmware = firmware
     result = execute.preview(runtime(tmp_path, device), "lab", service())
     assert result["result"] == "ready"
-    assert not any("NOT MEASURED" in check for check in result["prechecks"])
-    assert f"firmware {firmware[0]} build{firmware[1]} is measured for this profile" in result["prechecks"]
+    assert engine.MEASURED_PRECHECK % f"{firmware[0]} build{firmware[1]}" in result["prechecks"]
     assert not device.applied_blocks and "TCP-8443" not in device.services

@@ -1,0 +1,20 @@
+show | compare | no-more 
+[edit system]
+-  host-name host01;
++  host-name host02;
++  domain-name junos-port-ownership.example;
++  name-server {
++      192.0.2.53;
++  }
+[edit system syslog]
++    host 192.0.2.10 {
++        any notice;
++        port 5514;
++        facility-override local7;
++    }
+[edit system]
++   ntp {
++       server 192.0.2.1;
++       server 2001:db8:1::123;
++       source-address 192.0.2.9;
++   }
