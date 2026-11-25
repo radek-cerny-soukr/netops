@@ -2,7 +2,7 @@
 
 NetOps is a self-hosted MCP server for network diagnostics, audits and changes on enrolled devices. Clients use **MCP Streamable HTTP over HTTPS only**, with a bearer token and TLS verification.
 
-This README describes NetOps 1.0.13, the source version prepared for release.
+This README describes NetOps 1.0.13, the current release, published on 2026-11-24.
 
 ## What's new in 1.0.13
 
@@ -42,7 +42,13 @@ This version updates runtime dependencies, adds the `network_overview` Helper to
 
 #### Tested MCP clients
 
-**NetOps 1.0.13:** client acceptance with Codex CLI and Claude Code is pending. It runs on the release candidate image before the maintainer signs the release checksum list. The results will be published in the [release notes](release/notes-1.0.13.md#acceptance).
+**Tested for NetOps 1.0.13 (2026-11-24)** on the release candidate image, before the maintainer signed the release checksum list; the same image was published as the 1.0.13 image (index digest `sha256:d604f31c6d40df77ee6bc546209113f841cc75c1ed4466ec2e73721f2f546a20`). The client reports are among the acceptance reports (`acceptance-*.json`) covered by the signed checksum list of the [GitHub release v1.0.13](https://github.com/radek-cerny-soukr/netops/releases/tag/v1.0.13); see the [release notes](release/notes-1.0.13.md#post-release-update-2026-11-24):
+
+| Client | Version | Platform | Result |
+|---|---|---|---|
+| Codex CLI | 0.172.0 | Linux (Debian VM, amd64) | PASS 99/99 |
+| Claude Code | 2.1.331 | Linux (Debian VM, amd64) | PASS 99/99 |
+
 Codex CLI 0.171.0 and Claude Code 2.1.330 passed the client acceptance of the NetOps 1.0.12 image on Linux (Debian 13 VM); the result is recorded in the [release notes](release/notes-1.0.12.md#acceptance).
 
 ## Releases and upgrades
@@ -82,7 +88,7 @@ Only NetOps 1.0.x is supported. NetOps is distributed exclusively through GitHub
 | FortiADC | FortiADC-KVM 7.6.7 build0676 |
 | ExtremeXOS | EXOS-VM 33.6.1.14, X435/X440-G2 33.7.1.6-patch1-11 |
 | Cisco IOS / IOS XE | IOSv 15.9(3)M12, IOSvL2 15.2(20200924), IOL XE and IOL-L2 XE 17.18.2 |
-| Cisco NX-OS | Nexus 9000v 9.3(12) |
+| Cisco NX-OS | Nexus 9000v (N9K-C9300v) 9.3(12) |
 | Arista EOS | cEOSLab 4.36.1F |
 | Juniper Junos | vJunos-switch 26.2R1.7 |
 | Ruckus Unleashed | R610 200.15.6.212.27 |

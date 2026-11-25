@@ -2,7 +2,9 @@
 
 ## 1.0.13 - 2026-11-23
 
-The date marks the integration of these changes.
+The date marks the integration of these changes. NetOps 1.0.13 was released on 2026-11-24.
+
+Documentation corrected after the release (2026-11-24): the README, the release verification in the testing guide and the verified support state the 1.0.13 acceptance results, and the release notes have a dated post-release update with those results and the Admin re-enrollment after the upgrade from 1.0.12, without changes to the tagged text. The quickstart no longer ties more concurrent calls to the CPU quota, names `NETOPS_MEMORY` among the optional `.env` values, states the new login session after `usermod` more clearly and separates the downloaded installation subset from the complete release. `env.example` describes `NETOPS_CPUS` once.
 
 For the release notes of NetOps 1.0.7 through 1.0.12: Editorial change after release: lab identifiers removed, no change in content. The notes of NetOps 1.0.12 also correct two items after release: the Fortinet SSH item (the Auditor evaluates FortiADC exports and does not collect FortiADC over SSH, and FortiOS and FortiADC SSH require `host_key`) and the client acceptance, which is now attributed to the NetOps 1.0.12 image instead of the release candidate.
 

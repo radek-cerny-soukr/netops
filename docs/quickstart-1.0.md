@@ -26,11 +26,12 @@ Steps 1 to 3 require host administration. If your administrator has prepared Doc
 
 The host reaches `github.com` and `ghcr.io` for the release files and the image, MCP clients reach the published HTTPS port (default 8443), and the host reaches the enrolled devices on the ports of their reads and operations (SSH, HTTPS, SNMP) and, with syslog audit, the syslog receiver (default TCP 6514).
 
-The host minimum is 2 vCPUs, 2 GiB of RAM and 2 GiB of free disk ([minimum requirements](../README.md#minimum-requirements)). These values are the minimum for operation, not a load test. On a stronger host, set these in `.env` (the defaults suit the minimum):
+The host minimum is 2 vCPUs, 2 GiB of RAM and 2 GiB of free disk ([minimum requirements](../README.md#minimum-requirements)). The container defaults suit that minimum. On a stronger host, you can raise the container limits in `.env`.
 
-- `NETOPS_CPUS` (default 2): the CPU quota of the container. It does not change how many requests run at once: the gateway admits up to 16 concurrent requests.
-- `NETOPS_MEMORY` (default `1g`): the memory of the container; raise it for many clients or targets.
-- The local audit budget (`init --audit-budget <bytes>`, default 256 MiB, at least 16 MiB, chosen at the first `init`): a larger budget keeps a longer audit history and needs more disk.
+- `NETOPS_CPUS` (default 2) sets the CPU quota. The gateway independently admits up to 16 concurrent requests.
+- `NETOPS_MEMORY` (default `1g`) sets the container memory limit.
+
+To change the audit budget, pass `--audit-budget <bytes>` on the first `init`. The default is 256 MiB and the minimum is 16 MiB. A larger budget needs more disk and can retain more local audit history or queue more records for syslog delivery.
 
 On a 1-CPU host, `NETOPS_CPUS=1` lowers the container limit; the minimum stays 2 vCPU. The optional qualification tests are more demanding than operation: allow up to 2 GiB for the running qualification container, including tmpfs pages, plus memory for Docker and the build; see [docs/testing-1.0.md](testing-1.0.md).
 
@@ -109,18 +110,18 @@ Run every Docker command of this guide from the same account and Docker context.
 sudo usermod -aG docker "$USER"
 ```
 
-The group applies only to new login sessions: log out and log in again (for SSH, open a new connection). Then, without `sudo`:
+**Start a new login session after `usermod` succeeds.** Log out and log in again, open a fresh SSH connection, or run `sudo -iu "$USER"`. If access to the rootful Docker socket depends on the new group membership, Docker commands without `sudo` in a session started before the change can still fail with `permission denied while trying to connect to the Docker daemon socket`. Docker 29 can report `permission denied while trying to connect to the docker API at unix:///var/run/docker.sock`. In the new session, run these checks without `sudo`.
 
 ```sh
 id -nG
 docker info --format '{{.ServerVersion}}'
 ```
 
-`id -nG` must list `docker`, and `docker info` must print the Docker Engine version.
+`id -nG` must list `docker`, and `docker info` must print the Docker Engine version. If `docker` is missing, start a fresh login session and repeat the checks. If it is still missing, check that `usermod` succeeded for the account you are logged in as, and use `id -nG "$(id -un)"` to check that account's group membership.
 
 **Docker set up by the host administrator.** When someone else administers the host and has done steps 1 to 3 for your account, NetOps itself needs no sudo rights: check with the two commands above in a new login session and continue with step 4, which also says how to get `jq` and cosign without sudo.
 
-**Without a terminal**, for example in a script or with `ssh <host> '<command>'`, run the same commands, but `usermod` in one SSH connection and the check in a new one: in the connection that ran `usermod`, `docker info` still fails with `permission denied while trying to connect to the Docker daemon socket` (Docker 29 can word it differently, for example `permission denied while trying to connect to the docker API at unix:///var/run/docker.sock`; the meaning is the same). Every `sudo` command of this guide then needs sudo rights without a password prompt; otherwise `sudo` stops with `a terminal is required to read the password`.
+**Without a terminal**, for example in a script or with `ssh <host> '<command>'`, run `usermod` in one SSH connection. After it succeeds, use a fresh connection for the checks and every later step. An `ssh` command that OpenSSH multiplexes over an open connection (`ControlMaster`, `ControlPersist`) keeps the groups of that connection. Close the shared connection first with `ssh -O exit <host>` or connect with `-o ControlPath=none`. Without a terminal, a `sudo` command that prompts for a password stops with `a terminal is required to read the password`.
 
 **Rootless Docker.** Docker Engine in rootless mode is supported: the daemon runs as your account, without root. The rootless daemon replaces the system daemon for that account. Install its packages and stop the system daemon, as described in [Docker's rootless documentation](https://docs.docker.com/engine/security/rootless/):
 
@@ -249,7 +250,7 @@ If a download fails, the block stops before it installs anything, for example wi
 
 ## 5. Download and verify the release
 
-The block creates the private instance directory `~/netops` unless it exists, downloads `compose.yaml`, `env.example`, the release manifest `netops-1.0.13-manifest.json`, `netops-1.0.13-SHA256SUMS` and `netops-1.0.13-SHA256SUMS.sigstore.json` from the GitHub release into it and verifies the maintainer's signature and every downloaded file. Run every following command in `~/netops`. The block stops at the first failed command, so cosign never runs on an incomplete download, and it downloads nothing when `~/netops` already holds a `.env`, the configuration of an instance that [step 6](#6-configure-env) creates. The block sets the instance directory to mode 700, including an existing directory:
+The block creates the private instance directory `~/netops` unless it exists and downloads `compose.yaml`, `env.example`, the release manifest `netops-1.0.13-manifest.json`, `netops-1.0.13-SHA256SUMS` and `netops-1.0.13-SHA256SUMS.sigstore.json` from the GitHub release. It uses the bundle to verify the maintainer's signature on the checksum list, then checks the three installation files against that list. Run every following command in `~/netops`. The block stops at the first failed command, so cosign never runs on an incomplete download, and it downloads nothing when `~/netops` already holds a `.env`, the configuration of an instance that [step 6](#6-configure-env) creates. The block sets the instance directory to mode 700, including an existing directory:
 
 ```sh
 mkdir -p -m 700 ~/netops && cd ~/netops &&
@@ -266,14 +267,14 @@ cosign verify-blob --bundle netops-1.0.13-SHA256SUMS.sigstore.json \
 sha256sum -c --ignore-missing netops-1.0.13-SHA256SUMS
 ```
 
-cosign prints `Verified OK` and sha256sum prints `OK` for `compose.yaml`, `env.example` and `netops-1.0.13-manifest.json`; cosign covers the checksum file and its bundle. If a download or a check fails, do not continue with step 6. A failed download prints `curl` with the HTTP status, for example `curl: (22) The requested URL returned error: 504`; once the cause is fixed, or after a few minutes for a temporary error of GitHub, run the same block again: it downloads all five files again and overwrites those of the failed attempt, so nothing needs to be removed first. A failed first attempt can leave an empty `~/netops` (mode 700); that does no harm, because the block uses it again, and nothing needs to be deleted. If the block stops with `netops: ~/netops already holds .env; nothing downloaded`, do not remove the directory, since it can hold an existing instance; check what it holds first. Skipping the check does not make the files verified.
+Continue with step 6 only when both commands succeed: cosign prints `Verified OK`, and sha256sum prints an `OK` line for each of the three installation files `compose.yaml`, `env.example` and `netops-1.0.13-manifest.json`. cosign uses the bundle `netops-1.0.13-SHA256SUMS.sigstore.json` as the input for verifying the signature of `netops-1.0.13-SHA256SUMS`; the signature covers the checksum list, and the checksum list covers the files. `--ignore-missing` skips a listed file that is not in the directory without any message, so a missing `OK` line for one of the three files can mean a missing file, a file not listed in `netops-1.0.13-SHA256SUMS` or a failed check; in each case, do not continue. If a download or a check fails, do not continue with step 6. A failed download prints `curl` with the HTTP status, for example `curl: (22) The requested URL returned error: 504`; once the cause is fixed, or after a few minutes for a temporary error of GitHub, run the same block again: it downloads all five files again and overwrites those of the failed attempt, so nothing needs to be removed first. A failed first attempt can leave an empty `~/netops` (mode 700); that does no harm, because the block uses it again, and nothing needs to be deleted. If the block stops with `netops: ~/netops already holds .env; nothing downloaded`, do not remove the directory, since it can hold an existing instance; check what it holds first. Skipping the check does not make the files verified.
 
-**Files handed to you.** The official distribution is the GitHub release above. When the host cannot reach GitHub, or someone gives you the release files, copy the five files with their original names into `~/netops` (mode 700) and run only the `cosign verify-blob` and `sha256sum -c --ignore-missing` commands of the block, without the download loop. The check is the same, `Verified OK` and `OK`, and a file that was changed on the way fails it. The image is still pulled by its digest in step 7.
+**Files handed to you.** The official distribution is the GitHub release above. When the host cannot reach GitHub, or someone gives you the release files, copy the five files with their original names into `~/netops` (mode 700) and run only the `cosign verify-blob` and `sha256sum -c --ignore-missing` commands of the block, without the download loop. The check is the same: `Verified OK` and the three `OK` lines for `compose.yaml`, `env.example` and `netops-1.0.13-manifest.json`, so each of these files must be present and listed in `netops-1.0.13-SHA256SUMS`; a file that was changed on the way fails it. The image is still pulled by its digest in step 7.
 Files for which this `cosign verify-blob` command, with the certificate identity and issuer above, does not print `Verified OK` are not a verified release, even when `sha256sum` prints `OK`: do not continue with step 6.
 
-A pre-publication test kit may include a TEST-signed bundle with the same filename as the release bundle. The release verification command requires the maintainer’s GitHub certificate. A TEST signature can verify against its test key and still fail this release check. A kit assembled before acceptance export can also have a shorter checksum list. The complete acceptance manifest and reports are covered by the published release checksum list.
+**Pre-publication test kits.** A kit of release candidate files handed out for testing before a release is published is not a release. It can include a TEST-signed bundle with the same filename as the release bundle. The `cosign verify-blob` command above requires the maintainer’s GitHub certificate and an entry in the public transparency log, so it fails for such a bundle, for example with `failed to verify log inclusion: not enough verified log entries from transparency log: 0 < 1`, even when the TEST signature verifies against its test key. Such a kit can also have a shorter checksum list without the acceptance manifest and reports. How to check a kit is described in the instructions that come with it; continue to step 6 only with release files that pass both checks of this step.
 
-**Downloaded subset.** `netops-1.0.13-SHA256SUMS` lists every release file: `compose.yaml`, `env.example`, the manifest, for each of `amd64` and `arm64` an SBOM (`netops-1.0.13-linux-<arch>.cdx.json`), a scan report (`...-grype.json`) and a gate report (`...-gate.json`), the vulnerability assessments `netops-1.0.13-vulnerability-assessments.json`, the acceptance manifest `netops-1.0.13-acceptance-manifest.json` and the acceptance reports (`acceptance-*.json`). The block downloads only the files that the installation needs, so `sha256sum -c --ignore-missing` checks those three and silently skips the rest; a file that you have not downloaded is not verified. The reports, assessments and acceptance files are optional. To check them as well, download them from the same release page into `~/netops` and run `sha256sum -c --ignore-missing netops-1.0.13-SHA256SUMS` again; each downloaded file must print `OK`.
+**Installation subset and uploaded release assets.** `netops-1.0.13-SHA256SUMS` lists the uploaded release assets except for the checksum list itself and its Sigstore bundle. The list covers `compose.yaml`, `env.example`, the release manifest, the SBOMs (`netops-1.0.13-linux-<arch>.cdx.json`), scan reports (`...-grype.json`) and gate reports (`...-gate.json`) for `amd64` and `arm64`, the vulnerability assessments `netops-1.0.13-vulnerability-assessments.json`, the acceptance manifest `netops-1.0.13-acceptance-manifest.json` and the acceptance reports (`acceptance-*.json`). For installation, the checksum check requires only the three installation files. To check additional listed assets, download them into `~/netops` and run `sha256sum -c --ignore-missing netops-1.0.13-SHA256SUMS` again with the verified list. Check for an `OK` line for each additional asset. To verify all uploaded release assets, download them from the release page, including the checksum list and its bundle. Run the `cosign verify-blob` command above and require `Verified OK`, then run `sha256sum -c netops-1.0.13-SHA256SUMS` without `--ignore-missing`. The checksum command must succeed and print `OK` for each listed asset. A missing listed file causes the check to fail.
 
 The `env.example` of the release pins the image by the index digest recorded in the manifest; keep that digest pin. Use only the `env.example` of the release: the `env.example` in the source repository holds the placeholder `replace-me-with-signed-release-image-at-sha256-digest` instead of an image, and Compose stops at that line with `pull access denied for replace-me-with-signed-release-image-at-sha256-digest, repository does not exist or may require 'docker login'`. No registry login is needed for NetOps; download and verify the release files instead.
 
@@ -289,7 +290,7 @@ umask 077
 cp env.example .env
 ```
 
-`.env` holds four required values, which `NETOPS_CPUS` may supplement. Keep `NETOPS_IMAGE` exactly as pinned by digest in the release `env.example`. `NETOPS_PORT` is the host port (default `8443`). `NETOPS_BIND_IP` is the host address on which NetOps listens, and `NETOPS_SERVER_NAME` the DNS name that the MCP clients use and that the certificate carries. No bind address is selected implicitly, and IP certificate names and the unedited `env.example` placeholders are refused. Choose one of the two cases. The minimum is 2 vCPU, 2 GiB RAM and 2 GiB disk; on a stronger host raise `NETOPS_CPUS` (more concurrent calls) and `NETOPS_MEMORY` (container memory, default `1g`), and choose a larger `--audit-budget` at `init` for a longer local audit history ([README](../README.md#minimum-requirements)). On a host with one CPU, also add `NETOPS_CPUS=1` to `.env` before the first Compose run (`printf 'NETOPS_CPUS=1\n' >> .env`); Docker refuses the default of 2 CPUs there.
+`.env` holds four required values, which the optional `NETOPS_CPUS` and `NETOPS_MEMORY` may supplement. Keep `NETOPS_IMAGE` exactly as pinned by digest in the release `env.example`. `NETOPS_PORT` is the host port (default `8443`). `NETOPS_BIND_IP` is the host address on which NetOps listens, and `NETOPS_SERVER_NAME` the DNS name that the MCP clients use and that the certificate carries. No bind address is selected implicitly, and IP certificate names and the unedited `env.example` placeholders are refused. Choose one of the two cases. The minimum is 2 vCPU, 2 GiB RAM and 2 GiB disk; on a stronger host raise `NETOPS_CPUS` (the CPU quota of the container, default 2; the gateway, not the quota, limits how many requests run at once, see [Resource limits](#resource-limits)) and `NETOPS_MEMORY` (container memory, default `1g`), and choose a larger `--audit-budget` at `init` for a longer local audit history ([README](../README.md#minimum-requirements)). On a host with one CPU, also add `NETOPS_CPUS=1` to `.env` before the first Compose run (`printf 'NETOPS_CPUS=1\n' >> .env`); Docker refuses the default of 2 CPUs there.
 
 **MCP client on the same host.** This is the simplest setup and the one to start with: NetOps listens only on the loopback address and the clients use the name `localhost`:
 
@@ -330,13 +331,15 @@ cd ~/netops &&
 docker compose pull --quiet < /dev/null && docker compose run --rm -T netops init --audit local --accept-local-audit < /dev/null && docker compose up -d --wait < /dev/null && docker compose ps < /dev/null
 ```
 
-`docker compose pull --quiet` downloads the image from `ghcr.io` before `init` and prints no download progress, only the two short lines `Image <image> Pulling` and `Image <image> Pulled` (the `NETOPS_IMAGE` from `.env`) on standard error; no registry login is needed. If GHCR reports `content descriptor ... from remote: not found`, wait about a minute and repeat the pull with the same image digest. Docker Compose reports its own progress on standard error, mixed with the output of `init` in a terminal: the first `run` lists the network and the volume, each `docker compose run` may print `Container netops-netops-run-<id> Creating` and `Container netops-netops-run-<id> Created` before the output of NetOps, and `up` prints such lines for `netops-netops-1`. These lines come from Compose, not from NetOps; the outputs that this guide describes are those of NetOps. Interactive `init` asks in this order:
+`docker compose pull --quiet` fetches the pinned image from `ghcr.io` before `init`, without a registry login. If GHCR reports `content descriptor ... from remote: not found`, wait about a minute and repeat the pull with the same image digest. With typical Compose settings, its status messages on standard error can include `Image <image> Pulling` or `Pulled`, `Container netops-netops-run-<id> Creating` or `Created`, or `Container netops-netops-1 Healthy`. Compose may redraw progress in a terminal or emit plain lines in a script. Verify that `docker compose up -d --wait` succeeds and that `docker compose ps` shows `netops` as `Up ... (healthy)`.
+
+Interactive `init` asks in this order:
 
 1. `TLS syslog receiver (recommended; leave blank to choose local audit):` — enter the DNS name of the receiver, or press Enter for local audit.
 2. With a receiver: `TLS syslog port [6514]:` — press Enter for 6514 or enter the port.
 3. Without a receiver: init prints the disk warning of local audit and asks `Type LOCAL to accept local audit:` — type `LOCAL` in capitals. Any other answer stops init.
 
-`init` then prints the connection details (`MCP URL`, the `Authorization` header form and how to export the CA) and ends with `No network device is enrolled. ...`. The printed CA export command is the form for a terminal; you need not run it, because [step 8](#8-export-the-ca-and-the-token) exports the CA in the form that also works in a script, `docker compose run --rm -T netops ca < /dev/null > netops-ca.pem`. `docker compose ps` must show the service `netops` with the status `Up ... (healthy)`.
+`init` then prints the connection details (`MCP URL`, the `Authorization` header form and how to export the CA) and ends with `No network device is enrolled. ...`. The printed CA export command, `docker compose run --rm netops ca > netops-ca.pem`, is the form for a terminal and is printed without `-T` in a script as well; that is not an error. You need not run it, because [step 8](#8-export-the-ca-and-the-token) exports the CA in the form that also works in a script, `docker compose run --rm -T netops ca < /dev/null > netops-ca.pem`: `-T` runs NetOps without a terminal, so the file receives only the output of NetOps, and `< /dev/null` keeps Compose from reading the following lines of a script as input ([Commands in scripts](#commands-in-scripts)).
 
 Without a terminal, choose the audit explicitly as in the second block: `init --audit syslog --syslog-host <host> [--syslog-port <port>]` or `init --audit local --accept-local-audit`. Ending the input at an interactive prompt (EOF) stops init with `init needs an interactive terminal`.
 
@@ -350,8 +353,6 @@ Typed by hand in a terminal, the commands of this guide run as shown. In a scrip
 
 Export the public instance CA to `netops-ca.pem` and read the bearer token into the environment variable `NETOPS_TOKEN` of this shell. The token is the only credential an MCP client needs; `init` and the start output never print it, and `token show` is the command that does:
 
-Between the lines of the block the terminal also shows messages of Compose, such as `Container netops-netops-run-<id> Creating` and `Created`. Compose writes them to standard error, so they do not enter `netops-ca.pem` or `NETOPS_TOKEN`; they are not an error. Do not discard standard error: NetOps writes its own error messages there too.
-
 ```sh
 cd ~/netops &&
 umask 077 &&
@@ -362,7 +363,9 @@ test -n "$NETOPS_TOKEN" && printf 'NETOPS_TOKEN is set (%s characters)\n' "${#NE
 docker compose run --rm -T netops connection < /dev/null
 ```
 
-The block is the same typed in a terminal and in a script. Run the complete block and check its exit status (`echo $?` prints `0`) before continuing; each command runs only after the preceding one succeeds. `printf` shows that the token is set without printing it: `NETOPS_TOKEN is set (64 characters)`. `connection` prints the MCP URL, for example `MCP URL: https://localhost:8443/mcp`, and the expiry of the instance CA; its CA export hint is the terminal form of the first command of this block (see [Commands in scripts](#commands-in-scripts)). The token lives only in this shell: in a new shell, repeat the block. Do not write the token into a command line or a client configuration file; the only exception is the private token file (mode 0600) that `netops check-intent --token-file` reads, see [Intent check](helper-configuration.md#intent-check-netops-check-intent).
+With typical Compose settings, any of the three `docker compose run` commands may emit status messages such as `Container netops-netops-run-<id> Creating` and `Container netops-netops-run-<id> Created`. These go to standard error in a terminal or script, while `netops-ca.pem` and `NETOPS_TOKEN` capture standard output. Keep standard error visible for NetOps diagnostics. On success, `printf` and `connection` provide the visible standard output.
+
+The block is the same typed in a terminal and in a script. Run the complete block and check its exit status (`echo $?` prints `0`) before continuing; each command runs only after the preceding one succeeds. `printf` shows that the token is set without printing it: `NETOPS_TOKEN is set (64 characters)`. `connection` prints the MCP URL, for example `MCP URL: https://localhost:8443/mcp`, and the expiry of the instance CA; its CA export hint is the terminal form of the first command of this block, without `-T` and `< /dev/null`, as described in [step 7](#7-initialize-and-start). The token lives only in this shell: in a new shell, repeat the block. Do not write the token into a command line or a client configuration file; the only exception is the private token file (mode 0600) that `netops check-intent --token-file` reads, see [Intent check](helper-configuration.md#intent-check-netops-check-intent).
 
 `-T` runs the commands without a terminal in the container, so `netops-ca.pem` and `NETOPS_TOKEN` receive only the output of NetOps. With `umask 077` a new `netops-ca.pem` is created with mode 600; an existing file keeps its mode. It holds only the public instance CA certificate; an MCP client that runs under another local account needs read access to this file.
 
@@ -399,7 +402,7 @@ printf 'Authorization: Bearer %s\n' "$NETOPS_TOKEN" |
   -X POST "$NETOPS_URL" -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"curl-check","version":"1"}}}'
 ```
 
-It prints `200`. A curl error instead of a status code means that the client did not reach NetOps: a name that does not resolve, a port blocked by a firewall, or a CA file that does not match. Run the same two requests from a client machine, with `netops-ca.pem` copied there, to check the network path of a remote client.
+It prints `200`. If curl fails before it receives an HTTP response, it can print `000` along with an error. Check name resolution, firewall access to the port and the CA file. Run the same two requests from a client machine, with `netops-ca.pem` copied there, to check the network path of a remote client.
 
 The tool list needs no MCP session. Request it with the token and count the tools:
 
@@ -413,13 +416,22 @@ printf 'Authorization: Bearer %s\n' "$NETOPS_TOKEN" |
 
 It prints `50`: 32 Helper, 8 Auditor and 10 Admin tools. On an instance initialized with `init --disable-admin` it prints `40`, without the Admin tools.
 
+Optionally, compare this count with the tool list of the image. `netops selftest` prints the version and, for each role, the number and the names of its MCP tools as one JSON object; it reads only the image, not the state or the token of the instance. This check is optional: the installation and the later steps do not depend on it.
+
+```sh
+docker compose exec -T netops netops selftest < /dev/null |
+  jq -c '{version, tools: (.roles | map_values(.tools))}'
+```
+
+It prints `{"version":"1.0.13","tools":{"admin":10,"auditor":8,"helper":32}}`, the same 32 Helper, 8 Auditor and 10 Admin tools as `tools/list` above. `selftest` always lists the Admin tools of the image, so on an instance initialized with `init --disable-admin` it still prints `"admin":10` while `tools/list` prints `40`. Use `tools/list` and the counts in this guide to check tool availability. The release manifest `netops-1.0.13-manifest.json`, covered by the signed checksum list, records image digests and release file checksums.
+
 Finally read the audit summary:
 
 ```sh
 docker compose run --rm -T netops audit stats < /dev/null
 ```
 
-It prints one JSON object. With local audit, `records` counts the stored audit records, including the `initialize` and `tools/list` requests and their responses above; with syslog audit it counts only the records not yet delivered to the receiver. `unauthenticated_rejections` summarizes refused requests without a valid token: it is `null` until the first such request has been refused, and after the 401 check above it is an object whose `counts` include `authentication_required`. Refused requests are counted, never stored.
+It prints one JSON object. With local audit, `records` counts the stored audit records, including the `initialize` and `tools/list` requests and their responses above; with syslog audit it counts only the records not yet delivered to the receiver. `unauthenticated_rejections` summarizes refused requests without a valid token: it is `null` until the first such request has been refused, and after the 401 check above it is an object whose `counts` include `authentication_required`. Refused requests are counted, never stored. Besides the MCP requests and responses, `records` includes an `instance_start` record at each start. For each successful MCP request above, NetOps writes `connection_end` after it records the response in the audit and before it starts sending the response to the client. On a new local-audit instance started once and checked exactly as above, `records` is therefore `7`: `instance_start` and, for each of `initialize` and `tools/list`, the request, the response and `connection_end`.
 
 List the audited requests with their time and method:
 
@@ -432,24 +444,25 @@ With local audit it prints one line for `initialize` and one for `tools/list`. T
 
 The authenticated `GET /healthz` reads only local state, never contacts a device and rejects a query string with HTTP 400. It reports `status`, `version`, `uptime_s`, the `audit` block, `roles` and `admin_devices`; `admin_devices` is always `not_available` because the existing Admin interface cannot enumerate device states.
 
-- `ok`: audit storage is writable and every role is running. `degraded` (HTTP 200): a role is `unavailable`, the oldest queued syslog record is older than 60 seconds (`oldest_pending_s`) or the syslog forwarder is failing right now. `failed` (HTTP 503): audit storage is not writable, the audit file ends in an incomplete record or the syslog queue is full.
-- `oldest_pending_s` is the age in seconds of the oldest record still waiting for syslog delivery (0 in local mode or with an empty queue). A few queued records younger than 60 seconds are normal and keep `ok`. `queue_pending` counts the queued records.
+- The status is `failed` (HTTP 503) if the audit is unavailable or the syslog queue has reached its byte budget. An unwritable audit or an incomplete final record in the current local audit file makes the audit unavailable.
+- Otherwise it is `degraded` (HTTP 200) if a role is `unavailable`, the oldest queued syslog record is more than 60 seconds old, or syslog delivery is currently failing. With none of these conditions it is `ok` (HTTP 200).
+- `oldest_pending_s` is the age in seconds of the oldest record still waiting for syslog delivery (`0.0` in local mode or with an empty queue). `queue_pending` counts the queued records.
 - `syslog_delivery_errors` counts failed delivery attempts since the gateway started. It is informational, is never reset and does not by itself change `status`.
 - `roles` shows `running` or `unavailable` for each role; `admin` is `disabled` when `admin_enabled` is false, which does not degrade `status`.
-- Unlike MCP requests, a successful `/healthz` request is not written to the audit, because it changes nothing and reaches no device. Only a query-string rejection and a failure (503) are recorded, without the response body (authentication rejections are counted in the rejection summary as for every other path), so polling every 30 to 60 seconds does not fill the audit.
+- HTTP 200 checks create no audit records. The endpoint attempts to log query-string rejections and snapshots with status `failed` without storing the response body. Authentication rejections contribute to the rejection summary.
 
-Derive the health URL from the real MCP URL, the `NETOPS_URL` of [step 9](#9-check-the-instance-without-an-mcp-client) (the URL that `connection` prints), not from `localhost`; a remote client uses the server name of its own connection. `-sS` hides the progress meter and keeps error messages:
+Derive the health URL from the real MCP URL, the `NETOPS_URL` set above (the URL that `connection` prints), not from `localhost`; a remote client uses the server name of its own connection. `-sS` hides the progress meter and keeps error messages:
 
 ```sh
 printf 'Authorization: Bearer %s\n' "$NETOPS_TOKEN" |
   curl -sS --fail-with-body --cacert netops-ca.pem -H @- -w '\nHTTP %{http_code}\n' "${NETOPS_URL%/mcp}/healthz"
 ```
 
-A healthy instance prints a JSON body whose `status` is `ok`, followed by `HTTP 200`. `degraded` is also HTTP 200; `failed` is HTTP 503, and `curl` then prints the body and exits with 22. A curl error without an HTTP status means that the client did not reach NetOps (see the checks above).
+A healthy instance prints a JSON body on one line whose `status` is `ok`, followed by `HTTP 200`. On a new healthy instance with local audit and all roles enabled, the body holds `"status":"ok"`, `"version":"1.0.13"`, an `uptime_s` in seconds, the `audit` block with `"writable":true`, `"queue_pending":0`, `"oldest_pending_s":0.0` and `"syslog_delivery_errors":0`, `roles` with `"running"` for `helper`, `auditor` and `admin`, and `"admin_devices":"not_available"`. A `degraded` snapshot also returns HTTP 200. When curl receives an HTTP 503 response, `--fail-with-body` lets it print the body and exit with code 22. If curl fails before it receives an HTTP response, the write-out can print `HTTP 000` along with the error.
 
 ### Check the image that runs
 
-The signed manifest `netops-1.0.13-manifest.json` records two kinds of digest: `image.index_digest`, the multi-architecture index that `NETOPS_IMAGE` pins, and for each architecture the digest of its platform manifest (`image.platforms.<arch>.digest`). The container runs the platform manifest of its own architecture. Docker 29 with the containerd image store reports as the image ID (`docker inspect --format '{{.Image}}'`) the digest of the index or manifest, whereas the classic store reports the digest of the image configuration. The image ID is therefore not a reliable manifest digest and is not compared here; compare the platform manifest that Docker selected with the signed manifest:
+The release manifest `netops-1.0.13-manifest.json` is covered by the signed checksum list. It records `image.index_digest`, the multi-architecture index that `NETOPS_IMAGE` pins, and the platform manifest digest for each architecture (`image.platforms.<arch>.digest`). The container runs the image for its selected platform. Docker 29 with the containerd image store reports the index or manifest digest as the image ID (`docker inspect --format '{{.Image}}'`), while the classic store reports the image configuration digest. Compare the selected platform manifest digest from Docker with the corresponding value in the verified release manifest.
 
 ```sh
 cd ~/netops &&
@@ -457,7 +470,7 @@ case "$(uname -m)" in x86_64) ARCH=amd64 ;; aarch64) ARCH=arm64 ;; *) echo "unsu
 EXPECTED="$(jq -r --arg a "$ARCH" '.image.platforms[$a].digest' netops-1.0.13-manifest.json)" &&
 CONTAINER="$(docker compose ps -q netops < /dev/null)" &&
 RUNNING="$(docker container inspect --format '{{.ImageManifestDescriptor.digest}}' "$CONTAINER")" &&
-printf 'signed manifest: %s\nrunning image:   %s\n' "$EXPECTED" "$RUNNING" &&
+printf 'release manifest: %s\nrunning image:    %s\n' "$EXPECTED" "$RUNNING" &&
 test "$EXPECTED" = "$RUNNING" && echo MATCH
 ```
 
@@ -669,7 +682,7 @@ docker compose run --rm netops audit stats
 
 A pending entry with the outcome `response withheld because the token changed; the operation may have completed; inspect status and the device` belongs to a request that was dispatched while the token was rotated: the client received `token_rotated` instead of the result, and the audit holds no response record for it. The entry stays in `audit pending` as long as its request record is retained; a restart does not remove it, `audit recover` only quarantines an incomplete final record, and no command marks an entry as resolved. To settle it, find the request with the same `correlation` in `audit export`, which shows its tool and arguments, then check the outcome: for an Admin tool read `admin_status` with the original `request_id` argument and inspect the actual device. The `request_id` field of `audit pending` is the JSON-RPC message ID, not that Admin argument.
 
-Audit records are read in deterministic segment and queue order, which can differ from chronological event order if the system clock moves backward. Audit output is escaped for terminals. `audit export` writes JSONL for external processing. Audit times are in UTC. `audit` without an action (`audit show`) prints every retained record in the same form; `audit tail` prints the last 100 records, and `--lines N` changes that number (a larger N is limited to 10000 and 0 or a negative N shows no records; fewer records are shown when fewer are retained). `netops version` prints the product version, and `netops selftest` prints the version and the MCP tool names of each role as JSON (32 Helper, 8 Auditor and 10 Admin tools). Redaction is explicit; audit is parsed protocol content rather than a raw byte transcript. Device output is sensitive even after credential redaction.
+Audit records are read in deterministic segment and queue order, which can differ from chronological event order if the system clock moves backward. Audit output is escaped for terminals. `audit export` writes JSONL for external processing. Audit times are in UTC. `audit` without an action (`audit show`) prints every retained record in the same form; `audit tail` prints the last 100 records, and `--lines N` changes that number (a larger N is limited to 10000 and 0 or a negative N shows no records; fewer records are shown when fewer are retained). `netops version` prints the product version, and `netops selftest` prints the version and the number and names of the MCP tools of each role as JSON (32 Helper, 8 Auditor and 10 Admin tools; see the optional check in [step 9](#9-check-the-instance-without-an-mcp-client)). Redaction is explicit; audit is parsed protocol content rather than a raw byte transcript. Device output is sensitive even after credential redaction.
 
 The `jq` filter in [First call and its audit record](#first-call-and-its-audit-record) lists each MCP tool call with its time, tool name and whether a response with the same `correlation` was recorded.
 
@@ -907,19 +920,19 @@ All commands must succeed: cosign prints `Verified OK` and sha256sum prints `OK`
 
 ### Prepare the 1.0.13 instance
 
-The block creates the new, empty instance directory `~/netops-1.0.13` (`NEW_INSTANCE`), copies `compose.yaml` and `env.example` from the verified release directory into it and writes its `.env`: `NETOPS_IMAGE` exactly as pinned in the verified 1.0.13 `env.example`, which pins the index digest recorded in `netops-1.0.13-manifest.json`, the lines `NETOPS_BIND_IP`, `NETOPS_PORT` and `NETOPS_SERVER_NAME` of the `.env` of the 1.0.12 instance, together with an explicit `NETOPS_CPUS` if it has one, and `COMPOSE_PROJECT_NAME` with the project of the new instance. It only reads the files of the 1.0.12 instance and stops at the first failed command, also when the directory already exists:
+The block creates `~/netops-1.0.13` (`NEW_INSTANCE`), copies `compose.yaml` and `env.example` from the verified release directory into it and writes its `.env`. It takes the pinned `NETOPS_IMAGE` from the verified 1.0.13 `env.example`, copies `NETOPS_BIND_IP`, `NETOPS_PORT`, `NETOPS_SERVER_NAME` and any explicit `NETOPS_CPUS` or `NETOPS_MEMORY` from the 1.0.12 `.env`, then sets `COMPOSE_PROJECT_NAME` to the new project's name. It reads the old instance's files and stops at the first failed command, including when the new directory already exists.
 
 ```sh
 mkdir -m 700 "$NEW_INSTANCE" && cd "$NEW_INSTANCE" &&
 cp "$NEW_RELEASE/compose.yaml" "$NEW_RELEASE/env.example" . &&
 umask 077 &&
 grep '^NETOPS_IMAGE=' env.example > .env &&
-grep -E '^NETOPS_(BIND_IP|PORT|SERVER_NAME|CPUS)=' "$OLD_INSTANCE/.env" >> .env &&
+grep -E '^NETOPS_(BIND_IP|PORT|SERVER_NAME|CPUS|MEMORY)=' "$OLD_INSTANCE/.env" >> .env &&
 printf 'COMPOSE_PROJECT_NAME=%s\n' "$RESTORED_PROJECT" >> .env &&
 cat .env
 ```
 
-`cat .env` prints five lines: the 1.0.13 image, the bind address, port and server name of the 1.0.12 instance and `COMPOSE_PROJECT_NAME=netops-1013`, plus a sixth `NETOPS_CPUS=` line if the 1.0.12 `.env` set one (required on a one-CPU host). If the 1.0.12 instance runs on a one-CPU host without such a line, add `NETOPS_CPUS=1` to the new `.env`. Check the image pin and the project name of the new directory. The next block writes the resolved Compose configuration to `$BACKUP_DIR/compose-config-1.0.13.json`, while a `compose-config-1.0.12.json` from the earlier upgrade to 1.0.12 in the same directory stays unchanged, and then downloads the 1.0.13 image with `docker compose pull --quiet`, so that the restore block does not download it:
+Check that `cat .env` shows the 1.0.13 image pin, the old bind address, port and server name, and `COMPOSE_PROJECT_NAME=netops-1013`. It should also show a line for each of `NETOPS_CPUS` and `NETOPS_MEMORY` set explicitly in the old `.env`. If the 1.0.12 instance runs on a one-CPU host without a CPU limit line, add `NETOPS_CPUS=1` to the new `.env`. The next block writes the resolved Compose configuration to `$BACKUP_DIR/compose-config-1.0.13.json` and downloads the pinned image with `docker compose pull --quiet` before the restore.
 
 ```sh
 cd "$NEW_INSTANCE" &&
@@ -929,7 +942,7 @@ jq -r .name "$BACKUP_DIR/compose-config-1.0.13.json" &&
 docker compose pull --quiet < /dev/null
 ```
 
-- **Expected output.** The two image lines are identical apart from the file name in front of them, `jq` prints `netops-1013`, and `docker compose pull --quiet` prints no download progress, only the two short lines `Image <image> Pulling` and `Image <image> Pulled`.
+- **Expected output.** The two `NETOPS_IMAGE` assignments match and `jq` prints `netops-1013`. Check that `docker compose pull --quiet` exits successfully. With typical Compose settings it may display status messages such as `Image <image> Pulling` or `Image <image> Pulled`.
 - **If it fails.** Each command runs only after the preceding one succeeded, so a failure shows as a nonzero exit status and the message of Compose. Repeat the block after you fix the cause.
 - **Compose configuration file.** The redirection `>` has already truncated `compose-config-1.0.13.json` in `$BACKUP_DIR` to 0 bytes, also over a good file of the same name from an earlier run of this block, so after a failure of `docker compose config` the file may be empty or partial (and may still parse); do not use it, whatever its size and whatever `jq` does with it.
 - **Missing values.** If `docker compose config` fails with `Set NETOPS_BIND_IP`, `Set NETOPS_PORT` or `Set NETOPS_SERVER_NAME`, the `.env` of the 1.0.12 instance lacks that line; add it to the new `.env` with the value that the 1.0.12 instance uses.
